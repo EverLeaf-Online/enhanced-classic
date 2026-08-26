@@ -7,11 +7,13 @@ on:
     branches:
       - enhanced-dev
       - progression-dev
+      - content-dev
   pull_request:
     branches:
       - master
       - enhanced-dev
       - progression-dev
+      - content-dev
 
 jobs:
   build:
