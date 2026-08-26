@@ -62,6 +62,8 @@ public final class DedicatedEncounterCoordinator {
     public DedicatedEncounterInstance start(String instanceId, Instant now) {
         DedicatedEncounterInstance current = requireActive(instanceId);
         if (current.state() != EncounterInstanceState.CREATED) throw new IllegalStateException("instance_not_created");
+        if (!now.isBefore(current.deadline())) return expire(instanceId, now);
+
         DedicatedEncounterInstance started = new DedicatedEncounterInstance(
                 current.instanceId(), current.attemptId(), current.encounterId(), current.leaderCharacterId(),
                 current.participantCharacterIds(), current.practice(), EncounterInstanceState.ACTIVE,
@@ -74,6 +76,8 @@ public final class DedicatedEncounterCoordinator {
     public DedicatedEncounterInstance clear(String instanceId, Instant now) {
         DedicatedEncounterInstance current = requireActive(instanceId);
         if (current.state() != EncounterInstanceState.ACTIVE) throw new IllegalStateException("instance_not_active");
+        if (!now.isBefore(current.deadline())) return expire(instanceId, now);
+
         encounterService.clear(current.attemptId(), now);
         DedicatedEncounterInstance cleared = terminal(current, EncounterInstanceState.CLEARED, now);
         adapter.finish(cleared);
@@ -89,6 +93,32 @@ public final class DedicatedEncounterCoordinator {
         adapter.finish(failed);
         active.remove(instanceId);
         return failed;
+    }
+
+    public DedicatedEncounterInstance expire(String instanceId, Instant now) {
+        DedicatedEncounterInstance current = requireActive(instanceId);
+        if (current.terminal()) throw new IllegalStateException("instance_already_terminal");
+        encounterService.fail(current.attemptId(), now);
+        DedicatedEncounterInstance expired = terminal(current, EncounterInstanceState.EXPIRED, now);
+        adapter.finish(expired);
+        active.remove(instanceId);
+        return expired;
+    }
+
+    /** Expires all instances whose deadline has elapsed. Returns number cleaned up. */
+    public int expireDue(Instant now) {
+        int expired = 0;
+        for (DedicatedEncounterInstance instance : active.values()) {
+            if (!now.isBefore(instance.deadline())) {
+                try {
+                    expire(instance.instanceId(), now);
+                    expired++;
+                } catch (IllegalArgumentException ignored) {
+                    // Another thread completed/removed the instance first.
+                }
+            }
+        }
+        return expired;
     }
 
     public DedicatedEncounterInstance requireActive(String instanceId) {
