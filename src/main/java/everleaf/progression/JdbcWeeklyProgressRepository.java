@@ -13,6 +13,8 @@ import java.util.Optional;
 
 /** JDBC persistence for Everleaf's hybrid weekly progression model. */
 public final class JdbcWeeklyProgressRepository implements WeeklyProgressRepository {
+    private static final String WEEKLY_MARK_REASON = "WEEKLY_OBJECTIVE";
+
     private final DataSource dataSource;
 
     public JdbcWeeklyProgressRepository(DataSource dataSource) {
@@ -128,8 +130,18 @@ public final class JdbcWeeklyProgressRepository implements WeeklyProgressReposit
                     return ClaimCommitResult.rejected("account_budget_exhausted");
                 }
 
+                VerdantBalance balance = lockOrCreateVerdantBalance(connection, accountId);
+                int nextBalance = Math.addExact(balance.balance(), awarded);
+                String reasonKey = weekStartUtc + ":" + characterId + ":" + objectiveId;
+
+                // Weekly accounting, currency minting, ledger audit, and objective
+                // claiming commit together. A crash can never award Marks without
+                // consuming the claim (or consume the claim without awarding Marks).
                 updateClaimedPoints(connection, accountId, weekStartUtc, account.rewardPointsClaimed() + awarded);
+                creditVerdantMarks(connection, accountId, awarded, nextBalance);
+                insertVerdantLedger(connection, accountId, characterId, awarded, nextBalance, reasonKey, objectiveId);
                 markClaimed(connection, characterId, weekStartUtc, objectiveId, claimedAt);
+
                 connection.commit();
                 return ClaimCommitResult.committed(awarded);
             } catch (SQLException | RuntimeException e) {
@@ -179,6 +191,23 @@ public final class JdbcWeeklyProgressRepository implements WeeklyProgressReposit
         }
     }
 
+    private VerdantBalance lockOrCreateVerdantBalance(Connection connection, int accountId) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT IGNORE INTO everleaf_verdant_mark_balance (account_id, balance, lifetime_earned, lifetime_spent) VALUES (?, 0, 0, 0)")) {
+            statement.setInt(1, accountId);
+            statement.executeUpdate();
+        }
+
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT balance, lifetime_earned FROM everleaf_verdant_mark_balance WHERE account_id = ? FOR UPDATE")) {
+            statement.setInt(1, accountId);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) throw new SQLException("Unable to lock Everleaf Verdant Marks balance");
+                return new VerdantBalance(rs.getInt("balance"), rs.getLong("lifetime_earned"));
+            }
+        }
+    }
+
     private void updateClaimedPoints(Connection connection, int accountId, LocalDate week, int points) throws SQLException {
         String sql = "UPDATE everleaf_weekly_account_state SET reward_points_claimed = ? "
                 + "WHERE account_id = ? AND week_start_utc = ?";
@@ -186,6 +215,40 @@ public final class JdbcWeeklyProgressRepository implements WeeklyProgressReposit
             statement.setInt(1, points);
             statement.setInt(2, accountId);
             statement.setDate(3, Date.valueOf(week));
+            statement.executeUpdate();
+        }
+    }
+
+    private void creditVerdantMarks(Connection connection, int accountId, int awarded, int nextBalance) throws SQLException {
+        String sql = "UPDATE everleaf_verdant_mark_balance SET balance = ?, lifetime_earned = lifetime_earned + ? WHERE account_id = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, nextBalance);
+            statement.setInt(2, awarded);
+            statement.setInt(3, accountId);
+            if (statement.executeUpdate() != 1) throw new SQLException("Unable to update Verdant Marks balance");
+        }
+    }
+
+    private void insertVerdantLedger(
+            Connection connection,
+            int accountId,
+            int characterId,
+            int awarded,
+            int nextBalance,
+            String reasonKey,
+            String objectiveId
+    ) throws SQLException {
+        String sql = "INSERT INTO everleaf_verdant_mark_ledger "
+                + "(account_id, character_id, amount, balance_after, reason_type, reason_key, metadata) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?)";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, accountId);
+            statement.setInt(2, characterId);
+            statement.setInt(3, awarded);
+            statement.setInt(4, nextBalance);
+            statement.setString(5, WEEKLY_MARK_REASON);
+            statement.setString(6, reasonKey);
+            statement.setString(7, "objective=" + objectiveId);
             statement.executeUpdate();
         }
     }
@@ -237,5 +300,8 @@ public final class JdbcWeeklyProgressRepository implements WeeklyProgressReposit
                 completed == null ? null : completed.toInstant(),
                 claimed == null ? null : claimed.toInstant()
         );
+    }
+
+    private record VerdantBalance(int balance, long lifetimeEarned) {
     }
 }
