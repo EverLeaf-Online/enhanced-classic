@@ -115,4 +115,10 @@ Automated tests plus invited playtesting, economy simulation, progression teleme
 - Server name: **Everleaf**.
 - Upstream foundation forked from Cosmic.
 - `enhanced-dev` is the integration branch for Everleaf development.
-- M0/M1 foundation work is in progress.
+- CI compiles, runs the regression suite, packages the server, and publishes successful build artifacts.
+- Everleaf development configuration is applied deterministically in CI.
+- Level cap 250 support and regression coverage are in place.
+- The no-mandatory-HP-washing survivability policy and service are implemented with tests.
+- Shared endgame tiers and level-based progression unlock policy are implemented with tests.
+- M0 is substantially established; remaining foundation work includes operational health checks and database migration hardening.
+- M1 is active; the next gameplay work is progression/rate telemetry and the first M2 quest/PQ/content passes.
