@@ -11,3 +11,11 @@ Each script is only intended to be run __once__.
 When a new migration is available, simply run the SQL script in HeidiSQL (or other SQL client of choice).
 
 If there are multiple new migrations that you haven't run, run them in order starting with the lowest version and ending with the highest version.
+
+Everleaf progression migrations must be applied in this dependency order:
+
+1. `everleaf_weekly_progression.sql`
+2. `everleaf_verdant_marks.sql`
+3. `everleaf_enhanced_encounters.sql`
+4. `everleaf_rooted_materials.sql`
+5. `everleaf_rooted_forge.sql`
