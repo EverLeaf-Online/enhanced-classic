@@ -81,7 +81,11 @@ public final class SurvivabilityPolicy {
         if (level < 150) return 4;
         if (level < 180) return 5;
         if (level < 200) return 6;
-        return 7;
+        if (level < 210) return 7;
+        if (level < 225) return 8;
+        if (level < 240) return 9;
+        if (level < 250) return 10;
+        return 11;
     }
 
     private static int warriorFloor(int tier) {
@@ -93,7 +97,11 @@ public final class SurvivabilityPolicy {
             case 4 -> 10000;
             case 5 -> 13000;
             case 6 -> 16000;
-            default -> 19000;
+            case 7 -> 19000;
+            case 8 -> 21000;
+            case 9 -> 23000;
+            case 10 -> 25000;
+            default -> 27000;
         };
     }
 
@@ -106,7 +114,11 @@ public final class SurvivabilityPolicy {
             case 4 -> 8000;
             case 5 -> 10000;
             case 6 -> 12000;
-            default -> 14000;
+            case 7 -> 14000;
+            case 8 -> 15000;
+            case 9 -> 16500;
+            case 10 -> 18000;
+            default -> 20000;
         };
     }
 
@@ -119,7 +131,11 @@ public final class SurvivabilityPolicy {
             case 4 -> 5500;
             case 5 -> 6800;
             case 6 -> 8000;
-            default -> 9000;
+            case 7 -> 9000;
+            case 8 -> 9500;
+            case 9 -> 10500;
+            case 10 -> 11500;
+            default -> 12500;
         };
     }
 
@@ -132,7 +148,11 @@ public final class SurvivabilityPolicy {
             case 4 -> 4200;
             case 5 -> 5200;
             case 6 -> 6200;
-            default -> 7000;
+            case 7 -> 7000;
+            case 8 -> 7500;
+            case 9 -> 8200;
+            case 10 -> 9000;
+            default -> 10000;
         };
     }
 
@@ -145,7 +165,11 @@ public final class SurvivabilityPolicy {
             case 4 -> 4500;
             case 5 -> 5500;
             case 6 -> 6500;
-            default -> 7500;
+            case 7 -> 7500;
+            case 8 -> 8000;
+            case 9 -> 8800;
+            case 10 -> 9500;
+            default -> 10500;
         };
     }
 }
