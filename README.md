@@ -1,60 +1,83 @@
-# Everleaf — Enhanced Classic v83
+# Everleaf
 
 **Classic roots. New growth.**
 
-Everleaf is an Enhanced Classic MapleStory v83 server project built on Cosmic. It keeps the recognizable classic-game foundation while extending progression, reducing obsolete pain points, and creating a longer endgame through level 250.
+Everleaf is an Enhanced Classic v83 server project built on Cosmic, focused on preserving the recognizable classic MapleStory experience while modernizing progression, balance, quality-of-life, and long-term endgame play.
 
-## Current direction
+## Development direction
 
 - Level cap: **250**
-- Development rates: **5x EXP / 3x meso / 2x drop / 2x boss drop**
+- EXP: **5x**
+- Meso: **3x**
+- Drop: **2x**
+- Boss drop: **2x**
+- Quest multiplier: **1x**, with direct quest balancing planned
 - No mandatory HP washing
-- No pay-to-win donation progression
-- Post-200 endgame milestones at **200 / 210 / 225 / 240 / 250**
-- Named endgame phases: **Rooted / Awakened / Ascendant / Ancient / Evergreen**
-- Multiple progression lanes instead of one mandatory activity
-- Java 21 + Maven + GitHub Actions validation
-- Packaged CI server artifacts with build metadata
+- No pay-to-win donation rewards
+- Expanded 200–250 endgame progression
 
 ## Post-200 progression
 
-Everleaf treats level 200 as the beginning of extended endgame rather than the finish line. Progression is split across six lanes:
+Everleaf begins its extended endgame at level 200:
 
-- Boss
-- Weekly
-- Quest
-- Party
-- Collection
-- Guild
+- **200–209 — Rooted**
+- **210–224 — Awakened**
+- **225–239 — Ascendant**
+- **240–249 — Ancient**
+- **250 — Evergreen**
 
-The initial weekly framework uses deterministic Monday 00:00 UTC reset windows, tier-based weekly budgets, bounded objective rewards, and a two-week catch-up bank model. Exact content rewards and balance values remain development targets until playtesting.
+The endgame is divided into boss, weekly, quest, party, collection, and guild reward lanes so one activity does not become the only meaningful progression route.
 
-Player commands currently include:
+### Hybrid weeklies
 
-- `@progress` — current level, Everleaf tier, next milestone, and weekly budget.
-- `@weekly` / `@weeklies` — currently eligible weekly objective templates.
+Weekly objectives are character-scoped, while valuable weekly reward points and catch-up allowance are capped at the account level. This lets players enjoy alts without multiplying high-value weekly rewards across every character.
 
-See `docs/PROGRESSION_200_250.md` for the design model.
+Persistent weekly state is stored in:
 
-## Core principles
+- `everleaf_weekly_account_state`
+- `everleaf_weekly_character_objective`
 
-1. **Classic identity first.** Preserve recognizable v83 jobs, maps, combat, social systems, party quests, and progression.
-2. **No pay-to-win.** Donations may support the server, but gameplay power and competitive progression are earned in game.
-3. **No mandatory HP washing.** Endgame survivability should not require legacy INT/MP washing plans.
-4. **Useful content.** Quests, party play, bosses, exploration, collections, and guild activities should remain relevant.
-5. **Long-term progression.** Reaching level 200 or 250 should not exhaust meaningful account goals.
-6. **Test before tuning.** Rates, HP floors, weekly budgets, and endgame rewards are development values until validated through testing.
+Apply `database/sql/migration/everleaf_weekly_progression.sql` before enabling persistent weeklies on a database.
+
+Player commands:
+
+- `@progress` — current 200–250 tier and next milestone
+- `@weekly` / `@weeklies` — current UTC week, character objective progress, and account reward budget
 
 ## Development workflow
 
-`master` is the protected stable branch. Feature work is performed on development branches and merged through pull requests after CI succeeds.
+`master` is the protected stable branch. Feature development happens on dedicated branches and enters `master` through pull requests after the Java 21/Maven build passes.
 
-The build pipeline applies Everleaf configuration/source transforms, compiles and tests with Java 21, packages the server, generates build metadata, and uploads the resulting server artifact.
+The CI pipeline applies the Everleaf configuration/source transforms, compiles, runs tests, packages the server, generates a build manifest, and uploads the resulting artifact.
 
-## Deployment configuration
+## Building
 
-Production credentials and hosts should be supplied using the supported `EVERLEAF_*` environment overrides rather than committed directly to `config.yaml`. See `docs/DEPLOYMENT_CHECKLIST.md` for the current deployment checklist and safety rules.
+Requirements:
 
-## Upstream and licensing
+- Java 21
+- Maven wrapper included in the repository
 
-Everleaf is derived from Cosmic and the broader OdinMS/HeavenMS ecosystem. Upstream copyright and AGPL licensing notices remain applicable. This project is not affiliated with or endorsed by Nexon.
+On Linux/macOS:
+
+```bash
+chmod +x mvnw
+python3 tools/apply_everleaf_config.py
+python3 tools/apply_level_cap_250.py
+./mvnw -B package
+```
+
+The GitHub Actions workflow performs these steps automatically for active Everleaf development branches and pull requests.
+
+## Security and deployment
+
+Production database credentials and host configuration should be supplied outside the repository through Everleaf environment overrides. Do not expose MySQL publicly, do not run the game server as the MySQL root user, and do not enable public automatic registration without an intentional account-security design.
+
+See `docs/DEPLOYMENT_CHECKLIST.md` before any public deployment.
+
+## Donations
+
+Everleaf's donation policy is no-P2W. Donations may support cosmetics, visual effects, chairs, cosmetic presets, supporter badges/titles without combat stats, and carefully reviewed noncompetitive conveniences. Donations must not purchase best-in-slot equipment, stats, damage, survivability, better drop odds, or ranking advantages.
+
+## Upstream
+
+Everleaf is built from the Cosmic v83 server emulator and retains the upstream project's AGPL-3.0 licensing requirements and historical attribution. See the repository license and source history for details.
