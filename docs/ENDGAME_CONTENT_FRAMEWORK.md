@@ -40,6 +40,20 @@ Initial ladder:
 
 These definitions are policy contracts, not direct monster/map mutations. Concrete IDs and scripts stay behind adapters so encounter balance can evolve without contaminating progression policy.
 
+## Dedicated enhanced-boss instances
+
+Enhanced bosses use **dedicated party instances** rather than shared world-style boss maps.
+
+- Each party receives an isolated encounter instance.
+- The instance owns its own timer, encounter state, participants, and cleanup lifecycle.
+- Practice attempts remain available after the account has already earned that week's valuable boss reward.
+- Valuable weekly rewards remain account-scoped, preventing alt multiplication.
+- A short reconnect grace window is supported so transient disconnects do not automatically destroy an attempt.
+- Classic/non-enhanced encounters may keep their original shared/event behavior.
+- The progression layer only exposes instance contracts; Cosmic map/event-engine objects stay behind an adapter.
+
+The default instance policy currently uses a 120-second reconnect grace period and delayed cleanup, both intentionally centralized so they can be tuned without rewriting encounter scripts.
+
 ## Encounter principles
 
 - Enhanced bosses should not be simple HP multipliers.
@@ -61,8 +75,8 @@ These definitions are policy contracts, not direct monster/map mutations. Concre
 
 ## Next implementation pass
 
-1. Bind enhanced encounter contracts to reusable server-side encounter adapters.
-2. Add attempt/completion tracking and weekly boss reward eligibility.
-3. Define boss-specific material contracts and forge dependencies.
-4. Add GM/debug inspection hooks for encounter state.
-5. Implement Rooted Zakum first as the reference encounter before cloning the architecture into higher tiers.
+1. Bind the dedicated-instance adapter to Cosmic's event/map-instance infrastructure.
+2. Implement Rooted Zakum as the reference encounter.
+3. Add explicit attempt-entry validation for party member level/state/channel requirements.
+4. Add GM/debug inspection hooks for active encounter state.
+5. Define Rooted boss material contracts and the first forge dependency.
