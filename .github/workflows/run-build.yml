@@ -22,6 +22,8 @@ jobs:
           java-version: '21'
           distribution: 'corretto'
           cache: 'maven'
+      - name: Apply Enhanced Classic source transforms
+        run: python3 tools/apply_level_cap_250.py
       - name: Ensure Maven wrapper is executable
         run: chmod +x mvnw
       - name: Build with Maven (compile -> test -> package)
