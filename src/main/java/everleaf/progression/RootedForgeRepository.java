@@ -4,9 +4,13 @@ import java.util.Optional;
 
 /** Atomic payment and durable fulfillment storage for Rooted forging. */
 public interface RootedForgeRepository {
-    PurchaseResult purchase(int accountId, int characterId, RootedForgeRecipe recipe, String requestKey);
+    PurchaseResult purchase(int accountId, int characterId, RootedForgeRecipe recipe, RootedForgeTarget target, String requestKey);
 
     Optional<RootedForgeOrder> findByRequestKey(int accountId, String requestKey);
+
+    Optional<RootedForgeOrder> findById(long orderId);
+
+    boolean markFulfilled(long orderId);
 
     record PurchaseResult(boolean applied, String reason, RootedForgeOrder order) {
         public static PurchaseResult success(RootedForgeOrder order) {
