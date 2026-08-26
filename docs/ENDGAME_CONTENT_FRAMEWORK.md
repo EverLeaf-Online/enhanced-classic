@@ -76,13 +76,15 @@ The default instance policy currently uses a 120-second reconnect grace period a
 ## Current implementation state
 
 - Dedicated instances are bound to Cosmic's event/map-instance infrastructure.
-- Rooted Zakum is the reference encounter with explicit party entry validation.
-- Rooted weekly rewards, practice mode, account-bound materials, and deterministic forge outcomes are defined.
+- Rooted Zakum is playable with explicit party entry validation, three escalating timed add waves, a five-minute hard-enrage warning, and a 30-minute failure timer.
+- Every participant receives a persisted attempt; first weekly clears pay the fixed account-bound reward bundle and later clears automatically become practice runs.
 - Forge payment atomically debits Verdant Marks and all Rooted materials while creating a durable pending fulfillment order. Inventory delivery can therefore be retried without charging the player again.
+- The player-facing Rooted Forge previews fixed stats and costs, validates the exact inventory target, persists Stage 1, and makes refined equipment untradeable.
+- `!everleafops` lets authorized staff inspect encounter history and pending forge orders, then safely retry persisted reward or forge fulfillment without minting duplicates.
 
 ## Next implementation pass
 
-1. Bind pending Rooted forge orders to validated equipment inventory targets.
-2. Apply the fixed stat delta and mark fulfillment in one idempotent delivery flow.
-3. Add player-facing forge preview/confirmation interaction.
-4. Add GM/debug inspection hooks for active encounters and pending forge fulfillment.
+1. Validate all Everleaf migrations and the full encounter-to-forge loop against a live MySQL test server.
+2. Playtest Rooted Zakum's phase timing, add durability, party pressure, and 30-minute tuning with level-200 characters.
+3. Add active-instance inspection once the event engine exposes a stable cross-lobby registry.
+4. Record balance telemetry before designing Awakened Horntail.

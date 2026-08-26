@@ -31,6 +31,7 @@ This checklist separates development convenience from public-server requirements
 - [ ] Back up the database immediately before applying a new Everleaf migration.
 - [ ] Apply `database/sql/migration/everleaf_weekly_progression.sql` before enabling persistent post-200 weeklies.
 - [ ] Apply `database/sql/migration/everleaf_verdant_marks.sql` after the weekly progression migration and before allowing weekly claims.
+- [ ] Apply `everleaf_enhanced_encounters.sql`, `everleaf_rooted_materials.sql`, and `everleaf_rooted_forge.sql` in documented dependency order.
 - [ ] Confirm `everleaf_weekly_account_state` exists and is keyed by account + week.
 - [ ] Confirm `everleaf_weekly_character_objective` exists and is keyed by character + week + objective.
 - [ ] Confirm `everleaf_verdant_mark_balance` exists and is keyed by account.
@@ -41,6 +42,8 @@ This checklist separates development convenience from public-server requirements
 - [ ] Simulate a claim failure and confirm weekly accounting, objective state, balance, and ledger all roll back together.
 - [ ] Verify spend attempts cannot take a Verdant Marks account balance below zero.
 - [ ] Verify every successful earn/spend has exactly one matching ledger row.
+- [ ] Simulate an interrupted Rooted Forge delivery and recover it with `!everleafops retry <orderId>` while the owner is online.
+- [ ] Simulate an interrupted claimed encounter reward and recover it with `!everleafops reward <attemptId>` without duplicating Marks or materials.
 
 ## Gameplay validation
 
@@ -58,6 +61,8 @@ This checklist separates development convenience from public-server requirements
 - [ ] Cash Shop does not expose paid rate coupons.
 - [ ] Rankings sort characters correctly above level 200.
 - [ ] Basic trade, storage, guild, party, PQ, boss, and logout flows are regression-tested.
+- [ ] Rooted Zakum spawns all three pressure waves at the configured times, warns at minute 25, and ends at minute 30.
+- [ ] A second Rooted Zakum clear on the same account in the UTC week is visibly treated as practice and grants no valuable reward.
 
 ## Client safety
 
