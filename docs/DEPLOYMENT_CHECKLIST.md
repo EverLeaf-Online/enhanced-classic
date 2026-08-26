@@ -19,6 +19,16 @@ This checklist separates development convenience from public-server requirements
 - [ ] Confirm server startup emits no unresolved Everleaf deployment warnings.
 - [ ] Verify the packaged build manifest matches the expected commit, protocol version, level cap, and rates.
 
+## Database migrations
+
+- [ ] Back up the database immediately before applying a new Everleaf migration.
+- [ ] Apply `database/sql/migration/everleaf_weekly_progression.sql` before enabling persistent post-200 weeklies.
+- [ ] Confirm `everleaf_weekly_account_state` exists and is keyed by account + week.
+- [ ] Confirm `everleaf_weekly_character_objective` exists and is keyed by character + week + objective.
+- [ ] Verify the account and character foreign keys cascade on deletion as intended.
+- [ ] Run a two-character/same-account claim test and confirm the valuable weekly reward budget is shared.
+- [ ] Run a concurrent/double-claim test and confirm the second claim is rejected.
+
 ## Gameplay validation
 
 - [ ] New character creation and login work.
@@ -26,6 +36,7 @@ This checklist separates development convenience from public-server requirements
 - [ ] Level-up works through 199 -> 200 and all extended milestones.
 - [ ] Level 250 cannot gain an invalid 251st level.
 - [ ] `@progress` reports the correct tier and next milestone.
+- [ ] `@weekly` / `@weeklies` show the correct current UTC week, character objective progress, and shared account budget.
 - [ ] EXP requirements from 201 through 249 are valid and monotonic.
 - [ ] Cash Shop does not expose paid rate coupons.
 - [ ] Rankings sort characters correctly above level 200.
