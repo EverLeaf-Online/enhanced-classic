@@ -6,10 +6,12 @@ on:
   push:
     branches:
       - enhanced-dev
+      - progression-dev
   pull_request:
     branches:
       - master
       - enhanced-dev
+      - progression-dev
 
 jobs:
   build:
