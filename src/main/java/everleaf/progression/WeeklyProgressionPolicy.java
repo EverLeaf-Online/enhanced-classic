@@ -30,6 +30,16 @@ public final class WeeklyProgressionPolicy {
         return weekly == 0 ? 0 : weekly * 2;
     }
 
+    public static int maximumClaimablePoints(int level, int catchupPointsBank) {
+        if (catchupPointsBank < 0) throw new IllegalArgumentException("catchupPointsBank cannot be negative");
+        return weeklyCorePoints(level) + Math.min(catchupPointsBank, catchUpBankCap(level));
+    }
+
+    public static int remainingAccountBudget(int level, int catchupPointsBank, int alreadyClaimed) {
+        if (alreadyClaimed < 0) throw new IllegalArgumentException("alreadyClaimed cannot be negative");
+        return Math.max(0, maximumClaimablePoints(level, catchupPointsBank) - alreadyClaimed);
+    }
+
     public static int objectivePointCap(int level) {
         int weekly = weeklyCorePoints(level);
         return weekly == 0 ? 0 : Math.max(25, weekly / 2);
