@@ -14,9 +14,7 @@ public final class EncounterService {
 
     public EncounterAttempt start(int accountId, int characterId, int level, String encounterId, Instant now) {
         EnhancedBossDefinition definition = EnhancedBossCatalog.byId(encounterId);
-        if (!definition.isLevelEligible(level)) {
-            throw new IllegalStateException("level_gate");
-        }
+        if (!definition.isLevelEligible(level)) throw new IllegalStateException("level_gate");
         return repository.createAttempt(accountId, characterId, encounterId, now);
     }
 
@@ -36,14 +34,15 @@ public final class EncounterService {
 
     public boolean isWeeklyRewardEligible(int accountId, String encounterId, Instant now) {
         LocalDate week = WeeklyWindow.forInstant(now).startDate();
-        return !repository.hasWeeklyClear(accountId, encounterId, week);
+        return !repository.hasWeeklyRewardClaim(accountId, encounterId, week);
     }
 
-    public boolean claimWeeklyReward(long attemptId) {
+    public boolean claimWeeklyReward(long attemptId, Instant now) {
         EncounterAttempt attempt = repository.findAttempt(attemptId)
                 .orElseThrow(() -> new IllegalArgumentException("unknown attempt"));
-        if (!attempt.cleared()) return false;
-        if (attempt.weeklyRewardClaimed()) return false;
-        return repository.markWeeklyRewardClaimed(attemptId);
+        if (!attempt.cleared() || attempt.weeklyRewardClaimed()) return false;
+        LocalDate week = WeeklyWindow.forInstant(now).startDate();
+        if (repository.hasWeeklyRewardClaim(attempt.accountId(), attempt.encounterId(), week)) return false;
+        return repository.markWeeklyRewardClaimed(attemptId, week, now);
     }
 }
