@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply Enhanced Classic source changes deterministically.
+"""Apply Enhanced Classic / Everleaf source changes deterministically.
 
 This is an interim build transform while the fork is being separated from
 upstream Cosmic. It is intentionally idempotent and fails loudly when the
@@ -56,4 +56,17 @@ replace_once(
     """if (level <= 200) {\n            return exp[level];\n        }\n        if (level < 250) {\n            // Smooth post-200 curve: 1.70b at 201, approaching 2.0b at 249.\n            return Math.min(2_000_000_000, 1_700_000_000 + ((level - 201) * 6_250_000));\n        }\n        return Integer.MAX_VALUE;""",
 )
 
-print("Enhanced Classic level cap + survivability patch applied (250).")
+# Player/operator-facing server identity.
+server = Path("src/main/java/net/server/Server.java")
+replace_once(
+    server,
+    'log.info("Cosmic v{} starting up.", ServerConstants.VERSION);',
+    'log.info("Everleaf v83 Enhanced Classic starting up (protocol v{}).", ServerConstants.VERSION);',
+)
+replace_once(
+    server,
+    'log.info("Cosmic is now online after {} ms.", initDuration.toMillis());',
+    'log.info("Everleaf is now online after {} ms.", initDuration.toMillis());',
+)
+
+print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity).")
