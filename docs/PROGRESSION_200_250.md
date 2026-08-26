@@ -81,12 +81,19 @@ Everleaf weeklies are intentionally split between character freedom and account-
 - Weekly objective progress is **character-scoped**.
 - Different characters on the same account may complete their own eligible objectives.
 - Valuable weekly reward points are **account-capped** per UTC week.
-- Catch-up allowance is also account-scoped.
+- Catch-up allowance is also account-scoped and capped at two weeks of core progression.
 - Completing objectives on extra characters does not multiply the account's high-value reward budget.
 - Claims are committed atomically so concurrent/double claims cannot exceed the account cap.
 - Weekly windows reset Monday at 00:00 UTC.
+- Persistent state uses a dedicated account table and character-objective table.
 
 This model preserves alt play while preventing large alt rosters from multiplying capped endgame rewards.
+
+## Weekly reward layer boundary
+
+The server now has the mechanics to calculate, persist, cap, and atomically claim abstract weekly progression points. Those points are intentionally **not yet mapped to a permanent player-facing currency or item**.
+
+That separation lets the economy layer be chosen deliberately. The next economy decision is whether claimed weekly points become an account-bound spendable currency, directly unlock milestone rewards, or use a mixed model. Boss-specific materials remain a separate lane so weekly currency cannot replace all boss drops.
 
 ## Economy rules
 
