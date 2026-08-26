@@ -21,11 +21,12 @@ class SurvivabilityServiceTest {
         when(chr.getJob()).thenReturn(Job.NIGHTLORD);
         when(chr.getLevel()).thenReturn(120);
         when(chr.getMaxHp()).thenReturn(4000);
+        when(chr.assignHP(1500, 0)).thenReturn(true);
 
         int increase = service.applyCurrentFloor(chr);
 
         assertEquals(1500, increase);
-        verify(chr).setMaxHp(5500);
+        verify(chr).assignHP(1500, 0);
     }
 
     @Test
@@ -38,7 +39,18 @@ class SurvivabilityServiceTest {
         int increase = service.applyCurrentFloor(chr);
 
         assertEquals(0, increase);
-        verify(chr, never()).setMaxHp(org.mockito.ArgumentMatchers.anyInt());
+        verify(chr, never()).assignHP(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void reportsNoIncreaseWhenCharacterRejectsMutation() {
+        Character chr = mock(Character.class);
+        when(chr.getJob()).thenReturn(Job.NIGHTLORD);
+        when(chr.getLevel()).thenReturn(120);
+        when(chr.getMaxHp()).thenReturn(4000);
+        when(chr.assignHP(1500, 0)).thenReturn(false);
+
+        assertEquals(0, service.applyCurrentFloor(chr));
     }
 
     @Test
