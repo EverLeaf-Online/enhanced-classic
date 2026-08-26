@@ -1,5 +1,6 @@
 package everleaf.progression;
 
+import java.util.List;
 import java.util.Optional;
 
 /** Atomic payment and durable fulfillment storage for Rooted forging. */
@@ -9,6 +10,10 @@ public interface RootedForgeRepository {
     Optional<RootedForgeOrder> findByRequestKey(int accountId, String requestKey);
 
     Optional<RootedForgeOrder> findById(long orderId);
+
+    default List<RootedForgeOrder> pendingOrders(int limit) {
+        return List.of();
+    }
 
     boolean markFulfilled(long orderId);
 

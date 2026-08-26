@@ -100,6 +100,7 @@ import client.command.commands.gm3.CheckDmgCommand;
 import client.command.commands.gm3.ClosePortalCommand;
 import client.command.commands.gm3.DebuffCommand;
 import client.command.commands.gm3.EndEventCommand;
+import client.command.commands.gm3.EverleafOpsCommand;
 import client.command.commands.gm3.ExpedsCommand;
 import client.command.commands.gm3.FaceCommand;
 import client.command.commands.gm3.FameCommand;
@@ -469,6 +470,7 @@ public class CommandsExecutor {
         addCommand("pe", 3, PeCommand.class);
         addCommand("startevent", 3, StartEventCommand.class);
         addCommand("endevent", 3, EndEventCommand.class);
+        addCommand("everleafops", 3, EverleafOpsCommand.class);
         addCommand("startmapevent", 3, StartMapEventCommand.class);
         addCommand("stopmapevent", 3, StopMapEventCommand.class);
         addCommand("online2", 3, OnlineTwoCommand.class);

@@ -4,6 +4,8 @@ import javax.sql.DataSource;
 import java.sql.*;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -105,6 +107,30 @@ public final class JdbcRootedForgeRepository implements RootedForgeRepository {
             }
         } catch (SQLException e) {
             throw new IllegalStateException("Failed to load Rooted forge order", e);
+        }
+    }
+
+    @Override
+    public List<RootedForgeOrder> pendingOrders(int limit) {
+        if (limit < 1 || limit > 100) throw new IllegalArgumentException("limit must be 1-100");
+        String sql = "SELECT id, account_id, character_id, recipe, target_item_id, target_inventory_type, "
+                + "target_slot, request_key, status, created_at FROM everleaf_rooted_forge_order "
+                + "WHERE status = 'PENDING' ORDER BY id ASC LIMIT ?";
+        try (Connection connection = dataSource.getConnection(); PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setInt(1, limit);
+            List<RootedForgeOrder> orders = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    orders.add(new RootedForgeOrder(
+                            rs.getLong("id"), rs.getInt("account_id"), rs.getInt("character_id"),
+                            RootedForgeRecipe.valueOf(rs.getString("recipe")), readTarget(rs),
+                            rs.getString("request_key"), RootedForgeOrder.Status.valueOf(rs.getString("status")),
+                            rs.getTimestamp("created_at").toInstant()));
+                }
+            }
+            return List.copyOf(orders);
+        } catch (SQLException e) {
+            throw new IllegalStateException("Failed to list pending Rooted forge orders", e);
         }
     }
 
