@@ -30,7 +30,7 @@ The endgame is divided into boss, weekly, quest, party, collection, and guild re
 
 ### Hybrid weeklies
 
-Weekly objectives are character-scoped, while valuable weekly reward points and catch-up allowance are capped at the account level. This lets players enjoy alts without multiplying high-value weekly rewards across every character.
+Weekly objectives are character-scoped, while valuable weekly rewards and catch-up allowance are capped at the account level. This lets players enjoy alts without multiplying high-value weekly rewards across every character.
 
 Persistent weekly state is stored in:
 
@@ -39,10 +39,25 @@ Persistent weekly state is stored in:
 
 Apply `database/sql/migration/everleaf_weekly_progression.sql` before enabling persistent weeklies on a database.
 
+### Verdant Marks
+
+Verdant Marks are Everleaf's account-bound gameplay-earned post-200 currency. A successful weekly claim updates the weekly account budget, credits the account's Verdant Marks balance, writes the immutable currency ledger entry, and consumes the character objective claim in the same database transaction.
+
+The initial reward architecture permits progression materials, catch-up rewards, cosmetics, utility/QoL rewards, and gear-upgrade components. Finished direct best-in-slot equipment and pay-to-win reward definitions are rejected by policy code. Donation currency does not convert into Verdant Marks.
+
+Persistent Verdant Marks state is stored in:
+
+- `everleaf_verdant_mark_balance`
+- `everleaf_verdant_mark_ledger`
+
+Apply `database/sql/migration/everleaf_verdant_marks.sql` after the weekly progression migration. Current catalog prices and limits are development tuning values; concrete item/script fulfillment remains intentionally separate from the currency accounting layer.
+
 Player commands:
 
 - `@progress` — current 200–250 tier and next milestone
 - `@weekly` / `@weeklies` — current UTC week, character objective progress, and account reward budget
+- `@marks` / `@verdant` — account Verdant Marks balance and eligible reward preview
+- `@marks history` — recent Verdant Marks ledger activity
 
 ## Development workflow
 
