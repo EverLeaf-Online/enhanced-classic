@@ -32,12 +32,18 @@ class SurvivabilityPolicyTest {
         assertEquals(6800, SurvivabilityPolicy.minimumMaxHp(Job.NIGHTLORD, 150));
         assertEquals(8000, SurvivabilityPolicy.minimumMaxHp(Job.NIGHTLORD, 180));
         assertEquals(9000, SurvivabilityPolicy.minimumMaxHp(Job.NIGHTLORD, 200));
+        assertEquals(9500, SurvivabilityPolicy.minimumMaxHp(Job.NIGHTLORD, 210));
+        assertEquals(10500, SurvivabilityPolicy.minimumMaxHp(Job.NIGHTLORD, 225));
+        assertEquals(11500, SurvivabilityPolicy.minimumMaxHp(Job.NIGHTLORD, 240));
+        assertEquals(12500, SurvivabilityPolicy.minimumMaxHp(Job.NIGHTLORD, 250));
     }
 
     @Test
     void warriorFloorsRemainHigherThanRangedFloors() {
         assertEquals(10000, SurvivabilityPolicy.minimumMaxHp(Job.HERO, 120));
         assertEquals(5500, SurvivabilityPolicy.minimumMaxHp(Job.BOWMASTER, 120));
+        assertEquals(27000, SurvivabilityPolicy.minimumMaxHp(Job.HERO, 250));
+        assertEquals(12500, SurvivabilityPolicy.minimumMaxHp(Job.BOWMASTER, 250));
     }
 
     @Test
@@ -45,6 +51,7 @@ class SurvivabilityPolicyTest {
         assertEquals(1500, SurvivabilityPolicy.requiredIncrease(Job.NIGHTLORD, 120, 4000));
         assertEquals(0, SurvivabilityPolicy.requiredIncrease(Job.NIGHTLORD, 120, 5500));
         assertEquals(0, SurvivabilityPolicy.requiredIncrease(Job.NIGHTLORD, 120, 7000));
+        assertEquals(2500, SurvivabilityPolicy.requiredIncrease(Job.NIGHTLORD, 250, 10000));
     }
 
     @Test
