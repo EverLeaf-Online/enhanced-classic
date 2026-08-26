@@ -23,7 +23,12 @@ public class SurvivabilityService {
             return 0;
         }
 
-        character.setMaxHp(currentMaxHp + increase);
+        // Use Character's public HP mutation API so the change follows the same
+        // limits/update path as other permanent MaxHP changes. Passing 0 keeps
+        // this progression grant separate from legacy HP/MP AP spending.
+        if (!character.assignHP(increase, 0)) {
+            return 0;
+        }
         return increase;
     }
 }
