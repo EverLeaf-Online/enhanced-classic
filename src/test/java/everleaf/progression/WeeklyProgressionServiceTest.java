@@ -88,5 +88,26 @@ class WeeklyProgressionServiceTest {
             characterStates.put(state.characterId() + ":" + state.weekStartUtc() + ":" + state.objectiveId(), state);
             return state;
         }
+
+        @Override
+        public ClaimCommitResult commitClaim(int accountId, int characterId, LocalDate weekStartUtc, String objectiveId,
+                                             int pointsToAward, int maximumAccountPoints, Instant claimedAt) {
+            CharacterObjectiveState objective = findCharacterObjective(characterId, weekStartUtc, objectiveId).orElse(null);
+            if (objective == null || !objective.completed()) return ClaimCommitResult.rejected("not_complete");
+            if (objective.claimed()) return ClaimCommitResult.rejected("already_claimed");
+
+            AccountWeeklyState account = findAccountState(accountId, weekStartUtc)
+                    .orElse(new AccountWeeklyState(accountId, weekStartUtc, 0, 0));
+            int remaining = Math.max(0, maximumAccountPoints - account.rewardPointsClaimed());
+            int awarded = Math.min(pointsToAward, remaining);
+            if (awarded <= 0) return ClaimCommitResult.rejected("account_budget_exhausted");
+
+            saveAccountState(account.withClaimedPoints(awarded));
+            saveCharacterObjective(new CharacterObjectiveState(
+                    objective.characterId(), objective.weekStartUtc(), objective.objectiveId(),
+                    objective.progressCount(), objective.completedAt(), claimedAt
+            ));
+            return ClaimCommitResult.committed(awarded);
+        }
     }
 }
