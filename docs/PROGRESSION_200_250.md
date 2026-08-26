@@ -68,7 +68,7 @@ Initial systems:
 Post-200 rewards use several independent lanes so one activity cannot dominate the entire game:
 
 1. **Boss lane** — boss-specific materials, equipment, cosmetics, mastery achievements.
-2. **Weekly lane** — predictable account/character progression currency with sensible caps.
+2. **Weekly lane** — predictable account/character progression with sensible caps, paid out as Verdant Marks.
 3. **Quest lane** — one-time story/progression unlocks and meaningful EXP.
 4. **Party lane** — PQ/endgame group rewards and catch-up opportunities.
 5. **Collection lane** — exploration, monsters, bosses, items, achievements, and cosmetics.
@@ -80,7 +80,7 @@ Everleaf weeklies are intentionally split between character freedom and account-
 
 - Weekly objective progress is **character-scoped**.
 - Different characters on the same account may complete their own eligible objectives.
-- Valuable weekly reward points are **account-capped** per UTC week.
+- Valuable weekly rewards are **account-capped** per UTC week.
 - Catch-up allowance is also account-scoped and capped at two weeks of core progression.
 - Completing objectives on extra characters does not multiply the account's high-value reward budget.
 - Claims are committed atomically so concurrent/double claims cannot exceed the account cap.
@@ -89,20 +89,38 @@ Everleaf weeklies are intentionally split between character freedom and account-
 
 This model preserves alt play while preventing large alt rosters from multiplying capped endgame rewards.
 
-## Weekly reward layer boundary
+## Verdant Marks
 
-The server now has the mechanics to calculate, persist, cap, and atomically claim abstract weekly progression points. Those points are intentionally **not yet mapped to a permanent player-facing currency or item**.
+**Verdant Marks** are Everleaf's approved account-bound post-200 weekly progression currency.
 
-That separation lets the economy layer be chosen deliberately. The next economy decision is whether claimed weekly points become an account-bound spendable currency, directly unlock milestone rewards, or use a mixed model. Boss-specific materials remain a separate lane so weekly currency cannot replace all boss drops.
+- Successful weekly claims mint Verdant Marks into a shared account balance.
+- The weekly claim, account budget update, Verdant Marks balance update, ledger entry, and objective claim are committed in one database transaction.
+- Every earn/spend mutation is recorded in an immutable audit ledger.
+- Verdant Marks cannot be traded between players.
+- Donation currency must never convert into Verdant Marks.
+- Boss-specific materials remain separate so weeklies do not replace boss progression.
+- Level milestones at 200 / 210 / 225 / 240 / 250 unlock content directly rather than charging Verdant Marks.
+
+The approved reward-shop categories are:
+
+- Progression materials.
+- Catch-up items.
+- Cosmetics.
+- Utility / quality-of-life rewards.
+- Gear-upgrade components.
+
+Finished/direct best-in-slot equipment is intentionally excluded. The reward-definition contract rejects direct-BiS and pay-to-win reward tags so future shop content cannot accidentally violate this rule without changing tested code.
 
 ## Economy rules
 
 - Avoid raw meso as the primary endgame reward.
 - Prefer bound or purpose-specific progression materials where inflation would be dangerous.
 - Best-in-slot power must not be purchasable through donations.
+- Verdant Marks must remain gameplay-earned and account-bound.
 - Weekly caps should limit compulsory grinding without making additional play worthless.
 - Alternate activities should provide comparable progress at different efficiencies and social requirements.
 - Catch-up systems should target returning/new players without invalidating active-player effort.
+- Reward-shop purchase operations require unique purchase transaction keys so retries are idempotent without preventing legitimate repeat purchases.
 
 ## Milestone rewards
 
@@ -114,4 +132,4 @@ Milestone rewards should primarily unlock systems and recognition rather than du
 - **240:** unlock Tier IV capstone progression.
 - **250:** capstone achievement, title/cosmetic recognition, Evergreen progression access.
 
-Exact items, bosses, currencies, and numerical reward values are introduced in isolated systems with tests rather than hard-coded into the tier policy.
+Exact reward-shop items, item IDs, prices, and purchase limits are economy-tuning decisions and are intentionally kept outside the core tier policy.
