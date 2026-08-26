@@ -16,6 +16,27 @@ on:
       - content-dev
 
 jobs:
+  migration-smoke-test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: everleaf_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --host=127.0.0.1 --user=root --password=everleaf_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Apply and verify Everleaf migrations
+        env:
+          EVERLEAF_TEST_MYSQL_PASSWORD: everleaf_test
+        run: bash tools/test_everleaf_migrations.sh
+
   build:
     runs-on: ubuntu-latest
     steps:
