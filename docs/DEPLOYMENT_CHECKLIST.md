@@ -1,5 +1,12 @@
 # Everleaf Deployment Checklist
 
+## Development environment
+
+- [ ] Open the repository in its Dev Container or GitHub Codespaces configuration.
+- [ ] Run `bash tools/check_dev_environment.sh` and confirm JDK 21, `javac`, and Maven Central are available.
+- [ ] Run `./mvnw -B test` before requesting a merge.
+- [ ] Confirm the required GitHub Actions build check is green.
+
 This checklist separates development convenience from public-server requirements.
 
 ## Before any public deployment
