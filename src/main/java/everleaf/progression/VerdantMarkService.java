@@ -25,12 +25,14 @@ public final class VerdantMarkService {
             String objectiveId
     ) {
         if (amount <= 0) throw new IllegalArgumentException("amount must be positive");
+        if (weekKey == null || weekKey.isBlank()) throw new IllegalArgumentException("weekKey cannot be blank");
+        if (objectiveId == null || objectiveId.isBlank()) throw new IllegalArgumentException("objectiveId cannot be blank");
         return repository.credit(
                 accountId,
                 characterId,
                 amount,
                 "WEEKLY_OBJECTIVE",
-                weekKey + ":" + objectiveId,
+                weekKey + ":" + characterId + ":" + objectiveId,
                 "objective=" + objectiveId
         );
     }
