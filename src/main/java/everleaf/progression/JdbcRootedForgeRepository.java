@@ -19,9 +19,10 @@ public final class JdbcRootedForgeRepository implements RootedForgeRepository {
     }
 
     @Override
-    public PurchaseResult purchase(int accountId, int characterId, RootedForgeRecipe recipe, String requestKey) {
+    public PurchaseResult purchase(int accountId, int characterId, RootedForgeRecipe recipe, RootedForgeTarget target, String requestKey) {
         if (accountId <= 0 || characterId <= 0) throw new IllegalArgumentException("invalid account or character");
         if (recipe == null) throw new IllegalArgumentException("recipe cannot be null");
+        if (target == null) throw new IllegalArgumentException("target cannot be null");
         if (requestKey == null || requestKey.isBlank()) throw new IllegalArgumentException("requestKey cannot be blank");
 
         try (Connection connection = dataSource.getConnection()) {
@@ -46,14 +47,14 @@ public final class JdbcRootedForgeRepository implements RootedForgeRepository {
                     }
                 }
 
-                long orderId = insertOrder(connection, accountId, characterId, recipe, requestKey);
+                long orderId = insertOrder(connection, accountId, characterId, recipe, target, requestKey);
                 debitVerdant(connection, accountId, characterId, recipe, requestKey, marks);
                 for (var cost : costs) {
                     debitMaterial(connection, accountId, characterId, cost.getKey(), cost.getValue(), requestKey);
                 }
                 connection.commit();
                 return PurchaseResult.success(new RootedForgeOrder(
-                        orderId, accountId, characterId, recipe, requestKey,
+                        orderId, accountId, characterId, recipe, target, requestKey,
                         RootedForgeOrder.Status.PENDING, Instant.now()));
             } catch (SQLException e) {
                 connection.rollback();
@@ -73,7 +74,7 @@ public final class JdbcRootedForgeRepository implements RootedForgeRepository {
 
     @Override
     public Optional<RootedForgeOrder> findByRequestKey(int accountId, String requestKey) {
-        String sql = "SELECT id, character_id, recipe, status, created_at FROM everleaf_rooted_forge_order WHERE account_id = ? AND request_key = ?";
+        String sql = "SELECT id, character_id, recipe, target_item_id, target_inventory_type, target_slot, status, created_at FROM everleaf_rooted_forge_order WHERE account_id = ? AND request_key = ?";
         try (Connection connection = dataSource.getConnection(); PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setInt(1, accountId);
             ps.setString(2, requestKey);
@@ -81,7 +82,7 @@ public final class JdbcRootedForgeRepository implements RootedForgeRepository {
                 if (!rs.next()) return Optional.empty();
                 return Optional.of(new RootedForgeOrder(
                         rs.getLong("id"), accountId, rs.getInt("character_id"),
-                        RootedForgeRecipe.valueOf(rs.getString("recipe")), requestKey,
+                        RootedForgeRecipe.valueOf(rs.getString("recipe")), readTarget(rs), requestKey,
                         RootedForgeOrder.Status.valueOf(rs.getString("status")),
                         rs.getTimestamp("created_at").toInstant()));
             }
@@ -90,16 +91,52 @@ public final class JdbcRootedForgeRepository implements RootedForgeRepository {
         }
     }
 
-    private static long insertOrder(Connection c, int accountId, int characterId, RootedForgeRecipe recipe, String requestKey) throws SQLException {
-        String sql = "INSERT INTO everleaf_rooted_forge_order (account_id, character_id, recipe, request_key, status) VALUES (?, ?, ?, ?, 'PENDING')";
+    @Override
+    public Optional<RootedForgeOrder> findById(long orderId) {
+        String sql = "SELECT account_id, character_id, recipe, target_item_id, target_inventory_type, target_slot, request_key, status, created_at FROM everleaf_rooted_forge_order WHERE id = ?";
+        try (Connection connection = dataSource.getConnection(); PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setLong(1, orderId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(new RootedForgeOrder(
+                        orderId, rs.getInt("account_id"), rs.getInt("character_id"),
+                        RootedForgeRecipe.valueOf(rs.getString("recipe")), readTarget(rs), rs.getString("request_key"),
+                        RootedForgeOrder.Status.valueOf(rs.getString("status")), rs.getTimestamp("created_at").toInstant()));
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Failed to load Rooted forge order", e);
+        }
+    }
+
+    @Override
+    public boolean markFulfilled(long orderId) {
+        try (Connection connection = dataSource.getConnection(); PreparedStatement ps = connection.prepareStatement(
+                "UPDATE everleaf_rooted_forge_order SET status = 'FULFILLED', fulfilled_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'PENDING'")) {
+            ps.setLong(1, orderId);
+            return ps.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new IllegalStateException("Failed to complete Rooted forge order", e);
+        }
+    }
+
+    private static long insertOrder(Connection c, int accountId, int characterId, RootedForgeRecipe recipe, RootedForgeTarget target, String requestKey) throws SQLException {
+        String sql = "INSERT INTO everleaf_rooted_forge_order (account_id, character_id, recipe, target_item_id, target_inventory_type, target_slot, request_key, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')";
         try (PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setInt(1, accountId); ps.setInt(2, characterId); ps.setString(3, recipe.name()); ps.setString(4, requestKey);
+            ps.setInt(1, accountId); ps.setInt(2, characterId); ps.setString(3, recipe.name());
+            ps.setInt(4, target.itemId()); ps.setInt(5, target.inventoryType().getType()); ps.setInt(6, target.slot()); ps.setString(7, requestKey);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (!keys.next()) throw new SQLException("Missing Rooted forge order id");
                 return keys.getLong(1);
             }
         }
+    }
+
+    private static RootedForgeTarget readTarget(ResultSet rs) throws SQLException {
+        return new RootedForgeTarget(
+                rs.getInt("target_item_id"),
+                client.inventory.InventoryType.getByType(rs.getByte("target_inventory_type")),
+                rs.getShort("target_slot"));
     }
 
     private static void ensureVerdantRow(Connection c, int accountId) throws SQLException {
