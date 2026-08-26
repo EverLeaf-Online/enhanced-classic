@@ -5,6 +5,7 @@ import client.command.Command;
 import everleaf.progression.AccountWeeklyState;
 import everleaf.progression.CharacterObjectiveState;
 import everleaf.progression.EverleafProgressionRuntime;
+import everleaf.progression.VerdantMarkAccount;
 import everleaf.progression.WeeklyObjectiveCatalog;
 import everleaf.progression.WeeklyObjectiveDefinition;
 import everleaf.progression.WeeklyProgressRepository;
@@ -29,10 +30,12 @@ public class WeekliesCommand extends Command {
             return;
         }
 
+        int accountId = client.getPlayer().getAccountID();
         LocalDate week = WeeklyWindow.forInstant(Instant.now()).startDate();
         WeeklyProgressRepository repository = EverleafProgressionRuntime.weeklyRepository();
-        AccountWeeklyState account = repository.findAccountState(client.getPlayer().getAccountID(), week)
-                .orElse(new AccountWeeklyState(client.getPlayer().getAccountID(), week, 0, 0));
+        AccountWeeklyState account = repository.findAccountState(accountId, week)
+                .orElse(new AccountWeeklyState(accountId, week, 0, 0));
+        VerdantMarkAccount marks = EverleafProgressionRuntime.verdantMarkService().account(accountId);
 
         int coreBudget = WeeklyProgressionPolicy.weeklyCorePoints(level);
         int availableBudget = coreBudget + account.catchupPointsBank();
@@ -41,6 +44,7 @@ public class WeekliesCommand extends Command {
         List<WeeklyObjectiveDefinition> objectives = WeeklyObjectiveCatalog.eligibleForLevel(level);
         client.getPlayer().yellowMessage(
                 "Everleaf Weeklies | Week " + week
+                        + " | Verdant Marks: " + marks.balance()
                         + " | Account reward budget: " + account.rewardPointsClaimed() + "/" + availableBudget
                         + " (" + remainingBudget + " remaining)"
         );
@@ -58,7 +62,7 @@ public class WeekliesCommand extends Command {
                     : state.completed() ? "COMPLETE" : state.progressCount() + "/" + objective.targetCount();
             client.getPlayer().yellowMessage(
                     "- " + objective.displayName() + " [" + objective.lane().name() + "] "
-                            + status + " | +" + reward + " weekly points"
+                            + status + " | +" + reward + " Verdant Marks"
             );
         }
     }
