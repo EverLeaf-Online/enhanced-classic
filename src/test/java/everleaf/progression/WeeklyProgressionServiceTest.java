@@ -53,6 +53,22 @@ class WeeklyProgressionServiceTest {
     }
 
     @Test
+    void catchupBankExtendsButDoesNotRemoveAccountCap() {
+        MemoryRepository repository = new MemoryRepository();
+        WeeklyProgressionService service = new WeeklyProgressionService(repository);
+        Instant now = Instant.parse("2026-08-26T06:00:00Z");
+        LocalDate week = WeeklyWindow.forInstant(now).startDate();
+        repository.saveAccountState(new AccountWeeklyState(5, week, 100, 50));
+
+        service.addProgress(501, 200, "rooted_boss_hunt", 3, now);
+        var result = service.claim(5, 501, 200, "rooted_boss_hunt", now);
+
+        assertTrue(result.success());
+        assertEquals(40, result.pointsAwarded());
+        assertEquals(140, repository.findAccountState(5, week).orElseThrow().rewardPointsClaimed());
+    }
+
+    @Test
     void completedObjectiveCannotBeClaimedTwice() {
         MemoryRepository repository = new MemoryRepository();
         WeeklyProgressionService service = new WeeklyProgressionService(repository);
