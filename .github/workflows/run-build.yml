@@ -1,4 +1,4 @@
-# Build and test Enhanced Classic on development pushes and pull requests.
+# Build and test Everleaf Enhanced Classic on development pushes and pull requests.
 
 name: Run build
 
@@ -22,7 +22,9 @@ jobs:
           java-version: '21'
           distribution: 'corretto'
           cache: 'maven'
-      - name: Apply Enhanced Classic source transforms
+      - name: Apply Everleaf configuration
+        run: python3 tools/apply_everleaf_config.py
+      - name: Apply Everleaf source transforms
         run: python3 tools/apply_level_cap_250.py
       - name: Ensure Maven wrapper is executable
         run: chmod +x mvnw
