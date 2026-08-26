@@ -7,6 +7,8 @@ import everleaf.progression.EncounterAttempt;
 import everleaf.progression.EnhancedBossRewardMode;
 import everleaf.progression.EverleafProgressionRuntime;
 import everleaf.progression.RootedForgeOrder;
+import scripting.event.EventInstanceManager;
+import scripting.event.EventManager;
 
 import java.time.Instant;
 import java.util.List;
@@ -30,6 +32,7 @@ public class EverleafOpsCommand extends Command {
         try {
             switch (params[0].toLowerCase()) {
                 case "forge" -> showPendingForge(gm, params);
+                case "active" -> showActive(client);
                 case "retry" -> retryForge(client, params);
                 case "reward" -> retryEncounterReward(gm, params);
                 case "encounters" -> showEncounters(gm, params);
@@ -53,6 +56,29 @@ public class EverleafOpsCommand extends Command {
                     + " item=" + order.target().itemId() + " slot=" + order.target().slot()
                     + " since=" + order.createdAt());
         }
+    }
+
+    private static void showActive(Client client) {
+        EventManager manager = client.getEventManager("RootedZakumBattle");
+        if (manager == null) {
+            client.getPlayer().yellowMessage("Rooted Zakum event manager is unavailable on this channel.");
+            return;
+        }
+        List<EventInstanceManager> active = manager.getInstances().stream()
+                .filter(instance -> !instance.isEventDisposed())
+                .toList();
+        client.getPlayer().yellowMessage("Active Rooted Zakum instances on channel "
+                + client.getChannel() + ": " + active.size());
+        for (EventInstanceManager instance : active) {
+            client.getPlayer().yellowMessage(instance.getName()
+                    + " players=" + instance.getPlayerCount()
+                    + " phase=" + valueOr(instance.getProperty("everleafPhase"), "0")
+                    + " cleared=" + (instance.isEventCleared() ? "YES" : "NO"));
+        }
+    }
+
+    private static String valueOr(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private static void retryForge(Client client, String[] params) {
@@ -111,6 +137,7 @@ public class EverleafOpsCommand extends Command {
 
     private static void usage(Character gm) {
         gm.yellowMessage("!everleafops forge [limit]");
+        gm.yellowMessage("!everleafops active");
         gm.yellowMessage("!everleafops retry <forgeOrderId>");
         gm.yellowMessage("!everleafops reward <encounterAttemptId>");
         gm.yellowMessage("!everleafops encounters <characterId> [limit]");

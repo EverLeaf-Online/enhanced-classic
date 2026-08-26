@@ -80,11 +80,11 @@ The default instance policy currently uses a 120-second reconnect grace period a
 - Every participant receives a persisted attempt; first weekly clears pay the fixed account-bound reward bundle and later clears automatically become practice runs.
 - Forge payment atomically debits Verdant Marks and all Rooted materials while creating a durable pending fulfillment order. Inventory delivery can therefore be retried without charging the player again.
 - The player-facing Rooted Forge previews fixed stats and costs, validates the exact inventory target, persists Stage 1, and makes refined equipment untradeable.
-- `!everleafops` lets authorized staff inspect encounter history and pending forge orders, then safely retry persisted reward or forge fulfillment without minting duplicates.
+- `!everleafops` lets authorized staff inspect active channel instances, encounter history, and pending forge orders, then safely retry persisted reward or forge fulfillment without minting duplicates.
 
 ## Next implementation pass
 
 1. Validate all Everleaf migrations and the full encounter-to-forge loop against a live MySQL test server.
 2. Playtest Rooted Zakum's phase timing, add durability, party pressure, and 30-minute tuning with level-200 characters.
-3. Add active-instance inspection once the event engine exposes a stable cross-lobby registry.
+3. Extend active-instance inspection across every world/channel when operational tooling needs a global view.
 4. Record balance telemetry before designing Awakened Horntail.
