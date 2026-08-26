@@ -1,0 +1,44 @@
+{
+  "name": "Everleaf Enhanced Classic",
+  "image": "mcr.microsoft.com/devcontainers/java:1-21-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "forwardPorts": [3307, 7575, 7576, 7577, 8484],
+  "portsAttributes": {
+    "3307": {
+      "label": "Everleaf MySQL",
+      "onAutoForward": "silent"
+    },
+    "7575": {
+      "label": "Everleaf Channel 1",
+      "onAutoForward": "silent"
+    },
+    "7576": {
+      "label": "Everleaf Channel 2",
+      "onAutoForward": "silent"
+    },
+    "7577": {
+      "label": "Everleaf Channel 3",
+      "onAutoForward": "silent"
+    },
+    "8484": {
+      "label": "Everleaf Login",
+      "onAutoForward": "silent"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "remoteEnv": {
+    "EVERLEAF_DEV_CONTAINER": "true"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "redhat.vscode-yaml",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  }
+}
