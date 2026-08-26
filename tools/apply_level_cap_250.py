@@ -33,16 +33,12 @@ replace_once(
     """    public int applyEnhancedPermanentMaxHpFloor(int targetMaxHp) {\n        int clampedTarget = Math.min(30000, Math.max(getMaxHp(), targetMaxHp));\n        int increase = clampedTarget - getMaxHp();\n        if (increase > 0) {\n            setMaxHp(clampedTarget);\n        }\n        return increase;\n    }\n\n    public int getMaxClassLevel() {""",
 )
 
-# Apply the no-wash survivability floor after the character's new level is
-# finalized, but before local stats are recalculated and sent to the client.
 replace_once(
     character,
     "        levelUpGainSp();",
     """        new service.enhanced.SurvivabilityService().applyCurrentFloor(this);\n\n        levelUpGainSp();""",
 )
 
-# Existing characters are migrated on load. The dedicated Character mutation
-# does not consume AP or depend on the normal announced-stat update path.
 replace_once(
     character,
     "            ret.autoban = new AutobanManager(ret);",
@@ -56,7 +52,6 @@ replace_once(
     """if (level <= 200) {\n            return exp[level];\n        }\n        if (level < 250) {\n            // Smooth post-200 curve: 1.70b at 201, approaching 2.0b at 249.\n            return Math.min(2_000_000_000, 1_700_000_000 + ((level - 201) * 6_250_000));\n        }\n        return Integer.MAX_VALUE;""",
 )
 
-# Player/operator-facing server identity plus non-fatal deployment diagnostics.
 server = Path("src/main/java/net/server/Server.java")
 replace_once(
     server,
@@ -69,18 +64,18 @@ replace_once(
     'log.info("{} is now online after {} ms.", service.enhanced.EverleafIdentity.NAME, initDuration.toMillis());',
 )
 
-# Register a player-facing @progress command without permanently rewriting the
-# large upstream command registry yet.
+# Register player-facing Everleaf progression commands without permanently
+# rewriting the large upstream command registry yet.
 commands = Path("src/main/java/client/command/CommandsExecutor.java")
 replace_once(
     commands,
     "import client.command.commands.gm0.OnlineCommand;",
-    "import client.command.commands.gm0.OnlineCommand;\nimport client.command.commands.gm0.ProgressCommand;",
+    "import client.command.commands.gm0.OnlineCommand;\nimport client.command.commands.gm0.MarksCommand;\nimport client.command.commands.gm0.ProgressCommand;\nimport client.command.commands.gm0.WeekliesCommand;",
 )
 replace_once(
     commands,
     '        addCommand("online", OnlineCommand.class);',
-    '        addCommand("online", OnlineCommand.class);\n        addCommand("progress", ProgressCommand.class);',
+    '        addCommand("online", OnlineCommand.class);\n        addCommand(new String[]{"marks", "verdant"}, MarksCommand.class);\n        addCommand("progress", ProgressCommand.class);\n        addCommand(new String[]{"weeklies", "weekly"}, WeekliesCommand.class);',
 )
 
-print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics + progress command).")
+print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics + progression/marks commands).")

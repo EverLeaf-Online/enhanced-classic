@@ -1,216 +1,98 @@
 # Everleaf
 
-**Everleaf** is an Enhanced Classic MapleStory v83 server project built on top of Cosmic/HeavenMS, focused on preserving the classic feel while modernizing progression, balance, quality-of-life, and endgame.
+**Classic roots. New growth.**
 
-> **Status:** Active development. Not ready for public launch.
+Everleaf is an Enhanced Classic v83 server project built on Cosmic, focused on preserving the recognizable classic MapleStory experience while modernizing progression, balance, quality-of-life, and long-term endgame play.
 
-## Vision
+## Development direction
 
-Everleaf is designed around a simple idea: keep what made classic MapleStory memorable, then improve the systems that aged poorly.
-
-Core goals:
-
-- Classic v83 identity and social gameplay
-- Level cap increased to **250**
-- No mandatory HP washing
-- Rebalanced progression and class pain points
-- Improved quests and Party Quest relevance
-- Structured boss and gear progression
-- Account-wide achievements and collections
-- Guild progression and long-term social goals
-- Expanded 200–250 endgame
-- Modern testing, CI, and deployment practices
-- **No pay-to-win**
-
-## No-P2W policy
-
-Everleaf is intended to be community-supported without selling gameplay power.
-
-Donation/supporter rewards may include:
-
-- Cosmetics
-- Chairs and visual effects
-- Cosmetic presets
-- Supporter badges or titles without combat stats
-- Noncompetitive quality-of-life features that do not create meaningful power advantages
-
-Everleaf will not sell:
-
-- Best-in-slot equipment
-- Purchased combat stats
-- Paid boss damage or survivability
-- Better paid RNG/drop rates
-- Exclusive progression power
-- Ranking advantages
-
-## Development rates
-
-Current development targets are intentionally conservative and subject to playtesting:
-
+- Level cap: **250**
 - EXP: **5x**
 - Meso: **3x**
 - Drop: **2x**
 - Boss drop: **2x**
-- Quest rewards: **1x global multiplier**, with important quests intended to be rebalanced individually
-- Travel/fishing development multiplier: **2x**
-- Cash Shop rate coupons: **disabled**
+- Quest multiplier: **1x**, with direct quest balancing planned
+- No mandatory HP washing
+- No pay-to-win donation rewards
+- Expanded 200–250 endgame progression
 
-These are development values, not permanent launch promises.
+## Post-200 progression
 
-## Enhanced Classic progression
+Everleaf begins its extended endgame at level 200:
 
-Everleaf treats level 200 as the beginning of extended endgame rather than the final stopping point.
+- **200–209 — Rooted**
+- **210–224 — Awakened**
+- **225–239 — Ascendant**
+- **240–249 — Ancient**
+- **250 — Evergreen**
 
-Current endgame milestones:
+The endgame is divided into boss, weekly, quest, party, collection, and guild reward lanes so one activity does not become the only meaningful progression route.
 
-| Tier | Level | Direction |
-| --- | ---: | --- |
-| Tier 1 | 200 | Entry endgame |
-| Tier 2 | 210 | Advanced progression |
-| Tier 3 | 225 | High-end progression |
-| Tier 4 | 240 | Late endgame |
-| Tier 5 | 250 | Capstone progression |
+### Hybrid weeklies
 
-Boss access, high-level quests, equipment progression, achievements, and future weekly systems are intended to reference these shared tiers.
+Weekly objectives are character-scoped, while valuable weekly rewards and catch-up allowance are capped at the account level. This lets players enjoy alts without multiplying high-value weekly rewards across every character.
 
-## Survivability / HP washing
+Persistent weekly state is stored in:
 
-Everleaf is being designed so players do not need to plan months of INT washing or MP washing just to participate in intended endgame content.
+- `everleaf_weekly_account_state`
+- `everleaf_weekly_character_objective`
 
-The server uses progression-based permanent MaxHP floors that preserve class durability differences while ensuring intended boss content remains realistically accessible.
+Apply `database/sql/migration/everleaf_weekly_progression.sql` before enabling persistent weeklies on a database.
 
-The system is designed to be idempotent: characters only receive the missing amount needed to reach their current progression floor. Floors are checked on level-up and when existing characters are loaded, so migrated characters are covered as well.
+### Verdant Marks
 
-## Current development roadmap
+Verdant Marks are Everleaf's account-bound gameplay-earned post-200 currency. A successful weekly claim updates the weekly account budget, credits the account's Verdant Marks balance, writes the immutable currency ledger entry, and consumes the character objective claim in the same database transaction.
 
-### M0 — Baseline
-- Reproducible Java 21/Maven build
-- CI validation
-- Configuration cleanup
-- Security and database audit
+The initial reward architecture permits progression materials, catch-up rewards, cosmetics, utility/QoL rewards, and gear-upgrade components. Finished direct best-in-slot equipment and pay-to-win reward definitions are rejected by policy code. Donation currency does not convert into Verdant Marks.
 
-### M1 — Enhanced Core
-- Level 250 cap
-- Post-200 EXP curve
-- No-wash survivability system
-- Progression framework
-- Initial rate cleanup
-- Everleaf identity/configuration
-- Deployment-safe environment overrides
+Persistent Verdant Marks state is stored in:
 
-### M2 — Classic Content Pass
-- Quest improvements
-- Party Quest overhaul
-- Drop and economy review
-- Travel/onboarding improvements
-- Class pain-point fixes
+- `everleaf_verdant_mark_balance`
+- `everleaf_verdant_mark_ledger`
 
-### M3 — Account Systems
-- Achievements
-- Collections
-- Monster/boss journal
-- Account progression
+Apply `database/sql/migration/everleaf_verdant_marks.sql` after the weekly progression migration. Current catalog prices and limits are development tuning values; concrete item/script fulfillment remains intentionally separate from the currency accounting layer.
 
-### M4 — Boss & Endgame
-- Boss progression tiers
-- Gear progression
-- 200–250 content
-- Weekly objectives
+Player commands:
 
-### M5 — Social & Live Systems
-- Guild progression
-- Guild missions
-- Events
-- Rankings
+- `@progress` — current 200–250 tier and next milestone
+- `@weekly` / `@weeklies` — current UTC week, character objective progress, and account reward budget
+- `@marks` / `@verdant` — account Verdant Marks balance and eligible reward preview
+- `@marks history` — recent Verdant Marks ledger activity
 
-### M6 — Public Infrastructure
-- Website
-- Account management
-- Launcher/updater strategy
-- Administration tools
-- Monitoring and backups
+## Development workflow
 
-### M7 — Closed Alpha
-- Automated tests
-- Invited playtesting
-- Economy/progression telemetry
-- Exploit review
-- Balance iteration
+`master` is the protected stable branch. Feature development happens on dedicated branches and enters `master` through pull requests after the Java 21/Maven build passes.
 
-## Development
+The CI pipeline applies the Everleaf configuration/source transforms, compiles, runs tests, packages the server, generates a build manifest, and uploads the resulting artifact.
 
-### Requirements
+## Building
+
+Requirements:
 
 - Java 21
-- Git
-- MySQL 8+
-- Maven is provided through the Maven Wrapper
-
-### Build
+- Maven wrapper included in the repository
 
 On Linux/macOS:
 
 ```bash
+chmod +x mvnw
 python3 tools/apply_everleaf_config.py
 python3 tools/apply_level_cap_250.py
-chmod +x mvnw
-./mvnw clean package
+./mvnw -B package
 ```
 
-On Windows, apply the transforms with Python and then build:
+The GitHub Actions workflow performs these steps automatically for active Everleaf development branches and pull requests.
 
-```powershell
-python tools/apply_everleaf_config.py
-python tools/apply_level_cap_250.py
-.\mvnw.cmd clean package
-```
+## Security and deployment
 
-The GitHub Actions workflow applies the same deterministic transforms, then builds and tests the `enhanced-dev` branch and pull requests before changes are merged into the protected `master` branch.
+Production database credentials and host configuration should be supplied outside the repository through Everleaf environment overrides. Do not expose MySQL publicly, do not run the game server as the MySQL root user, and do not enable public automatic registration without an intentional account-security design.
 
-### Deployment environment overrides
+See `docs/DEPLOYMENT_CHECKLIST.md` before any public deployment.
 
-Secrets and host-specific values do not need to be committed to `config.yaml`. Everleaf supports these optional environment variables:
+## Donations
 
-- `EVERLEAF_DB_HOST`
-- `EVERLEAF_DB_USER`
-- `EVERLEAF_DB_PASS`
-- `EVERLEAF_DB_URL_FORMAT`
-- `EVERLEAF_HOST`
-- `EVERLEAF_LANHOST`
-- `EVERLEAF_LOCALHOST`
-- `EVERLEAF_AUTOMATIC_REGISTER` (`true` or `false`)
+Everleaf's donation policy is no-P2W. Donations may support cosmetics, visual effects, chairs, cosmetic presets, supporter badges/titles without combat stats, and carefully reviewed noncompetitive conveniences. Donations must not purchase best-in-slot equipment, stats, damage, survivability, better drop odds, or ranking advantages.
 
-For a public deployment, use a dedicated least-privilege database user and set `EVERLEAF_AUTOMATIC_REGISTER=false` once website/account registration is available. Never commit production database passwords.
+## Upstream
 
-## Branch strategy
-
-- `master` — protected stable branch
-- `enhanced-dev` — active integration/development branch
-- feature branches — used as the project grows
-
-Changes to `master` must go through a pull request and pass the required build check.
-
-## Project documentation
-
-Additional design and audit documents are available in [`docs/`](docs/), including:
-
-- Enhanced Classic project principles
-- Baseline audit
-- HP-washing replacement design
-- Progression and endgame planning
-
-## Upstream and license
-
-Everleaf is a fork of **Cosmic**, which is based on a long line of MapleStory server emulators including HeavenMS and OdinMS.
-
-The server emulator source remains subject to the upstream project's **GNU Affero General Public License v3 (AGPL-3.0)** and applicable notices. See [`LICENSE`](LICENSE) and source-file headers for details.
-
-MapleStory, its client, artwork, music, characters, maps, and other game assets are property of their respective rights holders. This repository does not grant rights to proprietary game assets.
-
-## Safety note
-
-Do not blindly disable antivirus or security protections for third-party modified executables. Treat unofficial clients and binaries as untrusted unless you have independently verified their provenance and behavior.
-
----
-
-**Everleaf — Classic roots. New growth.**
+Everleaf is built from the Cosmic v83 server emulator and retains the upstream project's AGPL-3.0 licensing requirements and historical attribution. See the repository license and source history for details.
