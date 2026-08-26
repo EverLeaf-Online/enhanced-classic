@@ -65,7 +65,7 @@ Initial systems:
 
 ## Reward architecture
 
-Post-200 rewards should use several independent lanes so one activity cannot dominate the entire game:
+Post-200 rewards use several independent lanes so one activity cannot dominate the entire game:
 
 1. **Boss lane** — boss-specific materials, equipment, cosmetics, mastery achievements.
 2. **Weekly lane** — predictable account/character progression currency with sensible caps.
@@ -73,6 +73,20 @@ Post-200 rewards should use several independent lanes so one activity cannot dom
 4. **Party lane** — PQ/endgame group rewards and catch-up opportunities.
 5. **Collection lane** — exploration, monsters, bosses, items, achievements, and cosmetics.
 6. **Guild lane** — cooperative objectives and social prestige.
+
+## Approved hybrid weekly model
+
+Everleaf weeklies are intentionally split between character freedom and account-level economy control.
+
+- Weekly objective progress is **character-scoped**.
+- Different characters on the same account may complete their own eligible objectives.
+- Valuable weekly reward points are **account-capped** per UTC week.
+- Catch-up allowance is also account-scoped.
+- Completing objectives on extra characters does not multiply the account's high-value reward budget.
+- Claims are committed atomically so concurrent/double claims cannot exceed the account cap.
+- Weekly windows reset Monday at 00:00 UTC.
+
+This model preserves alt play while preventing large alt rosters from multiplying capped endgame rewards.
 
 ## Economy rules
 
@@ -93,4 +107,4 @@ Milestone rewards should primarily unlock systems and recognition rather than du
 - **240:** unlock Tier IV capstone progression.
 - **250:** capstone achievement, title/cosmetic recognition, Evergreen progression access.
 
-Exact items, bosses, currencies, and numerical reward values will be introduced in isolated systems with tests rather than hard-coded into the tier policy.
+Exact items, bosses, currencies, and numerical reward values are introduced in isolated systems with tests rather than hard-coded into the tier policy.
