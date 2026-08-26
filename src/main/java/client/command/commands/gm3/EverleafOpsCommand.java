@@ -4,9 +4,11 @@ import client.Character;
 import client.Client;
 import client.command.Command;
 import everleaf.progression.EncounterAttempt;
+import everleaf.progression.EnhancedBossRewardMode;
 import everleaf.progression.EverleafProgressionRuntime;
 import everleaf.progression.RootedForgeOrder;
 
+import java.time.Instant;
 import java.util.List;
 
 /** Read-only Everleaf diagnostics plus explicit retry for durable forge orders. */
@@ -29,6 +31,7 @@ public class EverleafOpsCommand extends Command {
             switch (params[0].toLowerCase()) {
                 case "forge" -> showPendingForge(gm, params);
                 case "retry" -> retryForge(client, params);
+                case "reward" -> retryEncounterReward(gm, params);
                 case "encounters" -> showEncounters(gm, params);
                 default -> usage(gm);
             }
@@ -84,6 +87,22 @@ public class EverleafOpsCommand extends Command {
         }
     }
 
+    private static void retryEncounterReward(Character gm, String[] params) {
+        if (params.length < 2) throw new IllegalArgumentException("missing encounter attempt id");
+        long attemptId = Long.parseLong(params[1]);
+        EncounterAttempt attempt = EverleafProgressionRuntime.encounterRepository().findAttempt(attemptId)
+                .orElseThrow(() -> new IllegalArgumentException("encounter attempt not found"));
+        if (!attempt.cleared() || !attempt.weeklyRewardClaimed()) {
+            gm.yellowMessage("Attempt #" + attemptId
+                    + " is not an already-claimed weekly clear; reward retry refused.");
+            return;
+        }
+        var result = EverleafProgressionRuntime.rootedZakumLifecycleService().complete(
+                attemptId, EnhancedBossRewardMode.WEEKLY_REWARD, Instant.now());
+        gm.yellowMessage("Encounter reward #" + attemptId + ": "
+                + (result.completed() ? "DELIVERED" : "PENDING") + " (" + result.reason() + ")");
+    }
+
     private static int parseLimit(String[] params, int index) {
         int limit = params.length > index ? Integer.parseInt(params[index]) : DEFAULT_LIMIT;
         if (limit < 1 || limit > 100) throw new IllegalArgumentException("limit must be 1-100");
@@ -93,6 +112,7 @@ public class EverleafOpsCommand extends Command {
     private static void usage(Character gm) {
         gm.yellowMessage("!everleafops forge [limit]");
         gm.yellowMessage("!everleafops retry <forgeOrderId>");
+        gm.yellowMessage("!everleafops reward <encounterAttemptId>");
         gm.yellowMessage("!everleafops encounters <characterId> [limit]");
     }
 }
