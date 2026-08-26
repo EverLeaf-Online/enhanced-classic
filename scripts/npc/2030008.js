@@ -78,7 +78,11 @@ function action(mode, type, selection) {
         }
 
         if (status == 0) {
-            cm.sendSimple("#e#b<Party Quest: Zakum Campaign>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nBeware, for the power of olde has not been forgotten... #b\r\n#L0#Enter the Unknown Dead Mine (Stage 1)#l\r\n#L1#Face the Breath of Lava (Stage 2)#l\r\n#L2#Forging the Eyes of Fire (Stage 3)#l");
+            var menu = "#e#b<Party Quest: Zakum Campaign>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nBeware, for the power of olde has not been forgotten... #b\r\n#L0#Enter the Unknown Dead Mine (Stage 1)#l\r\n#L1#Face the Breath of Lava (Stage 2)#l\r\n#L2#Forging the Eyes of Fire (Stage 3)#l";
+            if (cm.getPlayer().getLevel() >= 200) {
+                menu += "\r\n\r\n#e#d<Everleaf Endgame>#n#b\r\n#L3#Challenge Rooted Zakum (Lv. 200+, 3-6 players)#l";
+            }
+            cm.sendSimple(menu);
         } else if (status == 1) {
             if (selection == 0) {
                 if (cm.getParty() == null) {
@@ -109,6 +113,30 @@ function action(mode, type, selection) {
                         cm.sendNext("Please complete the earlier trials first.");
                     }
 
+                    cm.dispose();
+                }
+            } else if (selection == 3) {
+                var rooted = cm.getEventManager("RootedZakumBattle");
+                if (rooted == null) {
+                    cm.sendOk("Rooted Zakum is temporarily unavailable.");
+                    cm.dispose();
+                    return;
+                }
+                if (cm.getParty() == null) {
+                    cm.sendOk("Rooted Zakum requires a party of 3 to 6 players.");
+                    cm.dispose();
+                } else if (!cm.isLeader()) {
+                    cm.sendOk("Your party leader must start the Rooted Zakum encounter.");
+                    cm.dispose();
+                } else {
+                    var rootedEligible = rooted.getEligibleParty(cm.getParty());
+                    if (rootedEligible.size() > 0) {
+                        if (!rooted.startInstance(cm.getParty(), cm.getPlayer().getMap(), 200)) {
+                            cm.sendOk("All Rooted Zakum instances are currently occupied. Please try again shortly.");
+                        }
+                    } else {
+                        cm.sendOk("Your party must contain 3 to 6 level 200-250 players, and every member must be here at the Door to Zakum.");
+                    }
                     cm.dispose();
                 }
             } else {
