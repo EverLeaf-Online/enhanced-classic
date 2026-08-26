@@ -29,6 +29,8 @@ public final class EverleafProgressionRuntime {
                 new JdbcRootedForgeRepository(DatabaseConnection.getDataSource());
         private static final RootedForgeService ROOTED_FORGE_SERVICE =
                 new RootedForgeService(ROOTED_FORGE_REPOSITORY);
+        private static final RootedForgeFulfillmentService ROOTED_FORGE_FULFILLMENT_SERVICE =
+                new RootedForgeFulfillmentService(ROOTED_FORGE_REPOSITORY);
     }
 
     public static WeeklyProgressionService weeklyService() { return Holder.WEEKLY_SERVICE; }
@@ -40,4 +42,5 @@ public final class EverleafProgressionRuntime {
     public static RootedMaterialRepository rootedMaterialRepository() { return Holder.ROOTED_MATERIAL_REPOSITORY; }
     public static RootedForgeRepository rootedForgeRepository() { return Holder.ROOTED_FORGE_REPOSITORY; }
     public static RootedForgeService rootedForgeService() { return Holder.ROOTED_FORGE_SERVICE; }
+    public static RootedForgeFulfillmentService rootedForgeFulfillmentService() { return Holder.ROOTED_FORGE_FULFILLMENT_SERVICE; }
 }
