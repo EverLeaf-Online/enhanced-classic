@@ -5,11 +5,14 @@ import constants.inventory.ItemConstants;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 
 class RootedForgeStatApplierTest {
     @Test
     void appliesWeaponOutcomeOnceAndMakesTargetUntradeable() {
-        Equip weapon = new Equip(1302000, (short) 1);
+        Equip weapon = equip(1302000);
         weapon.setWatk((short) 50);
         var outcome = RootedForgeOutcomeCatalog.byRecipe(RootedForgeRecipe.ROOTED_WEAPON_REFINEMENT);
 
@@ -26,8 +29,8 @@ class RootedForgeStatApplierTest {
 
     @Test
     void enforcesWeaponAndArmorRecipeCategories() {
-        Equip weapon = new Equip(1302000, (short) 1);
-        Equip armor = new Equip(1002001, (short) 2);
+        Equip weapon = equip(1302000);
+        Equip armor = equip(1002001);
 
         assertFalse(RootedForgeStatApplier.apply(
                 armor, RootedForgeOutcomeCatalog.byRecipe(RootedForgeRecipe.ROOTED_WEAPON_REFINEMENT)).applied());
@@ -37,7 +40,7 @@ class RootedForgeStatApplierTest {
 
     @Test
     void validatesAllNewStatsBeforeMutatingEquipment() {
-        Equip weapon = new Equip(1302000, (short) 1);
+        Equip weapon = equip(1302000);
         weapon.setStr((short) 10);
         weapon.setWatk(Short.MAX_VALUE);
 
@@ -45,5 +48,11 @@ class RootedForgeStatApplierTest {
                 weapon, RootedForgeOutcomeCatalog.byRecipe(RootedForgeRecipe.ROOTED_WEAPON_REFINEMENT)));
         assertEquals(10, weapon.getStr());
         assertEquals(0, weapon.getEverleafForgeStage());
+    }
+
+    private static Equip equip(int itemId) {
+        Equip equip = mock(Equip.class, CALLS_REAL_METHODS);
+        doReturn(itemId).when(equip).getItemId();
+        return equip;
     }
 }
