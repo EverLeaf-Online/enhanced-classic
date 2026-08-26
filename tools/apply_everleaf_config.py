@@ -18,14 +18,57 @@ def replace_once(text: str, old: str, new: str) -> str:
     return text.replace(old, new, 1)
 
 
+def replace_first_of(text: str, candidates: tuple[str, ...], new: str) -> str:
+    if new in text:
+        return text
+    for old in candidates:
+        if old in text:
+            return text.replace(old, new, 1)
+    raise SystemExit(f"Expected one of these config patterns: {candidates!r}")
+
+
 def main() -> None:
     text = CONFIG.read_text(encoding="utf-8-sig")
 
+    text = replace_first_of(
+        text,
+        (
+            "    #Properties for Scania 0",
+            "    # Everleaf primary world (protocol world id 0 / Scania slot)",
+        ),
+        "    # Everleaf primary world (protocol world id 0 / Scania slot)",
+    )
+
+    # Quote user-facing strings and keep them ASCII. YamlBeans' tokenizer is
+    # stricter than modern YAML parsers and can reject punctuation in an
+    # unquoted scalar.
+    message_replacements = [
+        (
+            (
+                "    server_message: Welcome to Scania!",
+                "    server_message: Welcome to Everleaf — Classic roots. New growth.",
+            ),
+            '    server_message: "Welcome to Everleaf - Classic roots. New growth."',
+        ),
+        (
+            (
+                "    event_message: Scania!",
+                "    event_message: Everleaf — Enhanced Classic v83",
+            ),
+            '    event_message: "Everleaf - Enhanced Classic v83"',
+        ),
+        (
+            (
+                "    why_am_i_recommended: Welcome to Scania!",
+                "    why_am_i_recommended: Everleaf — level 250, modern progression, no P2W.",
+            ),
+            '    why_am_i_recommended: "Everleaf - level 250, modern progression, no P2W."',
+        ),
+    ]
+    for candidates, new in message_replacements:
+        text = replace_first_of(text, candidates, new)
+
     replacements = [
-        ("    #Properties for Scania 0", "    # Everleaf primary world (protocol world id 0 / Scania slot)"),
-        ("    server_message: Welcome to Scania!", "    server_message: Welcome to Everleaf — Classic roots. New growth."),
-        ("    event_message: Scania!", "    event_message: Everleaf — Enhanced Classic v83"),
-        ("    why_am_i_recommended: Welcome to Scania!", "    why_am_i_recommended: Everleaf — level 250, modern progression, no P2W."),
         ("    exp_rate: 10", "    exp_rate: 5"),
         ("    meso_rate: 10", "    meso_rate: 3"),
         ("    drop_rate: 10", "    drop_rate: 2"),
