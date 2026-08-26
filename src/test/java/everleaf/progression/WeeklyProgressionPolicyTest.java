@@ -3,6 +3,7 @@ package everleaf.progression;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class WeeklyProgressionPolicyTest {
 
@@ -26,6 +27,13 @@ class WeeklyProgressionPolicyTest {
     void catchUpBankIsTwoWeeksOfCoreProgress() {
         assertEquals(200, WeeklyProgressionPolicy.catchUpBankCap(200));
         assertEquals(360, WeeklyProgressionPolicy.catchUpBankCap(250));
+        assertEquals(300, WeeklyProgressionPolicy.maximumClaimablePoints(200, 999));
+    }
+
+    @Test
+    void remainingBudgetNeverDropsBelowZero() {
+        assertEquals(65, WeeklyProgressionPolicy.remainingAccountBudget(200, 0, 35));
+        assertEquals(0, WeeklyProgressionPolicy.remainingAccountBudget(200, 0, 120));
     }
 
     @Test
@@ -34,5 +42,13 @@ class WeeklyProgressionPolicyTest {
         assertEquals(90, WeeklyProgressionPolicy.objectivePointCap(250));
         assertEquals(50, WeeklyProgressionPolicy.clampAward(200, 500));
         assertEquals(0, WeeklyProgressionPolicy.clampAward(200, -5));
+    }
+
+    @Test
+    void rejectsInvalidBudgetInputs() {
+        assertThrows(IllegalArgumentException.class,
+                () -> WeeklyProgressionPolicy.maximumClaimablePoints(200, -1));
+        assertThrows(IllegalArgumentException.class,
+                () -> WeeklyProgressionPolicy.remainingAccountBudget(200, 0, -1));
     }
 }
