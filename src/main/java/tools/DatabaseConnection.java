@@ -35,6 +35,16 @@ public class DatabaseConnection {
         return dataSource.getConnection();
     }
 
+    /**
+     * Shared pooled datasource for repository-style persistence layers.
+     */
+    public static DataSource getDataSource() {
+        if (dataSource == null) {
+            throw new IllegalStateException("Unable to get datasource - connection pool is uninitialized");
+        }
+        return dataSource;
+    }
+
     public static Handle getHandle() {
         if (jdbi == null) {
             throw new IllegalStateException("Unable to get handle - connection pool is uninitialized");
