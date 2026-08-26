@@ -33,6 +33,9 @@ var status;
 var em;
 var selectedType;
 var gotAllDocs;
+var forgeRecipe;
+var forgeItems;
+var forgeTarget;
 
 function start() {
     status = -1;
@@ -81,6 +84,7 @@ function action(mode, type, selection) {
             var menu = "#e#b<Party Quest: Zakum Campaign>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nBeware, for the power of olde has not been forgotten... #b\r\n#L0#Enter the Unknown Dead Mine (Stage 1)#l\r\n#L1#Face the Breath of Lava (Stage 2)#l\r\n#L2#Forging the Eyes of Fire (Stage 3)#l";
             if (cm.getPlayer().getLevel() >= 200) {
                 menu += "\r\n\r\n#e#d<Everleaf Endgame>#n#b\r\n#L3#Challenge Rooted Zakum (Lv. 200+, 3-6 players)#l";
+                menu += "\r\n#L4#Use the Rooted Forge#l";
             }
             cm.sendSimple(menu);
         } else if (status == 1) {
@@ -139,6 +143,15 @@ function action(mode, type, selection) {
                     }
                     cm.dispose();
                 }
+            } else if (selection == 4) {
+                selectedType = 4;
+                cm.sendSimple(
+                    "#e#d<Rooted Forge>#n#k\r\n" +
+                    "Forge upgrades are #bguaranteed#k and have no failure, downgrade, destruction, or random stat rolls. " +
+                    "The upgraded equipment becomes untradeable.\r\n\r\n" +
+                    "#b#L0#Rooted Weapon Refinement — 60 Verdant Marks, 6 Ember Cores, 3 Ancient Bark#l\r\n" +
+                    "#L1#Rooted Armor Refinement — 45 Verdant Marks, 4 Ember Cores, 4 Ancient Bark#l"
+                );
             } else {
                 if (cm.haveItem(4031061) && cm.haveItem(4031062)) {
                     if (!cm.haveItem(4000082, 30)) {
@@ -160,7 +173,87 @@ function action(mode, type, selection) {
                 }
             }
         } else if (status == 2) {
-            cm.warp(280020000, 0);
+            if (selectedType != 4) {
+                cm.warp(280020000, 0);
+                cm.dispose();
+                return;
+            }
+
+            var RootedForgeRecipe = Java.type('everleaf.progression.RootedForgeRecipe');
+            var RootedForgeOutcomeCatalog = Java.type('everleaf.progression.RootedForgeOutcomeCatalog');
+            var RootedForgeTargetPolicy = Java.type('everleaf.progression.RootedForgeTargetPolicy');
+            var InventoryType = Java.type('client.inventory.InventoryType');
+            forgeRecipe = selection == 0
+                ? RootedForgeRecipe.ROOTED_WEAPON_REFINEMENT
+                : RootedForgeRecipe.ROOTED_ARMOR_REFINEMENT;
+            var outcome = RootedForgeOutcomeCatalog.byRecipe(forgeRecipe);
+            var inventory = cm.getPlayer().getInventory(InventoryType.EQUIP).list().toArray();
+            forgeItems = [];
+            var itemMenu = "#eSelect an eligible item from your Equip inventory:#n\r\n";
+            for (var i = 0; i < inventory.length; i++) {
+                var item = inventory[i];
+                if (item.getItemType() == 1 && RootedForgeTargetPolicy.validate(item, outcome).allowed()) {
+                    forgeItems.push(item);
+                    itemMenu += "\r\n#b#L" + (forgeItems.length - 1) + "##i" + item.getItemId() + "# #t" + item.getItemId() + "# (slot " + item.getPosition() + ")#l";
+                }
+            }
+            if (forgeItems.length == 0) {
+                cm.sendOk("You have no eligible equipment for that recipe. Unequip the item first, place it in your Equip inventory, and make sure it has not already received this forge stage.");
+                cm.dispose();
+                return;
+            }
+            cm.sendSimple(itemMenu);
+        } else if (status == 3 && selectedType == 4) {
+            if (selection < 0 || selection >= forgeItems.length) {
+                cm.sendOk("That forge target is no longer available.");
+                cm.dispose();
+                return;
+            }
+            forgeTarget = forgeItems[selection];
+            var RootedForgeOutcomeCatalog = Java.type('everleaf.progression.RootedForgeOutcomeCatalog');
+            var RootedMaterial = Java.type('everleaf.progression.RootedMaterial');
+            var Runtime = Java.type('everleaf.progression.EverleafProgressionRuntime');
+            var outcome = RootedForgeOutcomeCatalog.byRecipe(forgeRecipe);
+            var delta = outcome.statDelta();
+            var accountId = cm.getPlayer().getAccountID();
+            var marks = Runtime.verdantMarkService().account(accountId).balance();
+            var materials = Runtime.rootedMaterialRepository().balances(accountId);
+            var ember = materials.get(RootedMaterial.EMBER_CORE);
+            var bark = materials.get(RootedMaterial.ANCIENT_BARK);
+            var costs = forgeRecipe.materialCosts();
+
+            var preview = "#e#d" + forgeRecipe.displayName() + "#n#k\r\n";
+            preview += "Target: #b#i" + forgeTarget.getItemId() + "# #t" + forgeTarget.getItemId() + "##k\r\n\r\n";
+            preview += "Cost: " + forgeRecipe.verdantMarkCost() + " Verdant Marks (you have " + marks + ")";
+            preview += "\r\nEmber Cores: " + costs.get(RootedMaterial.EMBER_CORE) + " (you have " + ember + ")";
+            preview += "\r\nAncient Bark: " + costs.get(RootedMaterial.ANCIENT_BARK) + " (you have " + bark + ")";
+            preview += "\r\n\r\nFixed upgrade: +" + delta.str() + " all stats";
+            if (delta.weaponAttack() > 0) preview += ", +" + delta.weaponAttack() + " weapon/magic attack";
+            if (delta.weaponDefense() > 0) preview += ", +" + delta.weaponDefense() + " weapon/magic defense";
+            preview += ", +" + delta.hp() + " HP, +" + delta.mp() + " MP, +" + delta.accuracy() + " accuracy/avoidability.";
+            preview += "\r\n\r\n#rThis equipment will become untradeable.#k Continue?";
+            cm.sendYesNo(preview);
+        } else if (status == 4 && selectedType == 4) {
+            var Runtime = Java.type('everleaf.progression.EverleafProgressionRuntime');
+            var RootedForgeTarget = Java.type('everleaf.progression.RootedForgeTarget');
+            var InventoryType = Java.type('client.inventory.InventoryType');
+            var UUID = Java.type('java.util.UUID');
+            var player = cm.getPlayer();
+            var target = new RootedForgeTarget(forgeTarget.getItemId(), InventoryType.EQUIP, forgeTarget.getPosition());
+            var purchase = Runtime.rootedForgeService().purchase(
+                player.getAccountID(), player.getId(), player.getLevel(), forgeRecipe, target, UUID.randomUUID().toString()
+            );
+            if (!purchase.applied()) {
+                cm.sendOk("The forge could not complete the purchase: #r" + purchase.reason() + "#k. No resources were spent.");
+                cm.dispose();
+                return;
+            }
+            var fulfilled = Runtime.rootedForgeFulfillmentService().fulfill(player, purchase.order().id());
+            if (fulfilled.fulfilled()) {
+                cm.sendOk("#e#dRooted Forge complete!#n#k Your equipment received its guaranteed Stage 1 refinement.");
+            } else {
+                cm.sendOk("Your payment is safely recorded, but delivery is pending: #r" + fulfilled.reason() + "#k. Ask a GM to retry forge order #b" + purchase.order().id() + "#k; you will not be charged again.");
+            }
             cm.dispose();
         }
     }
