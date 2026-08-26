@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply the Enhanced Classic level-250 source changes deterministically.
+"""Apply Enhanced Classic source changes deterministically.
 
 This is an interim build transform while the fork is being separated from
 upstream Cosmic. It is intentionally idempotent and fails loudly when the
@@ -24,6 +24,14 @@ replace_once(
     "return service.enhanced.LevelCapPolicy.maxLevel(job);",
 )
 
+# Apply the no-wash survivability floor after the character's new level is
+# finalized, but before local stats are recalculated and sent to the client.
+replace_once(
+    character,
+    "        levelUpGainSp();",
+    """        new service.enhanced.SurvivabilityService().applyCurrentFloor(this);\n\n        levelUpGainSp();""",
+)
+
 exp_table = Path("src/main/java/constants/game/ExpTable.java")
 replace_once(
     exp_table,
@@ -31,4 +39,4 @@ replace_once(
     """if (level <= 200) {\n            return exp[level];\n        }\n        if (level < 250) {\n            // Smooth post-200 curve: 1.70b at 201, approaching 2.0b at 249.\n            return Math.min(2_000_000_000, 1_700_000_000 + ((level - 201) * 6_250_000));\n        }\n        return Integer.MAX_VALUE;""",
 )
 
-print("Enhanced Classic level cap patch applied (250).")
+print("Enhanced Classic level cap + survivability patch applied (250).")
