@@ -19,21 +19,16 @@ public final class EverleafProgressionRuntime {
                 new JdbcVerdantMarkRepository(DatabaseConnection.getDataSource());
         private static final VerdantMarkService VERDANT_MARK_SERVICE =
                 new VerdantMarkService(VERDANT_MARK_REPOSITORY);
+        private static final EncounterRepository ENCOUNTER_REPOSITORY =
+                new JdbcEncounterRepository(DatabaseConnection.getDataSource());
+        private static final EncounterService ENCOUNTER_SERVICE =
+                new EncounterService(ENCOUNTER_REPOSITORY);
     }
 
-    public static WeeklyProgressionService weeklyService() {
-        return Holder.WEEKLY_SERVICE;
-    }
-
-    public static WeeklyProgressRepository weeklyRepository() {
-        return Holder.WEEKLY_REPOSITORY;
-    }
-
-    public static VerdantMarkService verdantMarkService() {
-        return Holder.VERDANT_MARK_SERVICE;
-    }
-
-    public static VerdantMarkRepository verdantMarkRepository() {
-        return Holder.VERDANT_MARK_REPOSITORY;
-    }
+    public static WeeklyProgressionService weeklyService() { return Holder.WEEKLY_SERVICE; }
+    public static WeeklyProgressRepository weeklyRepository() { return Holder.WEEKLY_REPOSITORY; }
+    public static VerdantMarkService verdantMarkService() { return Holder.VERDANT_MARK_SERVICE; }
+    public static VerdantMarkRepository verdantMarkRepository() { return Holder.VERDANT_MARK_REPOSITORY; }
+    public static EncounterService encounterService() { return Holder.ENCOUNTER_SERVICE; }
+    public static EncounterRepository encounterRepository() { return Holder.ENCOUNTER_REPOSITORY; }
 }
