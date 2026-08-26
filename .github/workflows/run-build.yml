@@ -1,20 +1,26 @@
-# This workflow will build a Java project with Maven
+# Build and test Enhanced Classic on development pushes and pull requests.
 
 name: Run build
+
 on:
+  push:
+    branches:
+      - enhanced-dev
   pull_request:
     branches:
       - master
+      - enhanced-dev
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up JDK 21
-      uses: actions/setup-java@v3
-      with:
-        java-version: '21'
-        distribution: 'corretto'
-    - name: Build with Maven (compile -> test -> package)
-      run: mvn -B package --file pom.xml
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'corretto'
+          cache: 'maven'
+      - name: Build with Maven (compile -> test -> package)
+        run: ./mvnw -B package --file pom.xml
