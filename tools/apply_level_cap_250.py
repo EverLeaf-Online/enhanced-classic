@@ -69,4 +69,18 @@ replace_once(
     'log.info("{} is now online after {} ms.", service.enhanced.EverleafIdentity.NAME, initDuration.toMillis());',
 )
 
-print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics).")
+# Register a player-facing @progress command without permanently rewriting the
+# large upstream command registry yet.
+commands = Path("src/main/java/client/command/CommandsExecutor.java")
+replace_once(
+    commands,
+    "import client.command.commands.gm0.OnlineCommand;",
+    "import client.command.commands.gm0.OnlineCommand;\nimport client.command.commands.gm0.ProgressCommand;",
+)
+replace_once(
+    commands,
+    '        addCommand("online", OnlineCommand.class);',
+    '        addCommand("online", OnlineCommand.class);\n        addCommand("progress", ProgressCommand.class);',
+)
+
+print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics + progress command).")
