@@ -12,9 +12,9 @@ public interface EncounterRepository {
 
     EncounterAttempt finishAttempt(long attemptId, EncounterResult result, Instant finishedAt);
 
-    boolean hasWeeklyClear(int accountId, String encounterId, LocalDate weekStartUtc);
+    boolean hasWeeklyRewardClaim(int accountId, String encounterId, LocalDate weekStartUtc);
 
-    boolean markWeeklyRewardClaimed(long attemptId);
+    boolean markWeeklyRewardClaimed(long attemptId, LocalDate weekStartUtc, Instant claimedAt);
 
     List<EncounterAttempt> recentAttempts(int characterId, int limit);
 }
