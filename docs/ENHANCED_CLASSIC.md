@@ -1,6 +1,6 @@
-# Enhanced Classic v83
+# Everleaf — Enhanced Classic v83
 
-Enhanced Classic is a custom gameplay fork of Cosmic targeting the feel of classic Global MapleStory v83 with modernized progression, balance, quality-of-life, and long-term endgame systems.
+**Everleaf** is a custom gameplay fork of Cosmic targeting the feel of classic Global MapleStory v83 with modernized progression, balance, quality-of-life, and long-term endgame systems.
 
 ## Core principles
 
@@ -33,6 +33,7 @@ These are development targets, not permanent launch promises.
 
 ### Progression
 - Revised leveling curve and training alternatives
+- Level cap 250
 - No mandatory HP washing
 - Quest reward overhaul
 - Party Quest reward and relevance overhaul
@@ -51,6 +52,7 @@ These are development targets, not permanent launch promises.
 - Account progression rewards that avoid runaway stat inflation
 
 ### Endgame
+- Shared progression tiers at 200 / 210 / 225 / 240 / 250
 - Clear boss progression tiers
 - Normal/Hard variants where appropriate
 - Gear progression with multiple acquisition paths
@@ -85,10 +87,10 @@ Disallowed direction:
 ## Milestones
 
 ### M0 — Baseline
-Get the unmodified fork building and running reproducibly. Document database, server, and client assumptions.
+Get the fork building and running reproducibly. Document database, server, and client assumptions.
 
 ### M1 — Enhanced Core
-Establish configuration, rates, progression rules, HP-wash replacement strategy, telemetry, and balance framework.
+Establish configuration, rates, progression rules, HP-wash replacement strategy, telemetry, level-250 support, and balance framework.
 
 ### M2 — Classic Content Pass
 Improve quests, Party Quests, drops, travel, early/mid-game progression, and class pain points.
@@ -97,7 +99,7 @@ Improve quests, Party Quests, drops, travel, early/mid-game progression, and cla
 Achievements, collections, journal, account progression, and supporting UI/NPC interfaces.
 
 ### M4 — Boss & Endgame
-Boss tiers, gear progression, weekly systems, endgame rewards, and expanded progression.
+Boss tiers, gear progression, weekly systems, endgame rewards, and expanded 200–250 progression.
 
 ### M5 — Social & Live Systems
 Guild progression, events, seasons/rotations where appropriate, rankings, and community systems.
@@ -110,6 +112,7 @@ Automated tests plus invited playtesting, economy simulation, progression teleme
 
 ## Current status
 
+- Server name: **Everleaf**.
 - Upstream foundation forked from Cosmic.
-- `enhanced-dev` is the integration branch for Enhanced Classic development.
-- M0 baseline audit is in progress.
+- `enhanced-dev` is the integration branch for Everleaf development.
+- M0/M1 foundation work is in progress.
