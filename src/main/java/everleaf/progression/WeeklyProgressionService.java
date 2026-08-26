@@ -71,8 +71,10 @@ public final class WeeklyProgressionService {
         AccountWeeklyState account = repository.findAccountState(accountId, week)
                 .orElse(new AccountWeeklyState(accountId, week, 0, 0));
 
-        int maximumAccountPoints = WeeklyProgressionPolicy.weeklyCorePoints(characterLevel)
-                + account.catchupPointsBank();
+        int maximumAccountPoints = WeeklyProgressionPolicy.maximumClaimablePoints(
+                characterLevel,
+                account.catchupPointsBank()
+        );
         int requested = WeeklyProgressionPolicy.clampAward(characterLevel, definition.pointReward());
         if (requested <= 0) return ClaimResult.rejected("account_budget_exhausted");
 
