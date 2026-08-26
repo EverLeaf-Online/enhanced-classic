@@ -1,6 +1,9 @@
 -- Apply after everleaf_verdant_marks.sql and everleaf_rooted_materials.sql.
 -- Payment and this fulfillment record are committed in the same transaction.
 
+ALTER TABLE inventoryequipment
+    ADD COLUMN everleaf_forge_stage TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER ringid;
+
 CREATE TABLE IF NOT EXISTS everleaf_rooted_forge_order (
     id BIGINT NOT NULL AUTO_INCREMENT,
     account_id INT NOT NULL,
