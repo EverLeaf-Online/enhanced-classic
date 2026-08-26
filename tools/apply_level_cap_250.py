@@ -24,12 +24,29 @@ replace_once(
     "return service.enhanced.LevelCapPolicy.maxLevel(job);",
 )
 
+# Add a Character-owned permanent MaxHP floor mutation. Keeping the raw
+# protected setMaxHp call inside Character avoids touching hpMpApUsed and also
+# makes login migration safe before the normal stat listener/update flow exists.
+replace_once(
+    character,
+    "    public int getMaxClassLevel() {",
+    """    public int applyEnhancedPermanentMaxHpFloor(int targetMaxHp) {\n        int clampedTarget = Math.min(30000, Math.max(getMaxHp(), targetMaxHp));\n        int increase = clampedTarget - getMaxHp();\n        if (increase > 0) {\n            setMaxHp(clampedTarget);\n        }\n        return increase;\n    }\n\n    public int getMaxClassLevel() {""",
+)
+
 # Apply the no-wash survivability floor after the character's new level is
 # finalized, but before local stats are recalculated and sent to the client.
 replace_once(
     character,
     "        levelUpGainSp();",
     """        new service.enhanced.SurvivabilityService().applyCurrentFloor(this);\n\n        levelUpGainSp();""",
+)
+
+# Existing characters are migrated on load. The dedicated Character mutation
+# does not consume AP or depend on the normal announced-stat update path.
+replace_once(
+    character,
+    "            ret.autoban = new AutobanManager(ret);",
+    """            ret.autoban = new AutobanManager(ret);\n            new service.enhanced.SurvivabilityService().applyCurrentFloor(ret);""",
 )
 
 exp_table = Path("src/main/java/constants/game/ExpTable.java")
