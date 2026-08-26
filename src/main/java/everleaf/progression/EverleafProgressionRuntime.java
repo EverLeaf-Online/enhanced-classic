@@ -23,6 +23,8 @@ public final class EverleafProgressionRuntime {
                 new JdbcEncounterRepository(DatabaseConnection.getDataSource());
         private static final EncounterService ENCOUNTER_SERVICE =
                 new EncounterService(ENCOUNTER_REPOSITORY);
+        private static final RootedMaterialRepository ROOTED_MATERIAL_REPOSITORY =
+                new JdbcRootedMaterialRepository(DatabaseConnection.getDataSource());
     }
 
     public static WeeklyProgressionService weeklyService() { return Holder.WEEKLY_SERVICE; }
@@ -31,4 +33,5 @@ public final class EverleafProgressionRuntime {
     public static VerdantMarkRepository verdantMarkRepository() { return Holder.VERDANT_MARK_REPOSITORY; }
     public static EncounterService encounterService() { return Holder.ENCOUNTER_SERVICE; }
     public static EncounterRepository encounterRepository() { return Holder.ENCOUNTER_REPOSITORY; }
+    public static RootedMaterialRepository rootedMaterialRepository() { return Holder.ROOTED_MATERIAL_REPOSITORY; }
 }
