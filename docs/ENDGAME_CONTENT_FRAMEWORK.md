@@ -73,10 +73,16 @@ The default instance policy currently uses a 120-second reconnect grace period a
 - Cosmetic prestige becomes increasingly important at 240–250 so power creep does not become infinite.
 - Donation rewards never grant encounter access, boss materials, forge power, or best-in-slot equipment.
 
+## Current implementation state
+
+- Dedicated instances are bound to Cosmic's event/map-instance infrastructure.
+- Rooted Zakum is the reference encounter with explicit party entry validation.
+- Rooted weekly rewards, practice mode, account-bound materials, and deterministic forge outcomes are defined.
+- Forge payment atomically debits Verdant Marks and all Rooted materials while creating a durable pending fulfillment order. Inventory delivery can therefore be retried without charging the player again.
+
 ## Next implementation pass
 
-1. Bind the dedicated-instance adapter to Cosmic's event/map-instance infrastructure.
-2. Implement Rooted Zakum as the reference encounter.
-3. Add explicit attempt-entry validation for party member level/state/channel requirements.
-4. Add GM/debug inspection hooks for active encounter state.
-5. Define Rooted boss material contracts and the first forge dependency.
+1. Bind pending Rooted forge orders to validated equipment inventory targets.
+2. Apply the fixed stat delta and mark fulfillment in one idempotent delivery flow.
+3. Add player-facing forge preview/confirmation interaction.
+4. Add GM/debug inspection hooks for active encounters and pending forge fulfillment.
