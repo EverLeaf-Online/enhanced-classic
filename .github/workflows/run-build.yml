@@ -30,11 +30,16 @@ jobs:
         run: chmod +x mvnw
       - name: Build with Maven (compile -> test -> package)
         run: ./mvnw -B package --file pom.xml
+      - name: Generate Everleaf build manifest
+        if: success()
+        run: python3 tools/generate_build_manifest.py
       - name: Upload Everleaf server artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: everleaf-server-${{ github.sha }}
-          path: target/*.jar
+          path: |
+            target/*.jar
+            target/everleaf-build.json
           if-no-files-found: error
           retention-days: 14
