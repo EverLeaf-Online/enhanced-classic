@@ -56,17 +56,17 @@ replace_once(
     """if (level <= 200) {\n            return exp[level];\n        }\n        if (level < 250) {\n            // Smooth post-200 curve: 1.70b at 201, approaching 2.0b at 249.\n            return Math.min(2_000_000_000, 1_700_000_000 + ((level - 201) * 6_250_000));\n        }\n        return Integer.MAX_VALUE;""",
 )
 
-# Player/operator-facing server identity.
+# Player/operator-facing server identity plus non-fatal deployment diagnostics.
 server = Path("src/main/java/net/server/Server.java")
 replace_once(
     server,
     'log.info("Cosmic v{} starting up.", ServerConstants.VERSION);',
-    'log.info("Everleaf v83 Enhanced Classic starting up (protocol v{}).", ServerConstants.VERSION);',
+    'log.info("{} starting up (protocol v{}).", service.enhanced.EverleafIdentity.displayName(), ServerConstants.VERSION);\n        service.enhanced.DeploymentSafetyPolicy.warnings(YamlConfig.config.server)\n                .forEach(warning -> log.warn("Everleaf deployment warning: {}", warning));',
 )
 replace_once(
     server,
     'log.info("Cosmic is now online after {} ms.", initDuration.toMillis());',
-    'log.info("Everleaf is now online after {} ms.", initDuration.toMillis());',
+    'log.info("{} is now online after {} ms.", service.enhanced.EverleafIdentity.NAME, initDuration.toMillis());',
 )
 
-print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity).")
+print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics).")
