@@ -13,7 +13,7 @@ public final class EndgameTierPolicy {
     }
 
     public enum Tier {
-        PRE_ENDGAME(0, 1),
+        PRE_ENDGAME(0, 0),
         TIER_1(200, 1),
         TIER_2(210, 2),
         TIER_3(225, 3),
