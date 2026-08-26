@@ -81,6 +81,7 @@ function setup(level, lobbyid) {
     eim.setProperty("everleafEncounterId", "rooted_zakum");
     eim.setProperty("defeatedBoss", 0);
     eim.setProperty("everleafCleared", 0);
+    eim.setProperty("everleafPhase", 0);
 
     eim.getInstanceMap(entryMap).resetPQ(level);
     eim.startEventTimer(eventTime * 60000);
@@ -89,7 +90,45 @@ function setup(level, lobbyid) {
     return eim;
 }
 
-function afterSetup(eim) {}
+function afterSetup(eim) {
+    var Policy = Java.type('everleaf.progression.RootedZakumMechanicPolicy');
+    var waves = Policy.waves();
+    for (var i = 0; i < waves.size(); i++) {
+        eim.schedule("spawnPressureWave" + (i + 1), waves.get(i).delayMinutes() * 60 * 1000);
+    }
+    eim.schedule("warnHardEnrage", Policy.enrageWarningMinute() * 60 * 1000);
+}
+
+function spawnPressureWave(eim, waveIndex) {
+    if (eim.isEventCleared()) return;
+    var Policy = Java.type('everleaf.progression.RootedZakumMechanicPolicy');
+    var OverrideMonsterStats = Java.type('server.life.OverrideMonsterStats');
+    var Point = Java.type('java.awt.Point');
+    var wave = Policy.waves().get(waveIndex);
+    var map = eim.getMapInstance(entryMap);
+    var positions = [-520, -340, -170, 0, 170, 340, 520, 680];
+    for (var i = 0; i < wave.count(); i++) {
+        var add = eim.getMonster(wave.monsterId());
+        if (add == null) continue;
+        add.changeLevel(200, true);
+        add.setOverrideStats(new OverrideMonsterStats(wave.hitPoints(), 50000, 0));
+        add.disableDrops();
+        map.spawnMonsterOnGroundBelow(add, new Point(positions[i], -215));
+    }
+    eim.setIntProperty("everleafPhase", wave.phase());
+    eim.dropMessage(5, "[Everleaf] Rooted Zakum phase " + wave.phase()
+        + ": corrupted guardians have entered the altar.");
+}
+
+function spawnPressureWave1(eim) { spawnPressureWave(eim, 0); }
+function spawnPressureWave2(eim) { spawnPressureWave(eim, 1); }
+function spawnPressureWave3(eim) { spawnPressureWave(eim, 2); }
+
+function warnHardEnrage(eim) {
+    if (!eim.isEventCleared()) {
+        eim.dropMessage(5, "[Everleaf] Rooted Zakum will hard-enrage in five minutes!");
+    }
+}
 
 function playerEntry(eim, player) {
     var Runtime = Java.type('everleaf.progression.EverleafProgressionRuntime');
@@ -192,6 +231,7 @@ function monsterKilled(mob, eim) {
         eim.setIntProperty("defeatedBoss", 1);
         eim.showClearEffect(mob.getMap().getId());
         eim.clearPQ();
+        mob.getMap().killAllMonsters();
         mob.getMap().broadcastZakumVictory();
         eim.dropMessage(5, "[Everleaf] Rooted Zakum has been defeated.");
 
