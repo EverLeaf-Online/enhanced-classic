@@ -70,12 +70,12 @@ commands = Path("src/main/java/client/command/CommandsExecutor.java")
 replace_once(
     commands,
     "import client.command.commands.gm0.OnlineCommand;",
-    "import client.command.commands.gm0.OnlineCommand;\nimport client.command.commands.gm0.ProgressCommand;\nimport client.command.commands.gm0.WeekliesCommand;",
+    "import client.command.commands.gm0.OnlineCommand;\nimport client.command.commands.gm0.MarksCommand;\nimport client.command.commands.gm0.ProgressCommand;\nimport client.command.commands.gm0.WeekliesCommand;",
 )
 replace_once(
     commands,
     '        addCommand("online", OnlineCommand.class);',
-    '        addCommand("online", OnlineCommand.class);\n        addCommand("progress", ProgressCommand.class);\n        addCommand(new String[]{"weeklies", "weekly"}, WeekliesCommand.class);',
+    '        addCommand("online", OnlineCommand.class);\n        addCommand(new String[]{"marks", "verdant"}, MarksCommand.class);\n        addCommand("progress", ProgressCommand.class);\n        addCommand(new String[]{"weeklies", "weekly"}, WeekliesCommand.class);',
 )
 
-print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics + progression commands).")
+print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics + progression/marks commands).")
