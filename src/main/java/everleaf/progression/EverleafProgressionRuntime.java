@@ -31,6 +31,9 @@ public final class EverleafProgressionRuntime {
                 new RootedForgeService(ROOTED_FORGE_REPOSITORY);
         private static final RootedForgeFulfillmentService ROOTED_FORGE_FULFILLMENT_SERVICE =
                 new RootedForgeFulfillmentService(ROOTED_FORGE_REPOSITORY);
+        private static final RootedZakumLifecycleService ROOTED_ZAKUM_LIFECYCLE_SERVICE =
+                new RootedZakumLifecycleService(ENCOUNTER_SERVICE, ENCOUNTER_REPOSITORY,
+                        VERDANT_MARK_REPOSITORY, ROOTED_MATERIAL_REPOSITORY);
     }
 
     public static WeeklyProgressionService weeklyService() { return Holder.WEEKLY_SERVICE; }
@@ -43,4 +46,5 @@ public final class EverleafProgressionRuntime {
     public static RootedForgeRepository rootedForgeRepository() { return Holder.ROOTED_FORGE_REPOSITORY; }
     public static RootedForgeService rootedForgeService() { return Holder.ROOTED_FORGE_SERVICE; }
     public static RootedForgeFulfillmentService rootedForgeFulfillmentService() { return Holder.ROOTED_FORGE_FULFILLMENT_SERVICE; }
+    public static RootedZakumLifecycleService rootedZakumLifecycleService() { return Holder.ROOTED_ZAKUM_LIFECYCLE_SERVICE; }
 }

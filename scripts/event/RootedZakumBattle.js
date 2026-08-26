@@ -92,6 +92,13 @@ function setup(level, lobbyid) {
 function afterSetup(eim) {}
 
 function playerEntry(eim, player) {
+    var Runtime = Java.type('everleaf.progression.EverleafProgressionRuntime');
+    var Instant = Java.type('java.time.Instant');
+    var started = Runtime.rootedZakumLifecycleService().begin(
+        player.getAccountID(), player.getId(), player.getLevel(), Instant.now()
+    );
+    eim.setProperty("everleafAttemptId:" + player.getId(), String(started.attemptId()));
+    eim.setProperty("everleafRewardMode:" + player.getId(), started.mode().name());
     eim.dropMessage(5, "[Everleaf] " + player.getName() + " entered Rooted Zakum.");
     var map = eim.getMapInstance(entryMap);
     player.changeMap(map, map.getPortal(0));
@@ -141,7 +148,19 @@ function monsterValue(eim, mobId) {
     return 1;
 }
 
-function playerUnregistered(eim, player) {}
+function playerUnregistered(eim, player) {
+    if (eim.isEventCleared()) return;
+    var attemptId = eim.getProperty("everleafAttemptId:" + player.getId());
+    if (attemptId == null) return;
+    try {
+        var Runtime = Java.type('everleaf.progression.EverleafProgressionRuntime');
+        var Instant = Java.type('java.time.Instant');
+        var Long = Java.type('java.lang.Long');
+        Runtime.rootedZakumLifecycleService().fail(Long.parseLong(attemptId), Instant.now());
+    } catch (error) {
+        player.dropMessage(5, "[Everleaf] The encounter exit record could not be finalized. Please contact a GM.");
+    }
+}
 
 function playerExit(eim, player) {
     eim.unregisterPlayer(player);
@@ -175,6 +194,36 @@ function monsterKilled(mob, eim) {
         eim.clearPQ();
         mob.getMap().broadcastZakumVictory();
         eim.dropMessage(5, "[Everleaf] Rooted Zakum has been defeated.");
+
+        var Runtime = Java.type('everleaf.progression.EverleafProgressionRuntime');
+        var RewardMode = Java.type('everleaf.progression.EnhancedBossRewardMode');
+        var Instant = Java.type('java.time.Instant');
+        var Long = Java.type('java.lang.Long');
+        var players = eim.getPlayers();
+        for (var i = 0; i < players.size(); i++) {
+            var player = players.get(i);
+            var attemptId = eim.getProperty("everleafAttemptId:" + player.getId());
+            var mode = eim.getProperty("everleafRewardMode:" + player.getId());
+            if (attemptId == null || mode == null) {
+                player.dropMessage(5, "[Everleaf] Reward delivery is pending because the attempt record is missing. Please contact a GM.");
+                continue;
+            }
+            try {
+                var completion = Runtime.rootedZakumLifecycleService().complete(
+                    Long.parseLong(attemptId), RewardMode.valueOf(mode), Instant.now()
+                );
+                if (!completion.completed()) {
+                    player.dropMessage(5, "[Everleaf] Reward delivery is pending (" + completion.reason() + "). Your clear remains recorded.");
+                } else if (completion.rewarded()) {
+                    player.dropMessage(5, "[Everleaf] Weekly clear reward: " + completion.verdantMarks()
+                        + " Verdant Marks, 2 Ember Cores, and 1 Ancient Bark.");
+                } else {
+                    player.dropMessage(5, "[Everleaf] Practice clear complete. Your weekly reward was already claimed on this account.");
+                }
+            } catch (error) {
+                player.dropMessage(5, "[Everleaf] Reward delivery is pending. Your attempt can be safely retried by a GM.");
+            }
+        }
     }
 }
 
