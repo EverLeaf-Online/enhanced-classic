@@ -71,19 +71,23 @@ public final class WeeklyProgressionService {
         AccountWeeklyState account = repository.findAccountState(accountId, week)
                 .orElse(new AccountWeeklyState(accountId, week, 0, 0));
 
-        int weeklyBudget = WeeklyProgressionPolicy.weeklyCorePoints(characterLevel);
-        int totalAvailable = weeklyBudget + account.catchupPointsBank();
-        int remaining = Math.max(0, totalAvailable - account.rewardPointsClaimed());
+        int maximumAccountPoints = WeeklyProgressionPolicy.weeklyCorePoints(characterLevel)
+                + account.catchupPointsBank();
         int requested = WeeklyProgressionPolicy.clampAward(characterLevel, definition.pointReward());
-        int awarded = Math.min(requested, remaining);
-        if (awarded <= 0) return ClaimResult.rejected("account_budget_exhausted");
+        if (requested <= 0) return ClaimResult.rejected("account_budget_exhausted");
 
-        repository.saveAccountState(account.withClaimedPoints(awarded));
-        repository.saveCharacterObjective(new CharacterObjectiveState(
-                objective.characterId(), objective.weekStartUtc(), objective.objectiveId(),
-                objective.progressCount(), objective.completedAt(), now
-        ));
-        return ClaimResult.awarded(awarded);
+        WeeklyProgressRepository.ClaimCommitResult committed = repository.commitClaim(
+                accountId,
+                characterId,
+                week,
+                objectiveId,
+                requested,
+                maximumAccountPoints,
+                now
+        );
+        return committed.committed()
+                ? ClaimResult.awarded(committed.pointsAwarded())
+                : ClaimResult.rejected(committed.reason());
     }
 
     public record ClaimResult(boolean success, int pointsAwarded, String reason) {
