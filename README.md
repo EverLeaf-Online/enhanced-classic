@@ -51,7 +51,9 @@ Current development targets are intentionally conservative and subject to playte
 - Meso: **3x**
 - Drop: **2x**
 - Boss drop: **2x**
-- Quest rewards: balanced independently
+- Quest rewards: **1x global multiplier**, with important quests intended to be rebalanced individually
+- Travel/fishing development multiplier: **2x**
+- Cash Shop rate coupons: **disabled**
 
 These are development values, not permanent launch promises.
 
@@ -77,7 +79,7 @@ Everleaf is being designed so players do not need to plan months of INT washing 
 
 The server uses progression-based permanent MaxHP floors that preserve class durability differences while ensuring intended boss content remains realistically accessible.
 
-The system is designed to be idempotent: characters only receive the missing amount needed to reach their current progression floor.
+The system is designed to be idempotent: characters only receive the missing amount needed to reach their current progression floor. Floors are checked on level-up and when existing characters are loaded, so migrated characters are covered as well.
 
 ## Current development roadmap
 
@@ -93,6 +95,8 @@ The system is designed to be idempotent: characters only receive the missing amo
 - No-wash survivability system
 - Progression framework
 - Initial rate cleanup
+- Everleaf identity/configuration
+- Deployment-safe environment overrides
 
 ### M2 — Classic Content Pass
 - Quest improvements
@@ -147,17 +151,36 @@ The system is designed to be idempotent: characters only receive the missing amo
 On Linux/macOS:
 
 ```bash
+python3 tools/apply_everleaf_config.py
+python3 tools/apply_level_cap_250.py
 chmod +x mvnw
 ./mvnw clean package
 ```
 
-On Windows:
+On Windows, apply the transforms with Python and then build:
 
 ```powershell
+python tools/apply_everleaf_config.py
+python tools/apply_level_cap_250.py
 .\mvnw.cmd clean package
 ```
 
-The GitHub Actions workflow builds and tests the `enhanced-dev` branch and pull requests before changes are merged into the protected `master` branch.
+The GitHub Actions workflow applies the same deterministic transforms, then builds and tests the `enhanced-dev` branch and pull requests before changes are merged into the protected `master` branch.
+
+### Deployment environment overrides
+
+Secrets and host-specific values do not need to be committed to `config.yaml`. Everleaf supports these optional environment variables:
+
+- `EVERLEAF_DB_HOST`
+- `EVERLEAF_DB_USER`
+- `EVERLEAF_DB_PASS`
+- `EVERLEAF_DB_URL_FORMAT`
+- `EVERLEAF_HOST`
+- `EVERLEAF_LANHOST`
+- `EVERLEAF_LOCALHOST`
+- `EVERLEAF_AUTOMATIC_REGISTER` (`true` or `false`)
+
+For a public deployment, use a dedicated least-privilege database user and set `EVERLEAF_AUTOMATIC_REGISTER=false` once website/account registration is available. Never commit production database passwords.
 
 ## Branch strategy
 
