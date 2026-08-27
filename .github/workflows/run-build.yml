@@ -78,6 +78,7 @@ jobs:
     permissions:
       contents: read
     steps:
+      - uses: actions/checkout@v5
       - name: Configure pinned SSH host
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
