@@ -7,7 +7,6 @@ on:
       - "client/**"
       - ".github/workflows/build-everleaf-client.yml"
   pull_request:
-    branches: [content-dev]
     paths:
       - "client/**"
       - ".github/workflows/build-everleaf-client.yml"
