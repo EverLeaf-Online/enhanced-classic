@@ -10,7 +10,7 @@ bool Client::RemoveLogos = true;
 double Client::setDamageCap = 199999.0;
 bool Client::useTubi = false;
 int Client::speedMovementCap = 140;
-std::string Client::ServerIP_AddressFromINI = "127.0.0.1";
+std::string Client::ServerIP_AddressFromINI = "132.145.141.79";
 
 void Client::UpdateGameStartup() {
 
