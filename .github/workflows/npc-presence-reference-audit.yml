@@ -1,0 +1,38 @@
+name: NPC Presence Reference Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'tools/audit_npc_presence_reference.py'
+      - '.github/workflows/npc-presence-reference-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+        with:
+          path: everleaf
+      - name: Checkout v83 reference
+        uses: actions/checkout@v4
+        with:
+          repository: jonnylin13/Maple83
+          path: maple83-reference
+          fetch-depth: 1
+      - name: Compare NPC presence
+        run: |
+          cd everleaf
+          python3 tools/audit_npc_presence_reference.py ../maple83-reference/wz/Map.wz/Map
+          python3 tools/audit_npc_presence_reference.py ../maple83-reference/wz/Map.wz/Map --json > npc-presence-reference-audit.json
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-presence-reference-audit
+          path: everleaf/npc-presence-reference-audit.json
+          if-no-files-found: error
