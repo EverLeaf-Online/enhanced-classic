@@ -10,10 +10,9 @@ const router = express.Router();
 router.get("/", async (req,res) => {
   const posts = db.prepare("SELECT * FROM posts WHERE published=1 ORDER BY created_at DESC LIMIT 5").all();
   let status={online:false,channels:0,totalChannels:env.game.channelPorts.length}, players=0, topCharacters=[];
-  try {
-    const values=await Promise.all([game.serverStatus(),game.onlineCount(),game.rankings(5)]);
-    status=values[0]; players=values[1]; topCharacters=values[2].map(r=>({...r,jobName:jobName(r.job)}));
-  } catch {}
+  try { status=await game.serverStatus(); } catch {}
+  try { players=await game.onlineCount(); } catch {}
+  try { topCharacters=(await game.rankings(5)).map(r=>({...r,jobName:jobName(r.job)})); } catch {}
   res.render("home",{posts,status,players,topCharacters,settings:settings()});
 });
 
@@ -121,10 +120,11 @@ router.post("/account/password",async(req,res)=>{
 
 router.post("/logout",(req,res)=>req.session.destroy(()=>res.redirect("/")));
 router.get("/api/status", async(req,res)=>{
-  try {
-    const [status,players]=await Promise.all([game.serverStatus(),game.onlineCount()]);
-    res.json({...status,players});
-  } catch { res.status(503).json({online:false,players:0}); }
+  let status={online:false,channels:0,totalChannels:env.game.channelPorts.length};
+  let players=null;
+  try { status=await game.serverStatus(); } catch {}
+  try { players=await game.onlineCount(); } catch {}
+  res.json({...status,players});
 });
 
 router.get("/api/launcher/manifest",(req,res)=>{
