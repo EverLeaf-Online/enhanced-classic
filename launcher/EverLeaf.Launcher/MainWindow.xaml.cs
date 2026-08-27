@@ -17,7 +17,7 @@ public partial class MainWindow : Window
         Loaded += MainWindow_Loaded;
         Closed += (_, _) => _api.Dispose();
 
-        var remembered = Properties.Settings.Default.RememberedUsername;
+        var remembered = UserPreferences.LoadRememberedUsername();
         if (!string.IsNullOrWhiteSpace(remembered))
         {
             UsernameBox.Text = remembered;
@@ -113,9 +113,8 @@ public partial class MainWindow : Window
 
     private void SaveRememberedUsername()
     {
-        Properties.Settings.Default.RememberedUsername =
-            RememberUsernameBox.IsChecked == true ? UsernameBox.Text.Trim() : string.Empty;
-        Properties.Settings.Default.Save();
+        UserPreferences.SaveRememberedUsername(
+            RememberUsernameBox.IsChecked == true ? UsernameBox.Text.Trim() : string.Empty);
     }
 
     private void SetBusy(bool busy)
