@@ -108,6 +108,11 @@ public partial class MainWindow : Window
             PatchProgress.Value = value.Percent;
             PatchStatusText.Text = value.Status;
         });
+
+        // Server NPC placement is sourced from EverLeaf's pinned WZ XML. Verify the
+        // corresponding client map/NPC files first so a generic v83 install cannot
+        // silently launch with incompatible map geometry or NPC data.
+        await ClientDataCompatibility.VerifyAsync(_gameDirectory, progress, CancellationToken.None);
         await new PatchService(_gameDirectory).VerifyAndRepairAsync(progress, CancellationToken.None);
     }
 
