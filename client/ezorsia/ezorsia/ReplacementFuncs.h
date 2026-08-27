@@ -49,7 +49,7 @@ HWND WINAPI CreateWindowExA_Hook(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpW
 	if(strstr(lpClassName, "MapleStoryClass"))
 	{
 		dwStyle |= WS_MINIMIZEBOX; // enable minimize button
-		HWND ret  = CreateWindowExA_Original(dwExStyle, lpClassName, "Everleaf", dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
+		HWND ret  = CreateWindowExA_Original(dwExStyle, lpClassName, "EverLeaf", dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
 		return ret;
 	}
 	else if (strstr(lpClassName, "StartUpDlgClass"))
@@ -426,6 +426,24 @@ bool Hook_sub_9F7159(bool bEnable)	//resman hook that does nothing, kept for ana
 	}
 	return Memory::SetHook(bEnable, reinterpret_cast<void**>(&_sub_9F7159), _sub_9F7159_append);
 }
+// StringPool owns its cached strings for the process lifetime. Some v83 builds
+// return cached entries with nRef == 0; a temporary caller reference can then
+// free the pool-owned buffer and corrupt later map loads (E_POINTER).
+constexpr long EVERLEAF_STRING_POOL_PIN = 0x40000000;
+static void EverLeafPinStringPoolEntry(void* pThis, unsigned int nIdx)
+{
+	__try
+	{
+		DWORD* cache = *reinterpret_cast<DWORD**>(pThis);
+		if (!cache) { return; }
+		DWORD* entry = reinterpret_cast<DWORD*>(cache[nIdx]);
+		if (!entry || !*entry) { return; }
+		long* nRef = reinterpret_cast<long*>(*entry - 12);
+		if (*nRef < EVERLEAF_STRING_POOL_PIN) { *nRef = EVERLEAF_STRING_POOL_PIN; }
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) { }
+}
+
 bool Hook_StringPool__GetString_initialized = true;
 _StringPool__GetString_t _StringPool__GetString_rewrite = [](void* pThis, void* edx, ZXString<char>* result, unsigned int nIdx, char formal) ->  ZXString<char>*
 {
@@ -435,6 +453,7 @@ _StringPool__GetString_t _StringPool__GetString_rewrite = [](void* pThis, void* 
 		Hook_StringPool__GetString_initialized = false;
 	}
 	auto ret = _sub_79E993(pThis, nullptr, result, nIdx, formal);//_StringPool__GetString_t
+	EverLeafPinStringPoolEntry(pThis, nIdx);
 	switch (nIdx)
 	{
 	case 888:
@@ -454,8 +473,8 @@ _StringPool__GetString_t _StringPool__GetString_rewrite = [](void* pThis, void* 
 			case 1024:
 				*ret = ("MapleEzorsiaV2wzfiles.img/Common/frame1024"); break;
 			}
-			break;
 		}
+		break;
 	case 1301:	//1301_UI_CASHSHOPIMG_BASE_BACKGRND  = 515h
 		if (MainMain::EzorsiaV2WzIncluded && !MainMain::ownCashShopFrame) { *ret = ("MapleEzorsiaV2wzfiles.img/Base/backgrnd"); } break;
 	case 1302:	//1302_UI_CASHSHOPIMG_BASE_BACKGRND1 = 516h
@@ -1791,10 +1810,10 @@ static _sub_9F84D0_t _sub_9F84D0_rewrite = [](CWvsApp* pThis, void* edx, int tCu
 				_com_issue_error(-2147467261);//_sub_A5FDE4(-2147467261);//void __stdcall _com_issue_error(HRESULT hr)
 			}
 			auto v7 = *(int(__stdcall**)(IWzGr2D*, int))(*(int*)((*_dword_BF14EC).m_pInterface) + 24);
-			v7((*_dword_BF14EC).m_pInterface, v3->m_tUpdateTime);//unknown function//((int (__stdcall *)(IWzGr2D *, int))v2->vfptr[2].QueryInterface)(v2, tTime);
-			if ((HRESULT)v7 < 0)
+			HRESULT hr = (HRESULT)v7((*_dword_BF14EC).m_pInterface, v3->m_tUpdateTime);//unknown function//((int (__stdcall *)(IWzGr2D *, int))v2->vfptr[2].QueryInterface)(v2, tTime);
+			if (hr < 0)
 			{//void __stdcall _com_issue_errorex(HRESULT hr, IUnknown* punk, _GUID* riid)//_sub_A5FDF2
-				_com_issue_errorex((HRESULT)v7, (IUnknown*)(*_dword_BF14EC).m_pInterface, *_unk_BD83B0);//GUID _GUID_e576ea33_d465_4f08_aab1_e78df73ee6d9
+				_com_issue_errorex(hr, (IUnknown*)(*_dword_BF14EC).m_pInterface, *_unk_BD83B0);//GUID _GUID_e576ea33_d465_4f08_aab1_e78df73ee6d9
 			}
 		}
 		//v10 = -1; //stack frame counter of sorts for errors
@@ -1804,10 +1823,10 @@ static _sub_9F84D0_t _sub_9F84D0_rewrite = [](CWvsApp* pThis, void* edx, int tCu
 		_com_issue_error(-2147467261);//_sub_A5FDE4(-2147467261);//void __stdcall _com_issue_error(HRESULT hr)
 	}
 	auto v5 = *(int(__stdcall**)(IWzGr2D*, int))(*(int*)((*_dword_BF14EC).m_pInterface) + 24); //*(_DWORD *)dword_BF14EC + 24)
-	v5((*_dword_BF14EC).m_pInterface, tCurTime);//unknown function//((int (__stdcall *)(IWzGr2D *, int))v2->vfptr[2].QueryInterface)(v2, tTime);
-	if ((HRESULT)v5 < 0)
+	HRESULT hr = (HRESULT)v5((*_dword_BF14EC).m_pInterface, tCurTime);//unknown function//((int (__stdcall *)(IWzGr2D *, int))v2->vfptr[2].QueryInterface)(v2, tTime);
+	if (hr < 0)
 	{//void __stdcall _com_issue_errorex(HRESULT hr, IUnknown* punk, _GUID* riid)//_sub_A5FDF2
-		_com_issue_errorex((HRESULT)v5, (IUnknown*)((*_dword_BF14EC).m_pInterface), *_unk_BD83B0);//GUID _GUID_e576ea33_d465_4f08_aab1_e78df73ee6d9
+		_com_issue_errorex(hr, (IUnknown*)((*_dword_BF14EC).m_pInterface), *_unk_BD83B0);//GUID _GUID_e576ea33_d465_4f08_aab1_e78df73ee6d9
 	}//void __thiscall CActionMan::SweepCache(CActionMan* this)
 	_sub_411BBB(*_dword_BE78D4);//CActionMan *TSingleton<CActionMan>::ms_pInstance
 };	const wchar_t* v13;
@@ -2333,11 +2352,10 @@ static _IWzFileSystem__Init_t _sub_9F7964_Hook = [](void* pThis, void* edx, Ztl_
 		v3 = sPath.m_Data->m_wstr;
 	}
 	auto v4 = (*(int(__stdcall**)(void*, wchar_t*))(*(DWORD*)pThis + 52));//overloaded unknown funct at offset 52 of IWzFileSystem
-	v4(pThis, v3);//seems to do nothing and just check the input, works if not run
-	v5 = (HRESULT)v4;
-	if ((HRESULT)v4 < 0)
+	v5 = (HRESULT)v4(pThis, v3);//preserve the real HRESULT returned by the virtual call
+	if (v5 < 0)
 	{
-		_com_issue_errorex((HRESULT)v4, (IUnknown*)v2, *_unk_BE2EC0);//GUID _GUID_352d8655_51e4_4668_8ce4_0866e2b6a5b5
+		_com_issue_errorex(v5, (IUnknown*)v2, *_unk_BE2EC0);//GUID _GUID_352d8655_51e4_4668_8ce4_0866e2b6a5b5
 	}
 	if (sPath.m_Data)
 	{
@@ -2393,11 +2411,11 @@ static _sub_5D995B_t _sub_5D995B_Hook = [](void* pThis, void* edx, Ztl_variant_t
 	{
 		ZSecureCrypt_Init = true; v4 = v13;
 	}
-	v5(v3, v4, &pvarg);
+	HRESULT hr = (HRESULT)v5(v3, v4, &pvarg);
 	//std::cout << "_sub_5D995B vals: " << *(DWORD*)v3 << " / " << *v4 << " / " << *(DWORD*)(&pvarg) << std::endl;//Sleep(22000);
-	if ((HRESULT)v5 < 0)
+	if (hr < 0)
 	{
-		_com_issue_errorex((HRESULT)v5, (IUnknown*)v3, *_unk_BD8F28); ///GUID _GUID_2aeeeb36_a4e1_4e2b_8f6f_2e7bdec5c53d
+		_com_issue_errorex(hr, (IUnknown*)v3, *_unk_BD8F28); ///GUID _GUID_2aeeeb36_a4e1_4e2b_8f6f_2e7bdec5c53d
 	}
 	_sub_4039AC(result, &pvarg, 0);//non-existent func in v95//int __thiscall sub_4039AC(VARIANTARG *pvargDest, VARIANTARG *pvargSrc, char) //works with v95 overwrite//memcpy_s(result, 0x10u, &pvarg, 0x10u);//_sub_4039AC(result, &pvarg, 0); //works with v95 overwrite
 	pvarg.vt = 0;
