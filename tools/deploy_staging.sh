@@ -25,6 +25,7 @@ python3 tools/apply_everleaf_config.py
 python3 tools/apply_level_cap_250.py
 chmod +x mvnw
 chmod +x tools/backup_database.sh
+chmod +x tools/check_disk_usage.sh
 ./mvnw -B package --file pom.xml
 
 sudo tee /usr/local/sbin/everleaf-create-account >/dev/null <<'ACCOUNT_TOOL'
@@ -108,10 +109,41 @@ Unit=everleaf-backup.service
 WantedBy=timers.target
 UNIT
 
+sudo tee /etc/systemd/system/everleaf-disk-monitor.service >/dev/null <<'UNIT'
+[Unit]
+Description=Check Everleaf staging disk usage
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/opt/everleaf/current/tools/check_disk_usage.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UNIT
+
+sudo tee /etc/systemd/system/everleaf-disk-monitor.timer >/dev/null <<'UNIT'
+[Unit]
+Description=Hourly Everleaf staging disk-usage monitor
+
+[Timer]
+OnBootSec=5m
+OnUnitActiveSec=1h
+Persistent=true
+RandomizedDelaySec=5m
+Unit=everleaf-disk-monitor.service
+
+[Install]
+WantedBy=timers.target
+UNIT
+
 sudo systemctl daemon-reload
 sudo systemctl enable everleaf.service
 sudo install -d -m 700 /var/backups/everleaf
 sudo systemctl enable --now everleaf-backup.timer
+sudo systemctl enable --now everleaf-disk-monitor.timer
 sudo ufw allow 8484/tcp comment 'Everleaf login'
 sudo ufw allow 7575:7577/tcp comment 'Everleaf channels'
 sudo systemctl restart everleaf.service
@@ -141,6 +173,8 @@ if ! sudo systemctl start everleaf-backup.service; then
     exit 1
 fi
 sudo systemctl --no-pager --full status everleaf-backup.timer
+sudo systemctl start everleaf-disk-monitor.service
+sudo systemctl --no-pager --full status everleaf-disk-monitor.timer
 sudo find /var/backups/everleaf -maxdepth 1 -type f -name 'cosmic-*.sql.gz' \
     -printf '%TY-%Tm-%TdT%TH:%TM:%TSZ %s bytes %f\n' \
     | sort \

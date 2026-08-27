@@ -24,7 +24,8 @@ This checklist separates development convenience from public-server requirements
 - [ ] Allow only required game/SSH ports through the host firewall.
 - [ ] Use SSH-key authentication; disable password SSH where practical.
 - [ ] Create database backup and restore procedures before inviting players.
-- [ ] Configure log rotation and disk-usage monitoring.
+- [ ] Confirm compressed daily/20 MB log rotation and the hourly
+  `everleaf-disk-monitor.timer` are active.
 - [ ] Confirm server startup emits no unresolved Everleaf deployment warnings.
 - [ ] Verify the packaged build manifest matches the expected commit, protocol version, level cap, and rates.
 

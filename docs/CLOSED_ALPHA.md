@@ -37,6 +37,8 @@ Usernames must contain 4-13 ASCII letters or digits. Passwords must contain
 - Rooted Zakum timing and balance require live level-200 party playtesting.
 - Alpha data may be reset when a migration or economy correction requires it.
 - Availability is best-effort while monitoring and abuse controls are completed.
+- Disk usage is checked hourly at 80% warning and 90% critical thresholds; log
+  files rotate daily or at 20 MB and are compressed without automatic deletion.
 - Donations grant no gameplay power, progression currency, boss access, or
   account priority.
 
