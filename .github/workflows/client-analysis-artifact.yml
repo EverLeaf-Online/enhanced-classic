@@ -1,4 +1,4 @@
-name: Legacy client analysis artifact
+name: Build closed-alpha client
 
 on:
   push:
@@ -10,24 +10,63 @@ permissions:
   contents: read
 
 jobs:
-  stage-client:
+  build-client:
     runs-on: ubuntu-latest
     steps:
-      - name: Retrieve archived client commit
+      - name: Retrieve verified legacy client
         uses: actions/checkout@v5
         with:
           ref: 335d4fbb74e713a01f63163c39c941865401d24a
           sparse-checkout: Localhosts.zip
           sparse-checkout-cone-mode: false
-      - name: Verify archived client
+      - name: Verify source archive
         shell: bash
         run: |
-          test -f Localhosts.zip
           echo "096e21e155ca1a06a3132a6ad6f7feda5cd986928f415bab15a3b67fee412527  Localhosts.zip" | sha256sum --check
-      - name: Upload private analysis artifact
+      - name: Patch server address without executing client
+        shell: bash
+        run: |
+          mkdir -p source EverleafClient
+          unzip -q Localhosts.zip -d source
+          python3 - <<'PY'
+          from pathlib import Path
+
+          old = b"127.0.0.1" + bytes(7)
+          new = b"132.145.141.79" + bytes(2)
+          expected = {
+              "Localhost.exe": "ce9775375b724d211634327922416d55e580dfaba00fd9a61280a9daa5ce6698",
+              "LocalHostNoWindowedMode.exe": "3e6fa786590c7dbe7f19b3730c817587cfb4b8464ddc0f1839a2f342d4e64f6d",
+          }
+
+          import hashlib
+          for name, digest in expected.items():
+              source = Path("source") / name
+              data = source.read_bytes()
+              assert hashlib.sha256(data).hexdigest() == digest
+              assert data.count(old) == 3
+              patched = data.replace(old, new)
+              assert patched.count(old) == 0
+              assert patched.count(new) == 3
+              assert len(patched) == len(data)
+              (Path("EverleafClient") / name).write_bytes(patched)
+          PY
+          cp source/README.txt EverleafClient/ORIGINAL-README.txt
+          cat > EverleafClient/EVERLEAF-README.txt <<'EOF'
+          Everleaf closed-alpha client
+          Server: 132.145.141.79
+          Version: MapleStory v83 (legacy modified client)
+
+          These executables were statically patched from 127.0.0.1 to the
+          Everleaf staging server. They were not executed during packaging.
+          Keep this package private and scan it with Windows Security before use.
+          EOF
+          sha256sum EverleafClient/*.exe > EverleafClient/SHA256SUMS.txt
+          (cd EverleafClient && zip -q ../EverleafClient-closed-alpha.zip ./*)
+          unzip -l EverleafClient-closed-alpha.zip
+      - name: Upload private closed-alpha client
         uses: actions/upload-artifact@v4
         with:
-          name: legacy-client-analysis
-          path: Localhosts.zip
-          retention-days: 1
+          name: EverleafClient-closed-alpha
+          path: EverleafClient-closed-alpha.zip
+          retention-days: 7
           if-no-files-found: error
