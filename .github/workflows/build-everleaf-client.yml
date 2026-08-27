@@ -6,6 +6,11 @@ on:
     paths:
       - "client/**"
       - ".github/workflows/build-everleaf-client.yml"
+  pull_request:
+    branches: [content-dev]
+    paths:
+      - "client/**"
+      - ".github/workflows/build-everleaf-client.yml"
   workflow_dispatch:
 
 permissions:
@@ -24,6 +29,27 @@ jobs:
         shell: pwsh
         run: |
           msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+
+      - name: Verify EverLeaf client hardening
+        shell: pwsh
+        run: |
+          $sourcePath = "client/ezorsia/ezorsia/ReplacementFuncs.h"
+          $source = Get-Content $sourcePath -Raw
+          $required = @(
+            "EverLeafPinStringPoolEntry(pThis, nIdx)",
+            "EVERLEAF_STRING_POOL_PIN",
+            'lpClassName, "EverLeaf", dwStyle',
+            'case 888:',
+            'Welcome to EverLeaf!'
+          )
+          foreach ($pattern in $required) {
+            if (-not $source.Contains($pattern)) {
+              throw "Missing required client hardening marker: $pattern"
+            }
+          }
+          if ($source -match 'if\s*\(\(HRESULT\)v\d+\s*<\s*0\)') {
+            throw "Function-pointer address is still being tested as an HRESULT"
+          }
 
       - name: Verify and package
         shell: pwsh
