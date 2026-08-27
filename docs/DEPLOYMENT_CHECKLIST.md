@@ -79,7 +79,8 @@ This checklist separates development convenience from public-server requirements
 Local/private connectivity only. Development defaults are acceptable if clearly isolated.
 
 ### Closed alpha
-Invite-only accounts, backups enabled, operational logging enabled, known issue list published to testers.
+Invite-only accounts, backups enabled, operational logging enabled, and the
+tester checklist/known limitations in `docs/CLOSED_ALPHA.md` published to testers.
 
 ### Public beta
 Public registration flow, monitoring, abuse controls, backup restoration test, economy review, and deployment hardening complete.

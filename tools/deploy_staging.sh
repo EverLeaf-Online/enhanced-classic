@@ -27,6 +27,25 @@ chmod +x mvnw
 chmod +x tools/backup_database.sh
 ./mvnw -B package --file pom.xml
 
+sudo tee /usr/local/sbin/everleaf-create-account >/dev/null <<'ACCOUNT_TOOL'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ ! -t 0 || ! -t 1 ]]; then
+    echo "Run this command from an interactive SSH terminal." >&2
+    exit 2
+fi
+
+set -a
+source /etc/everleaf/everleaf.env
+set +a
+
+exec /usr/bin/java -cp \
+    /opt/everleaf/current/target/everleaf-server-1.0-SNAPSHOT.jar \
+    tools.EverleafAccountProvisioner
+ACCOUNT_TOOL
+sudo chmod 755 /usr/local/sbin/everleaf-create-account
+
 ln -sfn "${release_dir}" "${root_dir}/current"
 
 sudo tee /etc/systemd/system/everleaf.service >/dev/null <<'UNIT'
