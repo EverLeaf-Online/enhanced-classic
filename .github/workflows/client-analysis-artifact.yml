@@ -23,30 +23,44 @@ jobs:
         shell: bash
         run: |
           echo "096e21e155ca1a06a3132a6ad6f7feda5cd986928f415bab15a3b67fee412527  Localhosts.zip" | sha256sum --check
-      - name: Patch server address without executing client
+      - name: Patch server address and Everleaf branding
         shell: bash
         run: |
           mkdir -p source EverleafClient
           unzip -q Localhosts.zip -d source
           python3 - <<'PY'
           from pathlib import Path
+          import hashlib
 
-          old = b"127.0.0.1" + bytes(7)
-          new = b"132.145.141.79" + bytes(2)
+          old_ip = b"127.0.0.1" + bytes(7)
+          new_ip = b"132.145.141.79" + bytes(2)
+          old_brand_wide = "MapleRoyals".encode("utf-16le")
+          new_brand_wide = "Everleaf".encode("utf-16le") + bytes(6)
+          old_brand_ascii = b"MapleRoyals"
+          new_brand_ascii = b"EverleafApp"
           expected = {
               "Localhost.exe": "ce9775375b724d211634327922416d55e580dfaba00fd9a61280a9daa5ce6698",
               "LocalHostNoWindowedMode.exe": "3e6fa786590c7dbe7f19b3730c817587cfb4b8464ddc0f1839a2f342d4e64f6d",
           }
 
-          import hashlib
           for name, digest in expected.items():
               source = Path("source") / name
               data = source.read_bytes()
               assert hashlib.sha256(data).hexdigest() == digest
-              assert data.count(old) == 3
-              patched = data.replace(old, new)
-              assert patched.count(old) == 0
-              assert patched.count(new) == 3
+              assert data.count(old_ip) == 3
+              assert data.count(old_brand_wide) == 7
+              assert data.count(old_brand_ascii) == 2
+
+              patched = data.replace(old_ip, new_ip)
+              patched = patched.replace(old_brand_wide, new_brand_wide)
+              patched = patched.replace(old_brand_ascii, new_brand_ascii)
+
+              assert patched.count(old_ip) == 0
+              assert patched.count(new_ip) == 3
+              assert patched.count(old_brand_wide) == 0
+              assert patched.count(new_brand_wide) == 7
+              assert patched.count(old_brand_ascii) == 0
+              assert patched.count(new_brand_ascii) == 2
               assert len(patched) == len(data)
               (Path("EverleafClient") / name).write_bytes(patched)
           PY
@@ -55,10 +69,11 @@ jobs:
           Everleaf closed-alpha client
           Server: 132.145.141.79
           Version: MapleStory v83 (legacy modified client)
+          Branding: Everleaf
 
-          These executables were statically patched from 127.0.0.1 to the
-          Everleaf staging server. They were not executed during packaging.
-          Keep this package private and scan it with Windows Security before use.
+          The executables were statically patched for the Everleaf staging server
+          and branding. They were not executed during packaging. Keep this package
+          private and scan it with Windows Security before use.
           EOF
           sha256sum EverleafClient/*.exe > EverleafClient/SHA256SUMS.txt
           (cd EverleafClient && zip -q ../EverleafClient-closed-alpha.zip ./*)
