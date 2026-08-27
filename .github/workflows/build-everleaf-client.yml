@@ -1,0 +1,57 @@
+name: Build Everleaf v83 client
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - "client/**"
+      - ".github/workflows/build-everleaf-client.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build source-pinned Win32 release
+        shell: pwsh
+        run: |
+          msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=Win32
+
+      - name: Verify and package
+        shell: pwsh
+        run: |
+          $dll = "client/ezorsia/out/Release/dinput8.dll"
+          if (-not (Test-Path $dll)) { throw "Missing build output: $dll" }
+
+          $package = "EverleafClient"
+          New-Item -ItemType Directory -Path $package -Force | Out-Null
+          Copy-Item $dll "$package/dinput8.dll"
+          Copy-Item "client/ezorsia/ezorsia/config.ini" "$package/config.ini"
+          Copy-Item "client/ezorsia/ezorsia/EzorsiaV2_UI.wz" "$package/EzorsiaV2_UI.wz"
+          Copy-Item "client/ezorsia/LICENSE" "$package/LICENSE-AGPL-3.0.txt"
+          Copy-Item "client/UPSTREAM.md" "$package/UPSTREAM.md"
+          Copy-Item "client/README-EVERLEAF.md" "$package/README.md"
+
+          Get-FileHash "$package/dinput8.dll" -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  dinput8.dll" } |
+            Set-Content "$package/SHA256SUMS.txt" -Encoding ascii
+
+          Compress-Archive -Path "$package/*" -DestinationPath "EverleafClient-source-built.zip"
+          Get-FileHash "EverleafClient-source-built.zip" -Algorithm SHA256
+          Get-ChildItem $package | Select-Object Name,Length
+
+      - name: Upload private client artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EverleafClient-source-built
+          path: EverleafClient-source-built.zip
+          retention-days: 14
+          if-no-files-found: error
