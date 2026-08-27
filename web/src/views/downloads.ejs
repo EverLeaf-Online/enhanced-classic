@@ -1,23 +1,24 @@
 <%- include("partials/header",{title:"Downloads"}) %>
-<main class="lightPage"><div class="lightTitle"><div class="wrap"><h1>Downloads</h1><p>Get the latest EverLeaf client, launcher, and tools.</p></div></div><div class="wrap">
+<main class="lightPage"><div class="lightTitle"><div class="wrap"><h1>Downloads</h1><p>Get the latest EverLeaf launcher and supported client updates.</p></div></div><div class="wrap">
 <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,.8fr);gap:18px;align-items:start">
 <div>
-<% const groups=[["client","Game Client","💿"],["launcher","Launcher","🚀"],["patch","Patches","🩹"],["tool","Tools","🛠"]]; %>
+<div class="downloadCard"><div style="display:flex;gap:14px;align-items:center"><div class="downloadIcon">🚀</div><div><strong>EverLeaf Launcher</strong><div class="muted">Recommended. Checks for updates, repairs changed files, and launches EverLeaf from one place.</div><small>Windows 64-bit</small></div></div><a class="btn primary" href="<%=brand.launcherUrl%>">DOWNLOAD LAUNCHER</a></div>
+<% const groups=[["client","Game Client","💿"],["launcher","Additional Launcher Builds","🚀"],["patch","Patches","🩹"],["tool","Tools","🛠"]]; %>
 <% groups.forEach(([kind,label,icon])=>{ const items=rows.filter(r=>r.kind===kind); if(!items.length) return; %>
 <h3 class="downloadGroupTitle"><%=label%></h3>
 <% items.forEach(r=>{ %><div class="downloadCard"><div style="display:flex;gap:14px;align-items:center"><div class="downloadIcon"><%=icon%></div><div><strong><%=r.name%></strong><div class="muted"><%=r.description%></div><small><%=r.version?('v'+r.version):''%></small></div></div><a class="btn primary" href="<%=r.url%>">DOWNLOAD</a></div><% }) %>
 <% }) %>
-<% if(!rows.length){ %><div class="paperCard"><strong>Downloads are being prepared.</strong><p class="muted">The EverLeaf Launcher will be the recommended way to install and patch the game.</p></div><% } %>
 </div>
 <div>
 <div class="paperCard">
 <h3>Installation Guide</h3>
 <ol style="padding-left:20px;line-height:1.8">
-<li>Download and install the EverLeaf Launcher.</li>
-<li>Run the launcher and log in with your account.</li>
-<li>Click Play and the game will start automatically.</li>
+<li>Install the EverLeaf Launcher into your supported MapleStory v83 game folder.</li>
+<li>Open <strong>EverLeafLauncher.exe</strong>.</li>
+<li>Click <strong>Play EverLeaf</strong>. The launcher checks and updates your files automatically before starting the game.</li>
+<li>Log in normally inside MapleStory.</li>
 </ol>
-<p class="muted" style="margin-top:14px">Need help? Visit our <a href="/help" style="color:#2f9b43;font-weight:800">Support Center</a>.</p>
+<p class="muted" style="margin-top:14px">If an update is interrupted or something looks wrong in-game, use <strong>Check / Repair Files</strong> in the launcher. Need help? Visit our <a href="/help" style="color:#2f9b43;font-weight:800">Support Center</a>.</p>
 </div>
 </div>
 </div>
