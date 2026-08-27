@@ -93,6 +93,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable everleaf.service
 sudo install -d -m 700 /var/backups/everleaf
 sudo systemctl enable --now everleaf-backup.timer
+sudo ufw allow 8484/tcp comment 'Everleaf login'
+sudo ufw allow 7575:7577/tcp comment 'Everleaf channels'
 sudo systemctl restart everleaf.service
 
 for attempt in {1..30}; do
@@ -113,6 +115,7 @@ done
 
 sudo systemctl --no-pager --full status everleaf.service
 ss -ltn | grep -E ':(8484|7575|7576|7577)[[:space:]]'
+sudo ufw status numbered
 
 if ! sudo systemctl start everleaf-backup.service; then
     sudo journalctl --no-pager -u everleaf-backup.service -n 200

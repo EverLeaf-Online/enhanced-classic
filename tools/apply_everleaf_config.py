@@ -70,6 +70,7 @@ def main() -> None:
 
     replacements = [
         ("    AUTOMATIC_REGISTER: true", "    AUTOMATIC_REGISTER: false"),
+        ("    HOST: 127.0.0.1", "    HOST: 132.145.141.79"),
         ("    exp_rate: 10", "    exp_rate: 5"),
         ("    meso_rate: 10", "    meso_rate: 3"),
         ("    drop_rate: 10", "    drop_rate: 2"),
