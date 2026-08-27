@@ -165,3 +165,34 @@ public static class GameLauncher
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Unable to start the game.");
     }
 }
+
+public static class UserPreferences
+{
+    private static readonly string SettingsDirectory =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EverLeaf");
+    private static readonly string SettingsPath = Path.Combine(SettingsDirectory, "launcher.json");
+
+    public static string LoadRememberedUsername()
+    {
+        try
+        {
+            if (!File.Exists(SettingsPath)) return string.Empty;
+            using var document = JsonDocument.Parse(File.ReadAllText(SettingsPath));
+            return document.RootElement.TryGetProperty("rememberedUsername", out var value)
+                ? value.GetString() ?? string.Empty
+                : string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    public static void SaveRememberedUsername(string username)
+    {
+        Directory.CreateDirectory(SettingsDirectory);
+        var temporary = SettingsPath + ".new";
+        File.WriteAllText(temporary, JsonSerializer.Serialize(new { rememberedUsername = username }));
+        File.Move(temporary, SettingsPath, true);
+    }
+}
