@@ -33,6 +33,7 @@ jobs:
           git add \
             wz/Map.wz/Map/Map1/101000000.img.xml \
             wz/Map.wz/Map/Map1/106020000.img.xml \
+            wz/Map.wz/Map/Map6/600000000.img.xml \
             wz/Map.wz/Map/Map6/674030000.img.xml
           git commit -m 'Fix verified NPC spawn ranges'
           git push origin HEAD:master
