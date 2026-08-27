@@ -1,12 +1,10 @@
+using System.IO;
 using System.Security.Cryptography;
 
 namespace EverLeaf.Launcher;
 
 public static class ClientDataCompatibility
 {
-    // EverLeaf's server-side WZ XML is pinned to the same Map/Npc data set as
-    // the Cosmic v83 client. These hashes are file identities only; the launcher
-    // does not redistribute the proprietary game assets.
     private sealed record RequiredFile(string Name, long Size, string Sha256);
 
     private static readonly RequiredFile[] RequiredFiles =
