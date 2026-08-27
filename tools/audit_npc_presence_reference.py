@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Compare EverLeaf NPC presence per map with an older v83 reference tree.
 
-This is a semantic audit: it detects NPC IDs that are present in one map data set
-but absent (or present a different number of times) in the other. It never edits
-map data. The reference root is supplied by the caller so CI can clone a public
-v83 reference without vendoring it into EverLeaf.
+This semantic audit detects NPC IDs that are present in one map data set but
+absent (or present a different number of times) in the other. It never edits
+map data. Older Maple83/HeavenMS custom NPCs are reported separately from the
+small set of non-custom candidates that deserve manual review.
 """
 
 from __future__ import annotations
@@ -28,13 +28,11 @@ class PresenceDifference:
     reference_count: int
     delta: int
     kind: str
+    provenance: str
 
 
 def direct_imgdir(root: ET.Element, name: str) -> ET.Element | None:
-    return next(
-        (child for child in root if child.tag == "imgdir" and child.attrib.get("name") == name),
-        None,
-    )
+    return next((child for child in root if child.tag == "imgdir" and child.attrib.get("name") == name), None)
 
 
 def child_value(node: ET.Element, name: str) -> str | None:
@@ -61,6 +59,12 @@ def npc_counts(path: Path) -> Counter[str]:
 
 def map_files(root: Path) -> dict[str, Path]:
     return {path.name.split(".", 1)[0]: path for path in root.glob("Map*/*.img.xml")}
+
+
+def provenance(npc_id: str) -> str:
+    # Maple83/HeavenMS uses the 990xxxx range heavily for source-specific custom
+    # job-hall/rebirth/helper NPCs. Do not treat these as missing retail-v83 NPCs.
+    return "reference_custom_990" if npc_id.startswith("990") else "review_candidate"
 
 
 def main() -> int:
@@ -105,18 +109,15 @@ def main() -> int:
             else:
                 kind = "more_in_current"
             differences.append(PresenceDifference(
-                map_id=map_id,
-                npc_id=npc_id,
-                current_count=current_count,
-                reference_count=reference_count,
-                delta=delta,
-                kind=kind,
+                map_id, npc_id, current_count, reference_count, delta, kind, provenance(npc_id)
             ))
 
     current_only_maps = sorted(current_maps.keys() - reference_maps.keys())
     reference_only_maps = sorted(reference_maps.keys() - current_maps.keys())
     missing = [d for d in differences if d.kind in {"missing_from_current", "fewer_in_current"}]
     added = [d for d in differences if d.kind in {"added_in_current", "more_in_current"}]
+    custom_missing = [d for d in missing if d.provenance == "reference_custom_990"]
+    review_missing = [d for d in missing if d.provenance == "review_candidate"]
 
     payload = {
         "currentMaps": len(current_maps),
@@ -130,6 +131,9 @@ def main() -> int:
         "presenceDifferences": len(differences),
         "missingOrFewer": len(missing),
         "addedOrMore": len(added),
+        "referenceCustomMissing": len(custom_missing),
+        "nonCustomMissingReviewCandidates": len(review_missing),
+        "reviewCandidates": [asdict(d) for d in review_missing],
         "differences": [asdict(d) for d in differences],
     }
 
@@ -142,17 +146,21 @@ def main() -> int:
             f"{len(missing)} missing/fewer records; {len(added)} added/more records"
         )
         print(
+            f"Missing classification: {len(custom_missing)} reference-custom 990xxxx; "
+            f"{len(review_missing)} non-custom review candidates"
+        )
+        print(
             f"Map-set differences: {len(current_only_maps)} current-only, "
             f"{len(reference_only_maps)} reference-only"
         )
-        for diff in differences:
+        for diff in review_missing:
             print(
-                f"[{diff.kind}] map={diff.map_id} npc={diff.npc_id} "
+                f"[REVIEW] {diff.kind} map={diff.map_id} npc={diff.npc_id} "
                 f"current={diff.current_count} reference={diff.reference_count} delta={diff.delta:+d}"
             )
 
-    # Presence differences need review and are not automatically treated as CI
-    # failures because many are legitimate Cosmic/EverLeaf content changes.
+    # Differences are review input, not automatic CI failures; Cosmic/EverLeaf
+    # legitimately diverges from Maple83 in custom/event content.
     return 0
 
 
