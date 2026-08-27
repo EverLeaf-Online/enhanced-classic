@@ -1,0 +1,33 @@
+name: Legacy client analysis artifact
+
+on:
+  push:
+    paths:
+      - ".github/workflows/client-analysis-artifact.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stage-client:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve archived client commit
+        uses: actions/checkout@v5
+        with:
+          ref: 335d4fbb74e713a01f63163c39c941865401d24a
+          sparse-checkout: Localhosts.zip
+          sparse-checkout-cone-mode: false
+      - name: Verify archived client
+        shell: bash
+        run: |
+          test -f Localhosts.zip
+          echo "096e21e155ca1a06a3132a6ad6f7feda5cd986928f415bab15a3b67fee412527  Localhosts.zip" | sha256sum --check
+      - name: Upload private analysis artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: legacy-client-analysis
+          path: Localhosts.zip
+          retention-days: 1
+          if-no-files-found: error
