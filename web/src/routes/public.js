@@ -9,7 +9,7 @@ const router = express.Router();
 
 router.get("/", async (req,res) => {
   const posts = db.prepare("SELECT * FROM posts WHERE published=1 ORDER BY created_at DESC LIMIT 5").all();
-  let status={online:false,channels:0,totalChannels:env.game.channelPorts.length}, players=0, topCharacters=[];
+  let status={online:false,channels:0,totalChannels:env.game.channelPorts.length}, players=null, topCharacters=[];
   try { status=await game.serverStatus(); } catch {}
   try { players=await game.onlineCount(); } catch {}
   try { topCharacters=(await game.rankings(5)).map(r=>({...r,jobName:jobName(r.job)})); } catch {}
@@ -124,7 +124,7 @@ router.get("/api/status", async(req,res)=>{
   let players=null;
   try { status=await game.serverStatus(); } catch {}
   try { players=await game.onlineCount(); } catch {}
-  res.json({...status,players});
+  res.json({...status,players,databaseOnline:players!==null});
 });
 
 router.get("/api/launcher/manifest",(req,res)=>{
