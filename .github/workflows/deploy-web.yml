@@ -18,7 +18,7 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
-  EVERLEAF_TLS_HOST: 132-145-141-79.sslip.io
+  EVERLEAF_TLS_HOST: everleafms.duckdns.org
 
 jobs:
   deploy:
@@ -114,4 +114,5 @@ jobs:
           set -euo pipefail
           curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_TLS_HOST/" >/dev/null
           curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_TLS_HOST/v1/launcher/status" >/dev/null
+          test "$(curl --silent --output /dev/null --write-out '%{redirect_url}' --max-time 20 http://132.145.141.79/)" = "https://$EVERLEAF_TLS_HOST/"
           echo 'EverLeaf public HTTPS is reachable.'
