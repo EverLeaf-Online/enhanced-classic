@@ -1,0 +1,68 @@
+name: Build EverLeaf launcher
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - "launcher/**"
+      - ".github/workflows/build-everleaf-launcher.yml"
+  pull_request:
+    paths:
+      - "launcher/**"
+      - ".github/workflows/build-everleaf-launcher.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj
+
+      - name: Build
+        run: dotnet build launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj --configuration Release --no-restore
+
+      - name: Publish self-contained launcher
+        run: dotnet publish launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj --configuration Release --runtime win-x64 --self-contained true --output launcher-publish
+
+      - name: Verify launcher security invariants
+        shell: pwsh
+        run: |
+          $source = Get-Content "launcher/EverLeaf.Launcher/LauncherServices.cs" -Raw
+          $required = @(
+            "RSASignaturePadding.Pss",
+            "CryptographicOperations.FixedTimeEquals",
+            "Path.IsPathRooted",
+            "UseShellExecute = false",
+            "EVERLEAF_LAUNCH_TOKEN"
+          )
+          foreach ($value in $required) {
+            if (-not $source.Contains($value)) { throw "Missing launcher security invariant: $value" }
+          }
+          if ($source -match "Server=.*;Password=") { throw "Database credential pattern found in launcher source" }
+          if (-not (Test-Path "launcher-publish/EverLeafLauncher.exe")) { throw "Launcher executable missing" }
+
+      - name: Package launcher alpha
+        shell: pwsh
+        run: |
+          Copy-Item "launcher/README.md" "launcher-publish/README-LAUNCHER.md"
+          Compress-Archive -Path "launcher-publish/*" -DestinationPath "EverLeafLauncher-alpha.zip"
+          Get-FileHash "EverLeafLauncher-alpha.zip" -Algorithm SHA256
+
+      - name: Upload private launcher artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EverLeafLauncher-alpha
+          path: EverLeafLauncher-alpha.zip
+          retention-days: 14
+          if-no-files-found: error
