@@ -1,0 +1,5 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><%=title?title+' • ':''%><%=brand.name%></title><link rel="stylesheet" href="/css/site.css"></head><body>
+<nav class="nav"><div class="wrap navin"><a class="brand brandImage" href="/"><img src="/assets/everleaf-logo.webp" alt="EverLeaf"></a><div class="links">
+<% const navLinks=[["/","HOME"],["/news","NEWS"],["/downloads","DOWNLOADS"],["/rankings","RANKINGS"],["/community","COMMUNITY"],["/support","DONATE"],["/help","SUPPORT"]]; %>
+<% navLinks.forEach(([href,label])=>{ const isActive=(typeof currentPath!=='undefined')&&(href==="/"?currentPath==="/":currentPath.startsWith(href)); %><a class="<%=isActive?'active':''%>" href="<%=href%>"><%=label%></a><% }) %>
+<% if(typeof player!=='undefined'&&player){ %><a href="/account">ACCOUNT</a><% }else{ %><a class="btn small ghost" href="/login">LOGIN</a><a class="btn small primary" href="/register">REGISTER</a><% } %></div></div></nav>
