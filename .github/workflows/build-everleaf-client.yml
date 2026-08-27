@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
 jobs:
   build:
     runs-on: windows-latest
@@ -98,3 +102,58 @@ jobs:
           path: EverleafClient-source-built.zip
           retention-days: 14
           if-no-files-found: error
+
+  publish-patch:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: EverleafClient-source-built
+          path: release
+
+      - name: Extract and validate patch payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p payload
+          unzip -q release/EverleafClient-source-built.zip -d payload
+          for f in dinput8.dll config.ini EverLeaf_UI.wz LICENSE-AGPL-3.0.txt UPSTREAM.md README.md SHA256SUMS.txt; do
+            test -f "payload/$f"
+          done
+          test ! -f payload/EzorsiaV2_UI.wz
+          echo "EverLeaf-owned patch payload:"
+          find payload -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo 'EVERLEAF_SSH_PRIVATE_KEY is not configured.' >&2
+            exit 1
+          fi
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Publish patch files and rebuild signed manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'sudo install -d -o ubuntu -g ubuntu -m 755 /opt/everleaf/patches/files'
+          tar -C payload -czf - . | ssh -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'set -euo pipefail; tar -xzf - -C /opt/everleaf/patches/files; cd /opt/everleaf/web; npm run build-patch-manifest; sudo systemctl restart everleaf-web; sleep 2; curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null; echo EverLeaf client patch payload published.'
