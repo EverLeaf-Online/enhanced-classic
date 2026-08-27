@@ -18,7 +18,7 @@ const char* resmanLoadOrder[] = {  //suspecting resman load list is an array of 
 "TamingMob", //"TamingMob"
 "Sound", //"Sound"
 "Map",  //Map"
-"EzorsiaV2_UI"	//sneakily insert our wz file here and walk away
+"EverLeaf_UI"	//sneakily insert our wz file here and walk away
 };
 unsigned char resmanLoadAMNT = sizeof(resmanLoadOrder) / sizeof(resmanLoadOrder[0]) - 1;
 __declspec(naked) void LoadUItwice() {
