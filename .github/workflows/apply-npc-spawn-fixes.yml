@@ -1,0 +1,35 @@
+name: Apply NPC Spawn Fixes
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'tools/apply_npc_spawn_fixes.py'
+      - '.github/workflows/apply-npc-spawn-fixes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply verified fixes
+        run: python3 tools/apply_npc_spawn_fixes.py
+      - name: Re-audit NPC spawns
+        run: python3 scripts/audit_npc_spawns.py
+      - name: Commit corrected map XML
+        run: |
+          if git diff --quiet -- wz/Map.wz/Map; then
+            echo 'NPC spawn ranges already corrected.'
+            exit 0
+          fi
+          git config user.name 'EverLeaf CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add wz/Map.wz/Map/Map1/101000000.img.xml wz/Map.wz/Map/Map1/106020000.img.xml
+          git commit -m 'Fix verified NPC spawn ranges'
+          git push origin HEAD:master
