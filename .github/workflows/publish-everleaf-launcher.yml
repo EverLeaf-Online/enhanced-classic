@@ -99,7 +99,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" <<'REMOTE' > server-public-key.pem
+          ssh -T -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" <<'REMOTE' > server-public-key-output.txt
             set -euo pipefail
             sudo install -d -m 700 /etc/everleaf
             if [ ! -s /etc/everleaf/launcher-manifest-private.pem ]; then
@@ -113,8 +113,18 @@ jobs:
               -in /etc/everleaf/launcher-manifest-private.pem \
               -pubout
           REMOTE
-          echo 'Production launcher signing public key:'
-          cat server-public-key.pem
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path('server-public-key-output.txt').read_text()
+          match = re.search(r'-----BEGIN PUBLIC KEY-----.*?-----END PUBLIC KEY-----', text, re.S)
+          if not match:
+              raise SystemExit('Production launcher public key was not returned by Oracle')
+          pem = '\n'.join(line.strip() for line in match.group(0).splitlines()) + '\n'
+          Path('server-public-key.pem').write_text(pem)
+          print('Production launcher signing public key:')
+          print(pem, end='')
+          PY
 
       - name: Verify launcher trusts production signing key
         shell: bash
@@ -123,15 +133,17 @@ jobs:
           python3 - <<'PY'
           import re
           from pathlib import Path
-          source = Path('launcher/EverLeaf.Launcher/LauncherServices.cs').read_text()
-          match = re.search(r'-----BEGIN PUBLIC KEY-----.*?-----END PUBLIC KEY-----', source, re.S)
-          if not match:
-              raise SystemExit('Launcher embedded public key not found')
-          embedded = '\n'.join(line.strip() for line in match.group(0).strip().splitlines())
-          server = '\n'.join(line.strip() for line in Path('server-public-key.pem').read_text().strip().splitlines())
+
+          def extract_pem(text):
+              match = re.search(r'-----BEGIN PUBLIC KEY-----.*?-----END PUBLIC KEY-----', text, re.S)
+              if not match:
+                  raise SystemExit('Public key PEM block not found')
+              return '\n'.join(line.strip() for line in match.group(0).splitlines())
+
+          embedded = extract_pem(Path('launcher/EverLeaf.Launcher/LauncherServices.cs').read_text())
+          server = extract_pem(Path('server-public-key.pem').read_text())
           if embedded != server:
               print('Production signing key does not match the launcher yet.')
-              print('Use the public key printed above in LauncherServices.cs, rebuild, and publish again.')
               raise SystemExit(2)
           print('Launcher signing key matches production.')
           PY
