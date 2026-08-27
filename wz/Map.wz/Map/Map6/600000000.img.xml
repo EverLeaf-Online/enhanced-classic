@@ -11642,8 +11642,8 @@
       <int name="y" value="183"/>
       <int name="cy" value="201"/>
       <int name="mobTime" value="0"/>
-      <int name="rx0" value="2636"/>
-      <int name="rx1" value="2650"/>
+      <int name="rx0" value="2648"/>
+      <int name="rx1" value="2662"/>
       <int name="f" value="1"/>
       <string name="type" value="n"/>
       <int name="fh" value="473"/>
@@ -11678,8 +11678,8 @@
       <int name="y" value="482"/>
       <int name="cy" value="501"/>
       <int name="mobTime" value="0"/>
-      <int name="rx0" value="3489"/>
-      <int name="rx1" value="3589"/>
+      <int name="rx0" value="3438"/>
+      <int name="rx1" value="3538"/>
       <int name="f" value="1"/>
       <string name="type" value="n"/>
       <int name="fh" value="540"/>
