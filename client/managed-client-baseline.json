@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "managedFiles": [
+    {
+      "path": "dinput8.dll",
+      "source": "client/ezorsia/out/Release/dinput8.dll",
+      "redistributable": true
+    },
+    {
+      "path": "config.ini",
+      "source": "client/ezorsia/ezorsia/config.ini",
+      "redistributable": true
+    },
+    {
+      "path": "EverLeaf_UI.wz",
+      "source": "client/ezorsia/ezorsia/EzorsiaV2_UI.wz",
+      "redistributable": true
+    }
+  ],
+  "criticalCompatibility": [
+    {
+      "path": "Map.wz",
+      "size": 638428788,
+      "sha256": "a39da5ac66cb3cb1803b1a8f70f19cdf67ca191016e16c853f521b3c8156aca4",
+      "redistributable": false,
+      "reason": "Required server/client map identity; publishing requires explicit distribution authorization."
+    },
+    {
+      "path": "Npc.wz",
+      "size": 53498512,
+      "sha256": "2992910ac5f65fa3d1ca4b2469fa4105f948f6ceb4a6c47ee6953be9d04dee17",
+      "redistributable": false,
+      "reason": "Required server/client NPC identity; publishing requires explicit distribution authorization."
+    }
+  ]
+}
