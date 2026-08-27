@@ -1,24 +1,55 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 1 ]]; then
-    echo "Usage: $0 <git-commit-sha>" >&2
+if [[ $# -ne 2 ]]; then
+    echo "Usage: $0 <git-commit-sha> <source-archive>" >&2
     exit 2
 fi
 
 commit_sha="$1"
+source_archive="$2"
 root_dir="/opt/everleaf"
 release_dir="${root_dir}/releases/${commit_sha}"
-repository="https://github.com/iampolicy/enhanced-classic.git"
 
 mkdir -p "${root_dir}/releases"
 
-if [[ ! -d "${release_dir}/.git" ]]; then
-    git clone --filter=blob:none --no-checkout "${repository}" "${release_dir}"
+if [[ ! "${commit_sha}" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "Invalid commit SHA: ${commit_sha}" >&2
+    exit 2
+fi
+if [[ ! -f "${source_archive}" ]]; then
+    echo "Missing deployment source archive: ${source_archive}" >&2
+    exit 2
+fi
+if tar -tzf "${source_archive}" | awk '
+    /^\// { unsafe = 1 }
+    /(^|\/)\.\.(\/|$)/ { unsafe = 1 }
+    END { exit(unsafe ? 0 : 1) }
+'; then
+    echo "Deployment source archive contains an unsafe path." >&2
+    exit 2
 fi
 
-git -C "${release_dir}" fetch --depth=1 origin "${commit_sha}"
-git -C "${release_dir}" checkout --detach --force FETCH_HEAD
+if [[ -e "${release_dir}" && ! -f "${release_dir}/.everleaf-source-sha" ]]; then
+    echo "Existing release directory has no trusted source marker: ${release_dir}" >&2
+    exit 1
+fi
+
+if [[ ! -f "${release_dir}/.everleaf-source-sha" ]]; then
+    incoming_dir="$(mktemp -d "${root_dir}/releases/.incoming-${commit_sha}.XXXXXX")"
+    cleanup_incoming() {
+        rm -rf -- "${incoming_dir}"
+    }
+    trap cleanup_incoming EXIT
+
+    tar -xzf "${source_archive}" -C "${incoming_dir}"
+    printf '%s\n' "${commit_sha}" > "${incoming_dir}/.everleaf-source-sha"
+    mv "${incoming_dir}" "${release_dir}"
+    trap - EXIT
+elif [[ "$(cat "${release_dir}/.everleaf-source-sha")" != "${commit_sha}" ]]; then
+    echo "Existing release source marker does not match ${commit_sha}." >&2
+    exit 1
+fi
 
 cd "${release_dir}"
 python3 tools/apply_everleaf_config.py

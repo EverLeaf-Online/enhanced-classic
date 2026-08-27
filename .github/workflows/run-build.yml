@@ -95,5 +95,10 @@ jobs:
         env:
           DEPLOY_SHA: ${{ github.sha }}
         run: |
+          source_archive="/tmp/everleaf-source-${DEPLOY_SHA}.tar.gz"
+          tar --exclude=.git --exclude=target -czf "${source_archive}" .
+          scp -i ~/.ssh/everleaf_staging \
+            "${source_archive}" tools/deploy_staging.sh \
+            ubuntu@132.145.141.79:/tmp/
           ssh -i ~/.ssh/everleaf_staging ubuntu@132.145.141.79 \
-            "set -euo pipefail; tmp_script=\$(mktemp); curl -fsSL https://raw.githubusercontent.com/iampolicy/enhanced-classic/${DEPLOY_SHA}/tools/deploy_staging.sh -o \"\${tmp_script}\"; chmod +x \"\${tmp_script}\"; \"\${tmp_script}\" '${DEPLOY_SHA}'; rm -f \"\${tmp_script}\""
+            "set -euo pipefail; chmod +x /tmp/deploy_staging.sh; /tmp/deploy_staging.sh '${DEPLOY_SHA}' '/tmp/everleaf-source-${DEPLOY_SHA}.tar.gz'; rm -f /tmp/deploy_staging.sh '/tmp/everleaf-source-${DEPLOY_SHA}.tar.gz'"

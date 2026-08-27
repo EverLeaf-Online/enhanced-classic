@@ -8,6 +8,8 @@
 - [ ] Confirm the required GitHub Actions build check is green.
 - [ ] Confirm the required MySQL migration smoke test is green.
 - [ ] Confirm the protected staging deployment runs only after both required checks pass.
+- [ ] Confirm private-repository deployments transfer a source archive over the
+  pinned SSH connection and store no GitHub credential on staging.
 
 This checklist separates development convenience from public-server requirements.
 
