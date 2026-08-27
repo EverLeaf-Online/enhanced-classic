@@ -1,0 +1,72 @@
+name: Deploy EverLeaf Web
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'web/**'
+      - '.github/workflows/deploy-web.yml'
+
+concurrency:
+  group: everleaf-web-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Backup production state
+        env:
+          HOST: ${{ secrets.EVERLEAF_HOST }}
+          USER: ${{ secrets.EVERLEAF_SSH_USER }}
+        run: |
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" 'if [ -x /opt/everleaf/web/scripts/backup-production.sh ]; then sudo /opt/everleaf/web/scripts/backup-production.sh; fi'
+
+      - name: Sync web source
+        env:
+          HOST: ${{ secrets.EVERLEAF_HOST }}
+          USER: ${{ secrets.EVERLEAF_SSH_USER }}
+        run: |
+          rsync -az --delete \
+            --exclude='.env' \
+            --exclude='data/' \
+            --exclude='node_modules/' \
+            -e 'ssh -i ~/.ssh/id_everleaf' \
+            web/ "$USER@$HOST:/opt/everleaf/web/"
+
+      - name: Install and restart
+        env:
+          HOST: ${{ secrets.EVERLEAF_HOST }}
+          USER: ${{ secrets.EVERLEAF_SSH_USER }}
+        run: |
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" <<'REMOTE'
+            set -euo pipefail
+            cd /opt/everleaf/web
+            npm ci --omit=dev
+            npm run init-db
+            sudo systemctl restart everleaf-web
+            sleep 2
+            systemctl is-active --quiet everleaf-web
+            curl -fsS http://127.0.0.1:3000/ >/dev/null
+            echo 'EverLeaf web deployment healthy.'
+          REMOTE
