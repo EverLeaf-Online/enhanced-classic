@@ -64,6 +64,9 @@ A manifest looks like:
 }
 ```
 
-Only files deliberately placed into the production patch directory are included.
-This lets EverLeaf ship its own DLL/config/UI updates and any other client updates
-that the project is authorized to distribute without bundling a base game client.
+Only files declared in `client/managed-client-baseline.json`, approved there as
+redistributable, and present in the canonical build package are published. The
+generator fails closed on missing, extra, duplicate, empty, or unsafe entries.
+`Map.wz` and `Npc.wz` have an additional exact compatibility gate, but are marked
+non-distributable until the project owner confirms distribution rights. They are
+therefore checked on player machines without being uploaded by this pipeline.
