@@ -1,0 +1,93 @@
+<Window x:Class="EverLeaf.Launcher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="EverLeaf Launcher" Width="1040" Height="650"
+        MinWidth="900" MinHeight="560" WindowStartupLocation="CenterScreen"
+        Background="#0B1210" Foreground="White">
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="350"/>
+    </Grid.ColumnDefinitions>
+
+    <Grid Grid.Column="0">
+      <Grid.Background>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+          <GradientStop Color="#173126" Offset="0"/>
+          <GradientStop Color="#0B1210" Offset="0.62"/>
+          <GradientStop Color="#10201B" Offset="1"/>
+        </LinearGradientBrush>
+      </Grid.Background>
+      <Grid Margin="52">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel>
+          <TextBlock Text="EVERLEAF" FontSize="34" FontWeight="Bold" Foreground="{StaticResource EverLeafGreen}"/>
+          <TextBlock Text="ENHANCED CLASSIC" FontSize="13" FontWeight="SemiBold" Foreground="#A8BDB5" Margin="2,3,0,0"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" VerticalAlignment="Center" MaxWidth="560" HorizontalAlignment="Left">
+          <Border Background="#253B32" CornerRadius="18" Padding="12,6" HorizontalAlignment="Left">
+            <TextBlock Text="CLOSED ALPHA" Foreground="#9EF0BC" FontWeight="Bold" FontSize="12"/>
+          </Border>
+          <TextBlock Text="A classic world, thoughtfully enhanced." FontSize="38" FontWeight="Bold"
+                     TextWrapping="Wrap" Margin="0,18,0,12"/>
+          <TextBlock Text="Patch automatically, repair client files, read the latest updates, and enter EverLeaf from one secure launcher."
+                     FontSize="16" Foreground="#BDD0C8" TextWrapping="Wrap" LineHeight="25"/>
+        </StackPanel>
+
+        <Border Grid.Row="2" Background="#101A17" BorderBrush="#2A3B35" BorderThickness="1" CornerRadius="12" Padding="16">
+          <StackPanel>
+            <DockPanel>
+              <Ellipse x:Name="ServerDot" Width="10" Height="10" Fill="#D9A441" Margin="0,0,9,0"/>
+              <TextBlock x:Name="ServerStatusText" Text="Checking server…" FontWeight="SemiBold"/>
+              <TextBlock x:Name="VersionText" Text="Launcher alpha" DockPanel.Dock="Right" Foreground="#7F948C"/>
+            </DockPanel>
+            <TextBlock x:Name="AnnouncementText" Text="Welcome to EverLeaf closed alpha."
+                       Margin="0,10,0,0" Foreground="#AFC1BA" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <Border Grid.Column="1" Background="#111A18" BorderBrush="#263630" BorderThickness="1,0,0,0">
+      <Grid Margin="34">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+          <TextBlock Text="PLAYER LOGIN" FontSize="13" FontWeight="Bold" Foreground="#82988F"/>
+          <TextBlock Text="Welcome back" FontSize="27" FontWeight="Bold" Margin="0,7,0,0"/>
+          <TextBlock Text="Sign in to patch and play." Foreground="#95AAA2" Margin="0,5,0,0"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" VerticalAlignment="Center">
+          <TextBlock Text="Username" Foreground="#AFC1BA" Margin="0,0,0,6"/>
+          <TextBox x:Name="UsernameBox" MaxLength="32"/>
+          <TextBlock Text="Password" Foreground="#AFC1BA" Margin="0,17,0,6"/>
+          <PasswordBox x:Name="PasswordInput" MaxLength="128"/>
+          <CheckBox x:Name="RememberUsernameBox" Content="Remember username" Margin="0,14,0,0" Foreground="#AFC1BA"/>
+          <TextBlock x:Name="ErrorText" Foreground="#FF8E8E" TextWrapping="Wrap" Margin="0,14,0,0" MinHeight="36"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="2">
+          <ProgressBar x:Name="PatchProgress" Height="5" Minimum="0" Maximum="100" Value="0"
+                       Foreground="{StaticResource EverLeafGreen}" Background="#263630" Margin="0,0,0,10"/>
+          <TextBlock x:Name="PatchStatusText" Text="Ready" Foreground="#8FA49C" FontSize="12" Margin="0,0,0,10"/>
+          <Button x:Name="PlayButton" Content="SIGN IN" Background="{StaticResource EverLeafGreen}"
+                  Foreground="#0B1511" Height="48" Click="PlayButton_Click"/>
+          <Button x:Name="RepairButton" Content="REPAIR FILES" Background="#263630"
+                  Foreground="White" Height="42" Margin="0,10,0,0" Click="RepairButton_Click"/>
+          <TextBlock Text="Passwords are never saved by the launcher." TextAlignment="Center"
+                     Foreground="#64766F" FontSize="11" Margin="0,13,0,0"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>
