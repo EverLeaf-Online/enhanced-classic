@@ -8,6 +8,10 @@ Checks every map life node with type="n" for:
 - suspicious coordinate values
 - exact duplicate NPC spawn records
 
+Known legacy anomalies that have been independently verified against the older
+v83 reference remain visible as reviewed exceptions instead of actionable
+warnings.
+
 This is intentionally read-only. It reports problems but never rewrites WZ XML.
 """
 
@@ -25,6 +29,20 @@ ROOT = Path(__file__).resolve().parents[1]
 MAP_ROOT = ROOT / "wz" / "Map.wz" / "Map"
 NPC_ROOT = ROOT / "wz" / "Npc.wz"
 
+# Keyed by (map_id, npc_id, finding_code). These entries are intentionally very
+# narrow: an exception suppresses only the exact reviewed anomaly, not other
+# findings on the same map/NPC.
+REVIEWED_EXCEPTIONS: dict[tuple[str, str, str], str] = {
+    (
+        "670010600",
+        "9201045",
+        "spawn_outside_roam_range",
+    ): (
+        "Inherited unchanged from the older Maple83 v83 reference: "
+        "x=8916 with rx0=9064..rx1=9164 and fh=322. Preserve legacy/event data."
+    ),
+}
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -34,6 +52,16 @@ class Finding:
     npc_id: str
     node: str
     detail: str
+
+
+@dataclass(frozen=True)
+class ReviewedFinding:
+    code: str
+    map_id: str
+    npc_id: str
+    node: str
+    detail: str
+    review_reason: str
 
 
 def child_value(node: ET.Element, name: str) -> str | None:
@@ -123,9 +151,8 @@ def audit_map(path: Path) -> tuple[int, list[Finding]]:
 
         if x is None or y is None:
             findings.append(Finding("error", "missing_coordinate", map_id, npc_id, node_name, "NPC requires numeric x and y coordinates"))
-        else:
-            if abs(x) > 100_000 or abs(y) > 100_000:
-                findings.append(Finding("warning", "extreme_coordinate", map_id, npc_id, node_name, f"suspicious position x={x}, y={y}"))
+        elif abs(x) > 100_000 or abs(y) > 100_000:
+            findings.append(Finding("warning", "extreme_coordinate", map_id, npc_id, node_name, f"suspicious position x={x}, y={y}"))
 
         # fh=0 is used by some special/non-grounded life nodes. A positive fh
         # should resolve to a foothold in the same map.
@@ -150,6 +177,25 @@ def audit_map(path: Path) -> tuple[int, list[Finding]]:
             ))
 
     return npc_count, findings
+
+
+def split_reviewed(findings: list[Finding]) -> tuple[list[Finding], list[ReviewedFinding]]:
+    actionable: list[Finding] = []
+    reviewed: list[ReviewedFinding] = []
+    for finding in findings:
+        reason = REVIEWED_EXCEPTIONS.get((finding.map_id, finding.npc_id, finding.code))
+        if reason is None:
+            actionable.append(finding)
+            continue
+        reviewed.append(ReviewedFinding(
+            code=finding.code,
+            map_id=finding.map_id,
+            npc_id=finding.npc_id,
+            node=finding.node,
+            detail=finding.detail,
+            review_reason=reason,
+        ))
+    return actionable, reviewed
 
 
 def main() -> int:
@@ -177,8 +223,9 @@ def main() -> int:
             maps_with_npcs += 1
         all_findings.extend(findings)
 
-    errors = sum(f.severity == "error" for f in all_findings)
-    warnings = sum(f.severity == "warning" for f in all_findings)
+    actionable, reviewed = split_reviewed(all_findings)
+    errors = sum(f.severity == "error" for f in actionable)
+    warnings = sum(f.severity == "warning" for f in actionable)
 
     if args.json:
         print(json.dumps({
@@ -187,15 +234,23 @@ def main() -> int:
             "npcSpawns": total_npcs,
             "errors": errors,
             "warnings": warnings,
-            "findings": [asdict(f) for f in all_findings],
+            "reviewedExceptions": len(reviewed),
+            "findings": [asdict(f) for f in actionable],
+            "reviewed": [asdict(f) for f in reviewed],
         }, indent=2))
     else:
         print(f"NPC spawn audit: {len(candidates)} maps scanned, {maps_with_npcs} with NPCs, {total_npcs} NPC spawns")
-        print(f"Findings: {errors} errors, {warnings} warnings")
-        for finding in all_findings:
+        print(f"Findings: {errors} errors, {warnings} warnings; reviewed exceptions: {len(reviewed)}")
+        for finding in actionable:
             print(
                 f"[{finding.severity.upper()}] {finding.code}: "
                 f"map={finding.map_id} npc={finding.npc_id or '-'} node={finding.node or '-'} — {finding.detail}"
+            )
+        for finding in reviewed:
+            print(
+                f"[REVIEWED] {finding.code}: "
+                f"map={finding.map_id} npc={finding.npc_id or '-'} node={finding.node or '-'} — "
+                f"{finding.detail} — {finding.review_reason}"
             )
 
     return 1 if errors else 0
