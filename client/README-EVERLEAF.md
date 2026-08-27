@@ -9,7 +9,7 @@ The CI artifact contains:
 
 - `dinput8.dll` — Everleaf's source-built v83 client compatibility layer
 - `config.ini` — defaults to the Everleaf staging server
-- `EzorsiaV2_UI.wz` — HD UI support for standard WZ installations
+- `EverLeaf_UI.wz` — HD UI support for standard WZ installations
 - licenses, source provenance, checksums, and setup instructions
 
 It does not contain Nexon's MapleStory executable or game assets. Testers must
