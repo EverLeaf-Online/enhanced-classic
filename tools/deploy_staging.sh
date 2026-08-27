@@ -91,6 +91,7 @@ UNIT
 
 sudo systemctl daemon-reload
 sudo systemctl enable everleaf.service
+sudo install -d -m 700 /var/backups/everleaf
 sudo systemctl enable --now everleaf-backup.timer
 sudo systemctl restart everleaf.service
 
@@ -113,7 +114,10 @@ done
 sudo systemctl --no-pager --full status everleaf.service
 ss -ltn | grep -E ':(8484|7575|7576|7577)[[:space:]]'
 
-sudo systemctl start everleaf-backup.service
+if ! sudo systemctl start everleaf-backup.service; then
+    sudo journalctl --no-pager -u everleaf-backup.service -n 200
+    exit 1
+fi
 sudo systemctl --no-pager --full status everleaf-backup.timer
 sudo find /var/backups/everleaf -maxdepth 1 -type f -name 'cosmic-*.sql.gz' \
     -printf '%TY-%Tm-%TdT%TH:%TM:%TSZ %s bytes %f\n' \
