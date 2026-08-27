@@ -2100,8 +2100,8 @@
       <int name="y" value="-29"/>
       <int name="cy" value="-28"/>
       <int name="mobTime" value="0"/>
-      <int name="rx0" value="407"/>
-      <int name="rx1" value="407"/>
+      <int name="rx0" value="137"/>
+      <int name="rx1" value="137"/>
       <int name="f" value="1"/>
       <string name="type" value="n"/>
       <int name="fh" value="9"/>
@@ -2124,8 +2124,8 @@
       <int name="y" value="26"/>
       <int name="cy" value="34"/>
       <int name="mobTime" value="0"/>
-      <int name="rx0" value="67"/>
-      <int name="rx1" value="167"/>
+      <int name="rx0" value="-95"/>
+      <int name="rx1" value="5"/>
       <int name="f" value="1"/>
       <string name="type" value="n"/>
       <int name="fh" value="3"/>
