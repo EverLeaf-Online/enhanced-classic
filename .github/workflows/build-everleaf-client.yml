@@ -40,6 +40,24 @@ jobs:
           Copy-Item "client/UPSTREAM.md" "$package/UPSTREAM.md"
           Copy-Item "client/README-EVERLEAF.md" "$package/README.md"
 
+          $config = Get-Content "$package/config.ini" -Raw
+          $forbidden = @(
+            "ServerIP_Address", "MsgAmount", "setDamageCap", "useTubi",
+            "speedMovementCap", "CustomLoginFrame", "ownCashShopFrame",
+            "useV62_ExpTable", "sleepTime", "use_custom_dll"
+          )
+          foreach ($name in $forbidden) {
+            if ($config -match [regex]::Escape($name)) {
+              throw "Player config exposes forbidden setting: $name"
+            }
+          }
+          if (-not (Test-Path "$package/EverLeaf_UI.wz")) {
+            throw "Missing branded EverLeaf UI file"
+          }
+          if (Test-Path "$package/EzorsiaV2_UI.wz") {
+            throw "Legacy UI filename leaked into package"
+          }
+
           Get-FileHash "$package/dinput8.dll" -Algorithm SHA256 |
             ForEach-Object { "$($_.Hash.ToLower())  dinput8.dll" } |
             Set-Content "$package/SHA256SUMS.txt" -Encoding ascii
