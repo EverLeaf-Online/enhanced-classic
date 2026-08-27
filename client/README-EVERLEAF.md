@@ -25,7 +25,7 @@ missing, floating, buried, or otherwise misplaced.
 2. Install the EverLeaf-supported client WZ data into that directory.
 3. Extract the EverLeaf artifact into the same directory.
 4. Keep `config.ini` beside `dinput8.dll`; it only contains player-facing display and compatibility settings.
-5. Use the EverLeaf launcher. Its Repair/Play flow verifies `Map.wz` and `Npc.wz` before launching.
+5. Use the EverLeaf launcher. Its Repair/Play flow verifies every file in the signed managed baseline, then applies the additional `Map.wz` and `Npc.wz` compatibility gate before launching.
 6. Scan the directory with Windows Security.
 
 The launcher validates the supported WZ files by SHA-256. It does not distribute
