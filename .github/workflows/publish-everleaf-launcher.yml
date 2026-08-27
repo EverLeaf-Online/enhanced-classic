@@ -152,7 +152,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            'sudo install -d -o ubuntu -g ubuntu -m 755 /opt/everleaf/patches/downloads /opt/everleaf/patches/files'
+            'sudo install -d -o ubuntu -g ubuntu -m 755 /opt/everleaf/patches /opt/everleaf/patches/downloads /opt/everleaf/patches/files'
           scp -i ~/.ssh/id_everleaf release/EverLeafLauncherSetup.exe \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe.new"
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" <<'REMOTE'
