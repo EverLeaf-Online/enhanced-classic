@@ -1,6 +1,17 @@
 name: Build Everleaf v83 client
 
 on:
+  push:
+    branches: [client-dev]
+    paths:
+      - "client/**"
+      - "web/scripts/build-patch-manifest.js"
+      - ".github/workflows/build-everleaf-client.yml"
+  pull_request:
+    paths:
+      - "client/**"
+      - "web/scripts/build-patch-manifest.js"
+      - ".github/workflows/build-everleaf-client.yml"
   workflow_dispatch:
 
 permissions:

@@ -2,6 +2,13 @@ name: Publish EverLeaf Launcher
 
 on:
   workflow_dispatch:
+  push:
+    branches: [client-dev]
+    paths:
+      - 'launcher/**'
+      - 'client/managed-client-baseline.json'
+      - 'web/scripts/build-patch-manifest.js'
+      - '.github/workflows/publish-everleaf-launcher.yml'
 
 concurrency:
   group: everleaf-launcher-production
