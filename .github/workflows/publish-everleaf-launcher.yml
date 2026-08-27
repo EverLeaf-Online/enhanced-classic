@@ -1,0 +1,158 @@
+name: Publish EverLeaf Launcher
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [client-dev]
+    paths:
+      - '.github/workflows/publish-everleaf-launcher.yml'
+
+concurrency:
+  group: everleaf-launcher-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore and publish launcher
+        shell: pwsh
+        run: |
+          dotnet restore launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj
+          dotnet publish launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj `
+            --configuration Release --runtime win-x64 --self-contained true `
+            --output launcher-publish
+          if (-not (Test-Path 'launcher-publish/EverLeafLauncher.exe')) { throw 'Launcher executable missing' }
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' 'launcher\installer\EverLeafLauncher.iss'
+          if (-not (Test-Path 'launcher-installer\EverLeafLauncherSetup.exe')) { throw 'Installer executable missing' }
+          Get-FileHash 'launcher-installer\EverLeafLauncherSetup.exe' -Algorithm SHA256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EverLeafLauncherProduction
+          path: launcher-installer/EverLeafLauncherSetup.exe
+          retention-days: 30
+          if-no-files-found: error
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: EverLeafLauncherProduction
+          path: release
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo 'EVERLEAF_SSH_PRIVATE_KEY is not configured.' >&2
+            exit 1
+          fi
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Verify SSH access
+        run: |
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'echo EverLeaf SSH OK'
+
+      - name: Provision manifest signing key
+        id: signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" <<'REMOTE' > server-public-key.pem
+            set -euo pipefail
+            sudo install -d -m 700 /etc/everleaf
+            if [ ! -s /etc/everleaf/launcher-manifest-private.pem ]; then
+              sudo openssl genpkey -algorithm RSA \
+                -pkeyopt rsa_keygen_bits:3072 \
+                -out /etc/everleaf/launcher-manifest-private.pem
+              sudo chmod 600 /etc/everleaf/launcher-manifest-private.pem
+              sudo chown root:root /etc/everleaf/launcher-manifest-private.pem
+            fi
+            sudo openssl pkey \
+              -in /etc/everleaf/launcher-manifest-private.pem \
+              -pubout
+          REMOTE
+          echo 'Production launcher signing public key:'
+          cat server-public-key.pem
+
+      - name: Verify launcher trusts production signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          source = Path('launcher/EverLeaf.Launcher/LauncherServices.cs').read_text()
+          match = re.search(r'-----BEGIN PUBLIC KEY-----.*?-----END PUBLIC KEY-----', source, re.S)
+          if not match:
+              raise SystemExit('Launcher embedded public key not found')
+          embedded = '\n'.join(line.strip() for line in match.group(0).strip().splitlines())
+          server = '\n'.join(line.strip() for line in Path('server-public-key.pem').read_text().strip().splitlines())
+          if embedded != server:
+              print('Production signing key does not match the launcher yet.')
+              print('Use the public key printed above in LauncherServices.cs, rebuild, and publish again.')
+              raise SystemExit(2)
+          print('Launcher signing key matches production.')
+          PY
+
+      - name: Publish installer
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'sudo install -d -o ubuntu -g ubuntu -m 755 /opt/everleaf/patches/downloads /opt/everleaf/patches/files'
+          scp -i ~/.ssh/id_everleaf release/EverLeafLauncherSetup.exe \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe.new"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" <<'REMOTE'
+            set -euo pipefail
+            mv /opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe.new \
+               /opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe
+            chmod 644 /opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe
+            cd /opt/everleaf/web
+            npm run build-patch-manifest
+            sudo systemctl restart everleaf-web
+            sleep 2
+            curl -fsS http://127.0.0.1:3000/v1/launcher/status >/dev/null
+            curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
+            test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/launcher/download)" = '200'
+            echo 'EverLeaf launcher published successfully.'
+          REMOTE
