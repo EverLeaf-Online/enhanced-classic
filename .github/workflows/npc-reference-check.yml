@@ -1,0 +1,20 @@
+name: NPC Reference Check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'tools/compare_npc_spawn_reference.py'
+      - '.github/workflows/npc-reference-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare flagged NPC nodes
+        run: python3 tools/compare_npc_spawn_reference.py
