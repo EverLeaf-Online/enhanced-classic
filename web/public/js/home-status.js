@@ -11,9 +11,12 @@
         status.textContent = data.online ? 'ONLINE' : 'OFFLINE';
         status.classList.toggle('online', Boolean(data.online));
       }
-      if (players) players.textContent = Number(data.players || 0).toLocaleString();
+      if (players) players.textContent = data.players === null || data.players === undefined
+        ? '—'
+        : Number(data.players).toLocaleString();
       if (channels) channels.textContent = `${Number(data.channels || 0)}/${Number(data.totalChannels || 0)}`;
     } catch {}
   };
+  update();
   window.setInterval(update, 30000);
 })();
