@@ -109,11 +109,12 @@ public partial class MainWindow : Window
             PatchStatusText.Text = value.Status;
         });
 
-        // Server NPC placement is sourced from EverLeaf's pinned WZ XML. Verify the
-        // corresponding client map/NPC files first so a generic v83 install cannot
-        // silently launch with incompatible map geometry or NPC data.
-        await ClientDataCompatibility.VerifyAsync(_gameDirectory, progress, CancellationToken.None);
+        // The patch manifest is the source of truth. Repair outdated/missing files
+        // first, then validate that the resulting Map/Npc WZ set matches the
+        // server-side data. This allows Repair/Play to actually fix a mismatched
+        // client instead of rejecting it before the patcher can run.
         await new PatchService(_gameDirectory).VerifyAndRepairAsync(progress, CancellationToken.None);
+        await ClientDataCompatibility.VerifyAsync(_gameDirectory, progress, CancellationToken.None);
     }
 
     private void SaveRememberedUsername()
