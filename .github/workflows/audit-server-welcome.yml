@@ -20,4 +20,4 @@ jobs:
       - name: Locate welcome branding
         shell: bash
         run: |
-          rg -n -i --glob '!handbook/**' --glob '!wz/**'             'Welcome.{0,40}MapleStory|MapleStory.{0,20}Welcome|\[Welcome\]' . || true
+          rg -n -i 'Welcome.{0,80}MapleStory|MapleStory.{0,40}Welcome|\[Welcome\]' . || true
