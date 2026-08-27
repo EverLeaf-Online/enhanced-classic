@@ -173,7 +173,7 @@ jobs:
             chmod 644 /opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe
             cd /opt/everleaf/web
             npm run build-patch-manifest
-            python3 -c 'import json; p="/opt/everleaf/patches/manifest.json"; m=json.load(open(p)); files=m.get("files"); assert isinstance(files,list), "Patch manifest files is not an array"; print(f"PATCH_AUDIT version={m.get(chr(118)+chr(101)+chr(114)+chr(115)+chr(105)+chr(111)+chr(110))} files={len(files)}"); [print((f"PATCH_AUDIT {w} present size={f.get(chr(115)+chr(105)+chr(122)+chr(101))} sha256={f.get(chr(115)+chr(104)+chr(97)+chr(50)+chr(53)+chr(54))}" if (f:=next((x for x in files if str(x.get(chr(112)+chr(97)+chr(116)+chr(104),"")).lower()==w.lower()),None)) else f"PATCH_AUDIT {w} missing")) for w in ("Map.wz","Npc.wz")]; print("PATCH_AUDIT WARNING: patch payload is empty") if not files else None'
+            python3 -c 'import json; p="/opt/everleaf/patches/manifest.json"; m=json.load(open(p)); files=m.get("files"); assert isinstance(files,list) and len(files)>=3, "Patch manifest is empty or incomplete"; print(f"PATCH_AUDIT version={m.get(chr(118)+chr(101)+chr(114)+chr(115)+chr(105)+chr(111)+chr(110))} files={len(files)}"); [print((f"PATCH_AUDIT {w} present size={f.get(chr(115)+chr(105)+chr(122)+chr(101))} sha256={f.get(chr(115)+chr(104)+chr(97)+chr(50)+chr(53)+chr(54))}" if (f:=next((x for x in files if str(x.get(chr(112)+chr(97)+chr(116)+chr(104),"")).lower()==w.lower()),None)) else f"PATCH_AUDIT {w} missing")) for w in ("Map.wz","Npc.wz")]'
             sudo systemctl restart everleaf-web
             sleep 2
             curl -fsS http://127.0.0.1:3000/v1/launcher/status >/dev/null
@@ -182,7 +182,7 @@ jobs:
             echo 'EverLeaf launcher published successfully.'
           REMOTE
 
-      - name: Verify public HTTPS launcher endpoints
+      - name: Verify public HTTPS launcher endpoints and payload
         shell: bash
         run: |
           set -euo pipefail
@@ -190,11 +190,20 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 "$EVERLEAF_PUBLIC_BASE/v1/launcher/manifest" >/tmp/manifest.json
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 20 "$EVERLEAF_PUBLIC_BASE/launcher/download")" = '200'
           python3 - <<'PY'
-          import json
+          import base64, json
           status=json.load(open('/tmp/status.json'))
           envelope=json.load(open('/tmp/manifest.json'))
           assert isinstance(status.get('online'), bool)
           assert status.get('version')
           assert envelope.get('payload') and envelope.get('signature')
-          print('Public HTTPS launcher endpoints verified.')
+          payload=json.loads(base64.b64decode(envelope['payload']).decode('utf-8'))
+          files=payload.get('files')
+          assert isinstance(files, list) and len(files) >= 3
+          paths={str(f.get('path','')).lower() for f in files}
+          for required in ('dinput8.dll','config.ini','everleaf_ui.wz'):
+              assert required in paths, f'Missing public runtime patch file: {required}'
+          print(f"Public signed patch manifest verified with {len(files)} files.")
           PY
+          curl --fail --silent --show-error --location --max-time 20 --range 0-0 \
+            "$EVERLEAF_PUBLIC_BASE/patches/dinput8.dll" >/dev/null
+          echo 'Public HTTPS launcher endpoints and patch payload verified.'
