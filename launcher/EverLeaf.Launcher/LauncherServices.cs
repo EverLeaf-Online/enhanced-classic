@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
@@ -157,7 +158,6 @@ public sealed class PatchService : IDisposable
             if (!await HashMatchesAsync(temporary, file.Sha256, cancellationToken))
                 throw new InvalidOperationException($"Downloaded file failed verification: {file.Path}");
 
-            // Temp file lives beside the destination so replacement stays on the same volume.
             File.Move(temporary, destination, true);
         }
         finally
@@ -261,7 +261,7 @@ public sealed class PatchService : IDisposable
     private static void TryDelete(string path)
     {
         try { if (File.Exists(path)) File.Delete(path); }
-        catch { /* a later repair can clean a locked temp file */ }
+        catch { }
     }
 
     public void Dispose() => _http.Dispose();
