@@ -118,14 +118,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p payload
-          unzip -q release/EverleafClient-source-built.zip -d payload
+          mkdir -p package runtime-payload
+          unzip -q release/EverleafClient-source-built.zip -d package
           for f in dinput8.dll config.ini EverLeaf_UI.wz LICENSE-AGPL-3.0.txt UPSTREAM.md README.md SHA256SUMS.txt; do
-            test -f "payload/$f"
+            test -f "package/$f"
           done
-          test ! -f payload/EzorsiaV2_UI.wz
-          echo "EverLeaf-owned patch payload:"
-          find payload -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+          test ! -f package/EzorsiaV2_UI.wz
+          cp package/dinput8.dll runtime-payload/dinput8.dll
+          cp package/config.ini runtime-payload/config.ini
+          cp package/EverLeaf_UI.wz runtime-payload/EverLeaf_UI.wz
+          echo "EverLeaf runtime patch payload:"
+          find runtime-payload -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
 
       - name: Configure SSH
         shell: bash
@@ -153,7 +156,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            'sudo install -d -o ubuntu -g ubuntu -m 755 /opt/everleaf/patches/files'
-          tar -C payload -czf - . | ssh -i ~/.ssh/id_everleaf \
+            'sudo install -d -o ubuntu -g ubuntu -m 755 /opt/everleaf/patches/files; rm -f /opt/everleaf/patches/files/LICENSE-AGPL-3.0.txt /opt/everleaf/patches/files/UPSTREAM.md /opt/everleaf/patches/files/README.md /opt/everleaf/patches/files/SHA256SUMS.txt'
+          tar -C runtime-payload -czf - . | ssh -i ~/.ssh/id_everleaf \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            'set -euo pipefail; tar -xzf - -C /opt/everleaf/patches/files; cd /opt/everleaf/web; npm run build-patch-manifest; sudo systemctl restart everleaf-web; sleep 2; curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null; echo EverLeaf client patch payload published.'
+            'set -euo pipefail; tar -xzf - -C /opt/everleaf/patches/files; cd /opt/everleaf/web; npm run build-patch-manifest; python3 -c '\''import json; m=json.load(open("/opt/everleaf/patches/manifest.json")); assert len(m.get("files",[])) >= 3, "Patch manifest unexpectedly empty"; print("Runtime patch manifest files:", len(m["files"]))'\''; sudo systemctl restart everleaf-web; sleep 2; curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null; echo EverLeaf client patch payload published.'
