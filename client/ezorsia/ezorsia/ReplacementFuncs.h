@@ -49,7 +49,7 @@ HWND WINAPI CreateWindowExA_Hook(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpW
 	if(strstr(lpClassName, "MapleStoryClass"))
 	{
 		dwStyle |= WS_MINIMIZEBOX; // enable minimize button
-		HWND ret  = CreateWindowExA_Original(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
+		HWND ret  = CreateWindowExA_Original(dwExStyle, lpClassName, "Everleaf", dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
 		return ret;
 	}
 	else if (strstr(lpClassName, "StartUpDlgClass"))
