@@ -4,6 +4,8 @@ require("dotenv").config();
 const bool = (v, fallback=false) =>
   v == null ? fallback : ["1","true","yes","on"].includes(String(v).toLowerCase());
 
+const patchRoot = path.resolve(process.env.LAUNCHER_PATCH_ROOT || "/opt/everleaf/patches");
+
 module.exports = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number(process.env.PORT || 3000),
@@ -17,7 +19,7 @@ module.exports = {
     version: process.env.SERVER_VERSION || "v83",
     discordUrl: process.env.DISCORD_URL || "",
     donationUrl: process.env.DONATION_URL || "",
-    launcherUrl: process.env.LAUNCHER_DOWNLOAD_URL || "",
+    launcherUrl: process.env.LAUNCHER_DOWNLOAD_URL || "/launcher/download",
     clientUrl: process.env.FULL_CLIENT_DOWNLOAD_URL || ""
   },
 
@@ -54,6 +56,15 @@ module.exports = {
   registration: {
     enabled: bool(process.env.GAME_REGISTRATION_ENABLED, false),
     mode: String(process.env.GAME_PASSWORD_MODE || "bcrypt").toLowerCase()
+  },
+
+  launcher: {
+    patchRoot,
+    filesRoot: path.join(patchRoot, "files"),
+    manifestPath: path.resolve(process.env.LAUNCHER_MANIFEST_PATH || path.join(patchRoot, "manifest.json")),
+    signingKeyPath: path.resolve(process.env.LAUNCHER_SIGNING_KEY_PATH || "/etc/everleaf/launcher-manifest-private.pem"),
+    installerPath: path.resolve(process.env.LAUNCHER_INSTALLER_PATH || path.join(patchRoot, "downloads", "EverLeafLauncherSetup.exe")),
+    announcement: process.env.LAUNCHER_ANNOUNCEMENT || "Welcome to EverLeaf. Your launcher will keep the client synchronized automatically."
   },
 
   cmsDbPath: path.resolve(process.env.CMS_DB_PATH || "./data/everleaf-cms.sqlite")
