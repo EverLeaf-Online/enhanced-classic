@@ -151,8 +151,18 @@ jobs:
       - name: Publish installer
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            'sudo install -d -o ubuntu -g ubuntu -m 755 /opt/everleaf/patches /opt/everleaf/patches/downloads /opt/everleaf/patches/files'
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" <<'REMOTE'
+            set -euo pipefail
+            sudo install -d -o ubuntu -g ubuntu -m 755 /opt/everleaf/patches
+            sudo install -d -o ubuntu -g ubuntu -m 755 /opt/everleaf/patches/downloads /opt/everleaf/patches/files
+            sudo chown ubuntu:ubuntu /opt/everleaf/patches
+            sudo chown -R ubuntu:ubuntu /opt/everleaf/patches/downloads /opt/everleaf/patches/files
+            sudo rm -f /opt/everleaf/patches/manifest.json.new
+            if sudo test -f /opt/everleaf/patches/manifest.json; then
+              sudo chown ubuntu:ubuntu /opt/everleaf/patches/manifest.json
+              sudo chmod 644 /opt/everleaf/patches/manifest.json
+            fi
+          REMOTE
           scp -i ~/.ssh/id_everleaf release/EverLeafLauncherSetup.exe \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe.new"
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" <<'REMOTE'
