@@ -15,6 +15,10 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -29,37 +33,44 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
         run: |
+          set -euo pipefail
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo 'EVERLEAF_SSH_PRIVATE_KEY is not configured.' >&2
+            exit 1
+          fi
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
           chmod 600 ~/.ssh/id_everleaf
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
           chmod 600 ~/.ssh/known_hosts
+          ssh-keygen -lf ~/.ssh/known_hosts || true
+
+      - name: Verify SSH access
+        run: |
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'echo EverLeaf SSH OK'
 
       - name: Backup production state
-        env:
-          HOST: ${{ secrets.EVERLEAF_HOST }}
-          USER: ${{ secrets.EVERLEAF_SSH_USER }}
         run: |
-          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" 'if [ -x /opt/everleaf/web/scripts/backup-production.sh ]; then sudo /opt/everleaf/web/scripts/backup-production.sh; fi'
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'if [ -x /opt/everleaf/web/scripts/backup-production.sh ]; then sudo /opt/everleaf/web/scripts/backup-production.sh; fi'
 
       - name: Sync web source
-        env:
-          HOST: ${{ secrets.EVERLEAF_HOST }}
-          USER: ${{ secrets.EVERLEAF_SSH_USER }}
         run: |
           rsync -az --delete \
             --exclude='.env' \
             --exclude='data/' \
             --exclude='node_modules/' \
             -e 'ssh -i ~/.ssh/id_everleaf' \
-            web/ "$USER@$HOST:/opt/everleaf/web/"
+            web/ "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/web/"
 
       - name: Install and restart
-        env:
-          HOST: ${{ secrets.EVERLEAF_HOST }}
-          USER: ${{ secrets.EVERLEAF_SSH_USER }}
         run: |
-          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" <<'REMOTE'
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" <<'REMOTE'
             set -euo pipefail
             cd /opt/everleaf/web
             if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
