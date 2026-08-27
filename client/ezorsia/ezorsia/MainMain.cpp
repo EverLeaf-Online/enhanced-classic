@@ -50,14 +50,14 @@ MainMain::MainMain(std::function<void()> pPostMutexFunc)
 	if (!std::filesystem::exists(BfilePath) && !std::filesystem::exists(BfilePath2)) { Sleep(20); SuspendThread(MainMain::mainTHread); MessageBox(NULL, L"Either Base.wz is missing from your game directory OR you are loading from .img and zmap.img is not in your Data directory, please reinstall and make sure relevant file(s) exist", L"missing .wz/.img file", 0); ExitProcess(0); }
 	MainMain::CustomLoginFrame = reader.GetBoolean("optional", "CustomLoginFrame", false);
 	if (MainMain::CustomLoginFrame) { MainMain::ownLoginFrame = true; MainMain::bigLoginFrame = true; } //use own login if true
-	std::filesystem::path EfilePath("EzorsiaV2_UI.wz");	//support for other non-big frame users (i.e. ezorsia-like, with login centered, but different frame, isnt currently supported)
+	std::filesystem::path EfilePath("EverLeaf_UI.wz");	//support for other non-big frame users (i.e. ezorsia-like, with login centered, but different frame, isnt currently supported)
 	std::filesystem::path EfilePath2("Data/MapleEzorsiaV2wzfiles.img");
 	if (std::filesystem::exists(EfilePath)) { 	//only check after "if false" on Client::CustomLoginFrame or things break
 		MainMain::EzorsiaV2WzIncluded = true; MainMain::CustomLoginFrame = true; MainMain::usingEzorsiaV2Wz = true; }
 	else if(std::filesystem::exists(EfilePath2)){ MainMain::EzorsiaV2WzIncluded = true; MainMain::CustomLoginFrame = true; }
 	else {
 		if (std::filesystem::exists(BfilePath)) {
-			HANDLE hOrg = CreateFileA("EzorsiaV2_UI.wz", (GENERIC_READ | GENERIC_WRITE), NULL, NULL, CREATE_ALWAYS, NULL, NULL); DWORD dw;
+			HANDLE hOrg = CreateFileA("EverLeaf_UI.wz", (GENERIC_READ | GENERIC_WRITE), NULL, NULL, CREATE_ALWAYS, NULL, NULL); DWORD dw;
 			if (hOrg) {
 				HMODULE hModule = GetModuleHandle(L"dinput8.dll"); // Get handle to current DLL
 				HRSRC hResource = FindResource(hModule, MAKEINTRESOURCE(IDR_RCDATA2), RT_RCDATA);
@@ -70,7 +70,7 @@ MainMain::MainMain(std::function<void()> pPostMutexFunc)
 				}
 				else {
 					CloseHandle(hOrg);
-					MessageBox(NULL, L"your EzorsiaV2_UI.wz file doesn't exist, please re-download EzorsiaV2_UI.wz from Ezorsia v2 releases at https://github.com/444Ro666/MapleEzorsia-v2", L"bad WZ file", 0);
+					MessageBox(NULL, L"your EverLeaf_UI.wz file doesn't exist, please re-download EverLeaf_UI.wz from Ezorsia v2 releases at https://github.com/444Ro666/MapleEzorsia-v2", L"bad WZ file", 0);
 					ExitProcess(0);
 				}
 			}
