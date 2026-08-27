@@ -2244,7 +2244,7 @@ static _sub_9F4FDA_t _sub_9F4FDA_rewrite = [](CWvsApp* pThis, void* edx, const c
 	if (v13.dwMajorVersion < 5)
 	{
 		*_dword_BE2EBC = 1996;//unsigned int g_dwTargetOS
-	} v42 = L"EzorsiaV2_UI.wz";
+	} v42 = L"EverLeaf_UI.wz";
 	HMODULE v9 = GetModuleHandleA("kernel32.dll");//sub_44E88E=//int (__stdcall *__stdcall MyGetProcAddress(HINSTANCE__ *hModule, const char *lpProcName))()
 	auto v10 = (void(__stdcall*)(HANDLE, int*))_sub_44E88E_rewrite(v9, "IsWow64Process"); //tough definition, one of a kind
 	int v18 = 0;
