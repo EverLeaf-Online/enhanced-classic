@@ -3,7 +3,8 @@ set -euo pipefail
 
 APP_SRC="${1:-$(pwd)}"
 APP_DIR="/opt/everleaf/web"
-SERVER_DIR="/opt/everleaf/server"
+SERVER_DIR="/opt/everleaf/current"
+[ -f "$SERVER_DIR/config.yaml" ] || SERVER_DIR="/opt/everleaf/server"
 PUBLIC_IP="132.145.141.79"
 
 echo "=== EverLeaf web deployment ==="
