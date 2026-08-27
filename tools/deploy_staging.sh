@@ -59,5 +59,22 @@ UNIT
 sudo systemctl daemon-reload
 sudo systemctl enable everleaf.service
 sudo systemctl restart everleaf.service
-sleep 8
+
+for attempt in {1..30}; do
+    if ! sudo systemctl is-active --quiet everleaf.service; then
+        sudo journalctl --no-pager -u everleaf.service -n 200
+        exit 1
+    fi
+    if ss -ltn | awk '{print $4}' | grep -Eq '(^|:)8484$'; then
+        break
+    fi
+    if [[ "${attempt}" -eq 30 ]]; then
+        echo "Everleaf did not open login port 8484 within 60 seconds." >&2
+        sudo journalctl --no-pager -u everleaf.service -n 200
+        exit 1
+    fi
+    sleep 2
+done
+
 sudo systemctl --no-pager --full status everleaf.service
+ss -ltn | grep -E ':(8484|7575|7576|7577)[[:space:]]'
