@@ -1,0 +1,6 @@
+<%- include("partials/header",{title:"News"}) %>
+<main class="lightPage"><div class="lightTitle"><div class="wrap"><h1>News & Updates</h1><p>Stay updated with the latest EverLeaf news and announcements.</p></div></div><div class="wrap" style="max-width:960px">
+<% const imgs=['/assets/news-welcome.webp','/assets/news-event.webp','/assets/news-patch.webp']; %>
+<% posts.forEach((p,i)=>{ %><a class="downloadCard" href="/news/<%=p.slug%>"><img src="<%=imgs[i%imgs.length]%>" alt="" style="width:132px;height:90px;object-fit:cover;border-radius:6px"><div style="flex:1"><div class="kicker"><%=p.type%></div><h3 style="margin:4px 0"><%=p.title%></h3><div class="muted"><%=p.excerpt%></div></div><strong>Read more →</strong></a><% }) %>
+<% if(!posts.length){ %><div class="paperCard"><img src="/assets/news-welcome.webp" alt="" style="width:180px;border-radius:6px;float:left;margin:0 16px 10px 0"><h3>Welcome to EverLeaf</h3><p class="muted">News, events, maintenance notices, and patch notes will appear here.</p><div style="clear:both"></div></div><% } %>
+</div></main><%- include("partials/footer") %>
