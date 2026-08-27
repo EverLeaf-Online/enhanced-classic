@@ -87,8 +87,10 @@ jobs:
           printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/everleaf_staging
           chmod 600 ~/.ssh/everleaf_staging
           ssh-keyscan -T 10 -t ed25519 132.145.141.79 > ~/.ssh/known_hosts
-          test "$(ssh-keygen -lf ~/.ssh/known_hosts -E sha256 | awk '{print $2}')" = \
-            "SHA256:0bqGKikVD6I01xdtL/06xK1XL/NBs1B0se72Siwt9AE"
+          observed_fingerprint="$(ssh-keygen -lf ~/.ssh/known_hosts -E sha256 | awk '{print $2}')"
+          echo "Observed SSH host fingerprint: ${observed_fingerprint}"
+          test -n "${observed_fingerprint}"
+          exit 1
 
       - name: Deploy immutable release
         env:
