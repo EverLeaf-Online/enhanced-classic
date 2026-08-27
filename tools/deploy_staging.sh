@@ -24,6 +24,7 @@ cd "${release_dir}"
 python3 tools/apply_everleaf_config.py
 python3 tools/apply_level_cap_250.py
 chmod +x mvnw
+chmod +x tools/backup_database.sh
 ./mvnw -B package --file pom.xml
 
 ln -sfn "${release_dir}" "${root_dir}/current"
@@ -56,8 +57,41 @@ ReadWritePaths=/opt/everleaf
 WantedBy=multi-user.target
 UNIT
 
+sudo tee /etc/systemd/system/everleaf-backup.service >/dev/null <<'UNIT'
+[Unit]
+Description=Back up the Everleaf MySQL database
+After=mysql.service
+Requires=mysql.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/opt/everleaf/current/tools/backup_database.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/backups/everleaf
+UNIT
+
+sudo tee /etc/systemd/system/everleaf-backup.timer >/dev/null <<'UNIT'
+[Unit]
+Description=Daily Everleaf MySQL backup
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+Unit=everleaf-backup.service
+
+[Install]
+WantedBy=timers.target
+UNIT
+
 sudo systemctl daemon-reload
 sudo systemctl enable everleaf.service
+sudo systemctl enable --now everleaf-backup.timer
 sudo systemctl restart everleaf.service
 
 for attempt in {1..30}; do
@@ -78,3 +112,10 @@ done
 
 sudo systemctl --no-pager --full status everleaf.service
 ss -ltn | grep -E ':(8484|7575|7576|7577)[[:space:]]'
+
+sudo systemctl start everleaf-backup.service
+sudo systemctl --no-pager --full status everleaf-backup.timer
+sudo find /var/backups/everleaf -maxdepth 1 -type f -name 'cosmic-*.sql.gz' \
+    -printf '%TY-%Tm-%TdT%TH:%TM:%TSZ %s bytes %f\n' \
+    | sort \
+    | tail -n 1
