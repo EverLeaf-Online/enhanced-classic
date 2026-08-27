@@ -1,0 +1,31 @@
+<%- include("partials/header",{title:"Home",player:sessionPlayer}) %>
+<section class="hero assetHero">
+  <div class="assetHeroBg" aria-hidden="true"></div>
+  <div class="assetHeroShade" aria-hidden="true"></div>
+  <img class="heroCharacter heroCharacterLeft" src="/assets/hero-left.webp" alt="" aria-hidden="true">
+  <img class="heroCharacter heroCharacterRight" src="/assets/hero-right.webp" alt="" aria-hidden="true">
+  <div class="wrap heroInner assetHeroInner">
+    <div class="welcome">WELCOME TO</div>
+    <img class="heroLogoImage" src="/assets/everleaf-logo.webp" alt="EverLeaf">
+    <div class="subhead">v83 MAPLESTORY PRIVATE SERVER</div>
+    <div class="heroText">The adventure begins again.<br>Relive the nostalgia. Build your legacy.</div>
+    <div class="heroActions"><a class="btn primary" href="/register">PLAY NOW</a><a class="btn" href="/downloads">DOWNLOAD</a></div>
+    <div class="statusStrip">
+      <div class="statusCell"><div class="statusIcon statusDot">●</div><div><div class="statusLabel">Server Status</div><div id="live-status" class="statusValue <%=status.online?'online':''%>"><%=status.online?'ONLINE':'OFFLINE'%></div></div></div>
+      <div class="statusCell"><div class="statusIcon">👥</div><div><div class="statusLabel">Players Online</div><div id="live-players" class="statusValue"><%=players%></div></div></div>
+      <div class="statusCell"><div class="statusIcon">★</div><div><div class="statusLabel">Channels</div><div id="live-channels" class="statusValue gold"><%=status.channels%>/<%=status.totalChannels%></div></div></div>
+      <div class="statusCell"><div class="statusIcon">🍃</div><div><div class="statusLabel">Version</div><div class="statusValue"><%=brand.version%></div></div></div>
+    </div>
+  </div>
+</section>
+<section class="homeBody"><div class="wrap"><div class="homeGrid"><div>
+  <div class="sectionHead"><h2>Latest News</h2><a href="/news">VIEW ALL</a></div><div class="newsGrid">
+  <% const newsImages=['/assets/news-welcome.webp','/assets/news-event.webp','/assets/news-patch.webp']; %>
+  <% posts.slice(0,3).forEach((p,i)=>{ %><a class="newsCard" href="/news/<%=p.slug%>"><div class="newsArtImage"><img src="<%=newsImages[i%newsImages.length]%>" alt=""><span class="badge"><%=p.type.toUpperCase()%></span></div><div class="newsBody"><div class="newsTitle"><%=p.title%></div><div class="newsExcerpt"><%=p.excerpt%></div><div class="date"><%=String(p.created_at).slice(0,10)%></div></div></a><% }) %>
+  <% if(!posts.length){ %><div class="newsCard"><div class="newsArtImage"><img src="/assets/news-welcome.webp" alt=""><span class="badge">UPDATE</span></div><div class="newsBody"><div class="newsTitle">Welcome to EverLeaf!</div><div class="newsExcerpt">EverLeaf news and patch notes will appear here.</div></div></div><% } %>
+  </div></div><div><div class="sectionHead"><h2>Top Characters</h2><a href="/rankings">VIEW ALL</a></div><div class="rankPanel"><div class="rankHeader"><span>Rank</span><span>Level</span></div>
+  <% (topCharacters||[]).slice(0,5).forEach((r,i)=>{ %><div class="rankRow"><span class="rankNo"><%=i+1%></span><span><%=r.name%></span><span class="rankLv"><%=r.level%></span></div><% }) %>
+  <% if(!(topCharacters||[]).length){ %><div class="rankRow"><span class="rankNo">1</span><span>Rankings coming soon</span><span class="rankLv">—</span></div><% } %>
+  </div></div></div></div></section>
+<script src="/js/home-status.js" defer></script>
+<%- include("partials/footer") %>
