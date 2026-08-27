@@ -1,14 +1,10 @@
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 
 namespace EverLeaf.Launcher;
 
-public sealed record LauncherSession(string Username, string AccessToken, DateTimeOffset ExpiresAt);
-public sealed record LoginRequest(string Username, string Password);
-public sealed record LoginResponse(string AccessToken, DateTimeOffset ExpiresAt);
 public sealed record ServerStatus(bool Online, string Message, string Version);
 public sealed record PatchEntry(string Path, string Url, string Sha256, long Size);
 public sealed record PatchManifest(string Version, IReadOnlyList<PatchEntry> Files);
@@ -19,11 +15,22 @@ public static class LauncherConfiguration
     public static readonly Uri ApiBase = new("https://132-145-141-79.sslip.io/");
     public static readonly Uri ManifestUri = new(ApiBase, "v1/launcher/manifest");
     public const string GameExecutable = "MapleStory.exe";
+    public const string LauncherExecutable = "EverLeafLauncher.exe";
 
-    // Replace only through a source release when the production signing key is provisioned.
+    // Public half of EverLeaf's launcher-manifest signing key. The corresponding
+    // private key belongs only on the production patch server and is never shipped
+    // to players or committed to this repository.
     public const string ManifestPublicKeyPem = """
 -----BEGIN PUBLIC KEY-----
-MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAJ6Z0+EverLeafProductionKeyPending
+MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAu8xlh+r2xE+hS+crJx0m
+btfitXi46LNw9Vtx6BAURnWjyvFtB8qwaP9hsz9mgp58wr3rbBdG84Dixn20xVzG
+HV8++LDJFNy33jd98HF1KAMdx6LWEjhPOhOZENb3rFemLtpv4HhOnlv3BYAoPQsf
+G2NLZtfjRKUy+sLeAGAXR8uWBwmQC7r37o2/1RoDeoWAZSd8DLX8i604agi23w0C
+jTsxWrQ9il1B/nBRpXcXEJhePN8vVQ0rioARW2ChnAFuJAUPy39H/DvRyYe+uv30
+il4idOymXbVwcJ4My5n1Ph00PGvfBOIZlF7X3brvwGlcXEd1FhxwwNLyZTHgi500
+ooFGshOim9S9Mz8dNt/Aqm/DVfciaWExQ94jAeCCduRWZhpvBfDFfz+oHZKsi1eI
+nwLI5zG5xLrFpHKMtvhO6f+jwVUL1Up1RCR2aqgvFHArTC4w0jaxGU0TYYvUK809
+dTe+4oDsBXlrszFlYzTOIzZFxAVo6g9eYi6KVa1MUzQvAgMBAAE=
 -----END PUBLIC KEY-----
 """;
 }
@@ -40,74 +47,167 @@ public sealed class LauncherApi : IDisposable
         await _http.GetFromJsonAsync<ServerStatus>("v1/launcher/status", cancellationToken)
         ?? new(false, "No status response", "unknown");
 
-    public async Task<LauncherSession> LoginAsync(string username, string password, CancellationToken cancellationToken)
-    {
-        using var response = await _http.PostAsJsonAsync(
-            "v1/launcher/login", new LoginRequest(username, password), cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new InvalidOperationException(response.StatusCode == System.Net.HttpStatusCode.Unauthorized
-                ? "Incorrect username or password."
-                : "Login service is unavailable.");
-        }
-
-        var login = await response.Content.ReadFromJsonAsync<LoginResponse>(cancellationToken: cancellationToken)
-                    ?? throw new InvalidOperationException("Invalid login response.");
-        return new(username, login.AccessToken, login.ExpiresAt);
-    }
-
     public void Dispose() => _http.Dispose();
 }
 
-public sealed class PatchService
+public sealed class PatchService : IDisposable
 {
-    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(5) };
+    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(20) };
     private readonly string _gameDirectory;
 
-    public PatchService(string gameDirectory) => _gameDirectory = Path.GetFullPath(gameDirectory);
-
-    public async Task VerifyAndRepairAsync(IProgress<(double Percent, string Status)> progress,
-                                           CancellationToken cancellationToken)
+    public PatchService(string gameDirectory)
     {
+        _gameDirectory = Path.GetFullPath(gameDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    }
+
+    public async Task VerifyAndRepairAsync(
+        IProgress<(double Percent, string Status)> progress,
+        CancellationToken cancellationToken)
+    {
+        progress.Report((0, "Getting EverLeaf update manifest…"));
         var envelopeJson = await _http.GetStringAsync(LauncherConfiguration.ManifestUri, cancellationToken);
         var envelope = JsonSerializer.Deserialize<SignedManifest>(envelopeJson)
                        ?? throw new InvalidOperationException("Invalid patch manifest envelope.");
-        var payload = Convert.FromBase64String(envelope.Payload);
-        var signature = Convert.FromBase64String(envelope.Signature);
-        VerifySignature(payload, signature);
 
-        var manifest = JsonSerializer.Deserialize<PatchManifest>(payload)
-                       ?? throw new InvalidOperationException("Invalid patch manifest.");
-        var total = Math.Max(1, manifest.Files.Count);
-        for (var index = 0; index < manifest.Files.Count; index++)
+        byte[] payload;
+        byte[] signature;
+        try
         {
-            var file = manifest.Files[index];
-            var destination = ResolveSafePath(file.Path);
-            progress.Report((index * 100d / total, $"Checking {file.Path}"));
-
-            if (File.Exists(destination) && await HashMatchesAsync(destination, file.Sha256, cancellationToken))
-                continue;
-
-            var temporary = destination + ".everleaf-new";
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            using (var response = await _http.GetAsync(file.Url, HttpCompletionOption.ResponseHeadersRead, cancellationToken))
-            {
-                response.EnsureSuccessStatusCode();
-                await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
-                await using var target = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None);
-                await source.CopyToAsync(target, cancellationToken);
-            }
-
-            if (!await HashMatchesAsync(temporary, file.Sha256, cancellationToken))
-            {
-                File.Delete(temporary);
-                throw new InvalidOperationException($"Downloaded file failed verification: {file.Path}");
-            }
-
-            File.Move(temporary, destination, true);
+            payload = Convert.FromBase64String(envelope.Payload);
+            signature = Convert.FromBase64String(envelope.Signature);
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidOperationException("Patch manifest encoding is invalid.", ex);
         }
 
-        progress.Report((100, $"Client ready — {manifest.Version}"));
+        VerifySignature(payload, signature);
+        var manifest = JsonSerializer.Deserialize<PatchManifest>(payload)
+                       ?? throw new InvalidOperationException("Invalid patch manifest.");
+        ValidateManifest(manifest);
+
+        long totalBytes = Math.Max(1, manifest.Files.Sum(file => Math.Max(1, file.Size)));
+        long completedBytes = 0;
+
+        foreach (var file in manifest.Files)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var destination = ResolveSafePath(file.Path);
+            var basePercent = completedBytes * 100d / totalBytes;
+            progress.Report((basePercent, $"Checking {file.Path}"));
+
+            if (File.Exists(destination)
+                && new FileInfo(destination).Length == file.Size
+                && await HashMatchesAsync(destination, file.Sha256, cancellationToken))
+            {
+                completedBytes += Math.Max(1, file.Size);
+                continue;
+            }
+
+            await DownloadAndReplaceAsync(file, destination, completedBytes, totalBytes, progress, cancellationToken);
+            completedBytes += Math.Max(1, file.Size);
+        }
+
+        progress.Report((100, $"EverLeaf is up to date — {manifest.Version}"));
+    }
+
+    private async Task DownloadAndReplaceAsync(
+        PatchEntry file,
+        string destination,
+        long completedBytes,
+        long totalBytes,
+        IProgress<(double Percent, string Status)> progress,
+        CancellationToken cancellationToken)
+    {
+        var temporary = destination + ".everleaf-new";
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        TryDelete(temporary);
+
+        try
+        {
+            var uri = ResolveDownloadUri(file.Url);
+            using var response = await _http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            if (response.Content.Headers.ContentLength is long remoteSize && remoteSize != file.Size)
+                throw new InvalidOperationException($"Server size mismatch for {file.Path}.");
+
+            await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await using (var target = new FileStream(
+                             temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                             1024 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                var buffer = new byte[1024 * 1024];
+                long downloaded = 0;
+                while (true)
+                {
+                    var read = await source.ReadAsync(buffer, cancellationToken);
+                    if (read == 0) break;
+                    await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    downloaded += read;
+                    var percent = Math.Min(99.5, (completedBytes + downloaded) * 100d / totalBytes);
+                    progress.Report((percent, $"Updating {file.Path} — {FormatBytes(downloaded)} / {FormatBytes(file.Size)}"));
+                }
+            }
+
+            if (new FileInfo(temporary).Length != file.Size)
+                throw new InvalidOperationException($"Downloaded file size is invalid: {file.Path}");
+            if (!await HashMatchesAsync(temporary, file.Sha256, cancellationToken))
+                throw new InvalidOperationException($"Downloaded file failed verification: {file.Path}");
+
+            // Temp file lives beside the destination so replacement stays on the same volume.
+            File.Move(temporary, destination, true);
+        }
+        finally
+        {
+            TryDelete(temporary);
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes >= 1024L * 1024L * 1024L) return $"{bytes / (1024d * 1024d * 1024d):0.00} GB";
+        if (bytes >= 1024L * 1024L) return $"{bytes / (1024d * 1024d):0.0} MB";
+        if (bytes >= 1024L) return $"{bytes / 1024d:0.0} KB";
+        return $"{bytes} B";
+    }
+
+    private Uri ResolveDownloadUri(string value)
+    {
+        if (Uri.TryCreate(value, UriKind.Absolute, out var absolute))
+        {
+            if (!string.Equals(absolute.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Patch downloads must use HTTPS.");
+            return absolute;
+        }
+
+        return new Uri(LauncherConfiguration.ApiBase, value.TrimStart('/'));
+    }
+
+    private void ValidateManifest(PatchManifest manifest)
+    {
+        if (string.IsNullOrWhiteSpace(manifest.Version))
+            throw new InvalidOperationException("Patch manifest has no version.");
+        if (manifest.Files is null)
+            throw new InvalidOperationException("Patch manifest has no file list.");
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in manifest.Files)
+        {
+            if (string.IsNullOrWhiteSpace(file.Path) || string.IsNullOrWhiteSpace(file.Url))
+                throw new InvalidOperationException("Patch manifest contains an incomplete file entry.");
+            if (file.Size < 0)
+                throw new InvalidOperationException($"Patch manifest contains an invalid size: {file.Path}");
+            if (file.Sha256?.Length != 64 || !file.Sha256.All(Uri.IsHexDigit))
+                throw new InvalidOperationException($"Patch manifest contains an invalid SHA-256: {file.Path}");
+
+            var resolved = ResolveSafePath(file.Path);
+            if (!seen.Add(resolved))
+                throw new InvalidOperationException($"Patch manifest contains a duplicate path: {file.Path}");
+            if (string.Equals(Path.GetFileName(resolved), LauncherConfiguration.LauncherExecutable, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("The game manifest cannot replace the running launcher executable.");
+        }
     }
 
     private string ResolveSafePath(string relativePath)
@@ -116,7 +216,7 @@ public sealed class PatchService
             throw new InvalidOperationException("Manifest contains an absolute path.");
 
         var resolved = Path.GetFullPath(Path.Combine(_gameDirectory, relativePath));
-        var root = _gameDirectory.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var root = _gameDirectory + Path.DirectorySeparatorChar;
         if (!resolved.StartsWith(root, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Manifest path escapes the game directory.");
         return resolved;
@@ -124,10 +224,22 @@ public sealed class PatchService
 
     private static async Task<bool> HashMatchesAsync(string path, string expected, CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        var hash = await SHA256.HashDataAsync(stream, cancellationToken);
-        return CryptographicOperations.FixedTimeEquals(
-            hash, Convert.FromHexString(expected));
+        try
+        {
+            await using var stream = new FileStream(
+                path, FileMode.Open, FileAccess.Read, FileShare.Read,
+                1024 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            var hash = await SHA256.HashDataAsync(stream, cancellationToken);
+            return CryptographicOperations.FixedTimeEquals(hash, Convert.FromHexString(expected));
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     private static void VerifySignature(byte[] payload, byte[] signature)
@@ -144,15 +256,24 @@ public sealed class PatchService
             throw new InvalidOperationException("Patch manifest could not be authenticated.", ex);
         }
     }
+
+    private static void TryDelete(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); }
+        catch { /* a later repair can clean a locked temp file */ }
+    }
+
+    public void Dispose() => _http.Dispose();
 }
 
 public static class GameLauncher
 {
-    public static void Start(string gameDirectory, LauncherSession session)
+    public static void Start(string gameDirectory)
     {
         var executable = Path.Combine(gameDirectory, LauncherConfiguration.GameExecutable);
         if (!File.Exists(executable))
-            throw new FileNotFoundException("MapleStory.exe was not found beside the launcher.", executable);
+            throw new FileNotFoundException(
+                "MapleStory.exe was not found. Place the EverLeaf launcher in your supported v83 game folder.", executable);
 
         var start = new ProcessStartInfo
         {
@@ -160,39 +281,6 @@ public static class GameLauncher
             WorkingDirectory = gameDirectory,
             UseShellExecute = false
         };
-        start.Environment["EVERLEAF_LAUNCH_USERNAME"] = session.Username;
-        start.Environment["EVERLEAF_LAUNCH_TOKEN"] = session.AccessToken;
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("Unable to start the game.");
-    }
-}
-
-public static class UserPreferences
-{
-    private static readonly string SettingsDirectory =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EverLeaf");
-    private static readonly string SettingsPath = Path.Combine(SettingsDirectory, "launcher.json");
-
-    public static string LoadRememberedUsername()
-    {
-        try
-        {
-            if (!File.Exists(SettingsPath)) return string.Empty;
-            using var document = JsonDocument.Parse(File.ReadAllText(SettingsPath));
-            return document.RootElement.TryGetProperty("rememberedUsername", out var value)
-                ? value.GetString() ?? string.Empty
-                : string.Empty;
-        }
-        catch
-        {
-            return string.Empty;
-        }
-    }
-
-    public static void SaveRememberedUsername(string username)
-    {
-        Directory.CreateDirectory(SettingsDirectory);
-        var temporary = SettingsPath + ".new";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(new { rememberedUsername = username }));
-        File.Move(temporary, SettingsPath, true);
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("Unable to start MapleStory.exe.");
     }
 }
