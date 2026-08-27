@@ -48,7 +48,7 @@ MainMain::MainMain(std::function<void()> pPostMutexFunc)
 		}
 	}
 	if (!std::filesystem::exists(BfilePath) && !std::filesystem::exists(BfilePath2)) { Sleep(20); SuspendThread(MainMain::mainTHread); MessageBox(NULL, L"Either Base.wz is missing from your game directory OR you are loading from .img and zmap.img is not in your Data directory, please reinstall and make sure relevant file(s) exist", L"missing .wz/.img file", 0); ExitProcess(0); }
-	MainMain::CustomLoginFrame = reader.GetBoolean("optional", "CustomLoginFrame", false);
+	MainMain::CustomLoginFrame = false; // official EverLeaf UI only
 	if (MainMain::CustomLoginFrame) { MainMain::ownLoginFrame = true; MainMain::bigLoginFrame = true; } //use own login if true
 	std::filesystem::path EfilePath("EverLeaf_UI.wz");	//support for other non-big frame users (i.e. ezorsia-like, with login centered, but different frame, isnt currently supported)
 	std::filesystem::path EfilePath2("Data/MapleEzorsiaV2wzfiles.img");
@@ -98,20 +98,31 @@ MainMain::MainMain(std::function<void()> pPostMutexFunc)
 		}
 	}
 	//Memory::UseVirtuProtect = reader.GetBoolean("general", "UseVirtuProtect", true);//breaks without it so i removed the option, too many options anyway and this wasnt helping anyone
-	Client::m_nGameWidth = reader.GetInteger("general", "width", 1280);
-	Client::m_nGameHeight = reader.GetInteger("general", "height", 720);
-	Client::MsgAmount = reader.GetInteger("general", "MsgAmount", 26);
+	const int requestedWidth = reader.GetInteger("general", "width", 1280);
+	const int requestedHeight = reader.GetInteger("general", "height", 720);
+	const bool supportedResolution =
+		(requestedWidth == 1024 && requestedHeight == 768) ||
+		(requestedWidth == 1280 && requestedHeight == 720) ||
+		(requestedWidth == 1366 && requestedHeight == 768) ||
+		(requestedWidth == 1600 && requestedHeight == 900) ||
+		(requestedWidth == 1920 && requestedHeight == 1080);
+	Client::m_nGameWidth = supportedResolution ? requestedWidth : 1280;
+	Client::m_nGameHeight = supportedResolution ? requestedHeight : 720;
 	Client::WindowedMode = reader.GetBoolean("general", "WindowedMode", true);
 	Client::RemoveLogos = reader.GetBoolean("general", "RemoveLogos", true);
-	Client::setDamageCap = reader.GetReal("optional", "setDamageCap", 199999.0);
-	Client::useTubi = reader.GetBoolean("optional", "useTubi", false);
-	Client::speedMovementCap = reader.GetInteger("optional", "speedMovementCap", 140);
-	Client::ServerIP_AddressFromINI = "132.145.141.79"; // official EverLeaf endpoint
-	MainMain::ownCashShopFrame = reader.GetBoolean("optional", "ownCashShopFrame", false);
-	MainMain::useV62_ExpTable = reader.GetBoolean("optional", "useV62_ExpTable", false);
+
+	// Official gameplay and compatibility policy: not player-configurable.
+	Client::MsgAmount = 26;
+	Client::setDamageCap = 199999.0;
+	Client::useTubi = false;
+	Client::speedMovementCap = 140;
+	Client::ServerIP_AddressFromINI = "132.145.141.79";
+	MainMain::ownCashShopFrame = false;
+	MainMain::useV62_ExpTable = false;
 	const char* serverIP_Address = Client::ServerIP_AddressFromINI.c_str();
-	MainMain::m_sRedirectIP = serverIP_Address; unsigned int sleepySleepy = reader.GetInteger("debug", "sleepTime", 0);
-	// Everleaf intentionally disables arbitrary third-party DLL loading.
+	MainMain::m_sRedirectIP = serverIP_Address;
+	const unsigned int sleepySleepy = 0;
+	// EverLeaf intentionally disables arbitrary third-party DLL loading.
 
 	//Sleep is for the unpacked client run //themida needs a slight amount of time to unpack or exe memory will be corrupted and crash. from my 
 //tests the amount of time to sleep for ranges from 80 to 300 miliseconds, but may differ depending on the machine; most modern pc are pretty 
