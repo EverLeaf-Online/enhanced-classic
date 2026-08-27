@@ -106,7 +106,7 @@ MainMain::MainMain(std::function<void()> pPostMutexFunc)
 	Client::setDamageCap = reader.GetReal("optional", "setDamageCap", 199999.0);
 	Client::useTubi = reader.GetBoolean("optional", "useTubi", false);
 	Client::speedMovementCap = reader.GetInteger("optional", "speedMovementCap", 140);
-	Client::ServerIP_AddressFromINI = reader.Get("general", "ServerIP_Address", "132.145.141.79");
+	Client::ServerIP_AddressFromINI = "132.145.141.79"; // official EverLeaf endpoint
 	MainMain::ownCashShopFrame = reader.GetBoolean("optional", "ownCashShopFrame", false);
 	MainMain::useV62_ExpTable = reader.GetBoolean("optional", "useV62_ExpTable", false);
 	const char* serverIP_Address = Client::ServerIP_AddressFromINI.c_str();
