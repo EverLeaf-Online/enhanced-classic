@@ -1,0 +1,36 @@
+name: NPC Spawn Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'wz/Map.wz/**'
+      - 'wz/Npc.wz/**'
+      - 'scripts/audit_npc_spawns.py'
+      - '.github/workflows/npc-spawn-audit.yml'
+  pull_request:
+    paths:
+      - 'wz/Map.wz/**'
+      - 'wz/Npc.wz/**'
+      - 'scripts/audit_npc_spawns.py'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit all NPC spawns
+        run: |
+          python3 scripts/audit_npc_spawns.py
+          python3 scripts/audit_npc_spawns.py --json > npc-spawn-audit.json
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-spawn-audit
+          path: npc-spawn-audit.json
+          if-no-files-found: ignore
