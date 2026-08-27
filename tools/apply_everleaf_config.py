@@ -69,6 +69,7 @@ def main() -> None:
         text = replace_first_of(text, candidates, new)
 
     replacements = [
+        ("    AUTOMATIC_REGISTER: true", "    AUTOMATIC_REGISTER: false"),
         ("    exp_rate: 10", "    exp_rate: 5"),
         ("    meso_rate: 10", "    meso_rate: 3"),
         ("    drop_rate: 10", "    drop_rate: 2"),
