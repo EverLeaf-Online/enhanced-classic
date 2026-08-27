@@ -18,6 +18,7 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_TLS_HOST: 132-145-141-79.sslip.io
 
 jobs:
   deploy:
@@ -68,16 +69,49 @@ jobs:
             -e 'ssh -i ~/.ssh/id_everleaf' \
             web/ "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/web/"
 
-      - name: Install and restart
+      - name: Install, configure HTTPS, and restart
         run: |
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" <<'REMOTE'
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "EVERLEAF_TLS_HOST='$EVERLEAF_TLS_HOST' bash -s" <<'REMOTE'
             set -euo pipefail
             cd /opt/everleaf/web
             if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
             npm run init-db
+
+            sudo apt-get update -y
+            sudo apt-get install -y nginx certbot python3-certbot-nginx
+            sudo install -m 644 /opt/everleaf/web/ops/nginx-everleaf.conf /etc/nginx/conf.d/everleaf.conf
+            sudo rm -f /etc/nginx/sites-enabled/default
+            sudo nginx -t
+            sudo systemctl enable --now nginx
+            sudo systemctl reload nginx
+
+            if command -v ufw >/dev/null 2>&1; then
+              sudo ufw allow 80/tcp >/dev/null || true
+              sudo ufw allow 443/tcp >/dev/null || true
+            fi
+
+            sudo certbot --nginx \
+              -d "$EVERLEAF_TLS_HOST" \
+              --non-interactive \
+              --agree-tos \
+              --register-unsafely-without-email \
+              --redirect \
+              --keep-until-expiring
+
             sudo systemctl restart everleaf-web
+            sudo nginx -t
+            sudo systemctl reload nginx
             sleep 2
             systemctl is-active --quiet everleaf-web
+            systemctl is-active --quiet nginx
             curl -fsS http://127.0.0.1:3000/ >/dev/null
-            echo 'EverLeaf web deployment healthy.'
+            curl -fsS --resolve "$EVERLEAF_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_TLS_HOST/v1/launcher/status" >/dev/null
+            echo 'EverLeaf web deployment and local HTTPS health check passed.'
           REMOTE
+
+      - name: Verify public HTTPS
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_TLS_HOST/" >/dev/null
+          curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_TLS_HOST/v1/launcher/status" >/dev/null
+          echo 'EverLeaf public HTTPS is reachable.'
