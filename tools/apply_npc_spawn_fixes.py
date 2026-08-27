@@ -55,6 +55,16 @@ FIXES = (
         "Mushroom Castle NPC is at x=-45; restore the original 100px range centered on that unchanged spawn.",
     ),
     Fix(
+        "Map6", "600000000", "9201053", 2651,
+        2636, 2650, 2648, 2662,
+        "NLC NPC kept its v83 x/y coordinates while its narrow roam range shifted left; restore the reference range without changing Cosmic's foothold.",
+    ),
+    Fix(
+        "Map6", "600000000", "9100109", 3488,
+        3489, 3589, 3438, 3538,
+        "NLC NPC kept its v83 x/y coordinates while its 100px roam range shifted right; restore the reference range without changing Cosmic's foothold.",
+    ),
+    Fix(
         "Map6", "674030000", "9220020", -1483,
         -1603, -1503, -1533, -1433,
         "Event-map NPC remained at x=-1483 while its 100px range shifted left; restore the older v83-centered range.",
