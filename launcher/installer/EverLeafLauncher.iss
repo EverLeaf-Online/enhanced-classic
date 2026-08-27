@@ -8,7 +8,8 @@ AppId={{9A774437-E431-44F2-8A2A-2F7B8AA1FC19}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={userdocs}\EverLeaf
+DefaultDirName={code:GetDefaultGameDir}
+UsePreviousAppDir=yes
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=..\..\launcher-installer
@@ -35,6 +36,26 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch EverLeaf"; Flags: nowait postinstall skipifsilent
 
 [Code]
+function IsGameDir(Dir: String): Boolean;
+begin
+  Result := FileExists(AddBackslash(Dir) + 'MapleStory.exe');
+end;
+
+function GetDefaultGameDir(Param: String): String;
+var
+  Candidate: String;
+begin
+  Candidate := ExpandConstant('{userdocs}\EverLeaf');
+  if IsGameDir(Candidate) then begin Result := Candidate; Exit; end;
+  Candidate := 'C:\Nexon\MapleStory';
+  if IsGameDir(Candidate) then begin Result := Candidate; Exit; end;
+  Candidate := ExpandConstant('{pf32}\Wizet\MapleStory');
+  if IsGameDir(Candidate) then begin Result := Candidate; Exit; end;
+  Candidate := ExpandConstant('{pf32}\Nexon\MapleStory');
+  if IsGameDir(Candidate) then begin Result := Candidate; Exit; end;
+  Result := ExpandConstant('{userdocs}\EverLeaf');
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
   GameExe: String;
@@ -47,7 +68,7 @@ begin
     begin
       MsgBox(
         'Select your supported MapleStory v83 / EverLeaf game folder.' + #13#10 + #13#10 +
-        'MapleStory.exe must already be present in the selected folder. The launcher does not install the base game client.',
+        'MapleStory.exe must already be present in the selected folder. Existing game files are preserved; the launcher only verifies and repairs files in EverLeaf''s signed managed baseline. The installer does not install the base game client.',
         mbError, MB_OK);
       Result := False;
     end;
