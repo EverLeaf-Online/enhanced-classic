@@ -7,7 +7,7 @@
   <Grid>
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="*"/>
-      <ColumnDefinition Width="350"/>
+      <ColumnDefinition Width="360"/>
     </Grid.ColumnDefinitions>
 
     <Grid Grid.Column="0">
@@ -31,11 +31,11 @@
 
         <StackPanel Grid.Row="1" VerticalAlignment="Center" MaxWidth="560" HorizontalAlignment="Left">
           <Border Background="#253B32" CornerRadius="18" Padding="12,6" HorizontalAlignment="Left">
-            <TextBlock Text="CLOSED ALPHA" Foreground="#9EF0BC" FontWeight="Bold" FontSize="12"/>
+            <TextBlock Text="EVERLEAF LAUNCHER" Foreground="#9EF0BC" FontWeight="Bold" FontSize="12"/>
           </Border>
-          <TextBlock Text="A classic world, thoughtfully enhanced." FontSize="38" FontWeight="Bold"
+          <TextBlock Text="Always play on the latest EverLeaf client." FontSize="38" FontWeight="Bold"
                      TextWrapping="Wrap" Margin="0,18,0,12"/>
-          <TextBlock Text="Patch automatically, repair client files, read the latest updates, and enter EverLeaf from one secure launcher."
+          <TextBlock Text="Play automatically checks your game files, downloads only files that changed, verifies every update, and then starts MapleStory."
                      FontSize="16" Foreground="#BDD0C8" TextWrapping="Wrap" LineHeight="25"/>
         </StackPanel>
 
@@ -44,9 +44,9 @@
             <DockPanel>
               <Ellipse x:Name="ServerDot" Width="10" Height="10" Fill="#D9A441" Margin="0,0,9,0"/>
               <TextBlock x:Name="ServerStatusText" Text="Checking server…" FontWeight="SemiBold"/>
-              <TextBlock x:Name="VersionText" Text="Launcher alpha" DockPanel.Dock="Right" Foreground="#7F948C"/>
+              <TextBlock x:Name="VersionText" Text="EverLeaf" DockPanel.Dock="Right" Foreground="#7F948C"/>
             </DockPanel>
-            <TextBlock x:Name="AnnouncementText" Text="Welcome to EverLeaf closed alpha."
+            <TextBlock x:Name="AnnouncementText" Text="Checking EverLeaf announcements…"
                        Margin="0,10,0,0" Foreground="#AFC1BA" TextWrapping="Wrap"/>
           </StackPanel>
         </Border>
@@ -62,30 +62,40 @@
         </Grid.RowDefinitions>
 
         <StackPanel>
-          <TextBlock Text="PLAYER LOGIN" FontSize="13" FontWeight="Bold" Foreground="#82988F"/>
-          <TextBlock Text="Welcome back" FontSize="27" FontWeight="Bold" Margin="0,7,0,0"/>
-          <TextBlock Text="Sign in to patch and play." Foreground="#95AAA2" Margin="0,5,0,0"/>
+          <TextBlock Text="CLIENT" FontSize="13" FontWeight="Bold" Foreground="#82988F"/>
+          <TextBlock Text="Ready to play" FontSize="27" FontWeight="Bold" Margin="0,7,0,0"/>
+          <TextBlock Text="Updates are checked before every launch." Foreground="#95AAA2" Margin="0,5,0,0" TextWrapping="Wrap"/>
         </StackPanel>
 
         <StackPanel Grid.Row="1" VerticalAlignment="Center">
-          <TextBlock Text="Username" Foreground="#AFC1BA" Margin="0,0,0,6"/>
-          <TextBox x:Name="UsernameBox" MaxLength="32"/>
-          <TextBlock Text="Password" Foreground="#AFC1BA" Margin="0,17,0,6"/>
-          <PasswordBox x:Name="PasswordInput" MaxLength="128"/>
-          <CheckBox x:Name="RememberUsernameBox" Content="Remember username" Margin="0,14,0,0" Foreground="#AFC1BA"/>
-          <TextBlock x:Name="ErrorText" Foreground="#FF8E8E" TextWrapping="Wrap" Margin="0,14,0,0" MinHeight="36"/>
+          <Border Background="#182421" BorderBrush="#334B44" BorderThickness="1" CornerRadius="8" Padding="14">
+            <StackPanel>
+              <TextBlock Text="GAME FOLDER" Foreground="#7F948C" FontSize="11" FontWeight="Bold"/>
+              <TextBlock x:Name="GameDirectoryText" Margin="0,6,0,0" Foreground="#D7E4DF" TextWrapping="Wrap" FontSize="12"/>
+            </StackPanel>
+          </Border>
+
+          <Border Background="#13201C" CornerRadius="8" Padding="14" Margin="0,16,0,0">
+            <StackPanel>
+              <TextBlock Text="How updates work" FontWeight="SemiBold" Foreground="#BFE8CD"/>
+              <TextBlock Text="• Checks signed EverLeaf manifest&#x0a;• Verifies local SHA-256 hashes&#x0a;• Downloads only outdated files&#x0a;• Verifies downloads before replacing files"
+                         Foreground="#91A79E" Margin="0,8,0,0" LineHeight="22"/>
+            </StackPanel>
+          </Border>
+
+          <TextBlock x:Name="ErrorText" Foreground="#FF8E8E" TextWrapping="Wrap" Margin="0,16,0,0" MinHeight="42"/>
         </StackPanel>
 
         <StackPanel Grid.Row="2">
-          <ProgressBar x:Name="PatchProgress" Height="5" Minimum="0" Maximum="100" Value="0"
+          <ProgressBar x:Name="PatchProgress" Height="6" Minimum="0" Maximum="100" Value="0"
                        Foreground="{StaticResource EverLeafGreen}" Background="#263630" Margin="0,0,0,10"/>
-          <TextBlock x:Name="PatchStatusText" Text="Ready" Foreground="#8FA49C" FontSize="12" Margin="0,0,0,10"/>
-          <Button x:Name="PlayButton" Content="SIGN IN" Background="{StaticResource EverLeafGreen}"
-                  Foreground="#0B1511" Height="48" Click="PlayButton_Click"/>
-          <Button x:Name="RepairButton" Content="REPAIR FILES" Background="#263630"
+          <TextBlock x:Name="PatchStatusText" Text="Ready" Foreground="#8FA49C" FontSize="12" Margin="0,0,0,12" TextWrapping="Wrap"/>
+          <Button x:Name="PlayButton" Content="PLAY EVERLEAF" Background="{StaticResource EverLeafGreen}"
+                  Foreground="#0B1511" Height="50" Click="PlayButton_Click"/>
+          <Button x:Name="RepairButton" Content="CHECK / REPAIR FILES" Background="#263630"
                   Foreground="White" Height="42" Margin="0,10,0,0" Click="RepairButton_Click"/>
-          <TextBlock Text="Passwords are never saved by the launcher." TextAlignment="Center"
-                     Foreground="#64766F" FontSize="11" Margin="0,13,0,0"/>
+          <TextBlock Text="Account login happens securely inside MapleStory." TextAlignment="Center"
+                     Foreground="#64766F" FontSize="11" Margin="0,13,0,0" TextWrapping="Wrap"/>
         </StackPanel>
       </Grid>
     </Border>
