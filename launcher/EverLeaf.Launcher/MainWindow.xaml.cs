@@ -8,25 +8,23 @@ public partial class MainWindow : Window
 {
     private readonly LauncherApi _api = new();
     private readonly string _gameDirectory = AppContext.BaseDirectory;
-    private LauncherSession? _session;
     private bool _busy;
 
     public MainWindow()
     {
         InitializeComponent();
+        GameDirectoryText.Text = _gameDirectory;
         Loaded += MainWindow_Loaded;
         Closed += (_, _) => _api.Dispose();
-
-        var remembered = UserPreferences.LoadRememberedUsername();
-        if (!string.IsNullOrWhiteSpace(remembered))
-        {
-            UsernameBox.Text = remembered;
-            RememberUsernameBox.IsChecked = true;
-        }
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        if (!File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable)))
+        {
+            ErrorText.Text = "MapleStory.exe is not in this folder. Install or move the EverLeaf launcher into your supported v83 game folder.";
+        }
+
         try
         {
             var status = await _api.GetStatusAsync(CancellationToken.None);
@@ -53,26 +51,14 @@ public partial class MainWindow : Window
         try
         {
             SetBusy(true);
-            if (_session is null || _session.ExpiresAt <= DateTimeOffset.UtcNow)
-            {
-                if (string.IsNullOrWhiteSpace(UsernameBox.Text) || PasswordInput.Password.Length == 0)
-                    throw new InvalidOperationException("Enter your username and password.");
-
-                PatchStatusText.Text = "Signing in securely…";
-                _session = await _api.LoginAsync(
-                    UsernameBox.Text.Trim(), PasswordInput.Password, CancellationToken.None);
-                PasswordInput.Clear();
-                SaveRememberedUsername();
-            }
-
             await RepairInternalAsync();
             PatchStatusText.Text = "Launching EverLeaf…";
-            GameLauncher.Start(_gameDirectory, _session);
+            GameLauncher.Start(_gameDirectory);
             Close();
         }
         catch (Exception ex)
         {
-            ErrorText.Text = ex.Message;
+            ErrorText.Text = FriendlyError(ex);
             PatchStatusText.Text = "Ready";
         }
         finally
@@ -92,7 +78,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            ErrorText.Text = ex.Message;
+            ErrorText.Text = FriendlyError(ex);
             PatchStatusText.Text = "Repair failed";
         }
         finally
@@ -103,24 +89,28 @@ public partial class MainWindow : Window
 
     private async Task RepairInternalAsync()
     {
+        if (!File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable)))
+            throw new InvalidOperationException("MapleStory.exe was not found beside the launcher. Put EverLeafLauncher.exe in your supported v83 game folder.");
+
         var progress = new Progress<(double Percent, string Status)>(value =>
         {
-            PatchProgress.Value = value.Percent;
+            PatchProgress.Value = Math.Clamp(value.Percent, 0, 100);
             PatchStatusText.Text = value.Status;
         });
 
-        // The patch manifest is the source of truth. Repair outdated/missing files
-        // first, then validate that the resulting Map/Npc WZ set matches the
-        // server-side data. This allows Repair/Play to actually fix a mismatched
-        // client instead of rejecting it before the patcher can run.
-        await new PatchService(_gameDirectory).VerifyAndRepairAsync(progress, CancellationToken.None);
-        await ClientDataCompatibility.VerifyAsync(_gameDirectory, progress, CancellationToken.None);
+        using var patcher = new PatchService(_gameDirectory);
+        await patcher.VerifyAndRepairAsync(progress, CancellationToken.None);
     }
 
-    private void SaveRememberedUsername()
+    private static string FriendlyError(Exception ex)
     {
-        UserPreferences.SaveRememberedUsername(
-            RememberUsernameBox.IsChecked == true ? UsernameBox.Text.Trim() : string.Empty);
+        if (ex is UnauthorizedAccessException)
+            return "EverLeaf could not update this folder. Close the game and make sure you have permission to write to the game directory.";
+        if (ex is IOException)
+            return "A game file is in use or could not be replaced. Close MapleStory and try Repair again.";
+        if (ex is HttpRequestException)
+            return "The EverLeaf update server could not be reached. Check your connection and try again.";
+        return ex.Message;
     }
 
     private void SetBusy(bool busy)
@@ -128,8 +118,6 @@ public partial class MainWindow : Window
         _busy = busy;
         PlayButton.IsEnabled = !busy;
         RepairButton.IsEnabled = !busy;
-        UsernameBox.IsEnabled = !busy;
-        PasswordInput.IsEnabled = !busy;
-        PlayButton.Content = busy ? "WORKING…" : "SIGN IN & PLAY";
+        PlayButton.Content = busy ? "UPDATING…" : "PLAY EVERLEAF";
     }
 }
