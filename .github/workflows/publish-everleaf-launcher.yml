@@ -5,6 +5,7 @@ on:
   push:
     branches: [client-dev]
     paths:
+      - 'launcher/**'
       - '.github/workflows/publish-everleaf-launcher.yml'
 
 concurrency:
