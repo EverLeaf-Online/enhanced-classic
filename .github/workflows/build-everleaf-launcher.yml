@@ -44,25 +44,41 @@ jobs:
             "CryptographicOperations.FixedTimeEquals",
             "Path.IsPathRooted",
             "UseShellExecute = false",
-            "EVERLEAF_LAUNCH_TOKEN"
+            "ManifestPublicKeyPem",
+            "File.Move(temporary, destination, true)"
           )
           foreach ($value in $required) {
             if (-not $source.Contains($value)) { throw "Missing launcher security invariant: $value" }
           }
+          if ($source.Contains("EverLeafProductionKeyPending")) { throw "Placeholder manifest public key still present" }
           if ($source -match "Server=.*;Password=") { throw "Database credential pattern found in launcher source" }
+          if ($source.Contains("EVERLEAF_LAUNCH_TOKEN")) { throw "Deprecated fake launcher SSO token still present" }
           if (-not (Test-Path "launcher-publish/EverLeafLauncher.exe")) { throw "Launcher executable missing" }
 
-      - name: Package launcher alpha
+      - name: Package portable launcher
         shell: pwsh
         run: |
           Copy-Item "launcher/README.md" "launcher-publish/README-LAUNCHER.md"
-          Compress-Archive -Path "launcher-publish/*" -DestinationPath "EverLeafLauncher-alpha.zip"
-          Get-FileHash "EverLeafLauncher-alpha.zip" -Algorithm SHA256
+          Compress-Archive -Path "launcher-publish/*" -DestinationPath "EverLeafLauncher-portable.zip"
+          Get-FileHash "EverLeafLauncher-portable.zip" -Algorithm SHA256
 
-      - name: Upload private launcher artifact
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "launcher\installer\EverLeafLauncher.iss"
+          if (-not (Test-Path "launcher-installer\EverLeafLauncherSetup.exe")) { throw "Installer executable missing" }
+          Get-FileHash "launcher-installer\EverLeafLauncherSetup.exe" -Algorithm SHA256
+
+      - name: Upload launcher artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: EverLeafLauncher-alpha
-          path: EverLeafLauncher-alpha.zip
-          retention-days: 14
+          name: EverLeafLauncher
+          path: |
+            EverLeafLauncher-portable.zip
+            launcher-installer/EverLeafLauncherSetup.exe
+          retention-days: 30
           if-no-files-found: error
