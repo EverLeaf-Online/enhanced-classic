@@ -50,4 +50,31 @@ chmod 600 "${temporary}"
 mv "${temporary}" "${destination}"
 trap - EXIT
 
-echo "Everleaf database backup created: ${destination}"
+verification_database="everleaf_backup_verify"
+cleanup_verification_database() {
+    mysql -e "DROP DATABASE IF EXISTS \`${verification_database}\`;" >/dev/null
+}
+trap cleanup_verification_database EXIT
+
+mysql -e "DROP DATABASE IF EXISTS \`${verification_database}\`; CREATE DATABASE \`${verification_database}\` CHARACTER SET utf8 COLLATE utf8_general_ci;"
+gzip -dc "${destination}" | mysql "${verification_database}"
+mysql "${verification_database}" --batch --skip-column-names <<'SQL' | grep -qx 'backup_restore_ok'
+SELECT IF(
+    (SELECT COUNT(*) FROM information_schema.tables
+     WHERE table_schema = DATABASE()
+       AND table_name IN ('accounts', 'characters', 'inventoryequipment',
+                          'everleaf_weekly_account_state', 'everleaf_rooted_forge_order')) = 5
+    AND
+    (SELECT COUNT(*) FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = 'inventoryequipment'
+       AND column_name = 'everleaf_forge_stage') = 1,
+    'backup_restore_ok',
+    'backup_restore_failed'
+);
+SQL
+
+cleanup_verification_database
+trap - EXIT
+
+echo "Everleaf database backup created and restore-verified: ${destination}"
