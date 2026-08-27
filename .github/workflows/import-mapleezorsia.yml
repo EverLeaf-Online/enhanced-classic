@@ -1,0 +1,46 @@
+name: Import pinned MapleEzorsia source
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/import-mapleezorsia.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-source:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: client-dev
+      - name: Import audited upstream snapshot
+        shell: bash
+        env:
+          UPSTREAM_COMMIT: 2769404755baad93655734e76735de141d0b6161
+        run: |
+          test ! -e client/ezorsia
+          mkdir -p client/ezorsia
+          curl --fail --location --silent --show-error             "https://github.com/444Ro666/MapleEzorsia-v2/archive/$UPSTREAM_COMMIT.tar.gz"             --output "$RUNNER_TEMP/mapleezorsia.tar.gz"
+          mkdir -p "$RUNNER_TEMP/mapleezorsia"
+          tar -xzf "$RUNNER_TEMP/mapleezorsia.tar.gz"             --strip-components=1             -C "$RUNNER_TEMP/mapleezorsia"
+          cp -a "$RUNNER_TEMP/mapleezorsia/." client/ezorsia/
+          cat > client/UPSTREAM.md <<EOF
+          # MapleEzorsia v2 upstream
+
+          - Repository: https://github.com/444Ro666/MapleEzorsia-v2
+          - Commit: $UPSTREAM_COMMIT
+          - Imported: 2026-08-27
+          - License: GNU AGPL-3.0
+
+          Everleaf changes are maintained on the client-dev branch.
+          EOF
+          git add client
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "client: import pinned MapleEzorsia v2 source"
+          git push origin HEAD:client-dev
