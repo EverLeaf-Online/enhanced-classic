@@ -62,7 +62,7 @@ jobs:
           ssh -i ~/.ssh/id_everleaf "$USER@$HOST" <<'REMOTE'
             set -euo pipefail
             cd /opt/everleaf/web
-            npm ci --omit=dev
+            if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
             npm run init-db
             sudo systemctl restart everleaf-web
             sleep 2
