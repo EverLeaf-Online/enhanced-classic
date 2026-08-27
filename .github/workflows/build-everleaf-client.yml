@@ -23,7 +23,7 @@ jobs:
       - name: Build source-pinned Win32 release
         shell: pwsh
         run: |
-          msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=Win32
+          msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
 
       - name: Verify and package
         shell: pwsh
