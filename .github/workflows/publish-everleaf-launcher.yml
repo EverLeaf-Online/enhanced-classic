@@ -18,6 +18,7 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_PUBLIC_BASE: https://132-145-141-79.sslip.io
 
 jobs:
   build:
@@ -172,6 +173,18 @@ jobs:
             chmod 644 /opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe
             cd /opt/everleaf/web
             npm run build-patch-manifest
+            node - <<'NODE'
+            const fs=require('fs');
+            const manifest=JSON.parse(fs.readFileSync('/opt/everleaf/patches/manifest.json','utf8'));
+            if(!Array.isArray(manifest.files)) throw new Error('Patch manifest files is not an array');
+            console.log(`PATCH_AUDIT version=${manifest.version} files=${manifest.files.length}`);
+            for(const wanted of ['Map.wz','Npc.wz']) {
+              const f=manifest.files.find(x=>String(x.path).toLowerCase()===wanted.toLowerCase());
+              if(f) console.log(`PATCH_AUDIT ${wanted} present size=${f.size} sha256=${f.sha256}`);
+              else console.log(`PATCH_AUDIT ${wanted} missing`);
+            }
+            if(manifest.files.length===0) console.log('PATCH_AUDIT WARNING: patch payload is empty');
+            NODE
             sudo systemctl restart everleaf-web
             sleep 2
             curl -fsS http://127.0.0.1:3000/v1/launcher/status >/dev/null
@@ -179,3 +192,20 @@ jobs:
             test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/launcher/download)" = '200'
             echo 'EverLeaf launcher published successfully.'
           REMOTE
+
+      - name: Verify public HTTPS launcher endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --max-time 20 "$EVERLEAF_PUBLIC_BASE/v1/launcher/status" >/tmp/status.json
+          curl --fail --silent --show-error --location --max-time 20 "$EVERLEAF_PUBLIC_BASE/v1/launcher/manifest" >/tmp/manifest.json
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 20 "$EVERLEAF_PUBLIC_BASE/launcher/download")" = '200'
+          python3 - <<'PY'
+          import json
+          status=json.load(open('/tmp/status.json'))
+          envelope=json.load(open('/tmp/manifest.json'))
+          assert isinstance(status.get('online'), bool)
+          assert status.get('version')
+          assert envelope.get('payload') and envelope.get('signature')
+          print('Public HTTPS launcher endpoints verified.')
+          PY
