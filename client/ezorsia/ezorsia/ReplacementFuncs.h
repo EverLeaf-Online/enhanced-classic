@@ -437,6 +437,8 @@ _StringPool__GetString_t _StringPool__GetString_rewrite = [](void* pThis, void* 
 	auto ret = _sub_79E993(pThis, nullptr, result, nIdx, formal);//_StringPool__GetString_t
 	switch (nIdx)
 	{
+	case 888:
+		*ret = ("Welcome to EverLeaf!"); break;
 	case 1307:	//1307_UI_LOGINIMG_COMMON_FRAME = 51Bh
 		if (MainMain::EzorsiaV2WzIncluded && !MainMain::ownLoginFrame) {
 			switch (Client::m_nGameWidth)
