@@ -19,11 +19,11 @@ supply a clean, compatible Global MapleStory v83 installation.
 
 1. Make a backup copy of the clean v83 game directory.
 2. Extract the Everleaf artifact into that directory.
-3. Confirm `config.ini` contains `ServerIP_Address=132.145.141.79`.
+3. Keep `config.ini` beside `dinput8.dll`; it only contains player-facing display and compatibility settings.
 4. Scan the directory with Windows Security.
 5. Launch the clean v83 MapleStory executable normally.
 
-Do not add unrelated DLL files to the game directory. Everleaf's fork disables
+The EverLeaf server endpoint is compiled into the official DLL and is intentionally not treated as a secret. Do not add unrelated DLL files to the game directory. Everleaf's fork disables
 MapleEzorsia's configurable third-party DLL loader.
 
 ## Development
