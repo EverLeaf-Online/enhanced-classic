@@ -173,18 +173,7 @@ jobs:
             chmod 644 /opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe
             cd /opt/everleaf/web
             npm run build-patch-manifest
-            node - <<'NODE'
-            const fs=require('fs');
-            const manifest=JSON.parse(fs.readFileSync('/opt/everleaf/patches/manifest.json','utf8'));
-            if(!Array.isArray(manifest.files)) throw new Error('Patch manifest files is not an array');
-            console.log(`PATCH_AUDIT version=${manifest.version} files=${manifest.files.length}`);
-            for(const wanted of ['Map.wz','Npc.wz']) {
-              const f=manifest.files.find(x=>String(x.path).toLowerCase()===wanted.toLowerCase());
-              if(f) console.log(`PATCH_AUDIT ${wanted} present size=${f.size} sha256=${f.sha256}`);
-              else console.log(`PATCH_AUDIT ${wanted} missing`);
-            }
-            if(manifest.files.length===0) console.log('PATCH_AUDIT WARNING: patch payload is empty');
-            NODE
+            python3 -c 'import json; p="/opt/everleaf/patches/manifest.json"; m=json.load(open(p)); files=m.get("files"); assert isinstance(files,list), "Patch manifest files is not an array"; print(f"PATCH_AUDIT version={m.get(chr(118)+chr(101)+chr(114)+chr(115)+chr(105)+chr(111)+chr(110))} files={len(files)}"); [print((f"PATCH_AUDIT {w} present size={f.get(chr(115)+chr(105)+chr(122)+chr(101))} sha256={f.get(chr(115)+chr(104)+chr(97)+chr(50)+chr(53)+chr(54))}" if (f:=next((x for x in files if str(x.get(chr(112)+chr(97)+chr(116)+chr(104),"")).lower()==w.lower()),None)) else f"PATCH_AUDIT {w} missing")) for w in ("Map.wz","Npc.wz")]; print("PATCH_AUDIT WARNING: patch payload is empty") if not files else None'
             sudo systemctl restart everleaf-web
             sleep 2
             curl -fsS http://127.0.0.1:3000/v1/launcher/status >/dev/null
