@@ -102,7 +102,7 @@ jobs:
           ssh -T -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" <<'REMOTE' > server-public-key-output.txt
             set -euo pipefail
             sudo install -d -m 700 /etc/everleaf
-            if [ ! -s /etc/everleaf/launcher-manifest-private.pem ]; then
+            if ! sudo test -s /etc/everleaf/launcher-manifest-private.pem; then
               sudo openssl genpkey -algorithm RSA \
                 -pkeyopt rsa_keygen_bits:3072 \
                 -out /etc/everleaf/launcher-manifest-private.pem
@@ -161,7 +161,7 @@ jobs:
                /opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe
             chmod 644 /opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe
             cd /opt/everleaf/web
-            npm run build-patch-manifest
+            sudo env LAUNCHER_MANIFEST_PRIVATE_KEY=/etc/everleaf/launcher-manifest-private.pem npm run build-patch-manifest
             sudo systemctl restart everleaf-web
             sleep 2
             curl -fsS http://127.0.0.1:3000/v1/launcher/status >/dev/null
