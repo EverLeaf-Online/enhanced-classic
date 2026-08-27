@@ -24,6 +24,31 @@ REPLACEMENTS = {
         "    USE_SUPPLY_RATE_COUPONS: false      #Enhanced Classic: no paid rate advantages / no P2W.\n",
 }
 
+# These values intentionally target only the first configured world. EverLeaf currently
+# runs one world (server.WORLDS = 1), so changing every upstream world's channel count
+# would be misleading and would waste resources if more worlds are ever enabled.
+FIRST_WORLD_REPLACEMENTS = {
+    "    server_message: Welcome to Scania!\n": "    server_message: Welcome to EverLeaf!\n",
+    "    event_message: Scania!\n": "    event_message: EverLeaf Enhanced Classic\n",
+    "    why_am_i_recommended: Welcome to Scania!\n": "    why_am_i_recommended: Welcome to EverLeaf!\n",
+    "    channels: 3\n": "    channels: 8\n",
+}
+
+
+def replace_first_world(updated: str, old: str, new: str) -> str:
+    """Replace only the first-world occurrence while remaining idempotent."""
+    first_server = updated.find("server:\n")
+    world_section = updated if first_server == -1 else updated[:first_server]
+
+    if new in world_section:
+        return updated
+
+    pos = world_section.find(old)
+    if pos == -1:
+        raise SystemExit(f"Expected first-world config line not found: {old.strip()}")
+
+    return updated[:pos] + new + updated[pos + len(old):]
+
 
 def main() -> None:
     original = CONFIG.read_text(encoding="utf-8-sig")
@@ -40,11 +65,14 @@ def main() -> None:
             raise SystemExit(f"Expected exactly one match, found {count}: {old.strip()}")
         updated = updated.replace(old, new, 1)
 
+    for old, new in FIRST_WORLD_REPLACEMENTS.items():
+        updated = replace_first_world(updated, old, new)
+
     if updated != original:
         CONFIG.write_text(updated, encoding="utf-8")
-        print("Applied Enhanced Classic configuration defaults.")
+        print("Applied Enhanced Classic configuration defaults (EverLeaf: 8 channels).")
     else:
-        print("Enhanced Classic configuration defaults already applied.")
+        print("Enhanced Classic configuration defaults already applied (EverLeaf: 8 channels).")
 
 
 if __name__ == "__main__":
