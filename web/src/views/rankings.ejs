@@ -1,0 +1,17 @@
+<%- include("partials/header",{title:"Rankings"}) %>
+<main class="lightPage"><div class="lightTitle"><div class="wrap"><h1>Rankings</h1><p>Top characters in EverLeaf.</p></div></div><div class="wrap">
+<div class="tabs">
+<% Object.entries(classes).forEach(([key,c])=>{ %><a class="tab <%=activeClass===key?'active':''%>" href="/rankings?class=<%=key%>"><%=c.label%></a><% }) %>
+</div>
+<% if(error){ %><div class="error"><%=error%></div><% } %>
+<div class="paperCard"><table><thead><tr><th>#</th><th>Character</th><th>Job</th><th>Level</th></tr></thead><tbody>
+<% rows.forEach((r,i)=>{ %><tr><td><strong><%=startRank+i+1%></strong></td><td class="rankNameCell"><span class="rankAvatar"><%=r.name.charAt(0).toUpperCase()%></span><strong><%=r.name%></strong></td><td><%=r.jobName%></td><td><strong class="rankLvCell"><%=r.level%></strong></td></tr><% }) %>
+</tbody></table><% if(!rows.length&&!error){ %><p class="muted">No ranked characters yet.</p><% } %>
+<% if(rows.length){ %>
+<div class="pagination">
+<% for(let p=1;p<=totalPages;p++){ %><a class="pageBtn <%=p===currentPage?'active':''%>" href="/rankings?class=<%=activeClass%>&page=<%=p%>"><%=p%></a><% } %>
+<% if(currentPage<totalPages){ %><a class="pageBtn pageNext" href="/rankings?class=<%=activeClass%>&page=<%=currentPage+1%>">Next &rsaquo;</a><% } %>
+</div>
+<p class="muted" style="text-align:center;margin-top:12px;font-size:12px">Rankings update every 30 minutes.</p>
+<% } %>
+</div></div></main><%- include("partials/footer") %>

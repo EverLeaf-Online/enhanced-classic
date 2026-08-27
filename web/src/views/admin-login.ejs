@@ -1,0 +1,2 @@
+<%- include("partials/header",{title:"Admin Login"}) %><main class="section"><div class="wrap form"><h1>EverLeaf CMS</h1><% if(error){%><div class="error"><%=error%></div><%}%>
+<form class="card" method="post"><label>Admin username</label><input name="username"><label>Password</label><input type="password" name="password"><button class="btn primary">Sign in</button></form></div></main><%- include("partials/footer") %>
