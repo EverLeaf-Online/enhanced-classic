@@ -14,7 +14,7 @@ public sealed record SignedManifest(string Payload, string Signature);
 
 public static class LauncherConfiguration
 {
-    public static readonly Uri ApiBase = new("https://132-145-141-79.sslip.io/");
+    public static readonly Uri ApiBase = new("https://everleafms.duckdns.org/");
     public static readonly Uri ManifestUri = new(ApiBase, "v1/launcher/manifest");
     public const string GameExecutable = "MapleStory.exe";
     public const string LauncherExecutable = "EverLeafLauncher.exe";
@@ -84,20 +84,22 @@ public sealed class PatchService : IDisposable
             throw new InvalidOperationException("Patch manifest encoding is invalid.", ex);
         }
 
-        VerifySignature(payload, signature);
+        VerifySignature(payload, signature, LauncherConfiguration.ManifestPublicKeyPem);
         var manifest = JsonSerializer.Deserialize<PatchManifest>(payload)
                        ?? throw new InvalidOperationException("Invalid patch manifest.");
         ValidateManifest(manifest);
 
         long totalBytes = Math.Max(1, manifest.Files.Sum(file => Math.Max(1, file.Size)));
         long completedBytes = 0;
+        var totalFiles = manifest.Files.Count;
 
-        foreach (var file in manifest.Files)
+        for (var index = 0; index < totalFiles; index++)
         {
+            var file = manifest.Files[index];
             cancellationToken.ThrowIfCancellationRequested();
             var destination = ResolveSafePath(file.Path);
             var basePercent = completedBytes * 100d / totalBytes;
-            progress.Report((basePercent, $"Checking {file.Path}"));
+            progress.Report((basePercent, $"Checking {index + 1} of {totalFiles}: {file.Path}"));
 
             if (File.Exists(destination)
                 && new FileInfo(destination).Length == file.Size
@@ -107,7 +109,7 @@ public sealed class PatchService : IDisposable
                 continue;
             }
 
-            await DownloadAndReplaceAsync(file, destination, completedBytes, totalBytes, progress, cancellationToken);
+            await DownloadAndReplaceAsync(file, destination, index + 1, totalFiles, completedBytes, totalBytes, progress, cancellationToken);
             completedBytes += Math.Max(1, file.Size);
         }
 
@@ -117,6 +119,8 @@ public sealed class PatchService : IDisposable
     private async Task DownloadAndReplaceAsync(
         PatchEntry file,
         string destination,
+        int fileNumber,
+        int totalFiles,
         long completedBytes,
         long totalBytes,
         IProgress<(double Percent, string Status)> progress,
@@ -149,7 +153,7 @@ public sealed class PatchService : IDisposable
                     await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                     downloaded += read;
                     var percent = Math.Min(99.5, (completedBytes + downloaded) * 100d / totalBytes);
-                    progress.Report((percent, $"Updating {file.Path} — {FormatBytes(downloaded)} / {FormatBytes(file.Size)}"));
+                    progress.Report((percent, $"Repairing {fileNumber} of {totalFiles}: {file.Path} — {FormatBytes(downloaded)} / {FormatBytes(file.Size)}"));
                 }
             }
 
@@ -174,36 +178,40 @@ public sealed class PatchService : IDisposable
         return $"{bytes} B";
     }
 
-    private Uri ResolveDownloadUri(string value)
+    private static Uri ResolveDownloadUri(string value)
     {
-        if (Uri.TryCreate(value, UriKind.Absolute, out var absolute))
-        {
-            if (!string.Equals(absolute.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Patch downloads must use HTTPS.");
-            return absolute;
-        }
-
-        return new Uri(LauncherConfiguration.ApiBase, value.TrimStart('/'));
+        if (Uri.TryCreate(value, UriKind.Absolute, out _))
+            throw new InvalidOperationException("Patch manifests cannot redirect downloads to an absolute URL.");
+        if (string.IsNullOrWhiteSpace(value) || !value.StartsWith("/patches/", StringComparison.Ordinal)
+            || value.Contains('\\') || value.Contains("..", StringComparison.Ordinal))
+            throw new InvalidOperationException("Patch manifest contains an unsafe download URL.");
+        var resolved = new Uri(LauncherConfiguration.ApiBase, value);
+        if (!string.Equals(resolved.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(resolved.Host, LauncherConfiguration.ApiBase.Host, StringComparison.OrdinalIgnoreCase)
+            || resolved.Port != LauncherConfiguration.ApiBase.Port)
+            throw new InvalidOperationException("Patch download URL is outside the EverLeaf patch service.");
+        return resolved;
     }
 
-    private void ValidateManifest(PatchManifest manifest)
+    internal void ValidateManifest(PatchManifest manifest)
     {
         if (string.IsNullOrWhiteSpace(manifest.Version))
             throw new InvalidOperationException("Patch manifest has no version.");
-        if (manifest.Files is null)
-            throw new InvalidOperationException("Patch manifest has no file list.");
+        if (manifest.Files is null || manifest.Files.Count == 0)
+            throw new InvalidOperationException("Patch manifest has an empty file list.");
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var file in manifest.Files)
         {
             if (string.IsNullOrWhiteSpace(file.Path) || string.IsNullOrWhiteSpace(file.Url))
                 throw new InvalidOperationException("Patch manifest contains an incomplete file entry.");
-            if (file.Size < 0)
+            if (file.Size <= 0)
                 throw new InvalidOperationException($"Patch manifest contains an invalid size: {file.Path}");
             if (file.Sha256?.Length != 64 || !file.Sha256.All(Uri.IsHexDigit))
                 throw new InvalidOperationException($"Patch manifest contains an invalid SHA-256: {file.Path}");
 
             var resolved = ResolveSafePath(file.Path);
+            ResolveDownloadUri(file.Url);
             if (!seen.Add(resolved))
                 throw new InvalidOperationException($"Patch manifest contains a duplicate path: {file.Path}");
             if (string.Equals(Path.GetFileName(resolved), LauncherConfiguration.LauncherExecutable, StringComparison.OrdinalIgnoreCase))
@@ -213,8 +221,12 @@ public sealed class PatchService : IDisposable
 
     private string ResolveSafePath(string relativePath)
     {
-        if (Path.IsPathRooted(relativePath))
+        if (Path.IsPathRooted(relativePath) || relativePath.Contains('\\'))
             throw new InvalidOperationException("Manifest contains an absolute path.");
+
+        var parts = relativePath.Split('/');
+        if (parts.Any(part => string.IsNullOrWhiteSpace(part) || part is "." or ".."))
+            throw new InvalidOperationException("Manifest contains an unsafe path segment.");
 
         var resolved = Path.GetFullPath(Path.Combine(_gameDirectory, relativePath));
         var root = _gameDirectory + Path.DirectorySeparatorChar;
@@ -223,7 +235,7 @@ public sealed class PatchService : IDisposable
         return resolved;
     }
 
-    private static async Task<bool> HashMatchesAsync(string path, string expected, CancellationToken cancellationToken)
+    internal static async Task<bool> HashMatchesAsync(string path, string expected, CancellationToken cancellationToken)
     {
         try
         {
@@ -243,12 +255,12 @@ public sealed class PatchService : IDisposable
         }
     }
 
-    private static void VerifySignature(byte[] payload, byte[] signature)
+    internal static void VerifySignature(byte[] payload, byte[] signature, string publicKeyPem)
     {
         try
         {
             using var rsa = RSA.Create();
-            rsa.ImportFromPem(LauncherConfiguration.ManifestPublicKeyPem);
+            rsa.ImportFromPem(publicKeyPem);
             if (!rsa.VerifyData(payload, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pss))
                 throw new CryptographicException("Manifest signature is invalid.");
         }

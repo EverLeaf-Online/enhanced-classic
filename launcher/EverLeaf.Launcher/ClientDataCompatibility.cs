@@ -29,7 +29,7 @@ public static class ClientDataCompatibility
             cancellationToken.ThrowIfCancellationRequested();
             var required = RequiredFiles[index];
             var path = Path.Combine(gameDirectory, required.Name);
-            progress?.Report((index * 5d, $"Checking compatible {required.Name}…"));
+            progress?.Report((95 + index * 2d, $"Compatibility check {index + 1} of {RequiredFiles.Length}: {required.Name}"));
 
             if (!File.Exists(path))
                 throw BuildCompatibilityError(required.Name, "is missing");
@@ -51,7 +51,7 @@ public static class ClientDataCompatibility
             }
         }
 
-        progress?.Report((10, "EverLeaf map and NPC data verified."));
+        progress?.Report((100, "EverLeaf critical client data verified."));
     }
 
     private static InvalidOperationException BuildCompatibilityError(string file, string reason) =>

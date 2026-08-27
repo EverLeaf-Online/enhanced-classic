@@ -101,6 +101,9 @@ public partial class MainWindow : Window
 
         using var patcher = new PatchService(_gameDirectory);
         await patcher.VerifyAndRepairAsync(progress, CancellationToken.None);
+        await ClientDataCompatibility.VerifyAsync(_gameDirectory, progress, CancellationToken.None);
+        PatchProgress.Value = 100;
+        PatchStatusText.Text = "All managed files and critical client data verified.";
     }
 
     private static string FriendlyError(Exception ex)
