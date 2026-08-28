@@ -58,6 +58,12 @@ GAME_PASSWORD_MODE=bcrypt
 ## Player account portal
 Authenticated players can view all characters on their account and change the password used by both the website and EverLeaf game client. New passwords are stored as BCrypt.
 
+## Supporter payments
+
+`/donate` provides the account-linked supporter experience. Payment providers fail closed: Stripe and PayPal controls remain disabled until their explicit enable flag and complete server-side credential set are present. Provider secrets are never rendered to players or stored in the CMS database.
+
+The CMS maintains separate supporter profiles, payment orders, and idempotent provider-event records. Raw webhook payloads are not retained; only a SHA-256 identity is stored for auditing. Payment fulfillment must follow the allowed order state transitions and must never grant competitive gameplay power.
+
 The homepage refreshes server status, online players, and online channel counts every 30 seconds through `/api/status`.
 
 ## Oracle VM deployment

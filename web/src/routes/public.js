@@ -5,6 +5,7 @@ const game = require("../services/gameService");
 const env = require("../config/env");
 const jobName = require("../utils/jobs");
 const passwordPolicy = require("../utils/playerPasswordPolicy");
+const supporter = require("../services/supporterService");
 
 const router = express.Router();
 
@@ -55,7 +56,20 @@ router.get("/downloads", (req,res) => {
   res.render("downloads",{rows,settings:settings()});
 });
 
-router.get("/support", (req,res) => res.render("support",{settings:settings()}));
+router.get("/support", (req,res) => res.redirect(301,"/donate"));
+router.get("/donate", (req,res) => {
+  const summary=req.session.player?supporter.accountSummary(req.session.player.id):{profile:null,orders:[]};
+  res.render("support",{settings:settings(),player:req.session.player||null,summary,amounts:supporter.AMOUNTS,providers:{stripe:supporter.providerReady("stripe"),paypal:supporter.providerReady("paypal")},error:""});
+});
+router.post("/donate/checkout", (req,res) => {
+  if(!req.session.player) return res.redirect("/login");
+  try {
+    supporter.validateCheckout({provider:String(req.body.provider||""),amountCents:Number(req.body.amountCents),accountId:req.session.player.id,accountName:req.session.player.name});
+    throw new Error("Checkout initialization is not active yet. No payment was taken.");
+  } catch(error) {
+    res.status(503).render("support",{settings:settings(),player:req.session.player,summary:supporter.accountSummary(req.session.player.id),amounts:supporter.AMOUNTS,providers:{stripe:supporter.providerReady("stripe"),paypal:supporter.providerReady("paypal")},error:error.message});
+  }
+});
 router.get("/community", (req,res) => res.render("community",{settings:settings()}));
 router.get("/help", (req,res) => res.render("help",{settings:settings()}));
 router.get("/terms", (req,res) => res.render("terms",{settings:settings()}));

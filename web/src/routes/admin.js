@@ -23,6 +23,8 @@ router.get("/",requireAdmin,async(req,res)=>{
   const announcements=db.prepare("SELECT * FROM announcements ORDER BY created_at DESC LIMIT 10").all();
   const donations=db.prepare("SELECT * FROM donations ORDER BY created_at DESC LIMIT 10").all();
   const donationTotal=db.prepare("SELECT COALESCE(SUM(amount_cents),0) total FROM donations WHERE status='completed'").get().total;
+  const paymentOrders=db.prepare("SELECT * FROM payment_orders ORDER BY created_at DESC LIMIT 20").all();
+  const supporterProfiles=db.prepare("SELECT * FROM supporter_profiles ORDER BY lifetime_cents DESC,created_at DESC LIMIT 20").all();
   let players=0,accounts=0,recentAccounts=[],status={online:false,channels:0,totalChannels:env.game.channelPorts.length};
   try{
     const pool=getPool(),g=env.gameDb;
@@ -32,7 +34,7 @@ router.get("/",requireAdmin,async(req,res)=>{
     recentAccounts=recentRows;
     [players,status]=await Promise.all([game.onlineCount(),game.serverStatus()]);
   }catch{}
-  res.render("admin",{posts,downloads,announcements,donations,donationTotal,players,accounts,recentAccounts,status,site:settings(),settings:settings()});
+  res.render("admin",{posts,downloads,announcements,donations,donationTotal,paymentOrders,supporterProfiles,players,accounts,recentAccounts,status,site:settings(),settings:settings()});
 });
 
 router.post("/posts",requireAdmin,(req,res)=>{

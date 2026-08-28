@@ -6,6 +6,7 @@ const env = require("../config/env");
 fs.mkdirSync(path.dirname(env.cmsDbPath), { recursive: true });
 const db = new Database(env.cmsDbPath);
 db.pragma("journal_mode = WAL");
+db.pragma("foreign_keys = ON");
 
 function initCms() {
   db.exec(`
@@ -52,6 +53,44 @@ function initCms() {
       reference TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'completed',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS supporter_profiles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      game_account_id INTEGER NOT NULL UNIQUE,
+      game_account_name TEXT NOT NULL,
+      discord_user_id TEXT NOT NULL DEFAULT '',
+      discord_role_status TEXT NOT NULL DEFAULT 'not_linked',
+      lifetime_cents INTEGER NOT NULL DEFAULT 0 CHECK(lifetime_cents >= 0),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS payment_orders (
+      id TEXT PRIMARY KEY,
+      game_account_id INTEGER NOT NULL,
+      game_account_name TEXT NOT NULL,
+      provider TEXT NOT NULL CHECK(provider IN ('stripe','paypal')),
+      amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+      currency TEXT NOT NULL DEFAULT 'usd',
+      status TEXT NOT NULL DEFAULT 'created' CHECK(status IN ('created','pending','paid','failed','canceled','refunded')),
+      provider_reference TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS payment_orders_provider_reference ON payment_orders(provider,provider_reference) WHERE provider_reference IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS payment_orders_account ON payment_orders(game_account_id,created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS payment_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider TEXT NOT NULL CHECK(provider IN ('stripe','paypal')),
+      provider_event_id TEXT NOT NULL,
+      order_id TEXT,
+      event_type TEXT NOT NULL,
+      payload_sha256 TEXT NOT NULL,
+      processed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(provider,provider_event_id),
+      FOREIGN KEY(order_id) REFERENCES payment_orders(id)
     );
 
     CREATE TABLE IF NOT EXISTS announcements (

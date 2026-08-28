@@ -58,6 +58,22 @@ module.exports = {
     mode: String(process.env.GAME_PASSWORD_MODE || "bcrypt").toLowerCase()
   },
 
+  payments: {
+    currency: String(process.env.PAYMENT_CURRENCY || "usd").toLowerCase(),
+    stripe: {
+      enabled: bool(process.env.STRIPE_ENABLED, false),
+      secretKey: process.env.STRIPE_SECRET_KEY || "",
+      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || ""
+    },
+    paypal: {
+      enabled: bool(process.env.PAYPAL_ENABLED, false),
+      clientId: process.env.PAYPAL_CLIENT_ID || "",
+      clientSecret: process.env.PAYPAL_CLIENT_SECRET || "",
+      webhookId: process.env.PAYPAL_WEBHOOK_ID || "",
+      environment: process.env.PAYPAL_ENVIRONMENT === "live" ? "live" : "sandbox"
+    }
+  },
+
   launcher: {
     patchRoot,
     filesRoot: path.join(patchRoot, "files"),
