@@ -53,21 +53,23 @@ jobs:
           SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
-          chmod 600 ~/.ssh/id_everleaf
+          ssh_dir="$(cygpath -u "$RUNNER_TEMP")/everleaf-ssh"
+          mkdir -p "$ssh_dir"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$ssh_dir/id_everleaf"
+          chmod 600 "$ssh_dir/id_everleaf"
           if [ -n "$SSH_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
           else
-            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$ssh_dir/known_hosts"
           fi
-          chmod 600 ~/.ssh/known_hosts
+          chmod 600 "$ssh_dir/known_hosts"
 
       - name: Stage portable launcher on Oracle
         shell: bash
         run: |
           set -euo pipefail
-          scp -i ~/.ssh/id_everleaf EverLeafLauncher-portable.zip \
+          ssh_dir="$(cygpath -u "$RUNNER_TEMP")/everleaf-ssh"
+          scp -i "$ssh_dir/id_everleaf" -o UserKnownHostsFile="$ssh_dir/known_hosts" -o StrictHostKeyChecking=yes EverLeafLauncher-portable.zip \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/tmp/everleaf-launcher-$GITHUB_RUN_ID.zip"
 
   deploy:
