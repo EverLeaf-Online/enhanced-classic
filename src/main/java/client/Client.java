@@ -282,11 +282,15 @@ public class Client extends ChannelInboundHandlerAdapter {
     }
 
     public void closeSession() {
-        ioChannel.close();
+        if (ioChannel != null) {
+            ioChannel.close();
+        }
     }
 
     public void disconnectSession() {
-        ioChannel.disconnect();
+        if (ioChannel != null) {
+            ioChannel.disconnect();
+        }
     }
 
     public Hwid getHwid() {
