@@ -192,6 +192,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 client/scripts/test-cosmic-wz-baseline.py
           export LAUNCHER_PATCH_ROOT="$PWD/manifest-fixture"
           python3 - <<'PY'
           import json
@@ -211,6 +212,8 @@ jobs:
       - name: Assemble authorized complete baseline
         if: github.event_name == 'workflow_dispatch' && inputs.publish_full_baseline
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           curl --fail --location --retry 3 --retry-delay 5 \
@@ -225,6 +228,43 @@ jobs:
           if [ -f full-client/MapleStory.exe ] && [ ! -f full-client/EverLeaf.exe ]; then
             mv full-client/MapleStory.exe full-client/EverLeaf.exe
           fi
+
+          cosmic_tag="$(python3 -c 'import json; print(json.load(open("client/cosmic-wz-baseline.json"))["releaseTag"])')"
+          cosmic_archive="$(python3 -c 'import json; print(json.load(open("client/cosmic-wz-baseline.json"))["archiveName"])')"
+          mkdir cosmic-release cosmic-extract
+          gh release download "$cosmic_tag" --repo "$GITHUB_REPOSITORY" --pattern "$cosmic_archive.part*" --dir cosmic-release
+          mapfile -t cosmic_parts < <(find cosmic-release -maxdepth 1 -type f -name "$cosmic_archive.part*" | sort)
+          expected_parts="$(python3 -c 'import json; print(json.load(open("client/cosmic-wz-baseline.json"))["partCount"])')"
+          test "${#cosmic_parts[@]}" -eq "$expected_parts"
+          cat "${cosmic_parts[@]}" > "$cosmic_archive"
+          cosmic_archive_sha="$(python3 -c 'import json; print(json.load(open("client/cosmic-wz-baseline.json"))["archiveSha256"])')"
+          printf '%s  %s\n' "$cosmic_archive_sha" "$cosmic_archive" | sha256sum --check --strict
+          unzip -q "$cosmic_archive" -d cosmic-extract
+          cosmic_root="$(dirname "$(find cosmic-extract -type f -name Map.wz -print -quit)")"
+          test -n "$cosmic_root"
+          python3 - "$cosmic_root" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          root=Path(sys.argv[1])
+          baseline=json.loads(Path('client/cosmic-wz-baseline.json').read_text())
+          expected={entry['path']:entry for entry in baseline['files']}
+          actual={path.name for path in root.iterdir() if path.is_file()}
+          assert actual==set(expected), f'Cosmic WZ archive contents differ: {actual} != {set(expected)}'
+          for name, entry in expected.items():
+              path=root / name
+              assert path.stat().st_size==entry['size'], f'Cosmic WZ size mismatch: {name}'
+              hasher=hashlib.sha256()
+              with path.open('rb') as source:
+                  while chunk := source.read(1024 * 1024):
+                      hasher.update(chunk)
+              digest=hasher.hexdigest()
+              assert digest==entry['sha256'], f'Cosmic WZ hash mismatch: {name}'
+          print(f'Verified {len(expected)} official Cosmic WZ files.')
+          PY
+          cp "$cosmic_root"/*.wz full-client/
           cp -a runtime-payload/. full-client/
           python3 - <<'PY'
           import json
