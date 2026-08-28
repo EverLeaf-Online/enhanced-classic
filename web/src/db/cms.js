@@ -65,6 +65,8 @@ function initCms() {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE UNIQUE INDEX IF NOT EXISTS supporter_profiles_discord_user
+      ON supporter_profiles(discord_user_id) WHERE discord_user_id <> '';
 
     CREATE TABLE IF NOT EXISTS payment_orders (
       id TEXT PRIMARY KEY,

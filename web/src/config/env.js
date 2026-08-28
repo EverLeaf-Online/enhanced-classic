@@ -58,6 +58,16 @@ module.exports = {
     mode: String(process.env.GAME_PASSWORD_MODE || "bcrypt").toLowerCase()
   },
 
+  discord: {
+    enabled: bool(process.env.DISCORD_ENABLED, false),
+    clientId: process.env.DISCORD_CLIENT_ID || "",
+    clientSecret: process.env.DISCORD_CLIENT_SECRET || "",
+    botToken: process.env.DISCORD_BOT_TOKEN || "",
+    guildId: process.env.DISCORD_GUILD_ID || "",
+    supporterRoleId: process.env.DISCORD_SUPPORTER_ROLE_ID || "",
+    redirectUri: process.env.DISCORD_REDIRECT_URI || "https://everleafms.duckdns.org/account/discord/callback"
+  },
+
   payments: {
     currency: String(process.env.PAYMENT_CURRENCY || "usd").toLowerCase(),
     publicBaseUrl: String(process.env.PUBLIC_BASE_URL || "https://everleafms.duckdns.org").replace(/\/$/, ""),

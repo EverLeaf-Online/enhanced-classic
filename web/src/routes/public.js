@@ -1,4 +1,5 @@
 const express = require("express");
+const crypto = require("crypto");
 const { z } = require("zod");
 const { db, settings } = require("../db/cms");
 const game = require("../services/gameService");
@@ -7,6 +8,7 @@ const jobName = require("../utils/jobs");
 const passwordPolicy = require("../utils/playerPasswordPolicy");
 const supporter = require("../services/supporterService");
 const stripe = require("../services/stripeService");
+const discord = require("../services/discordService");
 
 const router = express.Router();
 
@@ -109,9 +111,47 @@ router.post("/register",async(req,res)=>{
 router.get("/account",async(req,res)=>{
   if(!req.session.player) return res.redirect("/login");
   let characters=[],error="",success=String(req.query.updated||"")==="1"?"Password updated successfully.":"";
+  const discordMessages={linked:"Discord account linked successfully.",invalid:"Discord authorization expired or was invalid.",failed:"Discord account linking failed. Please try again.",unavailable:"Discord account linking is not available yet."};
+  if(req.query.discord&&discordMessages[req.query.discord]) success=req.query.discord==="linked"?discordMessages[req.query.discord]:"";
+  if(req.query.discord&&req.query.discord!=="linked"&&discordMessages[req.query.discord]) error=discordMessages[req.query.discord];
   try { characters=(await game.accountCharacters(req.session.player.id)).map(r=>({...r,jobName:jobName(r.job)})); }
   catch { error="Character data is temporarily unavailable."; }
-  res.render("account",{account:req.session.player,characters,error,success,settings:settings()});
+  const discordProfile=supporter.accountSummary(req.session.player.id).profile;
+  res.render("account",{account:req.session.player,characters,error,success,discordProfile,discordReady:discord.oauthReady(),settings:settings()});
+});
+
+router.get("/account/discord/connect",(req,res)=>{
+  if(!req.session.player) return res.redirect("/login");
+  try {
+    const state=discord.newState();
+    req.session.discordOauthState=state;
+    req.session.discordOauthCreatedAt=Date.now();
+    res.redirect(discord.authorizationUrl(state));
+  } catch {
+    res.redirect("/account?discord=unavailable");
+  }
+});
+
+router.get("/account/discord/callback",async(req,res)=>{
+  if(!req.session.player) return res.redirect("/login");
+  const expected=req.session.discordOauthState;
+  const created=Number(req.session.discordOauthCreatedAt||0);
+  delete req.session.discordOauthState;
+  delete req.session.discordOauthCreatedAt;
+  const expectedBuffer=Buffer.from(String(expected||""));
+  const receivedBuffer=Buffer.from(String(req.query.state||""));
+  if(!expected||expectedBuffer.length!==receivedBuffer.length||!crypto.timingSafeEqual(expectedBuffer,receivedBuffer)||Date.now()-created>10*60*1000) {
+    return res.redirect("/account?discord=invalid");
+  }
+  try {
+    const user=await discord.exchangeCode(String(req.query.code||""));
+    supporter.linkDiscordAccount(req.session.player.id,req.session.player.name,user.id);
+    await discord.syncAccount(req.session.player.id);
+    res.redirect("/account?discord=linked");
+  } catch(error) {
+    console.warn("Discord account linking failed:",error.message);
+    res.redirect("/account?discord=failed");
+  }
 });
 
 router.post("/account/password",async(req,res)=>{

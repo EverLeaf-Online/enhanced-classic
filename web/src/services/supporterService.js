@@ -82,4 +82,21 @@ function getOrder(orderId) {
   return db.prepare("SELECT * FROM payment_orders WHERE id=?").get(String(orderId||""))||null;
 }
 
-module.exports={AMOUNTS,PROVIDERS,TRANSITIONS,providerReady,validateCheckout,createOrder,transitionOrder,recordProviderEvent,confirmPayment,accountSummary,getOrder};
+function linkDiscordAccount(accountId,accountName,discordUserId) {
+  const id=String(discordUserId||"");
+  if(!/^\d{15,22}$/.test(id)) throw new Error("Invalid Discord account identity.");
+  db.prepare(`INSERT INTO supporter_profiles(game_account_id,game_account_name,discord_user_id,discord_role_status)
+    VALUES(?,?,?,'linked') ON CONFLICT(game_account_id) DO UPDATE SET
+      game_account_name=excluded.game_account_name,
+      discord_user_id=excluded.discord_user_id,
+      discord_role_status='linked',updated_at=CURRENT_TIMESTAMP`).run(Number(accountId),String(accountName),id);
+  return db.prepare("SELECT * FROM supporter_profiles WHERE game_account_id=?").get(Number(accountId));
+}
+
+function setDiscordRoleStatus(accountId,status) {
+  const allowed=["not_linked","linked","pending","assigned","not_member","permission_error","failed"];
+  if(!allowed.includes(status)) throw new Error("Invalid Discord role status.");
+  db.prepare("UPDATE supporter_profiles SET discord_role_status=?,updated_at=CURRENT_TIMESTAMP WHERE game_account_id=?").run(status,Number(accountId));
+}
+
+module.exports={AMOUNTS,PROVIDERS,TRANSITIONS,providerReady,validateCheckout,createOrder,transitionOrder,recordProviderEvent,confirmPayment,accountSummary,getOrder,linkDiscordAccount,setDiscordRoleStatus};
