@@ -36,8 +36,12 @@ jobs:
       - name: Generate Everleaf build manifest
         if: success()
         run: python3 tools/generate_build_manifest.py
-      - name: Upload Everleaf server artifact
+      - name: Upload Everleaf server artifact (best effort)
         if: success()
+        # A full account-level Actions artifact quota must not turn a verified
+        # compile/test/package run red. The jar is still available in the job
+        # workspace and production deployment has its own rollback copy.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: everleaf-server-${{ github.sha }}
