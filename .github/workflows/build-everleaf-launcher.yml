@@ -63,7 +63,6 @@ jobs:
         shell: pwsh
         run: |
           Remove-Item 'launcher-publish/*.pdb' -Force -ErrorAction SilentlyContinue
-          Copy-Item "launcher/README.md" "launcher-publish/README-LAUNCHER.md"
           Compress-Archive -Path "launcher-publish/*" -DestinationPath "EverLeafLauncher-portable.zip"
           Get-FileHash "EverLeafLauncher-portable.zip" -Algorithm SHA256
 
@@ -72,3 +71,8 @@ jobs:
         run: |
           if (-not (Test-Path 'EverLeafLauncher-portable.zip')) { throw 'Portable launcher ZIP missing' }
           if ((Get-Item 'EverLeafLauncher-portable.zip').Length -le 0) { throw 'Portable launcher ZIP is empty' }
+          Expand-Archive 'EverLeafLauncher-portable.zip' 'launcher-artifact-check'
+          $files = @(Get-ChildItem 'launcher-artifact-check' -File -Recurse)
+          if ($files.Count -ne 1 -or $files[0].Name -ne 'EverLeafLauncher.exe') {
+            throw "Portable launcher ZIP must contain only EverLeafLauncher.exe"
+          }
