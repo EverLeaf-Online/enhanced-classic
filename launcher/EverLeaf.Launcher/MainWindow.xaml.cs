@@ -10,6 +10,7 @@ public partial class MainWindow : Window
     private readonly LauncherApi _api = new();
     private readonly string _gameDirectory = AppContext.BaseDirectory;
     private bool _busy;
+    private bool _clientReady;
 
     public MainWindow()
     {
@@ -21,7 +22,8 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        if (!File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable)))
+        var gameExists = File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable));
+        if (!gameExists)
         {
             ErrorText.Text = "MapleStory.exe is not in this folder. Extract the EverLeaf client, then place this portable launcher beside MapleStory.exe.";
         }
@@ -42,6 +44,23 @@ public partial class MainWindow : Window
             AnnouncementText.Text = "The launcher service could not be reached.";
             ServerDot.Fill = new SolidColorBrush(Color.FromRgb(217, 164, 65));
         }
+
+        if (!gameExists) return;
+
+        try
+        {
+            SetBusy(true);
+            await RepairInternalAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorText.Text = FriendlyError(ex);
+            PatchStatusText.Text = "Automatic repair failed";
+        }
+        finally
+        {
+            SetBusy(false);
+        }
     }
 
     private async void PlayButton_Click(object sender, RoutedEventArgs e)
@@ -52,7 +71,8 @@ public partial class MainWindow : Window
         try
         {
             SetBusy(true);
-            await RepairInternalAsync();
+            if (!_clientReady)
+                await RepairInternalAsync();
             PatchStatusText.Text = "Launching EverLeaf…";
             GameLauncher.Start(_gameDirectory);
             Close();
@@ -75,6 +95,7 @@ public partial class MainWindow : Window
         try
         {
             SetBusy(true);
+            _clientReady = false;
             await RepairInternalAsync();
         }
         catch (Exception ex)
@@ -103,6 +124,7 @@ public partial class MainWindow : Window
         await patcher.VerifyAndRepairAsync(progress, CancellationToken.None);
         PatchProgress.Value = 100;
         PatchStatusText.Text = "All 36 required EverLeaf game files verified.";
+        _clientReady = true;
     }
 
     private static string FriendlyError(Exception ex)

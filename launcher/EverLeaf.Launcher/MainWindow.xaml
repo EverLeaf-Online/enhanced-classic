@@ -64,7 +64,7 @@
         <StackPanel>
           <TextBlock Text="CLIENT" FontSize="13" FontWeight="Bold" Foreground="#82988F"/>
           <TextBlock Text="Ready to play" FontSize="27" FontWeight="Bold" Margin="0,7,0,0"/>
-          <TextBlock Text="Updates are checked before every launch." Foreground="#95AAA2" Margin="0,5,0,0" TextWrapping="Wrap"/>
+          <TextBlock Text="All required files are checked when the launcher opens." Foreground="#95AAA2" Margin="0,5,0,0" TextWrapping="Wrap"/>
         </StackPanel>
 
         <StackPanel Grid.Row="1" VerticalAlignment="Center">

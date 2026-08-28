@@ -8,8 +8,8 @@ choose or create a game directory.
 1. Download and extract the complete `Everleaf MS.rar` client.
 2. Extract the portable launcher into that same folder, beside `MapleStory.exe`.
 3. Open `EverLeafLauncher.exe`.
-4. Press **Play EverLeaf** or **Check / Repair Files**.
-5. The launcher authenticates EverLeaf's signed HTTPS manifest.
+4. The launcher immediately authenticates EverLeaf's signed HTTPS manifest and starts checking the client.
+5. Press **Play EverLeaf** after the automatic check completes, or use **Check / Repair Files** to run it again.
 6. It checks every required game file by size and streaming SHA-256.
 7. It downloads only missing or outdated files and verifies each download before replacement.
 8. After all 36 required files match production, Play starts `MapleStory.exe`.
