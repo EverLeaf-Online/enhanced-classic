@@ -23,6 +23,37 @@ public sealed class PatchServiceTests
     }
 
     [Fact]
+    public void LaunchesTheElevationAwareGameThroughWindowsShell()
+    {
+        var gameDirectory = System.IO.Path.Combine("C:\\", "EverLeaf Test");
+        var executable = System.IO.Path.Combine(gameDirectory, LauncherConfiguration.GameExecutable);
+        var start = GameLauncher.CreateStartInfo(executable, gameDirectory);
+
+        Assert.Equal(executable, start.FileName);
+        Assert.Equal(gameDirectory, start.WorkingDirectory);
+        Assert.True(start.UseShellExecute);
+        Assert.Empty(start.ArgumentList);
+    }
+
+    [Fact]
+    public void RemovesOnlyTheLegacyExecutableAfterEverLeafExists()
+    {
+        using var temp = new TemporaryDirectory();
+        var current = System.IO.Path.Combine(temp.Path, LauncherConfiguration.GameExecutable);
+        var legacy = System.IO.Path.Combine(temp.Path, LauncherConfiguration.LegacyGameExecutable);
+        File.WriteAllText(legacy, "legacy");
+        using var service = new PatchService(temp.Path);
+
+        service.RemoveLegacyGameExecutable();
+        Assert.True(File.Exists(legacy));
+
+        File.WriteAllText(current, "verified current client");
+        service.RemoveLegacyGameExecutable();
+        Assert.True(File.Exists(current));
+        Assert.False(File.Exists(legacy));
+    }
+
+    [Fact]
     public void VerifiesRsaPssSignatureAndRejectsTampering()
     {
         using var rsa = RSA.Create(3072);

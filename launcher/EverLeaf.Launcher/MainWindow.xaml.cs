@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
@@ -22,10 +23,11 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        var gameExists = File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable));
+        var gameExists = File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable))
+                         || File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.LegacyGameExecutable));
         if (!gameExists)
         {
-            ErrorText.Text = "MapleStory.exe is not in this folder. Extract the EverLeaf client, then place this portable launcher beside MapleStory.exe.";
+            ErrorText.Text = "This is not an EverLeaf game folder. Extract the full client, then place this portable launcher in that folder.";
         }
 
         try
@@ -111,8 +113,9 @@ public partial class MainWindow : Window
 
     private async Task RepairInternalAsync()
     {
-        if (!File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable)))
-            throw new InvalidOperationException("MapleStory.exe was not found beside the launcher. Put EverLeafLauncher.exe in your supported v83 game folder.");
+        if (!File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable))
+            && !File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.LegacyGameExecutable)))
+            throw new InvalidOperationException("No EverLeaf game client was found beside the launcher. Extract the full client first.");
 
         var progress = new Progress<(double Percent, string Status)>(value =>
         {
@@ -129,6 +132,10 @@ public partial class MainWindow : Window
 
     private static string FriendlyError(Exception ex)
     {
+        if (ex is Win32Exception { NativeErrorCode: 1223 })
+            return "Windows permission was canceled. Press Play again and approve the Windows permission prompt to start EverLeaf.";
+        if (ex is Win32Exception)
+            return "Windows could not start EverLeaf.exe. Close any running game process, then press Play again.";
         if (ex is UnauthorizedAccessException)
             return "EverLeaf could not update this folder. Close the game and make sure you have permission to write to the game directory.";
         if (ex is IOException)

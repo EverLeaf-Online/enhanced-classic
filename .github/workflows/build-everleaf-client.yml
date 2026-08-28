@@ -222,6 +222,9 @@ jobs:
           game_root="$(dirname "$game_executable")"
           mkdir full-client
           cp -a "$game_root"/. full-client/
+          if [ -f full-client/MapleStory.exe ] && [ ! -f full-client/EverLeaf.exe ]; then
+            mv full-client/MapleStory.exe full-client/EverLeaf.exe
+          fi
           cp -a runtime-payload/. full-client/
           python3 - <<'PY'
           import json

@@ -6,16 +6,16 @@ choose or create a game directory.
 ## Player flow
 
 1. Download and extract the complete `Everleaf MS.rar` client.
-2. Extract the portable launcher into that same folder, beside `MapleStory.exe`.
+2. Extract the portable launcher into that same game folder.
 3. Open `EverLeafLauncher.exe`.
 4. The launcher immediately authenticates EverLeaf's signed HTTPS manifest and starts checking the client.
 5. Press **Play EverLeaf** after the automatic check completes, or use **Check / Repair Files** to run it again.
 6. It checks every required game file by size and streaming SHA-256.
 7. It downloads only missing or outdated files and verifies each download before replacement.
-8. After all 36 required files match production, Play starts `MapleStory.exe`.
+8. After all 36 required files match production, Play starts `EverLeaf.exe`.
 
 The complete managed set is declared in `client/managed-client-baseline.json`.
-It includes all WZ files, MapleStory.exe, required DLL/ACM runtime files, and
+It includes all WZ files, EverLeaf.exe, required DLL/ACM runtime files, and
 EverLeaf's client configuration. The running launcher and its README are excluded
 so the game-file patcher never attempts to replace itself.
 
@@ -39,3 +39,7 @@ so the game-file patcher never attempts to replace itself.
 Repository-built client overlays (`dinput8.dll`, `config.ini`, and
 `EverLeaf_UI.wz`) update their corresponding files without deleting the static
 bootstrap files already present on the production patch server.
+
+The authorized bootstrap RAR currently contains the legacy filename
+`MapleStory.exe`. On its first successful repair, the launcher verifies the
+production client as `EverLeaf.exe` and removes only that legacy executable.

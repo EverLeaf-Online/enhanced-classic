@@ -16,7 +16,7 @@
     { "path": "l3codeca.acm", "redistributable": true },
     { "path": "List.wz", "redistributable": true },
     { "path": "Map.wz", "redistributable": true },
-    { "path": "MapleStory.exe", "redistributable": true },
+    { "path": "EverLeaf.exe", "bootstrapPath": "MapleStory.exe", "redistributable": true },
     { "path": "Mob.wz", "redistributable": true },
     { "path": "Morph.wz", "redistributable": true },
     { "path": "mss32.dll", "redistributable": true },

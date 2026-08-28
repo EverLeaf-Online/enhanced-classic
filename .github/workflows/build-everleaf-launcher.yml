@@ -43,7 +43,7 @@ jobs:
             "RSASignaturePadding.Pss",
             "CryptographicOperations.FixedTimeEquals",
             "Path.IsPathRooted",
-            "UseShellExecute = false",
+            "UseShellExecute = true",
             "ManifestPublicKeyPem",
             "File.Move(temporary, destination, true)"
           )

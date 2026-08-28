@@ -16,13 +16,14 @@ public static class LauncherConfiguration
 {
     public static readonly Uri ApiBase = new("https://everleafms.duckdns.org/");
     public static readonly Uri ManifestUri = new(ApiBase, "v1/launcher/manifest");
-    public const string GameExecutable = "MapleStory.exe";
+    public const string GameExecutable = "EverLeaf.exe";
+    public const string LegacyGameExecutable = "MapleStory.exe";
     public const string LauncherExecutable = "EverLeafLauncher.exe";
     public static readonly IReadOnlySet<string> RequiredGameFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "Base.wz", "Canvas.dll", "Character.wz", "config.ini", "dinput8.dll",
         "Effect.wz", "Etc.wz", "EverLeaf_UI.wz", "Gr2D_DX8.dll", "ijl15.dll",
-        "Item.wz", "l3codeca.acm", "List.wz", "Map.wz", "MapleStory.exe",
+        "Item.wz", "l3codeca.acm", "List.wz", "Map.wz", "EverLeaf.exe",
         "Mob.wz", "Morph.wz", "mss32.dll", "NameSpace.dll", "nmcogame.dll",
         "nmconew.dll", "Npc.wz", "PCOM.dll", "Quest.wz", "Reactor.wz",
         "ResMan.dll", "Shape2D.dll", "Skill.wz", "Sound.wz", "Sound_DX8.dll",
@@ -132,7 +133,16 @@ public sealed class PatchService : IDisposable
             completedBytes += Math.Max(1, file.Size);
         }
 
+        RemoveLegacyGameExecutable();
         progress.Report((100, $"EverLeaf is up to date — {manifest.Version}"));
+    }
+
+    internal void RemoveLegacyGameExecutable()
+    {
+        var current = Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable);
+        var legacy = Path.Combine(_gameDirectory, LauncherConfiguration.LegacyGameExecutable);
+        if (File.Exists(current) && File.Exists(legacy))
+            File.Delete(legacy);
     }
 
     private async Task DownloadAndReplaceAsync(
@@ -314,14 +324,18 @@ public static class GameLauncher
         var executable = Path.Combine(gameDirectory, LauncherConfiguration.GameExecutable);
         if (!File.Exists(executable))
             throw new FileNotFoundException(
-                "MapleStory.exe was not found. Extract the EverLeaf client and place the portable launcher beside MapleStory.exe.", executable);
+                "EverLeaf.exe was not found. Open the launcher in the extracted EverLeaf client folder and run Check / Repair Files.", executable);
 
-        var start = new ProcessStartInfo
-        {
-            FileName = executable,
-            WorkingDirectory = gameDirectory,
-            UseShellExecute = false
-        };
+        var start = CreateStartInfo(executable, gameDirectory);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Unable to start MapleStory.exe.");
     }
+
+    internal static ProcessStartInfo CreateStartInfo(string executable, string gameDirectory) => new()
+    {
+        FileName = executable,
+        WorkingDirectory = gameDirectory,
+        // The v83 game executable declares requireAdministrator in its embedded manifest.
+        // Shell execution lets Windows display the trusted UAC consent prompt.
+        UseShellExecute = true
+    };
 }
