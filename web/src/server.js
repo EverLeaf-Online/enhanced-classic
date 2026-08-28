@@ -35,10 +35,10 @@ app.use("/patches",express.static(env.launcher.filesRoot,{
   setHeaders(res){res.setHeader("Cache-Control","no-cache");}
 }));
 app.get("/launcher/download",(req,res)=>{
-  if(!fs.existsSync(env.launcher.installerPath))
-    return res.status(503).send("EverLeaf Launcher installer is not published yet.");
+  if(!fs.existsSync(env.launcher.portablePath))
+    return res.status(503).send("EverLeaf portable launcher is not published yet.");
   res.set("Cache-Control","no-cache");
-  res.download(env.launcher.installerPath,"EverLeafLauncherSetup.exe");
+  res.download(env.launcher.portablePath,"EverLeafLauncher-portable.zip");
 });
 
 app.use(session({

@@ -20,7 +20,7 @@ module.exports = {
     discordUrl: process.env.DISCORD_URL || "",
     donationUrl: process.env.DONATION_URL || "",
     launcherUrl: process.env.LAUNCHER_DOWNLOAD_URL || "/launcher/download",
-    clientUrl: process.env.FULL_CLIENT_DOWNLOAD_URL || ""
+    clientUrl: process.env.FULL_CLIENT_DOWNLOAD_URL || "https://drive.google.com/file/d/1TW-COG0-lfu998QjYvqvh6OemzZeSWXa/view?usp=sharing"
   },
 
   game: {
@@ -106,7 +106,7 @@ module.exports = {
     filesRoot: path.join(patchRoot, "files"),
     manifestPath: path.resolve(process.env.LAUNCHER_MANIFEST_PATH || path.join(patchRoot, "manifest.json")),
     signingKeyPath: path.resolve(process.env.LAUNCHER_SIGNING_KEY_PATH || "/etc/everleaf/launcher-manifest-private.pem"),
-    installerPath: path.resolve(process.env.LAUNCHER_INSTALLER_PATH || path.join(patchRoot, "downloads", "EverLeafLauncherSetup.exe")),
+    portablePath: path.resolve(process.env.LAUNCHER_PORTABLE_PATH || process.env.LAUNCHER_INSTALLER_PATH || path.join(patchRoot, "downloads", "EverLeafLauncher-portable.zip")),
     announcement: process.env.LAUNCHER_ANNOUNCEMENT || "Welcome to EverLeaf. Your launcher will keep the client synchronized automatically."
   },
 
