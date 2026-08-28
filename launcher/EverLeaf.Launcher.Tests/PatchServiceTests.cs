@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using EverLeaf.Launcher;
 using Xunit;
 
@@ -6,6 +7,21 @@ namespace EverLeaf.Launcher.Tests;
 
 public sealed class PatchServiceTests
 {
+    [Fact]
+    public void ReadsTheLowercaseProductionJsonShape()
+    {
+        var envelope = JsonSerializer.Deserialize<SignedManifest>(
+            """{"payload":"cGF5bG9hZA==","signature":"c2lnbmF0dXJl"}""",
+            PatchService.SerializerOptions);
+        var manifest = JsonSerializer.Deserialize<PatchManifest>(
+            """{"version":"production","files":[{"path":"Base.wz","url":"/patches/Base.wz","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":6540}]}""",
+            PatchService.SerializerOptions);
+
+        Assert.Equal("cGF5bG9hZA==", envelope?.Payload);
+        Assert.Equal("production", manifest?.Version);
+        Assert.Equal("Base.wz", Assert.Single(manifest!.Files).Path);
+    }
+
     [Fact]
     public void VerifiesRsaPssSignatureAndRejectsTampering()
     {

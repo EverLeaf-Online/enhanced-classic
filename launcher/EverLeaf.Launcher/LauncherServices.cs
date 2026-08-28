@@ -65,6 +65,11 @@ public sealed class LauncherApi : IDisposable
 
 public sealed class PatchService : IDisposable
 {
+    internal static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(20) };
     private readonly string _gameDirectory;
 
@@ -80,8 +85,11 @@ public sealed class PatchService : IDisposable
     {
         progress.Report((0, "Getting EverLeaf update manifest…"));
         var envelopeJson = await _http.GetStringAsync(LauncherConfiguration.ManifestUri, cancellationToken);
-        var envelope = JsonSerializer.Deserialize<SignedManifest>(envelopeJson)
+        var envelope = JsonSerializer.Deserialize<SignedManifest>(envelopeJson, SerializerOptions)
                        ?? throw new InvalidOperationException("Invalid patch manifest envelope.");
+
+        if (string.IsNullOrWhiteSpace(envelope.Payload) || string.IsNullOrWhiteSpace(envelope.Signature))
+            throw new InvalidOperationException("Patch manifest envelope is incomplete.");
 
         byte[] payload;
         byte[] signature;
@@ -96,7 +104,7 @@ public sealed class PatchService : IDisposable
         }
 
         VerifySignature(payload, signature, LauncherConfiguration.ManifestPublicKeyPem);
-        var manifest = JsonSerializer.Deserialize<PatchManifest>(payload)
+        var manifest = JsonSerializer.Deserialize<PatchManifest>(payload, SerializerOptions)
                        ?? throw new InvalidOperationException("Invalid patch manifest.");
         ValidateManifest(manifest);
 
