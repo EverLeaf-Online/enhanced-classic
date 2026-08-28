@@ -82,6 +82,10 @@ function getOrder(orderId) {
   return db.prepare("SELECT * FROM payment_orders WHERE id=?").get(String(orderId||""))||null;
 }
 
+function getOrderByProviderReference(provider,reference) {
+  return db.prepare("SELECT * FROM payment_orders WHERE provider=? AND provider_reference=?").get(String(provider||""),String(reference||""))||null;
+}
+
 function linkDiscordAccount(accountId,accountName,discordUserId) {
   const id=String(discordUserId||"");
   if(!/^\d{15,22}$/.test(id)) throw new Error("Invalid Discord account identity.");
@@ -99,4 +103,4 @@ function setDiscordRoleStatus(accountId,status) {
   db.prepare("UPDATE supporter_profiles SET discord_role_status=?,updated_at=CURRENT_TIMESTAMP WHERE game_account_id=?").run(status,Number(accountId));
 }
 
-module.exports={AMOUNTS,PROVIDERS,TRANSITIONS,providerReady,validateCheckout,createOrder,transitionOrder,recordProviderEvent,confirmPayment,accountSummary,getOrder,linkDiscordAccount,setDiscordRoleStatus};
+module.exports={AMOUNTS,PROVIDERS,TRANSITIONS,providerReady,validateCheckout,createOrder,transitionOrder,recordProviderEvent,confirmPayment,accountSummary,getOrder,getOrderByProviderReference,linkDiscordAccount,setDiscordRoleStatus};
