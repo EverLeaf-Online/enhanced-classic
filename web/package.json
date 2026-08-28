@@ -7,8 +7,10 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "test": "node --test",
     "init-db": "node scripts/init-db.js",
     "create-admin": "node scripts/create-admin.js",
+    "reset-player-password": "node scripts/reset-player-password.js",
     "build-patch-manifest": "node scripts/build-patch-manifest.js"
   },
   "engines": { "node": ">=20" },

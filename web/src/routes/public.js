@@ -4,6 +4,7 @@ const { db, settings } = require("../db/cms");
 const game = require("../services/gameService");
 const env = require("../config/env");
 const jobName = require("../utils/jobs");
+const passwordPolicy = require("../utils/playerPasswordPolicy");
 
 const router = express.Router();
 
@@ -61,7 +62,7 @@ router.get("/terms", (req,res) => res.render("terms",{settings:settings()}));
 
 router.get("/login", (req,res) => res.render("login",{error:"",settings:settings()}));
 router.post("/login", async (req,res) => {
-  const schema=z.object({username:z.string().min(3).max(20),password:z.string().min(4).max(100)});
+  const schema=z.object({username:z.string().min(3).max(20),password:passwordPolicy.loginPassword});
   const parsed=schema.safeParse(req.body);
   if(!parsed.success) return res.status(400).render("login",{error:"Invalid username or password.",settings:settings()});
   try {
@@ -76,15 +77,8 @@ router.post("/login", async (req,res) => {
 
 router.get("/register",(req,res)=>res.render("register",{error:"",enabled:env.registration.enabled,settings:settings()}));
 router.post("/register",async(req,res)=>{
-  const schema=z.object({
-    username:z.string().regex(/^[A-Za-z0-9_]{4,13}$/),
-    password:z.string().min(8).max(64),
-    confirmPassword:z.string().min(8).max(64),
-    email:z.string().email().max(45),
-    agree:z.literal("yes")
-  }).refine(v=>v.password===v.confirmPassword,{message:"Passwords do not match",path:["confirmPassword"]});
-  const parsed=schema.safeParse(req.body);
-  if(!parsed.success) return res.status(400).render("register",{error:"Please check the form fields and make sure the passwords match.",enabled:env.registration.enabled,settings:settings()});
+  const parsed=passwordPolicy.registrationSchema.safeParse(req.body);
+  if(!parsed.success) return res.status(400).render("register",{error:`${passwordPolicy.REQUIREMENT} Please also check that the passwords match and all other fields are valid.`,enabled:env.registration.enabled,settings:settings()});
   try {
     await game.register(parsed.data);
     res.redirect("/login");
@@ -103,12 +97,10 @@ router.get("/account",async(req,res)=>{
 
 router.post("/account/password",async(req,res)=>{
   if(!req.session.player) return res.redirect("/login");
-  const schema=z.object({currentPassword:z.string().min(1).max(100),newPassword:z.string().min(8).max(64),confirmPassword:z.string().min(8).max(64)})
-    .refine(v=>v.newPassword===v.confirmPassword,{message:"Passwords do not match",path:["confirmPassword"]});
-  const parsed=schema.safeParse(req.body);
+  const parsed=passwordPolicy.passwordChangeSchema.safeParse(req.body);
   let characters=[];
   try { characters=(await game.accountCharacters(req.session.player.id)).map(r=>({...r,jobName:jobName(r.job)})); } catch {}
-  if(!parsed.success) return res.status(400).render("account",{account:req.session.player,characters,error:"Please check the password fields.",success:"",settings:settings()});
+  if(!parsed.success) return res.status(400).render("account",{account:req.session.player,characters,error:`${passwordPolicy.REQUIREMENT} Please also check that the new passwords match.`,success:"",settings:settings()});
   try {
     const ok=await game.changePassword(req.session.player.id,parsed.data.currentPassword,parsed.data.newPassword);
     if(!ok) return res.status(400).render("account",{account:req.session.player,characters,error:"Current password is incorrect.",success:"",settings:settings()});
