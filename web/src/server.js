@@ -17,6 +17,8 @@ app.set("views",path.join(__dirname,"views"));
 
 app.use(helmet({contentSecurityPolicy:false}));
 app.use(compression());
+// Provider signatures must be verified against the exact request bytes.
+app.use("/webhooks",require("./routes/webhooks"));
 app.use(express.urlencoded({extended:false,limit:"50kb"}));
 app.use(express.json({limit:"50kb"}));
 app.use(express.static(path.join(__dirname,"../public"),{maxAge:env.nodeEnv==="production"?"1h":0}));

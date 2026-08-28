@@ -7,8 +7,14 @@ const PROVIDERS = Object.freeze(["stripe", "paypal"]);
 const TRANSITIONS = Object.freeze({created:["pending","canceled","failed"],pending:["paid","canceled","failed"],paid:["refunded"],failed:[],canceled:[],refunded:[]});
 
 function providerReady(provider) {
-  if(provider==="stripe") return env.payments.stripe.enabled&&!!env.payments.stripe.secretKey&&!!env.payments.stripe.webhookSecret;
-  if(provider==="paypal") return env.payments.paypal.enabled&&!!env.payments.paypal.clientId&&!!env.payments.paypal.clientSecret&&!!env.payments.paypal.webhookId;
+  if(provider==="stripe") {
+    const config=env.payments.stripe[env.payments.stripe.environment];
+    return env.payments.stripe.enabled&&!!config.secretKey&&!!config.webhookSecret;
+  }
+  if(provider==="paypal") {
+    const config=env.payments.paypal[env.payments.paypal.environment];
+    return env.payments.paypal.enabled&&!!config.clientId&&!!config.clientSecret&&!!config.webhookId;
+  }
   return false;
 }
 
@@ -72,4 +78,8 @@ function accountSummary(accountId) {
   return {profile,orders};
 }
 
-module.exports={AMOUNTS,PROVIDERS,TRANSITIONS,providerReady,validateCheckout,createOrder,transitionOrder,recordProviderEvent,confirmPayment,accountSummary};
+function getOrder(orderId) {
+  return db.prepare("SELECT * FROM payment_orders WHERE id=?").get(String(orderId||""))||null;
+}
+
+module.exports={AMOUNTS,PROVIDERS,TRANSITIONS,providerReady,validateCheckout,createOrder,transitionOrder,recordProviderEvent,confirmPayment,accountSummary,getOrder};

@@ -60,17 +60,34 @@ module.exports = {
 
   payments: {
     currency: String(process.env.PAYMENT_CURRENCY || "usd").toLowerCase(),
+    publicBaseUrl: String(process.env.PUBLIC_BASE_URL || "https://everleafms.duckdns.org").replace(/\/$/, ""),
     stripe: {
       enabled: bool(process.env.STRIPE_ENABLED, false),
-      secretKey: process.env.STRIPE_SECRET_KEY || "",
-      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || ""
+      environment: process.env.STRIPE_ENVIRONMENT === "live" ? "live" : "sandbox",
+      sandbox: {
+        secretKey: process.env.STRIPE_SANDBOX_SECRET_KEY || process.env.STRIPE_SECRET_KEY || "",
+        publishableKey: process.env.STRIPE_SANDBOX_PUBLISHABLE_KEY || "",
+        webhookSecret: process.env.STRIPE_SANDBOX_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET || ""
+      },
+      live: {
+        secretKey: process.env.STRIPE_LIVE_SECRET_KEY || "",
+        publishableKey: process.env.STRIPE_LIVE_PUBLISHABLE_KEY || "",
+        webhookSecret: process.env.STRIPE_LIVE_WEBHOOK_SECRET || ""
+      }
     },
     paypal: {
       enabled: bool(process.env.PAYPAL_ENABLED, false),
-      clientId: process.env.PAYPAL_CLIENT_ID || "",
-      clientSecret: process.env.PAYPAL_CLIENT_SECRET || "",
-      webhookId: process.env.PAYPAL_WEBHOOK_ID || "",
-      environment: process.env.PAYPAL_ENVIRONMENT === "live" ? "live" : "sandbox"
+      environment: process.env.PAYPAL_ENVIRONMENT === "live" ? "live" : "sandbox",
+      sandbox: {
+        clientId: process.env.PAYPAL_SANDBOX_CLIENT_ID || process.env.PAYPAL_CLIENT_ID || "",
+        clientSecret: process.env.PAYPAL_SANDBOX_CLIENT_SECRET || process.env.PAYPAL_CLIENT_SECRET || "",
+        webhookId: process.env.PAYPAL_SANDBOX_WEBHOOK_ID || process.env.PAYPAL_WEBHOOK_ID || ""
+      },
+      live: {
+        clientId: process.env.PAYPAL_LIVE_CLIENT_ID || "",
+        clientSecret: process.env.PAYPAL_LIVE_CLIENT_SECRET || "",
+        webhookId: process.env.PAYPAL_LIVE_WEBHOOK_ID || ""
+      }
     }
   },
 

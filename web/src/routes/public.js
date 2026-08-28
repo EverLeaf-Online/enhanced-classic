@@ -6,6 +6,7 @@ const env = require("../config/env");
 const jobName = require("../utils/jobs");
 const passwordPolicy = require("../utils/playerPasswordPolicy");
 const supporter = require("../services/supporterService");
+const stripe = require("../services/stripeService");
 
 const router = express.Router();
 
@@ -61,13 +62,17 @@ router.get("/donate", (req,res) => {
   const summary=req.session.player?supporter.accountSummary(req.session.player.id):{profile:null,orders:[]};
   res.render("support",{settings:settings(),player:req.session.player||null,summary,amounts:supporter.AMOUNTS,providers:{stripe:supporter.providerReady("stripe"),paypal:supporter.providerReady("paypal")},error:""});
 });
-router.post("/donate/checkout", (req,res) => {
+router.post("/donate/checkout", async (req,res) => {
   if(!req.session.player) return res.redirect("/login");
   try {
-    supporter.validateCheckout({provider:String(req.body.provider||""),amountCents:Number(req.body.amountCents),accountId:req.session.player.id,accountName:req.session.player.name});
-    throw new Error("Checkout initialization is not active yet. No payment was taken.");
+    const input={provider:String(req.body.provider||""),amountCents:Number(req.body.amountCents),accountId:req.session.player.id,accountName:req.session.player.name};
+    supporter.validateCheckout(input);
+    if(input.provider!=="stripe") throw new Error("PayPal checkout is not active yet. No payment was taken.");
+    const checkout=await stripe.createCheckout(input);
+    return res.redirect(303,checkout.url);
   } catch(error) {
-    res.status(503).render("support",{settings:settings(),player:req.session.player,summary:supporter.accountSummary(req.session.player.id),amounts:supporter.AMOUNTS,providers:{stripe:supporter.providerReady("stripe"),paypal:supporter.providerReady("paypal")},error:error.message});
+    console.warn("Checkout initialization failed:",error.message);
+    res.status(503).render("support",{settings:settings(),player:req.session.player,summary:supporter.accountSummary(req.session.player.id),amounts:supporter.AMOUNTS,providers:{stripe:supporter.providerReady("stripe"),paypal:supporter.providerReady("paypal")},error:"Checkout is temporarily unavailable. No payment was taken."});
   }
 });
 router.get("/community", (req,res) => res.render("community",{settings:settings()}));

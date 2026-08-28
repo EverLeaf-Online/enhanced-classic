@@ -13,10 +13,12 @@
     "reset-player-password": "node scripts/reset-player-password.js",
     "build-patch-manifest": "node scripts/build-patch-manifest.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^11.7.0",
+    "better-sqlite3": "^12.4.1",
     "compression": "^1.7.5",
     "dotenv": "^16.4.7",
     "ejs": "^3.1.10",
@@ -25,6 +27,7 @@
     "express-session": "^1.18.1",
     "helmet": "^8.0.0",
     "mysql2": "^3.12.0",
+    "stripe": "^22.6.0",
     "zod": "^3.24.1"
   }
 }
