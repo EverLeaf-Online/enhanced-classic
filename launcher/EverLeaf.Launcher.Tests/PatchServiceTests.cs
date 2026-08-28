@@ -106,6 +106,22 @@ public sealed class PatchServiceTests
     }
 
     [Fact]
+    public void EmptyFolderRequiresTheEntireManagedClientDownload()
+    {
+        using var temp = new TemporaryDirectory();
+        using var service = new PatchService(temp.Path);
+        var files = LauncherConfiguration.RequiredGameFiles
+            .Select((path, index) => new PatchEntry(path, "/patches/" + path, new string('a', 64), index + 1L))
+            .ToArray();
+        var manifest = new PatchManifest("bootstrap", files);
+
+        Assert.Equal(files.Sum(file => file.Size), service.CalculateMissingFileBytes(manifest));
+
+        File.WriteAllText(System.IO.Path.Combine(temp.Path, files[0].Path), "present");
+        Assert.Equal(files.Skip(1).Sum(file => file.Size), service.CalculateMissingFileBytes(manifest));
+    }
+
+    [Fact]
     public async Task DetectsAndRepairsDeliberatelyCorruptedFile()
     {
         using var temp = new TemporaryDirectory();

@@ -1,18 +1,17 @@
 # EverLeaf Portable Launcher
 
-The EverLeaf Launcher is a portable patcher. It is not an installer and does not
-choose or create a game directory.
+The EverLeaf Launcher is a portable installer and patcher. The folder containing
+the launcher becomes the game directory.
 
 ## Player flow
 
-1. Download and extract the complete `Everleaf MS.rar` client.
-2. Extract the portable launcher into that same game folder.
-3. Open `EverLeafLauncher.exe`.
-4. The launcher immediately authenticates EverLeaf's signed HTTPS manifest and starts checking the client.
-5. Press **Play EverLeaf** after the automatic check completes, or use **Check / Repair Files** to run it again.
-6. It checks every required game file by size and streaming SHA-256.
-7. It downloads only missing or outdated files and verifies each download before replacement.
-8. After all 36 required files match production, Play starts `EverLeaf.exe`.
+1. Create an empty folder you control.
+2. Extract the portable launcher into that folder.
+3. Open `EverLeafLauncher.exe` and press **Install EverLeaf**.
+4. The launcher authenticates EverLeaf's signed HTTPS manifest and checks available disk space.
+5. It downloads all 36 required files and verifies each one before replacement.
+6. Existing installations automatically check every file by size and streaming SHA-256.
+7. After all required files match production, Play starts `EverLeaf.exe`.
 
 The complete managed set is declared in `client/managed-client-baseline.json`.
 It includes all WZ files, EverLeaf.exe, required DLL/ACM runtime files, and
@@ -31,8 +30,7 @@ so the game-file patcher never attempts to replace itself.
 
 ## Release model
 
-- `Everleaf MS.rar` is the authorized complete bootstrap client.
-- `EverLeafLauncher-portable.zip` is the small portable launcher download.
+- `EverLeafLauncher-portable.zip` is the single player-facing bootstrap download.
 - `/patches/<file>` holds repair copies of every file in the managed baseline.
 - `/v1/launcher/manifest` returns the signed production file identities.
 
@@ -40,6 +38,6 @@ Repository-built client overlays (`dinput8.dll`, `config.ini`, and
 `EverLeaf_UI.wz`) update their corresponding files without deleting the static
 bootstrap files already present on the production patch server.
 
-The authorized bootstrap RAR currently contains the legacy filename
-`MapleStory.exe`. On its first successful repair, the launcher verifies the
-production client as `EverLeaf.exe` and removes only that legacy executable.
+Existing legacy folders may contain `MapleStory.exe`. On their first successful
+repair, the launcher verifies the production client as `EverLeaf.exe` and removes
+only that legacy executable.

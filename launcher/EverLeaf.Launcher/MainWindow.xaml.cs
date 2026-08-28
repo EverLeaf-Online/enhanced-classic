@@ -12,6 +12,7 @@ public partial class MainWindow : Window
     private readonly string _gameDirectory = AppContext.BaseDirectory;
     private bool _busy;
     private bool _clientReady;
+    private bool _installMode;
 
     public MainWindow()
     {
@@ -27,7 +28,9 @@ public partial class MainWindow : Window
                          || File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.LegacyGameExecutable));
         if (!gameExists)
         {
-            ErrorText.Text = "This is not an EverLeaf game folder. Extract the full client, then place this portable launcher in that folder.";
+            _installMode = true;
+            PatchStatusText.Text = "Ready to install all 36 required EverLeaf files in this folder.";
+            PlayButton.Content = "INSTALL EVERLEAF";
         }
 
         try
@@ -113,10 +116,6 @@ public partial class MainWindow : Window
 
     private async Task RepairInternalAsync()
     {
-        if (!File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable))
-            && !File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.LegacyGameExecutable)))
-            throw new InvalidOperationException("No EverLeaf game client was found beside the launcher. Extract the full client first.");
-
         var progress = new Progress<(double Percent, string Status)>(value =>
         {
             PatchProgress.Value = Math.Clamp(value.Percent, 0, 100);
@@ -128,6 +127,7 @@ public partial class MainWindow : Window
         PatchProgress.Value = 100;
         PatchStatusText.Text = "All 36 required EverLeaf game files verified.";
         _clientReady = true;
+        _installMode = false;
     }
 
     private static string FriendlyError(Exception ex)
@@ -138,8 +138,10 @@ public partial class MainWindow : Window
             return "Windows could not start EverLeaf.exe. Close any running game process, then press Play again.";
         if (ex is UnauthorizedAccessException)
             return "EverLeaf could not update this folder. Close the game and make sure you have permission to write to the game directory.";
+        if (ex is InsufficientDiskSpaceException)
+            return ex.Message;
         if (ex is IOException)
-            return "A game file is in use or could not be replaced. Close MapleStory and try Repair again.";
+            return "A game file is in use or could not be replaced. Close EverLeaf and try Repair again.";
         if (ex is HttpRequestException)
             return "The EverLeaf update server could not be reached. Check your connection and try again.";
         return ex.Message;
@@ -150,6 +152,8 @@ public partial class MainWindow : Window
         _busy = busy;
         PlayButton.IsEnabled = !busy;
         RepairButton.IsEnabled = !busy;
-        PlayButton.Content = busy ? "UPDATING…" : "PLAY EVERLEAF";
+        PlayButton.Content = busy
+            ? (_installMode ? "INSTALLING…" : "UPDATING…")
+            : (_installMode ? "INSTALL EVERLEAF" : "PLAY EVERLEAF");
     }
 }

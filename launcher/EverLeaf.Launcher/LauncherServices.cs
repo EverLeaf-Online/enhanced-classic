@@ -12,6 +12,8 @@ public sealed record PatchEntry(string Path, string Url, string Sha256, long Siz
 public sealed record PatchManifest(string Version, IReadOnlyList<PatchEntry> Files);
 public sealed record SignedManifest(string Payload, string Signature);
 
+public sealed class InsufficientDiskSpaceException(string message) : IOException(message);
+
 public static class LauncherConfiguration
 {
     public static readonly Uri ApiBase = new("https://everleafms.duckdns.org/");
@@ -108,6 +110,8 @@ public sealed class PatchService : IDisposable
         var manifest = JsonSerializer.Deserialize<PatchManifest>(payload, SerializerOptions)
                        ?? throw new InvalidOperationException("Invalid patch manifest.");
         ValidateManifest(manifest);
+        progress.Report((0, "Checking available disk space…"));
+        EnsureInstallSpace(manifest);
 
         long totalBytes = Math.Max(1, manifest.Files.Sum(file => Math.Max(1, file.Size)));
         long completedBytes = 0;
@@ -143,6 +147,36 @@ public sealed class PatchService : IDisposable
         var legacy = Path.Combine(_gameDirectory, LauncherConfiguration.LegacyGameExecutable);
         if (File.Exists(current) && File.Exists(legacy))
             File.Delete(legacy);
+    }
+
+    internal long CalculateMissingFileBytes(PatchManifest manifest)
+    {
+        long missingBytes = 0;
+        foreach (var file in manifest.Files)
+        {
+            var destination = ResolveSafePath(file.Path);
+            if (!File.Exists(destination))
+                missingBytes = checked(missingBytes + file.Size);
+        }
+        return missingBytes;
+    }
+
+    internal void EnsureInstallSpace(PatchManifest manifest)
+    {
+        var missingBytes = CalculateMissingFileBytes(manifest);
+        if (missingBytes == 0)
+            return;
+
+        var root = Path.GetPathRoot(_gameDirectory)
+                   ?? throw new IOException("EverLeaf could not determine the game folder drive.");
+        var reserveBytes = 512L * 1024 * 1024;
+        var requiredBytes = checked(missingBytes + reserveBytes);
+        var availableBytes = new DriveInfo(root).AvailableFreeSpace;
+        if (availableBytes < requiredBytes)
+        {
+            throw new InsufficientDiskSpaceException(
+                $"EverLeaf needs about {FormatBytes(requiredBytes)} free in this folder, but only {FormatBytes(availableBytes)} is available.");
+        }
     }
 
     private async Task DownloadAndReplaceAsync(
@@ -324,10 +358,10 @@ public static class GameLauncher
         var executable = Path.Combine(gameDirectory, LauncherConfiguration.GameExecutable);
         if (!File.Exists(executable))
             throw new FileNotFoundException(
-                "EverLeaf.exe was not found. Open the launcher in the extracted EverLeaf client folder and run Check / Repair Files.", executable);
+                "EverLeaf.exe was not found. Run Install / Repair Files before launching.", executable);
 
         var start = CreateStartInfo(executable, gameDirectory);
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("Unable to start MapleStory.exe.");
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("Unable to start EverLeaf.exe.");
     }
 
     internal static ProcessStartInfo CreateStartInfo(string executable, string gameDirectory) => new()
