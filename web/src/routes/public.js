@@ -61,12 +61,18 @@ router.get("/downloads", (req,res) => {
 });
 
 router.get("/support", (req,res) => res.redirect(301,"/donate"));
+const paymentProviders = () => ({
+  stripe: supporter.providerReady("stripe"),
+  paypal: supporter.providerReady("paypal"),
+  stripeLabel: env.payments.stripe.environment === "live" ? "Stripe secure checkout" : "Stripe sandbox",
+  paypalLabel: env.payments.paypal.environment === "live" ? "PayPal secure checkout" : "PayPal sandbox",
+});
 router.get("/donate", (req,res) => {
   const summary=req.session.player?supporter.accountSummary(req.session.player.id):{profile:null,orders:[]};
   const notices={success:"Stripe checkout completed. Confirmation is processing.",processing:"PayPal payment submitted. Confirmation is processing.",canceled:"Checkout was canceled; no payment was taken."};
   const notice=notices[String(req.query.checkout||"")]||"";
   const error=String(req.query.checkout||"")==="failed"?"Payment confirmation failed. No supporter credit was applied.":"";
-  res.render("support",{settings:settings(),player:req.session.player||null,summary,amounts:supporter.AMOUNTS,providers:{stripe:supporter.providerReady("stripe"),paypal:supporter.providerReady("paypal")},error,notice});
+  res.render("support",{settings:settings(),player:req.session.player||null,summary,amounts:supporter.AMOUNTS,providers:paymentProviders(),error,notice});
 });
 router.post("/donate/checkout", async (req,res) => {
   if(!req.session.player) return res.redirect("/login");
@@ -77,7 +83,7 @@ router.post("/donate/checkout", async (req,res) => {
     return res.redirect(303,checkout.url);
   } catch(error) {
     console.warn("Checkout initialization failed:",error.message);
-    res.status(503).render("support",{settings:settings(),player:req.session.player,summary:supporter.accountSummary(req.session.player.id),amounts:supporter.AMOUNTS,providers:{stripe:supporter.providerReady("stripe"),paypal:supporter.providerReady("paypal")},error:"Checkout is temporarily unavailable. No payment was taken.",notice:""});
+    res.status(503).render("support",{settings:settings(),player:req.session.player,summary:supporter.accountSummary(req.session.player.id),amounts:supporter.AMOUNTS,providers:paymentProviders(),error:"Checkout is temporarily unavailable. No payment was taken.",notice:""});
   }
 });
 router.get("/donate/paypal/return",async(req,res)=>{
