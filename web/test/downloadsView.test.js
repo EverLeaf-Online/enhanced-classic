@@ -3,13 +3,12 @@ const path = require("node:path");
 const test = require("node:test");
 const ejs = require("ejs");
 
-test("downloads page separates the complete client and portable launcher", async () => {
+test("downloads page uses the launcher as the complete bootstrap", async () => {
   const html = await ejs.renderFile(
     path.join(__dirname, "../src/views/downloads.ejs"),
     {
       brand: {
         name: "EverLeaf",
-        clientUrl: "https://downloads.example/full-client.rar",
         launcherUrl: "/launcher/download"
       },
       rows: [],
@@ -19,11 +18,12 @@ test("downloads page separates the complete client and portable launcher", async
     }
   );
 
-  assert.match(html, /DOWNLOAD FULL CLIENT/);
-  assert.match(html, /href="https:\/\/downloads\.example\/full-client\.rar"/);
-  assert.match(html, /EverLeaf Portable Launcher/);
+  assert.doesNotMatch(html, /DOWNLOAD FULL CLIENT/);
+  assert.doesNotMatch(html, /RAR archive/);
+  assert.match(html, /EverLeaf Launcher/);
   assert.match(html, /href="\/launcher\/download"/);
   assert.match(html, /all 36 required files/);
+  assert.match(html, /Install EverLeaf/);
   assert.match(html, /starting <strong>EverLeaf\.exe<\/strong>/);
   assert.doesNotMatch(html, /beside <strong>MapleStory\.exe<\/strong>/);
   assert.doesNotMatch(html, /Install the EverLeaf Launcher/);

@@ -19,8 +19,7 @@ module.exports = {
     version: process.env.SERVER_VERSION || "v83",
     discordUrl: process.env.DISCORD_URL || "",
     donationUrl: process.env.DONATION_URL || "",
-    launcherUrl: process.env.LAUNCHER_DOWNLOAD_URL || "/launcher/download",
-    clientUrl: process.env.FULL_CLIENT_DOWNLOAD_URL || "https://drive.google.com/file/d/1TW-COG0-lfu998QjYvqvh6OemzZeSWXa/view?usp=sharing"
+    launcherUrl: process.env.LAUNCHER_DOWNLOAD_URL || "/launcher/download"
   },
 
   game: {
