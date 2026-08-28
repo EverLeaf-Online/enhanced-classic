@@ -91,11 +91,11 @@ jobs:
           print('launcher_archive=single_executable')
           PY
 
-            latest_backup="$(find /opt/everleaf/backups/web -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)"
+            latest_backup="$(sudo find /opt/everleaf/backups/web -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-)"
             test -n "$latest_backup"
-            test -s "$latest_backup/.env"
-            test -d "$latest_backup/data"
-            backup_age="$(( $(date +%s) - $(stat -c %Y "$latest_backup") ))"
+            sudo test -s "$latest_backup/.env"
+            sudo test -d "$latest_backup/data"
+            backup_age="$(( $(date +%s) - $(sudo stat -c %Y "$latest_backup") ))"
             test "$backup_age" -lt 172800
             echo "web_backup_age_seconds=$backup_age"
 
@@ -103,7 +103,7 @@ jobs:
             test "$disk_percent" -lt 90
             echo "oracle_disk_used_percent=$disk_percent"
 
-            openssl x509 -checkend 604800 -noout \
+            sudo openssl x509 -checkend 604800 -noout \
               -in /etc/letsencrypt/live/everleafms.duckdns.org/fullchain.pem
             echo 'tls_certificate_next_7_days=ready'
 
