@@ -225,6 +225,7 @@ jobs:
           game_root="$(dirname "$game_executable")"
           mkdir full-client
           cp -a "$game_root"/. full-client/
+          rm -rf everleaf-bootstrap.rar bootstrap-extract
           if [ -f full-client/MapleStory.exe ] && [ ! -f full-client/EverLeaf.exe ]; then
             mv full-client/MapleStory.exe full-client/EverLeaf.exe
           fi
@@ -237,9 +238,11 @@ jobs:
           expected_parts="$(python3 -c 'import json; print(json.load(open("client/cosmic-wz-baseline.json"))["partCount"])')"
           test "${#cosmic_parts[@]}" -eq "$expected_parts"
           cat "${cosmic_parts[@]}" > "$cosmic_archive"
+          rm -rf cosmic-release
           cosmic_archive_sha="$(python3 -c 'import json; print(json.load(open("client/cosmic-wz-baseline.json"))["archiveSha256"])')"
           printf '%s  %s\n' "$cosmic_archive_sha" "$cosmic_archive" | sha256sum --check --strict
           unzip -q "$cosmic_archive" -d cosmic-extract
+          rm -f "$cosmic_archive"
           cosmic_root="$(dirname "$(find cosmic-extract -type f -name Map.wz -print -quit)")"
           test -n "$cosmic_root"
           python3 - "$cosmic_root" <<'PY'
@@ -265,6 +268,7 @@ jobs:
           print(f'Verified {len(expected)} official Cosmic WZ files.')
           PY
           cp "$cosmic_root"/*.wz full-client/
+          rm -rf cosmic-extract
           cp -a runtime-payload/. full-client/
           python3 - <<'PY'
           import json
