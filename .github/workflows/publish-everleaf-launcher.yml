@@ -46,12 +46,29 @@ jobs:
           Compress-Archive -Path 'launcher-publish/*' -DestinationPath 'EverLeafLauncher-portable.zip'
           Get-FileHash 'EverLeafLauncher-portable.zip' -Algorithm SHA256
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: EverLeafLauncherPortableProduction
-          path: EverLeafLauncher-portable.zip
-          retention-days: 30
-          if-no-files-found: error
+      - name: Configure SSH for production staging
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage portable launcher on Oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_everleaf EverLeafLauncher-portable.zip \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/tmp/everleaf-launcher-$GITHUB_RUN_ID.zip"
 
   deploy:
     needs: build
@@ -59,11 +76,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: EverLeafLauncherPortableProduction
-          path: release
 
       - name: Configure SSH
         shell: bash
@@ -160,8 +172,8 @@ jobs:
               sudo chmod 644 /opt/everleaf/patches/manifest.json
             fi
           REMOTE
-          scp -i ~/.ssh/id_everleaf release/EverLeafLauncher-portable.zip \
-            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip.new"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "test -s /tmp/everleaf-launcher-$GITHUB_RUN_ID.zip && mv /tmp/everleaf-launcher-$GITHUB_RUN_ID.zip /opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip.new"
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" <<'REMOTE'
             set -euo pipefail
             mv /opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip.new \

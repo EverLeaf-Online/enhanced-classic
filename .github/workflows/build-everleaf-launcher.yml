@@ -63,10 +63,8 @@ jobs:
           Compress-Archive -Path "launcher-publish/*" -DestinationPath "EverLeafLauncher-portable.zip"
           Get-FileHash "EverLeafLauncher-portable.zip" -Algorithm SHA256
 
-      - name: Upload launcher artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: EverLeafLauncherPortable
-          path: EverLeafLauncher-portable.zip
-          retention-days: 30
-          if-no-files-found: error
+      - name: Verify portable artifact
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'EverLeafLauncher-portable.zip')) { throw 'Portable launcher ZIP missing' }
+          if ((Get-Item 'EverLeafLauncher-portable.zip').Length -le 0) { throw 'Portable launcher ZIP is empty' }
