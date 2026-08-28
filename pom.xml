@@ -56,7 +56,7 @@
         <log4j.version>2.25.5</log4j.version>
         <graalvm-js.version>23.0.4</graalvm-js.version>
         <graalvm-js-scriptengine.version>24.0.1</graalvm-js-scriptengine.version>
-        <netty.version>4.1.135.Final</netty.version>
+        <netty.version>4.1.136.Final</netty.version>
         <yamlbeans.version>1.17</yamlbeans.version>
         <jcip-annotations.version>1.0</jcip-annotations.version>
         <HikariCP.version>5.1.0</HikariCP.version>
