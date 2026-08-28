@@ -1,0 +1,138 @@
+name: Audit EverLeaf production readiness
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-production-audit
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_PUBLIC_BASE: https://everleafms.duckdns.org
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage read-only audit helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          audit_dir="/tmp/everleaf-readiness-$GITHUB_RUN_ID"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "install -d -m 700 '$audit_dir'"
+          scp -i ~/.ssh/id_everleaf \
+            tools/everleaf-ops/verify-live-payment-readiness.js \
+            tools/everleaf-ops/audit-discord-community.js \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$audit_dir/"
+
+      - name: Audit Oracle production state
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "AUDIT_RUN_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE'
+            set -euo pipefail
+            case "$AUDIT_RUN_ID" in (*[!0-9]*|'') exit 2;; esac
+            audit_dir="/tmp/everleaf-readiness-$AUDIT_RUN_ID"
+            test "$audit_dir" = "/tmp/everleaf-readiness-$AUDIT_RUN_ID"
+            cleanup() {
+              find "$audit_dir" -mindepth 1 -maxdepth 1 -type f -delete 2>/dev/null || true
+              rmdir "$audit_dir" 2>/dev/null || true
+            }
+            trap cleanup EXIT
+
+            systemctl is-active --quiet everleaf-web
+            systemctl is-active --quiet nginx
+            echo 'service_everleaf_web=ready'
+            echo 'service_nginx=ready'
+
+            test -s /opt/everleaf/web/.env
+            test "$(stat -c '%a' /opt/everleaf/web/.env)" = '600'
+            echo 'production_env_permissions=ready'
+
+            test -s /opt/everleaf/patches/manifest.json
+            test -s /opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip
+            python3 - <<'PY'
+          import json, zipfile
+          manifest = json.load(open('/opt/everleaf/patches/manifest.json'))
+          paths = [str(item.get('path', '')).lower() for item in manifest.get('files', [])]
+          assert len(paths) == 36 and len(set(paths)) == 36
+          with zipfile.ZipFile('/opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip') as archive:
+              files = [name for name in archive.namelist() if not name.endswith('/')]
+          assert files == ['EverLeafLauncher.exe'], files
+          print('launcher_manifest_files=36')
+          print('launcher_archive=single_executable')
+          PY
+
+            latest_backup="$(find /opt/everleaf/backups/web -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)"
+            test -n "$latest_backup"
+            test -s "$latest_backup/.env"
+            test -d "$latest_backup/data"
+            backup_age="$(( $(date +%s) - $(stat -c %Y "$latest_backup") ))"
+            test "$backup_age" -lt 172800
+            echo "web_backup_age_seconds=$backup_age"
+
+            disk_percent="$(df -P /opt/everleaf | awk 'NR==2 {gsub(/%/,"",$5); print $5}')"
+            test "$disk_percent" -lt 90
+            echo "oracle_disk_used_percent=$disk_percent"
+
+            openssl x509 -checkend 604800 -noout \
+              -in /etc/letsencrypt/live/everleafms.duckdns.org/fullchain.pem
+            echo 'tls_certificate_next_7_days=ready'
+
+            ss -ltn | awk '{print $4}' | grep -Eq '(^|:)8484$'
+            ss -ltn | awk '{print $4}' | grep -Eq '(^|:)7575$'
+            echo 'game_login_port=ready'
+            echo 'game_channel_port=ready'
+
+            sudo node "$audit_dir/verify-live-payment-readiness.js" \
+              /opt/everleaf/web /opt/everleaf/web/.env
+            sudo node "$audit_dir/audit-discord-community.js" \
+              /opt/everleaf/web/.env
+          REMOTE
+
+      - name: Audit public HTTPS endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --max-time 20 \
+            "$EVERLEAF_PUBLIC_BASE/" >/dev/null
+          curl --fail --silent --show-error --location --max-time 20 \
+            "$EVERLEAF_PUBLIC_BASE/downloads" >/dev/null
+          curl --fail --silent --show-error --location --max-time 20 \
+            "$EVERLEAF_PUBLIC_BASE/v1/launcher/status" >/tmp/launcher-status.json
+          python3 - <<'PY'
+          import json
+          status = json.load(open('/tmp/launcher-status.json'))
+          assert status.get('online') is True
+          assert status.get('version') == 'v83'
+          print('public_https=ready')
+          print('public_launcher_status=online')
+          PY
