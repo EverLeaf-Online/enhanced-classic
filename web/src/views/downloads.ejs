@@ -3,7 +3,7 @@
 <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,.8fr);gap:18px;align-items:start">
 <div>
 <div class="downloadCard"><div style="display:flex;gap:14px;align-items:center"><div class="downloadIcon">💿</div><div><strong>Full Game + EverLeaf Client Files</strong><div class="muted">Required for a new installation. Download the complete RAR and extract it to a folder you control.</div><small>Windows · RAR archive</small></div></div><a class="btn primary" href="<%=brand.clientUrl%>">DOWNLOAD FULL CLIENT</a></div>
-<div class="downloadCard"><div style="display:flex;gap:14px;align-items:center"><div class="downloadIcon">🚀</div><div><strong>EverLeaf Portable Launcher</strong><div class="muted">Extract this into the game folder beside MapleStory.exe. It validates and repairs all 36 required files every time you play.</div><small>Windows 64-bit · ZIP archive</small></div></div><a class="btn primary" href="<%=brand.launcherUrl%>">DOWNLOAD LAUNCHER</a></div>
+<div class="downloadCard"><div style="display:flex;gap:14px;align-items:center"><div class="downloadIcon">🚀</div><div><strong>EverLeaf Portable Launcher</strong><div class="muted">Extract this into the game folder. It validates and repairs all 36 required files and starts EverLeaf.exe.</div><small>Windows 64-bit · ZIP archive</small></div></div><a class="btn primary" href="<%=brand.launcherUrl%>">DOWNLOAD LAUNCHER</a></div>
 <% const groups=[["launcher","Additional Launcher Builds","🚀"],["patch","Patches","🩹"],["tool","Tools","🛠"]]; %>
 <% groups.forEach(([kind,label,icon])=>{ const items=rows.filter(r=>r.kind===kind); if(!items.length) return; %>
 <h3 class="downloadGroupTitle"><%=label%></h3>
@@ -15,10 +15,10 @@
 <h3>Installation Guide</h3>
 <ol style="padding-left:20px;line-height:1.8">
 <li>Download and extract the <strong>Full Game + EverLeaf Client Files</strong> RAR.</li>
-<li>Download the portable launcher ZIP and extract it into that same folder, beside <strong>MapleStory.exe</strong>.</li>
+<li>Download the portable launcher ZIP and extract it into that same game folder.</li>
 <li>Open <strong>EverLeafLauncher.exe</strong>.</li>
-<li>Click <strong>Play EverLeaf</strong>. The launcher validates all required files and repairs only missing or changed files before starting the game.</li>
-<li>Log in normally inside MapleStory.</li>
+<li>Click <strong>Play EverLeaf</strong>. The launcher validates all required files and repairs only missing or changed files before starting <strong>EverLeaf.exe</strong>.</li>
+<li>Log in normally inside EverLeaf.</li>
 </ol>
 <p class="muted" style="margin-top:14px">If an update is interrupted or something looks wrong in-game, use <strong>Check / Repair Files</strong> in the launcher. Need help? Visit our <a href="/help" style="color:#2f9b43;font-weight:800">Support Center</a>.</p>
 </div>

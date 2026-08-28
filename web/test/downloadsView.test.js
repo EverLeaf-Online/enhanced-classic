@@ -24,6 +24,7 @@ test("downloads page separates the complete client and portable launcher", async
   assert.match(html, /EverLeaf Portable Launcher/);
   assert.match(html, /href="\/launcher\/download"/);
   assert.match(html, /all 36 required files/);
-  assert.match(html, /beside <strong>MapleStory\.exe<\/strong>/);
+  assert.match(html, /starting <strong>EverLeaf\.exe<\/strong>/);
+  assert.doesNotMatch(html, /beside <strong>MapleStory\.exe<\/strong>/);
   assert.doesNotMatch(html, /Install the EverLeaf Launcher/);
 });
