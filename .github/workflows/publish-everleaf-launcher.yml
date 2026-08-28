@@ -2,13 +2,6 @@ name: Publish EverLeaf Launcher
 
 on:
   workflow_dispatch:
-  push:
-    branches: [client-dev]
-    paths:
-      - 'launcher/**'
-      - 'client/managed-client-baseline.json'
-      - 'web/scripts/build-patch-manifest.js'
-      - '.github/workflows/publish-everleaf-launcher.yml'
 
 concurrency:
   group: everleaf-launcher-production
@@ -45,21 +38,18 @@ jobs:
         shell: pwsh
         run: dotnet test launcher/EverLeaf.Launcher.Tests/EverLeaf.Launcher.Tests.csproj --configuration Release
 
-      - name: Install Inno Setup
-        shell: pwsh
-        run: choco install innosetup --no-progress -y
-
-      - name: Build installer
+      - name: Package portable launcher
         shell: pwsh
         run: |
-          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' 'launcher\installer\EverLeafLauncher.iss'
-          if (-not (Test-Path 'launcher-installer\EverLeafLauncherSetup.exe')) { throw 'Installer executable missing' }
-          Get-FileHash 'launcher-installer\EverLeafLauncherSetup.exe' -Algorithm SHA256
+          Remove-Item 'launcher-publish/*.pdb' -Force -ErrorAction SilentlyContinue
+          Copy-Item 'launcher/README.md' 'launcher-publish/README-LAUNCHER.md'
+          Compress-Archive -Path 'launcher-publish/*' -DestinationPath 'EverLeafLauncher-portable.zip'
+          Get-FileHash 'EverLeafLauncher-portable.zip' -Algorithm SHA256
 
       - uses: actions/upload-artifact@v4
         with:
-          name: EverLeafLauncherProduction
-          path: launcher-installer/EverLeafLauncherSetup.exe
+          name: EverLeafLauncherPortableProduction
+          path: EverLeafLauncher-portable.zip
           retention-days: 30
           if-no-files-found: error
 
@@ -72,7 +62,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: EverLeafLauncherProduction
+          name: EverLeafLauncherPortableProduction
           path: release
 
       - name: Configure SSH
@@ -155,7 +145,7 @@ jobs:
           print('Launcher signing key matches production.')
           PY
 
-      - name: Publish installer
+      - name: Publish portable launcher
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" <<'REMOTE'
@@ -170,16 +160,16 @@ jobs:
               sudo chmod 644 /opt/everleaf/patches/manifest.json
             fi
           REMOTE
-          scp -i ~/.ssh/id_everleaf release/EverLeafLauncherSetup.exe \
-            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe.new"
+          scp -i ~/.ssh/id_everleaf release/EverLeafLauncher-portable.zip \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip.new"
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" <<'REMOTE'
             set -euo pipefail
-            mv /opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe.new \
-               /opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe
-            chmod 644 /opt/everleaf/patches/downloads/EverLeafLauncherSetup.exe
+            mv /opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip.new \
+               /opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip
+            chmod 644 /opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip
             cd /opt/everleaf/web
             npm run build-patch-manifest
-            python3 -c 'import json; m=json.load(open("/opt/everleaf/patches/manifest.json")); b=json.load(open("/opt/everleaf/patches/managed-client-baseline.json")); files=m.get("files"); assert isinstance(files,list) and files, "Patch manifest is empty"; expected={f["path"].lower() for f in b["managedFiles"]}; actual={f["path"].lower() for f in files}; assert actual==expected, f"Manifest/baseline mismatch: {actual} != {expected}"; print(f"PATCH_AUDIT version={m[chr(118)+chr(101)+chr(114)+chr(115)+chr(105)+chr(111)+chr(110)]} managed={len(files)}"); critical=b.get("criticalCompatibility",[]); assert all(c["path"].lower() not in actual or c.get("redistributable") is True for c in critical), "Unauthorized critical file published"; [print(f"COMPATIBILITY_GATE {c[chr(112)+chr(97)+chr(116)+chr(104)]} size={c[chr(115)+chr(105)+chr(122)+chr(101)]} sha256={c[chr(115)+chr(104)+chr(97)+chr(50)+chr(53)+chr(54)]} hosted={c[chr(112)+chr(97)+chr(116)+chr(104)].lower() in actual}") for c in critical]'
+            python3 -c 'import json; m=json.load(open("/opt/everleaf/patches/manifest.json")); b=json.load(open("/opt/everleaf/patches/managed-client-baseline.json")); files=m.get("files"); expected={f["path"].lower() for f in b["managedFiles"]}; actual={f["path"].lower() for f in files}; assert actual==expected and len(actual)==36, f"Manifest/baseline mismatch: {actual} != {expected}"; print(f"PATCH_AUDIT version={m[chr(118)+chr(101)+chr(114)+chr(115)+chr(105)+chr(111)+chr(110)]} managed={len(files)}")'
             sudo systemctl restart everleaf-web
             sleep 2
             curl -fsS http://127.0.0.1:3000/v1/launcher/status >/dev/null

@@ -18,6 +18,17 @@ public static class LauncherConfiguration
     public static readonly Uri ManifestUri = new(ApiBase, "v1/launcher/manifest");
     public const string GameExecutable = "MapleStory.exe";
     public const string LauncherExecutable = "EverLeafLauncher.exe";
+    public static readonly IReadOnlySet<string> RequiredGameFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "Base.wz", "Canvas.dll", "Character.wz", "config.ini", "dinput8.dll",
+        "Effect.wz", "Etc.wz", "EverLeaf_UI.wz", "Gr2D_DX8.dll", "ijl15.dll",
+        "Item.wz", "l3codeca.acm", "List.wz", "Map.wz", "MapleStory.exe",
+        "Mob.wz", "Morph.wz", "mss32.dll", "NameSpace.dll", "nmcogame.dll",
+        "nmconew.dll", "Npc.wz", "PCOM.dll", "Quest.wz", "Reactor.wz",
+        "ResMan.dll", "Shape2D.dll", "Skill.wz", "Sound.wz", "Sound_DX8.dll",
+        "String.wz", "suipre.dll", "TamingMob.wz", "UI.wz", "WzFlashRenderer.dll",
+        "ZLZ.dll"
+    };
 
     // Public half of EverLeaf's launcher-manifest signing key. The corresponding
     // private key belongs only on the production patch server and is never shipped
@@ -217,6 +228,15 @@ public sealed class PatchService : IDisposable
             if (string.Equals(Path.GetFileName(resolved), LauncherConfiguration.LauncherExecutable, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("The game manifest cannot replace the running launcher executable.");
         }
+
+        var actual = manifest.Files.Select(file => file.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!actual.SetEquals(LauncherConfiguration.RequiredGameFiles))
+        {
+            var missing = LauncherConfiguration.RequiredGameFiles.Except(actual, StringComparer.OrdinalIgnoreCase);
+            var unexpected = actual.Except(LauncherConfiguration.RequiredGameFiles, StringComparer.OrdinalIgnoreCase);
+            throw new InvalidOperationException(
+                $"Patch manifest does not contain the complete EverLeaf client. Missing: [{string.Join(", ", missing)}]; unexpected: [{string.Join(", ", unexpected)}].");
+        }
     }
 
     private string ResolveSafePath(string relativePath)
@@ -286,7 +306,7 @@ public static class GameLauncher
         var executable = Path.Combine(gameDirectory, LauncherConfiguration.GameExecutable);
         if (!File.Exists(executable))
             throw new FileNotFoundException(
-                "MapleStory.exe was not found. Place the EverLeaf launcher in your supported v83 game folder.", executable);
+                "MapleStory.exe was not found. Extract the EverLeaf client and place the portable launcher beside MapleStory.exe.", executable);
 
         var start = new ProcessStartInfo
         {

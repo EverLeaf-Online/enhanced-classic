@@ -13,6 +13,12 @@ on:
       - "web/scripts/build-patch-manifest.js"
       - ".github/workflows/build-everleaf-client.yml"
   workflow_dispatch:
+    inputs:
+      publish_full_baseline:
+        description: Rebuild production from the authorized complete client archive
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -20,6 +26,7 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_BOOTSTRAP_FILE_ID: 1TW-COG0-lfu998QjYvqvh6OemzZeSWXa
 
 jobs:
   build:
@@ -99,7 +106,7 @@ jobs:
     needs: build
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 
@@ -127,9 +134,12 @@ jobs:
               assert entry.get('redistributable') is True, f'Not approved for distribution: {path}'
               assert path.lower() not in seen, f'Duplicate managed path: {path}'
               seen.add(path.lower())
-              assert (Path('package') / path).is_file(), f'Missing managed file: {path}'
+              if entry.get('source'):
+                  assert (Path('package') / path).is_file(), f'Missing repository overlay: {path}'
           packaged={str(p.relative_to('package')).replace('\\','/') for p in Path('package').rglob('*') if p.is_file()}
-          assert packaged == {e['path'] for e in managed} | {'managed-client-baseline.json'}, f'Unexpected canonical package contents: {packaged}'
+          overlays={e['path'] for e in managed if e.get('source')}
+          assert packaged == overlays | {'managed-client-baseline.json'}, f'Unexpected repository overlay contents: {packaged}'
+          assert len(managed) == 36, f'Expected 36 managed game files, found {len(managed)}'
           PY
           test ! -f package/EzorsiaV2_UI.wz
           cp -a package/. runtime-payload/
@@ -142,13 +152,47 @@ jobs:
         run: |
           set -euo pipefail
           export LAUNCHER_PATCH_ROOT="$PWD/manifest-fixture"
-          export LAUNCHER_BASELINE_PATH="$PWD/managed-client-baseline.json"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          baseline=json.loads(Path('managed-client-baseline.json').read_text())
+          baseline['managedFiles']=[entry for entry in baseline['managedFiles'] if entry.get('source')]
+          Path('overlay-baseline.json').write_text(json.dumps(baseline, indent=2)+'\n')
+          PY
+          export LAUNCHER_BASELINE_PATH="$PWD/overlay-baseline.json"
           export LAUNCHER_MANIFEST_PATH="$PWD/manifest-fixture/manifest.json"
           mkdir -p "$LAUNCHER_PATCH_ROOT/files"
           cp -a runtime-payload/. "$LAUNCHER_PATCH_ROOT/files/"
           node web/scripts/test-patch-manifest.js
           node web/scripts/build-patch-manifest.js ci-test
-          python3 client/scripts/test-managed-repair.py "$LAUNCHER_PATCH_ROOT" managed-client-baseline.json
+          python3 client/scripts/test-managed-repair.py "$LAUNCHER_PATCH_ROOT" overlay-baseline.json
+
+      - name: Assemble authorized complete baseline
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_full_baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-delay 5 \
+            "https://drive.usercontent.google.com/download?id=$EVERLEAF_BOOTSTRAP_FILE_ID&export=download&confirm=t" \
+            --output everleaf-bootstrap.rar
+          7z x -y everleaf-bootstrap.rar -obootstrap-extract >/dev/null
+          game_executable="$(find bootstrap-extract -type f -iname MapleStory.exe -print -quit)"
+          test -n "$game_executable"
+          game_root="$(dirname "$game_executable")"
+          mkdir full-client
+          cp -a "$game_root"/. full-client/
+          cp -a runtime-payload/. full-client/
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          baseline=json.loads(Path('managed-client-baseline.json').read_text())
+          expected={entry['path'].lower() for entry in baseline['managedFiles']}
+          actual={str(path.relative_to('full-client')).replace('\\','/').lower()
+                  for path in Path('full-client').rglob('*') if path.is_file()}
+          assert len(expected)==36, f'Expected 36 managed files, got {len(expected)}'
+          assert actual==expected, f'Authorized bootstrap/baseline mismatch: missing={expected-actual}, extra={actual-expected}'
+          PY
+          tar -czf full-client-payload.tar.gz -C full-client .
 
       - name: Configure SSH
         shell: bash
@@ -175,9 +219,49 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tar -czf managed-payload.tar.gz -C runtime-payload .
+          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.publish_full_baseline }}" = "true" ]; then
+            cp full-client-payload.tar.gz managed-payload.tar.gz
+            publish_mode=full
+          else
+            tar -czf managed-payload.tar.gz -C runtime-payload .
+            publish_mode=overlay
+          fi
           scp -i ~/.ssh/id_everleaf managed-payload.tar.gz managed-client-baseline.json web/scripts/build-patch-manifest.js \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/tmp/"
-          ssh -i ~/.ssh/id_everleaf \
-            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            'set -euo pipefail; rm -rf /tmp/everleaf-managed-files; mkdir /tmp/everleaf-managed-files; tar -xzf /tmp/managed-payload.tar.gz -C /tmp/everleaf-managed-files; sudo install -d -o ubuntu -g ubuntu -m 755 /opt/everleaf/patches; rm -rf /opt/everleaf/patches/files.new; mv /tmp/everleaf-managed-files /opt/everleaf/patches/files.new; mv /tmp/managed-client-baseline.json /opt/everleaf/patches/managed-client-baseline.json; install -m 755 /tmp/build-patch-manifest.js /opt/everleaf/web/scripts/build-patch-manifest.js; rm -rf /opt/everleaf/patches/files.old; if test -d /opt/everleaf/patches/files; then mv /opt/everleaf/patches/files /opt/everleaf/patches/files.old; fi; mv /opt/everleaf/patches/files.new /opt/everleaf/patches/files; cd /opt/everleaf/web; npm run build-patch-manifest; python3 -c '\''import json; m=json.load(open("/opt/everleaf/patches/manifest.json")); b=json.load(open("/opt/everleaf/patches/managed-client-baseline.json")); assert len(m["files"])==len(b["managedFiles"]); print("Managed patch manifest files:", len(m["files"]))'\''; sudo systemctl restart everleaf-web; sleep 2; curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null; echo EverLeaf managed client patch payload published.'
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" bash -s -- "$publish_mode" <<'REMOTE'
+            set -euo pipefail
+            mode="$1"
+            sudo install -d -o ubuntu -g ubuntu -m 755 /opt/everleaf/patches
+            stage=/opt/everleaf/patches-staging
+            sudo rm -rf "$stage"
+            sudo install -d -o ubuntu -g ubuntu -m 755 "$stage" "$stage/files"
+            if [ "$mode" = overlay ]; then
+              test -d /opt/everleaf/patches/files
+              cp -a /opt/everleaf/patches/files/. "$stage/files/"
+            fi
+            tar -xzf /tmp/managed-payload.tar.gz -C "$stage/files"
+            LAUNCHER_PATCH_ROOT="$stage" \
+              LAUNCHER_BASELINE_PATH=/tmp/managed-client-baseline.json \
+              LAUNCHER_MANIFEST_PATH="$stage/manifest.json" \
+              node /tmp/build-patch-manifest.js
+            python3 - <<'PY'
+          import json
+          manifest=json.load(open('/opt/everleaf/patches-staging/manifest.json'))
+          baseline=json.load(open('/tmp/managed-client-baseline.json'))
+          assert len(manifest['files']) == len(baseline['managedFiles']) == 36
+          print('Managed patch manifest files:', len(manifest['files']))
+          PY
+            rm -rf /opt/everleaf/patches/files.old
+            if test -d /opt/everleaf/patches/files; then
+              mv /opt/everleaf/patches/files /opt/everleaf/patches/files.old
+            fi
+            mv "$stage/files" /opt/everleaf/patches/files
+            mv /tmp/managed-client-baseline.json /opt/everleaf/patches/managed-client-baseline.json
+            mv "$stage/manifest.json" /opt/everleaf/patches/manifest.json
+            rmdir "$stage"
+            install -m 755 /tmp/build-patch-manifest.js /opt/everleaf/web/scripts/build-patch-manifest.js
+            sudo systemctl restart everleaf-web
+            sleep 2
+            curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
+            echo 'EverLeaf complete managed client patch payload published.'
+          REMOTE

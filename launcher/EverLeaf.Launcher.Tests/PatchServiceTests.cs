@@ -44,6 +44,21 @@ public sealed class PatchServiceTests
     }
 
     [Fact]
+    public void RequiresTheCompleteThirtySixFileClient()
+    {
+        using var temp = new TemporaryDirectory();
+        using var service = new PatchService(temp.Path);
+        var complete = LauncherConfiguration.RequiredGameFiles
+            .Select(path => new PatchEntry(path, "/patches/" + path, new string('a', 64), 1))
+            .ToArray();
+
+        service.ValidateManifest(new PatchManifest("complete", complete));
+        Assert.Equal(36, complete.Length);
+        Assert.Throws<InvalidOperationException>(() =>
+            service.ValidateManifest(new PatchManifest("missing-one", complete.Skip(1).ToArray())));
+    }
+
+    [Fact]
     public async Task DetectsAndRepairsDeliberatelyCorruptedFile()
     {
         using var temp = new TemporaryDirectory();

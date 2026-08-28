@@ -1,72 +1,41 @@
-# EverLeaf Launcher
+# EverLeaf Portable Launcher
 
-The EverLeaf Launcher is the supported player entry point for EverLeaf.
+The EverLeaf Launcher is a portable patcher. It is not an installer and does not
+choose or create a game directory.
 
 ## Player flow
 
-1. Install the launcher into the supported MapleStory v83 / EverLeaf game folder.
-2. Open `EverLeafLauncher.exe`.
-3. The launcher checks EverLeaf server status and announcements.
-4. Press **Play EverLeaf**.
-5. The launcher downloads the RSA-signed patch manifest over HTTPS.
-6. Local files are checked by size and SHA-256.
-7. Only missing or outdated files are downloaded.
-8. Every downloaded file is verified before it replaces the local copy.
-9. `MapleStory.exe` launches from the synchronized game folder.
-10. Account login happens normally inside MapleStory.
+1. Download and extract the complete `Everleaf MS.rar` client.
+2. Extract the portable launcher into that same folder, beside `MapleStory.exe`.
+3. Open `EverLeafLauncher.exe`.
+4. Press **Play EverLeaf** or **Check / Repair Files**.
+5. The launcher authenticates EverLeaf's signed HTTPS manifest.
+6. It checks every required game file by size and streaming SHA-256.
+7. It downloads only missing or outdated files and verifies each download before replacement.
+8. After all 36 required files match production, Play starts `MapleStory.exe`.
 
-**Check / Repair Files** performs the same verification without launching the game.
-
-## Why this matters
-
-EverLeaf server maps and client maps must stay synchronized. A mismatched `Map.wz`
-can show old objects, incorrect terrain, or NPCs in apparently missing/wrong
-locations even when the server spawn records are correct. The launcher manifest is
-the client source of truth and is how EverLeaf distributes approved client updates.
+The complete managed set is declared in `client/managed-client-baseline.json`.
+It includes all WZ files, MapleStory.exe, required DLL/ACM runtime files, and
+EverLeaf's client configuration. The running launcher and its README are excluded
+so the game-file patcher never attempts to replace itself.
 
 ## Security boundary
 
-- The launcher never connects directly to MySQL.
-- The launcher does not store MapleStory account passwords.
-- Patch paths are constrained to the selected game directory.
-- Absolute paths and path traversal are rejected.
-- Every downloaded file is SHA-256 verified.
+- The launcher never connects directly to MySQL or stores game-account passwords.
+- Manifest paths are constrained to the folder containing the launcher.
+- Absolute paths, traversal, duplicate paths, and external download URLs are rejected.
+- Every local and downloaded file is checked with streaming SHA-256.
 - The manifest must pass RSA-PSS verification before any file is changed.
-- The running launcher executable cannot be replaced through the game-file manifest.
-- Patch downloads must use HTTPS.
-- The manifest signing **private key is server-only** and must never be committed or distributed.
-- The repository and launcher installer do not contain the base MapleStory client.
+- Downloads must use EverLeaf's production HTTPS origin.
+- The manifest signing private key stays only on the production server.
 
-## Patch server layout
+## Release model
 
-Production expects the website/patch service to expose:
+- `Everleaf MS.rar` is the authorized complete bootstrap client.
+- `EverLeafLauncher-portable.zip` is the small portable launcher download.
+- `/patches/<file>` holds repair copies of every file in the managed baseline.
+- `/v1/launcher/manifest` returns the signed production file identities.
 
-- `GET /v1/launcher/status`
-- `GET /v1/launcher/manifest`
-- `GET /patches/<file>`
-
-The server signs the exact UTF-8 bytes of `manifest.json` with RSA-PSS/SHA-256.
-The launcher embeds only the corresponding public key.
-
-A manifest looks like:
-
-```json
-{
-  "version": "2026.08.27.1",
-  "files": [
-    {
-      "path": "dinput8.dll",
-      "url": "/patches/dinput8.dll",
-      "sha256": "...64 hex characters...",
-      "size": 123456
-    }
-  ]
-}
-```
-
-Only files declared in `client/managed-client-baseline.json`, approved there as
-redistributable, and present in the canonical build package are published. The
-generator fails closed on missing, extra, duplicate, empty, or unsafe entries.
-`Map.wz` and `Npc.wz` have an additional exact compatibility gate, but are marked
-non-distributable until the project owner confirms distribution rights. They are
-therefore checked on player machines without being uploaded by this pipeline.
+Repository-built client overlays (`dinput8.dll`, `config.ini`, and
+`EverLeaf_UI.wz`) update their corresponding files without deleting the static
+bootstrap files already present on the production patch server.

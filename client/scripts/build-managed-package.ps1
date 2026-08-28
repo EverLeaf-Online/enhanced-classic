@@ -11,6 +11,7 @@ if ($baseline.schemaVersion -ne 1) { throw "Unsupported managed-client baseline 
 if (-not $baseline.managedFiles -or $baseline.managedFiles.Count -eq 0) { throw "Managed-client baseline is empty." }
 
 $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$packagedPaths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 $root = [IO.Path]::GetFullPath($RepositoryRoot).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
 $output = [IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $output -Force | Out-Null
@@ -20,6 +21,12 @@ foreach ($entry in $baseline.managedFiles) {
     if ([string]::IsNullOrWhiteSpace($entry.path) -or [IO.Path]::IsPathRooted($entry.path)) { throw "Unsafe managed path." }
     if ($entry.path.Contains('\') -or $entry.path.Split('/') -contains '..') { throw "Unsafe managed path: $($entry.path)" }
     if (-not $seen.Add([string]$entry.path)) { throw "Duplicate managed path: $($entry.path)" }
+
+    # Entries without a repository source come from the authorized bootstrap
+    # client and remain on the patch server. This package contains only overlays
+    # that are reproducibly built from this repository.
+    if ([string]::IsNullOrWhiteSpace([string]$entry.source)) { continue }
+    [void]$packagedPaths.Add([string]$entry.path)
 
     $source = [IO.Path]::GetFullPath((Join-Path $RepositoryRoot $entry.source))
     if (-not $source.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { throw "Managed source escapes repository: $($entry.source)" }
@@ -35,11 +42,11 @@ foreach ($entry in $baseline.managedFiles) {
 $packaged = Get-ChildItem -LiteralPath $output -File -Recurse | ForEach-Object {
     [IO.Path]::GetRelativePath($output, $_.FullName).Replace('\', '/')
 }
-$unexpected = @($packaged | Where-Object { -not $seen.Contains($_) })
-$missing = @($seen | Where-Object { $_ -notin $packaged })
+$unexpected = @($packaged | Where-Object { -not $packagedPaths.Contains($_) })
+$missing = @($packagedPaths | Where-Object { $_ -notin $packaged })
 if ($unexpected.Count -or $missing.Count) {
     throw "Canonical package does not exactly match the managed baseline. Unexpected=[$($unexpected -join ', ')] Missing=[$($missing -join ', ')]"
 }
 
 Copy-Item -LiteralPath $baselinePath -Destination (Join-Path $output "managed-client-baseline.json") -Force
-Write-Host "Built managed client package with $($seen.Count) distributable files."
+Write-Host "Built $($packagedPaths.Count) repository overlays for a $($seen.Count)-file managed client."

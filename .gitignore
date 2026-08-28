@@ -3,6 +3,9 @@
 !.idea/codeStyles/
 *.iml
 /target
+/.tools/
+launcher/**/bin/
+launcher/**/obj/
 
 # build files
 /build/

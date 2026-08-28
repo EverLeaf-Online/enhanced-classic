@@ -58,27 +58,15 @@ jobs:
       - name: Package portable launcher
         shell: pwsh
         run: |
+          Remove-Item 'launcher-publish/*.pdb' -Force -ErrorAction SilentlyContinue
           Copy-Item "launcher/README.md" "launcher-publish/README-LAUNCHER.md"
           Compress-Archive -Path "launcher-publish/*" -DestinationPath "EverLeafLauncher-portable.zip"
           Get-FileHash "EverLeafLauncher-portable.zip" -Algorithm SHA256
 
-      - name: Install Inno Setup
-        shell: pwsh
-        run: choco install innosetup --no-progress -y
-
-      - name: Build Windows installer
-        shell: pwsh
-        run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "launcher\installer\EverLeafLauncher.iss"
-          if (-not (Test-Path "launcher-installer\EverLeafLauncherSetup.exe")) { throw "Installer executable missing" }
-          Get-FileHash "launcher-installer\EverLeafLauncherSetup.exe" -Algorithm SHA256
-
       - name: Upload launcher artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: EverLeafLauncher
-          path: |
-            EverLeafLauncher-portable.zip
-            launcher-installer/EverLeafLauncherSetup.exe
+          name: EverLeafLauncherPortable
+          path: EverLeafLauncher-portable.zip
           retention-days: 30
           if-no-files-found: error
