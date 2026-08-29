@@ -60,6 +60,9 @@ jobs:
         run: python3 tools/generate_build_manifest.py
       - name: Upload Everleaf server artifact
         if: success()
+        # Production rebuilds from the verified source archive. A full
+        # account-level artifact quota must not block that deployment.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: everleaf-server-${{ github.sha }}
