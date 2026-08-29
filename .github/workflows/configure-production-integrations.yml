@@ -1,0 +1,90 @@
+name: Configure EverLeaf production integrations
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-production-integrations
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_PUBLIC_BASE: https://everleafms.duckdns.org
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage integration tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          integration_dir="/tmp/everleaf-integrations-$GITHUB_RUN_ID"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "install -d -m 700 '$integration_dir'"
+          scp -i ~/.ssh/id_everleaf \
+            tools/everleaf-ops/configure-stripe-live-webhook.js \
+            tools/everleaf-ops/configure-paypal-live-webhook.js \
+            tools/everleaf-ops/verify-live-payment-readiness.js \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$integration_dir/"
+
+      - name: Configure and verify live payment webhooks
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "INTEGRATION_RUN_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE'
+            set -euo pipefail
+            case "$INTEGRATION_RUN_ID" in (*[!0-9]*|'') exit 2;; esac
+            integration_dir="/tmp/everleaf-integrations-$INTEGRATION_RUN_ID"
+            test "$integration_dir" = "/tmp/everleaf-integrations-$INTEGRATION_RUN_ID"
+            cleanup() {
+              find "$integration_dir" -mindepth 1 -maxdepth 1 -type f -delete 2>/dev/null || true
+              rmdir "$integration_dir" 2>/dev/null || true
+            }
+            trap cleanup EXIT
+
+            sudo bash /opt/everleaf/web/scripts/backup-production.sh >/dev/null
+            sudo node "$integration_dir/configure-stripe-live-webhook.js" /opt/everleaf/web/.env
+            sudo node "$integration_dir/configure-paypal-live-webhook.js" /opt/everleaf/web/.env
+            sudo chmod 600 /opt/everleaf/web/.env
+            sudo systemctl restart everleaf-web
+            sleep 2
+            systemctl is-active --quiet everleaf-web
+            sudo node "$integration_dir/verify-live-payment-readiness.js" \
+              /opt/everleaf/web /opt/everleaf/web/.env
+          REMOTE
+
+      - name: Verify public HTTPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --max-time 20 \
+            "$EVERLEAF_PUBLIC_BASE/donate" >/dev/null
+          curl --fail --silent --show-error --location --max-time 20 \
+            "$EVERLEAF_PUBLIC_BASE/v1/launcher/status" >/dev/null

@@ -8,6 +8,7 @@ const env = parse(text);
 if (!env.STRIPE_LIVE_SECRET_KEY) throw new Error("Stripe live secret key is missing.");
 
 const endpointUrl = "https://everleafms.duckdns.org/webhooks/stripe";
+const requiredEvents = ["checkout.session.completed", "charge.refunded"];
 async function request(path, options = {}) {
   const response = await fetch(`https://api.stripe.com${path}`, { ...options, headers: { Authorization: `Bearer ${env.STRIPE_LIVE_SECRET_KEY}`, ...(options.headers || {}) } });
   if (!response.ok) throw new Error(`Stripe API returned ${response.status} for ${path}.`);
@@ -21,12 +22,17 @@ async function request(path, options = {}) {
   if (!existing) {
     const body = new URLSearchParams();
     body.set("url", endpointUrl);
-    body.append("enabled_events[]", "checkout.session.completed");
+    for (const event of requiredEvents) body.append("enabled_events[]", event);
     body.set("description", "EverLeaf production checkout webhook");
     const created = await request("/v1/webhook_endpoints", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
     webhookSecret = created.secret;
-  } else if (!webhookSecret) {
-    throw new Error("A live Stripe webhook already exists, but its signing secret is not installed.");
+  } else {
+    if (!webhookSecret) throw new Error("A live Stripe webhook already exists, but its signing secret is not installed.");
+    if (!requiredEvents.every((event) => existing.enabled_events.includes(event))) {
+      const body = new URLSearchParams();
+      for (const event of requiredEvents) body.append("enabled_events[]", event);
+      await request(`/v1/webhook_endpoints/${encodeURIComponent(existing.id)}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+    }
   }
   if (!webhookSecret) throw new Error("Stripe did not return a live webhook signing secret.");
 

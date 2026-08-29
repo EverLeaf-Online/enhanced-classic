@@ -11,6 +11,7 @@ if (!clientId || !clientSecret) throw new Error("PayPal sandbox credentials are 
 
 const api = "https://api-m.sandbox.paypal.com";
 const endpointUrl = "https://everleafms.duckdns.org/webhooks/paypal";
+const requiredEvents = ["PAYMENT.CAPTURE.COMPLETED", "PAYMENT.CAPTURE.REFUNDED"];
 
 async function request(path,options={}) {
   const response = await fetch(`${api}${path}`,options);
@@ -30,10 +31,16 @@ async function request(path,options={}) {
   if(!webhook) {
     webhook=await request("/v1/notifications/webhooks",{
       method:"POST",headers,
-      body:JSON.stringify({url:endpointUrl,event_types:[{name:"PAYMENT.CAPTURE.COMPLETED"}]}),
+      body:JSON.stringify({url:endpointUrl,event_types:requiredEvents.map(name=>({name}))}),
     });
     console.log("paypal_webhook=created");
   } else {
+    if(!requiredEvents.every(name=>webhook.event_types.some(event=>event.name===name))) {
+      await request(`/v1/notifications/webhooks/${encodeURIComponent(webhook.id)}`,{
+        method:"PATCH",headers,
+        body:JSON.stringify([{op:"replace",path:"/event_types",value:requiredEvents.map(name=>({name}))}]),
+      });
+    }
     console.log("paypal_webhook=existing");
   }
   const values={PAYPAL_SANDBOX_WEBHOOK_ID:webhook.id,PAYPAL_ENVIRONMENT:"sandbox",PAYPAL_ENABLED:"true"};

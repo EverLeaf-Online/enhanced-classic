@@ -69,8 +69,17 @@ async function syncAccount(accountId) {
     return false;
   }
   if (profile.lifetime_cents <= 0) {
-    supporter.setDiscordRoleStatus(accountId, "linked");
-    return false;
+    try {
+      await discordRequest(`/guilds/${env.discord.guildId}/members/${profile.discord_user_id}/roles/${env.discord.supporterRoleId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bot ${env.discord.botToken}` },
+      });
+      supporter.setDiscordRoleStatus(accountId, "linked");
+      return true;
+    } catch (error) {
+      supporter.setDiscordRoleStatus(accountId, error.status === 404 ? "not_member" : error.status === 403 ? "permission_error" : "failed");
+      return false;
+    }
   }
   try {
     await discordRequest(`/guilds/${env.discord.guildId}/members/${profile.discord_user_id}/roles/${env.discord.supporterRoleId}`, {

@@ -45,6 +45,30 @@ function constructEvent(rawBody, signature) {
 }
 
 function processEvent(event, rawBody) {
+  if (event.type === "charge.refunded") {
+    const charge = event.data && event.data.object;
+    const order = supporter.getOrderByProviderReference("stripe", charge && charge.payment_intent);
+    if (!order) throw new Error("Stripe refund does not match a payment order.");
+    if (String(charge.currency).toLowerCase() !== order.currency) throw new Error("Stripe refund currency does not match the order.");
+    const cumulative = Number(charge.amount_refunded);
+    const current = Number(order.refunded_cents || 0);
+    if (!Number.isSafeInteger(cumulative) || cumulative < current || cumulative > order.amount_cents) {
+      throw new Error("Stripe refund amount does not match the order.");
+    }
+    if (cumulative === current) {
+      supporter.recordProviderEvent({provider:"stripe",eventId:event.id,orderId:order.id,eventType:event.type,rawPayload:rawBody});
+      return false;
+    }
+    return supporter.refundPayment({
+      provider: "stripe",
+      eventId: event.id,
+      orderId: order.id,
+      eventType: event.type,
+      rawPayload: rawBody,
+      refundCents: cumulative - current,
+    });
+  }
+
   if (event.type !== "checkout.session.completed") {
     return supporter.recordProviderEvent({
       provider: "stripe",

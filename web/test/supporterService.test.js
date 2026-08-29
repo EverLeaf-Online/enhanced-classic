@@ -40,7 +40,7 @@ test("payment orders allow only explicit forward transitions", {skip:!nativeRead
   assert.equal(service.transitionOrder("order-1","pending","checkout-1").status,"pending");
   assert.equal(service.transitionOrder("order-1","paid").status,"paid");
   assert.throws(() => service.transitionOrder("order-1","pending"),/Invalid payment transition/);
-  assert.equal(service.transitionOrder("order-1","refunded").status,"refunded");
+  assert.throws(() => service.transitionOrder("order-1","refunded"),/Invalid payment transition/);
 });
 
 test("provider events are idempotent and retain only payload identity", {skip:!nativeReady}, () => {
@@ -60,4 +60,22 @@ test("confirmed payments update supporter totals exactly once", {skip:!nativeRea
   assert.equal(db.prepare("SELECT lifetime_cents FROM supporter_profiles WHERE game_account_id=2").get().lifetime_cents,2500);
   assert.equal(service.confirmPayment(confirmation),false);
   assert.equal(db.prepare("SELECT lifetime_cents FROM supporter_profiles WHERE game_account_id=2").get().lifetime_cents,2500);
+});
+
+test("partial and full refunds reduce supporter totals exactly once", {skip:!nativeReady}, () => {
+  db.prepare(`INSERT INTO payment_orders(id,game_account_id,game_account_name,provider,amount_cents,currency,status)
+    VALUES('refund-order',3,'RefundedSupporter','stripe',2500,'usd','pending')`).run();
+  service.confirmPayment({provider:"stripe",eventId:"refund-paid",orderId:"refund-order",eventType:"checkout.session.completed",rawPayload:"paid",providerReference:"pi-refund"});
+
+  const partial={provider:"stripe",eventId:"refund-partial",orderId:"refund-order",eventType:"charge.refunded",rawPayload:"partial",refundCents:500};
+  assert.equal(service.refundPayment(partial),true);
+  assert.equal(service.refundPayment(partial),false);
+  assert.equal(service.getOrder("refund-order").status,"paid");
+  assert.equal(service.getOrder("refund-order").refunded_cents,500);
+  assert.equal(service.accountSummary(3).profile.lifetime_cents,2000);
+
+  assert.equal(service.refundPayment({provider:"stripe",eventId:"refund-full",orderId:"refund-order",eventType:"charge.refunded",rawPayload:"full",refundCents:2000}),true);
+  assert.equal(service.getOrder("refund-order").status,"refunded");
+  assert.equal(service.accountSummary(3).profile.lifetime_cents,0);
+  assert.throws(()=>service.refundPayment({provider:"stripe",eventId:"refund-too-much",orderId:"refund-order",eventType:"charge.refunded",rawPayload:"invalid",refundCents:1}),/Refund amount/);
 });

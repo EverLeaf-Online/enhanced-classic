@@ -74,6 +74,7 @@ function initCms() {
       game_account_name TEXT NOT NULL,
       provider TEXT NOT NULL CHECK(provider IN ('stripe','paypal')),
       amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+      refunded_cents INTEGER NOT NULL DEFAULT 0 CHECK(refunded_cents >= 0),
       currency TEXT NOT NULL DEFAULT 'usd',
       status TEXT NOT NULL DEFAULT 'created' CHECK(status IN ('created','pending','paid','failed','canceled','refunded')),
       provider_reference TEXT,
@@ -120,6 +121,11 @@ function initCms() {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  const paymentColumns = db.prepare("PRAGMA table_info(payment_orders)").all();
+  if (!paymentColumns.some(column => column.name === "refunded_cents")) {
+    db.exec("ALTER TABLE payment_orders ADD COLUMN refunded_cents INTEGER NOT NULL DEFAULT 0 CHECK(refunded_cents >= 0)");
+  }
 
   const defaults = {
     hero_title: "Welcome to EverLeaf",

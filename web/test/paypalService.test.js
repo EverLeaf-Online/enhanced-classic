@@ -94,3 +94,14 @@ test("PayPal capture requires the signed-in account to own a pending order",{ski
   pendingOrder("paypal-capture-owner","PAYPAL-CAPTURE-OWNER");
   await assert.rejects(()=>paypal.captureCheckout("PAYPAL-CAPTURE-OWNER",999),/not available/);
 });
+
+test("PayPal refund events reverse confirmed supporter credit",{skip:!nativeReady},()=>{
+  pendingOrder("paypal-refund","PAYPAL-REFUND");
+  const paid=captureEvent({custom_id:"paypal-refund",invoice_id:"paypal-refund",supplementary_data:{related_ids:{order_id:"PAYPAL-REFUND"}}});
+  paypal.processEvent({...paid,id:"WH-REFUND-PAID"},JSON.stringify(paid));
+  const refund={id:"WH-REFUND",event_type:"PAYMENT.CAPTURE.REFUNDED",resource:{status:"COMPLETED",custom_id:"paypal-refund",invoice_id:"paypal-refund",amount:{currency_code:"USD",value:"10.00"}}};
+  assert.equal(paypal.processEvent(refund,JSON.stringify(refund)),true);
+  assert.equal(paypal.processEvent(refund,JSON.stringify(refund)),false);
+  assert.equal(supporter.getOrder("paypal-refund").status,"refunded");
+  assert.equal(supporter.accountSummary(71).profile.lifetime_cents,1000);
+});

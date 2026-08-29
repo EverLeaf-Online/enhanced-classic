@@ -96,3 +96,15 @@ test("unhandled Stripe events are recorded without retaining their payload", { s
   const stored = db.prepare("SELECT payload_sha256 FROM payment_events WHERE provider_event_id=?").get(event.id);
   assert.match(stored.payload_sha256, /^[a-f0-9]{64}$/);
 });
+
+test("Stripe cumulative refunds apply only the new amount", { skip: !nativeReady }, () => {
+  pendingOrder("stripe-refund");
+  const paid = completedEvent({client_reference_id:"stripe-refund",metadata:{orderId:"stripe-refund"},payment_intent:"pi_refund"});
+  stripe.processEvent({...paid,id:"evt_refund_paid"},JSON.stringify(paid));
+  const refund = amount => ({id:`evt_refund_${amount}`,type:"charge.refunded",data:{object:{payment_intent:"pi_refund",amount_refunded:amount,currency:"usd"}}});
+  assert.equal(stripe.processEvent(refund(400),JSON.stringify(refund(400))),true);
+  assert.equal(stripe.processEvent(refund(1000),JSON.stringify(refund(1000))),true);
+  assert.equal(supporter.getOrder("stripe-refund").status,"refunded");
+  assert.equal(supporter.getOrder("stripe-refund").refunded_cents,1000);
+  assert.equal(supporter.accountSummary(7).profile.lifetime_cents,1000);
+});

@@ -24,7 +24,7 @@ test("admin supporter summary reports confirmed and unresolved payments", { skip
   insert.run("paid", 1, "Leaf", "stripe", 500, "paid");
   insert.run("pending", 1, "Leaf", "paypal", 1000, "pending");
   insert.run("failed", 1, "Leaf", "stripe", 2500, "failed");
-  assert.deepEqual(service.dashboardSummary(), { confirmedCents: 500, paidCount: 1, pendingCount: 1, failedCount: 1 });
+  assert.deepEqual(service.dashboardSummary(), { confirmedCents: 500, paidCount: 1, refundedCount: 0, pendingCount: 1, failedCount: 1 });
 });
 
 test("Discord role retries are eligibility-gated and audited without Discord identity", { skip: !nativeReady }, async () => {

@@ -4,7 +4,7 @@ const env = require("../config/env");
 
 const AMOUNTS = Object.freeze([500, 1000, 2500, 5000]);
 const PROVIDERS = Object.freeze(["stripe", "paypal"]);
-const TRANSITIONS = Object.freeze({created:["pending","canceled","failed"],pending:["paid","canceled","failed"],paid:["refunded"],failed:[],canceled:[],refunded:[]});
+const TRANSITIONS = Object.freeze({created:["pending","canceled","failed"],pending:["paid","canceled","failed"],paid:[],failed:[],canceled:[],refunded:[]});
 
 function providerReady(provider) {
   if(provider==="stripe") {
@@ -72,9 +72,36 @@ function confirmPayment(input) {
   return confirmPaymentTransaction(input);
 }
 
+const refundPaymentTransaction=db.transaction(({provider,eventId,orderId,eventType,rawPayload,refundCents})=>{
+  if(db.prepare("SELECT 1 FROM payment_events WHERE provider=? AND provider_event_id=?").get(provider,eventId)) return false;
+  const order=db.prepare("SELECT * FROM payment_orders WHERE id=?").get(orderId);
+  if(!order||order.provider!==provider) throw new Error("Refund does not match the payment order.");
+  if(!["paid","refunded"].includes(order.status)) throw new Error(`Payment order cannot be refunded from ${order.status}.`);
+  const amount=Number(refundCents);
+  const current=Number(order.refunded_cents||0);
+  if(!Number.isSafeInteger(amount)||amount<=0||current+amount>order.amount_cents) throw new Error("Refund amount is invalid for the payment order.");
+  const payloadHash=crypto.createHash("sha256").update(rawPayload||"").digest("hex");
+  const event=db.prepare(`INSERT OR IGNORE INTO payment_events(provider,provider_event_id,order_id,event_type,payload_sha256) VALUES(?,?,?,?,?)`)
+    .run(provider,eventId,orderId,eventType,payloadHash);
+  if(event.changes===0) return false;
+  const refunded=current+amount;
+  const status=refunded===order.amount_cents?"refunded":"paid";
+  db.prepare("UPDATE payment_orders SET refunded_cents=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+    .run(refunded,status,orderId);
+  db.prepare(`UPDATE supporter_profiles SET
+    lifetime_cents=MAX(0,lifetime_cents-?),updated_at=CURRENT_TIMESTAMP
+    WHERE game_account_id=?`).run(amount,order.game_account_id);
+  return true;
+});
+
+function refundPayment(input) {
+  if(!PROVIDERS.includes(input.provider)||!input.eventId||!input.orderId||!input.eventType) throw new Error("Invalid refund event.");
+  return refundPaymentTransaction(input);
+}
+
 function accountSummary(accountId) {
   const profile=db.prepare("SELECT * FROM supporter_profiles WHERE game_account_id=?").get(Number(accountId))||null;
-  const orders=db.prepare(`SELECT id,provider,amount_cents,currency,status,created_at FROM payment_orders WHERE game_account_id=? ORDER BY created_at DESC LIMIT 20`).all(Number(accountId));
+  const orders=db.prepare(`SELECT id,provider,amount_cents,refunded_cents,currency,status,created_at FROM payment_orders WHERE game_account_id=? ORDER BY created_at DESC LIMIT 20`).all(Number(accountId));
   return {profile,orders};
 }
 
@@ -103,4 +130,4 @@ function setDiscordRoleStatus(accountId,status) {
   db.prepare("UPDATE supporter_profiles SET discord_role_status=?,updated_at=CURRENT_TIMESTAMP WHERE game_account_id=?").run(status,Number(accountId));
 }
 
-module.exports={AMOUNTS,PROVIDERS,TRANSITIONS,providerReady,validateCheckout,createOrder,transitionOrder,recordProviderEvent,confirmPayment,accountSummary,getOrder,getOrderByProviderReference,linkDiscordAccount,setDiscordRoleStatus};
+module.exports={AMOUNTS,PROVIDERS,TRANSITIONS,providerReady,validateCheckout,createOrder,transitionOrder,recordProviderEvent,confirmPayment,refundPayment,accountSummary,getOrder,getOrderByProviderReference,linkDiscordAccount,setDiscordRoleStatus};

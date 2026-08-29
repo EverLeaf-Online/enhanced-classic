@@ -100,6 +100,17 @@ async function verifyEvent(headers,event) {
 }
 
 function processEvent(event,rawPayload) {
+  if(event.event_type==="PAYMENT.CAPTURE.REFUNDED") {
+    const refund=event.resource||{};
+    const order=supporter.getOrder(refund.custom_id);
+    const amount=refund.amount||{};
+    if(!order||order.provider!=="paypal"||refund.invoice_id!==order.id) throw new Error("PayPal refund does not match a payment order.");
+    if(String(refund.status).toUpperCase()!=="COMPLETED") throw new Error("PayPal refund is not completed.");
+    if(String(amount.currency_code).toLowerCase()!==order.currency) throw new Error("PayPal refund currency does not match the order.");
+    const refundCents=Math.round(Number(amount.value)*100);
+    return supporter.refundPayment({provider:"paypal",eventId:event.id,orderId:order.id,eventType:event.event_type,rawPayload,refundCents});
+  }
+
   if(event.event_type!=="PAYMENT.CAPTURE.COMPLETED") {
     return supporter.recordProviderEvent({provider:"paypal",eventId:event.id,eventType:event.event_type,rawPayload});
   }

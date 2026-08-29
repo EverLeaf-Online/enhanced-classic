@@ -67,3 +67,16 @@ test("missing Discord membership is retained as a retryable status", { skip: !na
   assert.equal(await discord.syncAccount(44), false);
   assert.equal(supporter.accountSummary(44).profile.discord_role_status, "not_member");
 });
+
+test("ineligible linked accounts have the supporter role removed", { skip: !nativeReady }, async () => {
+  db.prepare(`INSERT INTO supporter_profiles(game_account_id,game_account_name,discord_user_id,lifetime_cents,discord_role_status)
+    VALUES(45,'LeafRefunded','723456789012345678',0,'assigned')`).run();
+  let request;
+  global.fetch = async (url, options) => {
+    request = { url, options };
+    return { ok: true, status: 204, json: async () => null };
+  };
+  assert.equal(await discord.syncAccount(45), true);
+  assert.equal(request.options.method, "DELETE");
+  assert.equal(supporter.accountSummary(45).profile.discord_role_status, "linked");
+});
