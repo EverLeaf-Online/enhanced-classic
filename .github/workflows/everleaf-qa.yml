@@ -10,6 +10,7 @@ on:
       - 'wz/Map.wz/**'
       - 'wz/Npc.wz/**'
       - 'tools/qa/**'
+      - 'deploy/qa/**'
       - '.github/workflows/everleaf-qa.yml'
   push:
     branches:
@@ -26,6 +27,7 @@ on:
       - 'wz/Map.wz/**'
       - 'wz/Npc.wz/**'
       - 'tools/qa/**'
+      - 'deploy/qa/**'
       - '.github/workflows/everleaf-qa.yml'
 
 permissions:
@@ -46,6 +48,14 @@ jobs:
 
       - name: Test runtime QA safety gates
         run: python3 -m unittest tools/qa/test_runtime_qa.py -v
+
+      - name: Validate staging QA tooling
+        run: |
+          python3 -m py_compile tools/qa/staging_probe.py tools/qa/everleaf_runtime_qa.py
+          cp deploy/qa/.env.qa.example deploy/qa/.env.qa
+          sed -i 's/replace-with-a-long-random-value/ci-only-not-a-production-secret/' deploy/qa/.env.qa
+          docker compose --env-file deploy/qa/.env.qa -f deploy/qa/docker-compose.qa.yml -p everleaf-qa config >/dev/null
+          rm -f deploy/qa/.env.qa
 
       - name: Run baseline QA agent hub
         run: |
