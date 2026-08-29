@@ -41,3 +41,33 @@ test("Discord role retries are eligibility-gated and audited without Discord ide
   assert.equal(audit.details.includes("123456789012345678"), false);
   await assert.rejects(() => service.retryDiscordRole(999, 7), /not eligible/);
 });
+
+test("admin payment search is filtered, paginated, and treats wildcards literally", { skip: !nativeReady }, () => {
+  db.exec("DELETE FROM payment_orders; DELETE FROM supporter_profiles; DELETE FROM audit_log;");
+  const insert = db.prepare("INSERT INTO payment_orders(id,game_account_id,game_account_name,provider,amount_cents,status) VALUES(?,?,?,?,?,?)");
+  insert.run("stripe-one", 1, "Leaf_One", "stripe", 500, "paid");
+  insert.run("paypal-two", 2, "LeafTwo", "paypal", 1000, "pending");
+  insert.run("stripe-three", 3, "Other", "stripe", 1500, "paid");
+
+  const paidStripe = service.listPayments({ provider: "stripe", status: "paid", pageSize: 1, page: 2 });
+  assert.equal(paidStripe.total, 2);
+  assert.equal(paidStripe.pages, 2);
+  assert.equal(paidStripe.page, 2);
+  assert.equal(paidStripe.rows.length, 1);
+  assert.deepEqual(service.listPayments({ search: "Leaf_One" }).rows.map(row => row.id), ["stripe-one"]);
+  assert.equal(service.listPayments({ search: "%" }).total, 0);
+});
+
+test("supporter listing filters role state without exposing Discord identifiers", { skip: !nativeReady }, () => {
+  db.exec("DELETE FROM payment_orders; DELETE FROM supporter_profiles; DELETE FROM audit_log;");
+  db.prepare("INSERT INTO supporter_profiles(game_account_id,game_account_name,discord_user_id,lifetime_cents,discord_role_status) VALUES(?,?,?,?,?)")
+    .run(11, "LinkedLeaf", "123456789012345678", 2500, "assigned");
+  db.prepare("INSERT INTO supporter_profiles(game_account_id,game_account_name,discord_user_id,lifetime_cents,discord_role_status) VALUES(?,?,?,?,?)")
+    .run(12, "UnlinkedLeaf", "", 0, "not_linked");
+
+  const rows = service.listSupporters({ roleStatus: "assigned" });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].game_account_name, "LinkedLeaf");
+  assert.equal(rows[0].discord_linked, 1);
+  assert.equal(Object.hasOwn(rows[0], "discord_user_id"), false);
+});

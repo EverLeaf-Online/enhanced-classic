@@ -18,6 +18,20 @@ router.post("/login",async(req,res)=>{
 });
 router.post("/logout",(req,res)=>req.session.destroy(()=>res.redirect("/admin/login")));
 
+router.get("/supporters",requireAdmin,(req,res)=>{
+  const filters={
+    status:String(req.query.status||""),
+    provider:String(req.query.provider||""),
+    search:String(req.query.search||""),
+    roleStatus:String(req.query.roleStatus||""),
+    page:Number(req.query.page||1)
+  };
+  const payments=adminSupporter.listPayments(filters);
+  const supporters=adminSupporter.listSupporters(filters);
+  const syncStatus=String(req.query.supporterSync||"");
+  res.render("admin-supporters",{payments,supporters,summary:adminSupporter.dashboardSummary(),filters,syncStatus,settings:settings()});
+});
+
 router.get("/",requireAdmin,async(req,res)=>{
   const posts=db.prepare("SELECT * FROM posts ORDER BY created_at DESC").all();
   const downloads=db.prepare("SELECT * FROM downloads ORDER BY created_at DESC").all();
@@ -44,10 +58,14 @@ router.get("/",requireAdmin,async(req,res)=>{
 router.post("/supporters/:accountId/sync-discord",requireAdmin,async(req,res)=>{
   try {
     const status=await adminSupporter.retryDiscordRole(req.params.accountId,req.session.admin.id);
-    res.redirect(`/admin?supporterSync=${encodeURIComponent(status)}#donations`);
+    if(req.get("referer")?.includes("/admin/supporters"))
+      res.redirect(`/admin/supporters?supporterSync=${encodeURIComponent(status)}`);
+    else
+      res.redirect(`/admin?supporterSync=${encodeURIComponent(status)}#donations`);
   } catch(error) {
     console.warn("Admin Discord role sync failed:",error.message);
-    res.redirect("/admin?supporterSync=failed#donations");
+    if(req.get("referer")?.includes("/admin/supporters")) res.redirect("/admin/supporters?supporterSync=failed");
+    else res.redirect("/admin?supporterSync=failed#donations");
   }
 });
 
