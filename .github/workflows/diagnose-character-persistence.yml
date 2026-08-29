@@ -81,6 +81,11 @@ jobs:
             echo '### Server JAR manifest'
             unzip -p /opt/everleaf/current/target/everleaf-server-1.0-SNAPSHOT.jar META-INF/MANIFEST.MF 2>/dev/null \
               | grep -Ei 'Implementation|Build|Revision|Commit|Version' || true
+            echo '### Compiled equipment insert shape'
+            javap -verbose -classpath /opt/everleaf/current/target/everleaf-server-1.0-SNAPSHOT.jar client.inventory.ItemFactory 2>/dev/null \
+              | grep -F 'INSERT INTO `inventoryequipment`' || true
+            stat -c 'server_jar_modified=%y server_jar_bytes=%s' \
+              /opt/everleaf/current/target/everleaf-server-1.0-SNAPSHOT.jar
 
             echo '### Recent character-save errors'
             log_file='/opt/everleaf/current/logs/cosmic-log.log'
@@ -157,6 +162,20 @@ jobs:
           FROM inventoryequipment
           GROUP BY everleaf_forge_stage
           ORDER BY everleaf_forge_stage;
+
+          SELECT CONCAT('inventoryequipment_column_count=', COUNT(*))
+          FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA='cosmic' AND TABLE_NAME='inventoryequipment';
+
+          SELECT CONCAT(
+              'inventoryequipment_trigger=', TRIGGER_NAME,
+              ':', ACTION_TIMING,
+              ':', EVENT_MANIPULATION,
+              ':', COALESCE(ACTION_STATEMENT, '[none]')
+          )
+          FROM information_schema.TRIGGERS
+          WHERE TRIGGER_SCHEMA='cosmic' AND EVENT_OBJECT_TABLE='inventoryequipment'
+          ORDER BY TRIGGER_NAME;
 
           SELECT CONCAT('logged_in_account_count=', COUNT(*))
           FROM accounts
