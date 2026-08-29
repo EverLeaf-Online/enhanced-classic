@@ -16,7 +16,7 @@ public sealed class InsufficientDiskSpaceException(string message) : IOException
 
 public static class LauncherConfiguration
 {
-    public static readonly Uri ApiBase = new("https://everleafms.duckdns.org/");
+    public static readonly Uri ApiBase = new("https://everleafms.online/");
     public static readonly Uri ManifestUri = new(ApiBase, "v1/launcher/manifest");
     public const string GameExecutable = "EverLeaf.exe";
     public const string LegacyGameExecutable = "MapleStory.exe";
