@@ -8476,12 +8476,9 @@ public class Character extends AbstractCharacterObject {
                         psSkill.setInt(3, skill.getValue().skillevel);
                         psSkill.setInt(4, skill.getValue().masterlevel);
                         psSkill.setLong(5, skill.getValue().expiration);
-                        // Connector/J 8.4 can emit an invalid rewritten REPLACE batch here,
-                        // causing the entire character-save transaction to roll back with
-                        // "Column count doesn't match value count at row 1". Execute each
-                        // prepared upsert separately while retaining the surrounding transaction.
-                        psSkill.executeUpdate();
+                        psSkill.addBatch();
                     }
+                    psSkill.executeBatch();
                 }
 
                 // Saved locations
