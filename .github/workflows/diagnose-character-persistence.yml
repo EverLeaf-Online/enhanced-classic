@@ -50,9 +50,14 @@ jobs:
             if [ -d /opt/everleaf/current/.git ]; then
               printf 'deployed_revision='
               git -C /opt/everleaf/current rev-parse HEAD
+            fi
+            if [ -f /opt/everleaf/current/src/main/java/client/Character.java ]; then
               echo '### Deployed save source around failing line'
               sed -n '8470,8490p' /opt/everleaf/current/src/main/java/client/Character.java
             fi
+            echo '### Server JAR manifest'
+            unzip -p /opt/everleaf/current/target/everleaf-server-1.0-SNAPSHOT.jar META-INF/MANIFEST.MF 2>/dev/null \
+              | grep -Ei 'Implementation|Build|Revision|Commit|Version' || true
 
             echo '### Recent character-save errors'
             log_file='/opt/everleaf/current/logs/cosmic-log.log'
@@ -110,7 +115,7 @@ jobs:
             )
           ORDER BY TABLE_NAME;
 
-          SELECT CONCAT('skills_column=', COLUMN_NAME, ':', COLUMN_TYPE, ':', IS_NULLABLE)
+          SELECT CONCAT('skills_column=', COLUMN_NAME, ':', COLUMN_TYPE, ':', IS_NULLABLE, ':default=', COALESCE(COLUMN_DEFAULT, 'NULL'), ':extra=', EXTRA)
           FROM information_schema.COLUMNS
           WHERE TABLE_SCHEMA='cosmic' AND TABLE_NAME='skills'
           ORDER BY ORDINAL_POSITION;
