@@ -1,0 +1,58 @@
+name: EverLeaf QA Agents
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'database/**'
+      - 'src/main/java/**'
+      - 'src/test/**'
+      - 'tools/qa/**'
+      - '.github/workflows/everleaf-qa.yml'
+  push:
+    branches:
+      - master
+      - enhanced-dev
+      - content-dev
+      - progression-dev
+      - qa-agent-hub
+    paths:
+      - 'scripts/**'
+      - 'database/**'
+      - 'src/main/java/**'
+      - 'src/test/**'
+      - 'tools/qa/**'
+      - '.github/workflows/everleaf-qa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  static-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run QA agent hub
+        run: |
+          mkdir -p build
+          python3 tools/qa/everleaf_qa.py \
+            --json build/qa-report.json \
+            --markdown build/qa-report.md
+
+      - name: Upload QA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-qa-report
+          path: |
+            build/qa-report.json
+            build/qa-report.md
+          if-no-files-found: warn
