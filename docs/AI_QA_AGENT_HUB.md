@@ -2,7 +2,7 @@
 
 EverLeaf's QA hub is a **structured, evidence-first testing layer** inspired by the useful architectural idea in AugurMS: expose game/server knowledge through narrow purpose-built tools instead of giving an AI unrestricted control.
 
-The current implementation remains production-safe. It does not connect to live MySQL, alter player data, edit WZ content, or autonomously deploy fixes.
+The implementation is production-safe by default. Static/deep agents do not connect to live MySQL, alter player data, edit WZ content, or autonomously deploy fixes. The runtime harness added in Phase 2 refuses production and real-player accounts.
 
 ## What is implemented
 
@@ -20,113 +20,117 @@ The current implementation remains production-safe. It does not connect to live 
 
 ### Deep correlation agents
 
-`tools/qa/everleaf_deep_qa.py` adds repository-wide cross-checks that are much closer to actual game QA:
+`tools/qa/everleaf_deep_qa.py` adds repository-wide cross-checks:
 
-- **NPC Correlation** — parses server-side Map.wz NPC spawns, verifies matching Npc.wz assets, measures same-ID NPC script coverage, and identifies scripts not directly represented by current map spawns. Scriptless/orphan NPCs are REVIEW rather than automatic failures because shops, event NPCs, and decorative NPCs can be legitimate.
-- **Portal Graph** — parses map portal metadata, verifies numeric target maps, checks referenced portal scripts, checks named target portals, detects explicit self-loops, and builds an advisory reachability graph.
-- **Progression Deep Audit** — searches Java, migrations, and scripts for Rooted, Forge, Zakum, weekly, and Verdant progression surfaces and checks migration table overlap/idempotency risk.
-- **Exploit Surface Audit** — inventories trade/storage/shop/drop-related Java code and flags mutation-heavy transaction-sensitive files for manual/runtime concurrency testing.
-- **Existing NPC Spawn Auditor Integration** — CI now also runs `scripts/audit_npc_spawns.py`, which already validates NPC assets, coordinates, footholds, roaming ranges, duplicate spawn records, and reviewed legacy exceptions.
+- **NPC Correlation** — parses Map.wz NPC spawns, verifies Npc.wz assets, measures same-ID NPC script coverage, and identifies orphan numeric scripts.
+- **Portal Graph** — normalizes Maple WZ map IDs, checks target maps/portal names/scripts, self-loops, and advisory reachability.
+- **Progression Deep Audit** — searches Java, migrations, and scripts for Rooted, Forge, Zakum, weekly, and Verdant systems.
+- **Exploit Surface Audit** — inventories trade/storage/shop/drop code and flags transaction-sensitive mutation surfaces.
+- **NPC Spawn Auditor Integration** — CI also runs `scripts/audit_npc_spawns.py` for assets, coordinates, footholds, roam ranges, duplicates, and reviewed legacy exceptions.
+
+### Guarded runtime harness
+
+`tools/qa/everleaf_runtime_qa.py` is now the common runner for persistence and economy scenarios.
+
+It provides:
+
+- before/after JSON snapshots;
+- exact persistence comparison;
+- numeric asset-conservation comparison for trade/storage/shop scenarios;
+- structured PASS/REVIEW/FAIL JSON reports;
+- command adapters supplied as JSON arrays (never `shell=True`);
+- dry-run validation without executing adapter commands;
+- CI-tested safety gates.
+
+Runtime actions are allowed only when **all** of these conditions hold:
+
+1. environment is exactly `staging`, `disposable`, or `local-qa`;
+2. account name starts with `qa_` (or an explicitly configured QA prefix);
+3. `--allow-actions` is supplied;
+4. `EVERLEAF_QA_RUNTIME=I_UNDERSTAND_STAGING_ONLY` is present.
+
+`production` is rejected by code. A normal player account is rejected by code.
+
+An adapter example is in `tools/qa/runtime-adapter.example.json`. It defines snapshot and scenario commands for disconnect/reconnect, staging restart, trade roundtrip, storage roundtrip, and shop buy/sell. The actual staging adapter binaries are intentionally deployment-specific and must point at a disposable/staging server rather than production.
 
 ## CI behavior
 
-The `EverLeaf QA Agents` workflow now runs when scripts, database migrations, Java server code/tests, Map.wz, Npc.wz, or QA tooling change. It produces four artifacts:
+The `EverLeaf QA Agents` workflow runs when scripts, database migrations, Java code/tests, Map.wz, Npc.wz, or QA tooling change. CI now also runs `tools/qa/test_runtime_qa.py`, which proves the runtime harness refuses production, refuses non-QA accounts, requires an arming token, and detects persistence/conservation failures.
+
+Static/deep reports:
 
 - `qa-report.json`
 - `qa-report.md`
 - `npc-spawn-audit.json`
 - `deep-qa-report.json`
 
-Deterministic FAIL findings stop CI. REVIEW findings remain visible evidence for an AI/human tester but do not automatically modify content.
+Artifact upload is best-effort so GitHub storage-quota exhaustion does not hide the actual QA result.
 
 ## Running locally
 
 ```bash
-python3 tools/qa/everleaf_qa.py \
-  --json build/qa-report.json \
-  --markdown build/qa-report.md
+python3 tools/qa/everleaf_qa.py --json build/qa-report.json --markdown build/qa-report.md
 python3 scripts/audit_npc_spawns.py --json > build/npc-spawn-audit.json
 python3 tools/qa/everleaf_deep_qa.py --json build/deep-qa-report.json
+python3 -m unittest tools/qa/test_runtime_qa.py -v
 ```
 
-### Status meanings
+Offline persistence comparison:
 
-- **PASS** — a deterministic invariant passed.
-- **FAIL** — a deterministic invariant failed and should block the regression gate.
-- **REVIEW** — evidence requires runtime validation or human/AI judgment.
+```bash
+python3 tools/qa/everleaf_runtime_qa.py compare --before before.json --after after.json --mode persistence --json build/persistence.json
+```
 
-## Safety model
+Staging dry run (executes nothing):
 
-The current hub has no code path for:
+```bash
+python3 tools/qa/everleaf_runtime_qa.py run --environment staging --account qa_persist01 --adapter tools/qa/runtime-adapter.example.json --scenario disconnect-reconnect --mode persistence --json build/runtime.json
+```
 
-- changing live drops, shops, NPCs, maps, config, accounts, or characters;
-- connecting to production MySQL;
-- sending game packets;
-- reading `.env` files or credentials;
-- restarting production services;
-- changing payment/supporter state;
-- autonomously applying a proposed fix.
+A real staging action additionally requires `--allow-actions` and the explicit arming environment variable.
 
-This is intentional. The deterministic agents establish trustworthy evidence before we add controlled runtime capabilities.
-
-## Controlled runtime phase
-
-The next layer will run only against a dedicated QA account and staging/disposable database snapshot unless explicitly authorized otherwise.
+## Runtime scenario plan
 
 ### Persistence Bot
 
-1. Snapshot level, EXP, mesos, AP/SP, inventory, equipment, quests, and storage.
-2. Perform a controlled state change on a QA-only character.
-3. Disconnect/reconnect and compare.
-4. Restart the authorized staging game service and compare again.
-5. Report exact field/table deltas as PASS/FAIL.
+Snapshot level, EXP, mesos, AP/SP, inventory, equipment, quests, and storage, then compare across:
 
-### World Traversal Bot
+- disconnect/reconnect;
+- channel change;
+- authorized staging service restart;
+- clean logout/login.
 
-1. Consume the portal graph produced by deep QA.
-2. Prioritize starter areas, towns, job advancement, transport routes, and EverLeaf custom progression maps.
-3. Drive a QA client through selected routes.
-4. Compare observed destination/map state against static metadata.
-
-### NPC/Quest Bot
-
-1. Start from deterministic NPC spawn findings.
-2. Resolve scriptless NPCs against shop/event/decorative classifications.
-3. Exercise dialogs and quest prerequisites using a QA character.
-4. Flag missing, misplaced, unusable, or progression-blocking NPCs.
+Unexpected deltas are FAIL.
 
 ### Economy/Exploit Bot
 
-1. Use two or more QA-only clients.
-2. Snapshot total controlled items/mesos before each sequence.
-3. Exercise trade, storage, shops, drops/pickups, disconnect races, and concurrent actions.
-4. Require conservation of controlled assets unless the tested mechanic explicitly creates/destroys them.
-5. Never target real player accounts.
+Use QA-only clients and conservation snapshots around:
 
-### Progression Bot
+- trade roundtrip;
+- storage deposit/withdraw roundtrip;
+- shop buy/sell with explicitly expected cost deltas;
+- pickup/drop races;
+- disconnect during trade/storage;
+- concurrent operations.
 
-Exercise Rooted progression, Rooted Forge, Zakum requirements/rewards, weekly state, and Verdant rewards. Record pacing and exact deltas, and flag impossible requirements, loops, duplicated rewards, and anomalous resets.
+For neutral roundtrips, controlled item and meso totals must be conserved. Any unplanned positive delta is a suspected dupe; any negative delta is suspected item/meso loss.
+
+### World/NPC runtime phase
+
+The next adapter family will consume deep-QA portal/NPC evidence, prioritize starter towns/job advancement/custom EverLeaf progression, and drive a QA client through selected routes and dialogs.
 
 ## AI reviewer layer
 
-Deterministic runners remain the source of evidence. An AI reviewer may consume the JSON reports to:
-
-- group duplicate findings;
-- rank severity/player impact;
-- identify likely root causes;
-- draft GitHub issues;
-- propose fixes on a separate branch;
-- compare results across commits and identify regressions.
-
-A REVIEW finding must never become a production mutation solely because an AI inferred that it was wrong.
+Deterministic runners remain the source of evidence. An AI reviewer may group findings, rank impact, identify likely root causes, draft GitHub issues, and propose fixes on a separate branch. A REVIEW finding must never become a production mutation solely because an AI inferred it was wrong.
 
 ## Rollout
 
-1. Establish baseline static/deep QA on the active branches.
-2. Resolve deterministic FAIL findings and classify REVIEW findings.
-3. Add staging-only persistence snapshots/restart tests.
-4. Add controlled world/NPC runtime probes.
-5. Add multi-client economy/dupe probes.
-6. Add progression simulation/runtime tests.
-7. Add AI issue drafting and regression triage.
-8. Consider narrowly scoped auto-fixes only for repeatedly proven deterministic low-risk failures.
+1. Establish static/deep QA baseline.
+2. Classify legacy portal/NPC REVIEW findings.
+3. Deploy a disposable/staging QA adapter and dedicated `qa_` accounts.
+4. Run persistence reconnect/restart scenarios.
+5. Run multi-client trade/storage/shop conservation scenarios.
+6. Add world/NPC runtime probes.
+7. Add progression runtime tests.
+8. Add AI issue drafting/regression triage.
+9. Consider narrowly scoped auto-fixes only for repeatedly proven deterministic low-risk failures.
