@@ -1,0 +1,102 @@
+name: Diagnose EverLeaf character persistence
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-character-persistence-diagnostic
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inspect live save errors and schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+            set -euo pipefail
+            echo '### Game process'
+            pgrep -af 'everleaf-server.*\.jar' | sed -E 's/(password|passwd|secret|token)=[^ ]+/\1=[redacted]/Ig' || true
+
+            echo '### Recent character-save errors'
+            log_file='/opt/everleaf/current/logs/cosmic-log.log'
+            if [ -f "$log_file" ]; then
+              sudo grep -nE 'Error saving chr|SQLException|SQLSyntax|Unknown column|doesn.t exist|Data truncation|saveCharToDB' "$log_file" \
+                | tail -n 160 \
+                | sed -E 's/(Error saving chr) [^,]+/\1 [redacted]/' || true
+            else
+              echo 'game_log_present=false'
+            fi
+
+            echo '### Required characters columns'
+            sudo mysql --batch --skip-column-names cosmic <<'SQL'
+          SELECT CONCAT(COLUMN_NAME, ':', COLUMN_TYPE, ':', IS_NULLABLE)
+          FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA='cosmic'
+            AND TABLE_NAME='characters'
+            AND COLUMN_NAME IN (
+              'id','level','fame','str','dex','luk','int','exp','gachaexp','hp','mp','maxhp','maxmp',
+              'sp','ap','gm','skincolor','gender','job','hair','face','map','meso','hpMpUsed','spawnpoint',
+              'party','buddyCapacity','messengerid','messengerposition','mountlevel','mountexp','mounttiredness',
+              'equipslots','useslots','setupslots','etcslots','monsterbookcover','vanquisherStage','dojoPoints',
+              'lastDojoStage','finishedDojoTutorial','vanquisherKills','matchcardwins','matchcardlosses',
+              'matchcardties','omokwins','omoklosses','omokties','dataString','fquest','jailexpire','partnerId',
+              'marriageItemId','lastExpGainTime','ariantPoints','partySearch'
+            )
+          ORDER BY ORDINAL_POSITION;
+
+          SELECT CONCAT('required_character_columns_present=', COUNT(*))
+          FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA='cosmic'
+            AND TABLE_NAME='characters'
+            AND COLUMN_NAME IN (
+              'id','level','fame','str','dex','luk','int','exp','gachaexp','hp','mp','maxhp','maxmp',
+              'sp','ap','gm','skincolor','gender','job','hair','face','map','meso','hpMpUsed','spawnpoint',
+              'party','buddyCapacity','messengerid','messengerposition','mountlevel','mountexp','mounttiredness',
+              'equipslots','useslots','setupslots','etcslots','monsterbookcover','vanquisherStage','dojoPoints',
+              'lastDojoStage','finishedDojoTutorial','vanquisherKills','matchcardwins','matchcardlosses',
+              'matchcardties','omokwins','omoklosses','omokties','dataString','fquest','jailexpire','partnerId',
+              'marriageItemId','lastExpGainTime','ariantPoints','partySearch'
+            );
+
+          SELECT CONCAT(TABLE_NAME, ':', ENGINE)
+          FROM information_schema.TABLES
+          WHERE TABLE_SCHEMA='cosmic'
+            AND TABLE_NAME IN (
+              'characters','monsterbook','petignores','keymap','quickslotkeymapped','skillmacros','inventoryitems',
+              'inventoryequipment','skills','savedlocations','trocklocations','buddies','area_info','eventstats',
+              'queststatus','questprogress','medalmaps','family_character','storages'
+            )
+          ORDER BY TABLE_NAME;
+          SQL
+          REMOTE
