@@ -18,7 +18,9 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
-  EVERLEAF_TLS_HOST: everleafms.duckdns.org
+  EVERLEAF_TLS_HOST: everleafms.online
+  EVERLEAF_WWW_HOST: www.everleafms.online
+  EVERLEAF_LEGACY_TLS_HOST: everleafms.duckdns.org
 
 jobs:
   deploy:
@@ -69,11 +71,28 @@ jobs:
             -e 'ssh -i ~/.ssh/id_everleaf' \
             web/ "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/web/"
 
-      - name: Install, configure HTTPS, and restart
+      - name: Install, migrate domain, configure HTTPS, and restart
         run: |
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "EVERLEAF_TLS_HOST='$EVERLEAF_TLS_HOST' bash -s" <<'REMOTE'
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "EVERLEAF_TLS_HOST='$EVERLEAF_TLS_HOST' EVERLEAF_WWW_HOST='$EVERLEAF_WWW_HOST' EVERLEAF_LEGACY_TLS_HOST='$EVERLEAF_LEGACY_TLS_HOST' bash -s" <<'REMOTE'
             set -euo pipefail
             cd /opt/everleaf/web
+
+            set_env_var() {
+              local key="$1"
+              local value="$2"
+              touch .env
+              if grep -q "^${key}=" .env; then
+                sed -i "s|^${key}=.*|${key}=${value}|" .env
+              else
+                printf '%s=%s\n' "$key" "$value" >> .env
+              fi
+            }
+
+            set_env_var BASE_URL "https://$EVERLEAF_TLS_HOST"
+            set_env_var PUBLIC_BASE_URL "https://$EVERLEAF_TLS_HOST"
+            set_env_var TRUST_PROXY "1"
+            set_env_var COOKIE_SECURE "true"
+
             if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
             npm run init-db
 
@@ -96,6 +115,8 @@ jobs:
 
             sudo certbot --nginx \
               -d "$EVERLEAF_TLS_HOST" \
+              -d "$EVERLEAF_WWW_HOST" \
+              -d "$EVERLEAF_LEGACY_TLS_HOST" \
               --non-interactive \
               --agree-tos \
               --register-unsafely-without-email \
@@ -110,10 +131,12 @@ jobs:
             systemctl is-active --quiet nginx
             curl -fsS http://127.0.0.1:3000/ >/dev/null
             curl -fsS --resolve "$EVERLEAF_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_TLS_HOST/v1/launcher/status" >/dev/null
+            curl -fsS --resolve "$EVERLEAF_WWW_HOST:443:127.0.0.1" "https://$EVERLEAF_WWW_HOST/v1/launcher/status" >/dev/null
+            curl -fsS --resolve "$EVERLEAF_LEGACY_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_LEGACY_TLS_HOST/v1/launcher/status" >/dev/null
             sudo bash /opt/everleaf/web/scripts/backup-production.sh
             sudo systemctl is-enabled --quiet everleaf-backup.timer
             sudo systemctl is-active --quiet everleaf-backup.timer
-            echo 'EverLeaf web deployment and local HTTPS health check passed.'
+            echo 'EverLeaf web deployment and domain migration health checks passed.'
           REMOTE
 
       - name: Verify public HTTPS
@@ -121,5 +144,7 @@ jobs:
           set -euo pipefail
           curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_TLS_HOST/" >/dev/null
           curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_TLS_HOST/v1/launcher/status" >/dev/null
+          curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_WWW_HOST/" >/dev/null
+          curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_LEGACY_TLS_HOST/" >/dev/null
           test "$(curl --silent --output /dev/null --write-out '%{redirect_url}' --max-time 20 http://132.145.141.79/)" = "https://$EVERLEAF_TLS_HOST/"
-          echo 'EverLeaf public HTTPS is reachable.'
+          echo 'EverLeaf public HTTPS is reachable on the new domain; legacy hostname remains compatible.'
