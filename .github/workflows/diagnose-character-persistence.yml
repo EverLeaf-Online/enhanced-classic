@@ -63,7 +63,13 @@ jobs:
                 | sort || true
             fi
             echo '### Deployment files'
-            find /opt/everleaf/current -maxdepth 1 -mindepth 1 -printf '%f:%y\n' | sort
+            find -L /opt/everleaf/current -maxdepth 2 -mindepth 1 -printf '%P:%y\n' \
+              | grep -E '(^[^/]+$|\.sh$|\.service$|target/.*\.jar$)' \
+              | sort || true
+            echo '### Release layout'
+            find /opt/everleaf -maxdepth 2 -mindepth 1 -printf '%P:%y:%l\n' \
+              | grep -E '(^current:|^releases/[^/]+:|\.sh:|\.service:)' \
+              | sort || true
             if [ -d /opt/everleaf/current/.git ]; then
               printf 'deployed_revision='
               git -C /opt/everleaf/current rev-parse HEAD
@@ -147,9 +153,13 @@ jobs:
           WHERE TABLE_SCHEMA='cosmic' AND TABLE_NAME IN ('inventoryitems', 'inventoryequipment')
           ORDER BY TABLE_NAME, ORDINAL_POSITION;
 
-          SELECT CONCAT(TABLE_NAME, '_trigger=', TRIGGER_NAME, ':', ACTION_TIMING, ':', EVENT_MANIPULATION, ':', ACTION_STATEMENT)
-          FROM information_schema.TRIGGERS
-          WHERE TRIGGER_SCHEMA='cosmic' AND EVENT_OBJECT_TABLE IN ('inventoryitems', 'inventoryequipment')
-          ORDER BY EVENT_OBJECT_TABLE, TRIGGER_NAME;
+          SELECT CONCAT('forge_stage=', everleaf_forge_stage, ':equipment_count=', COUNT(*))
+          FROM inventoryequipment
+          GROUP BY everleaf_forge_stage
+          ORDER BY everleaf_forge_stage;
+
+          SELECT CONCAT('logged_in_account_count=', COUNT(*))
+          FROM accounts
+          WHERE loggedin <> 0;
           SQL
           REMOTE
