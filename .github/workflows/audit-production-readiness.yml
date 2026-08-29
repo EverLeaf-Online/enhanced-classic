@@ -70,8 +70,11 @@ jobs:
 
             systemctl is-active --quiet everleaf-web
             systemctl is-active --quiet nginx
+            systemctl is-enabled --quiet everleaf-backup.timer
+            systemctl is-active --quiet everleaf-backup.timer
             echo 'service_everleaf_web=ready'
             echo 'service_nginx=ready'
+            echo 'service_backup_timer=ready'
 
             test -s /opt/everleaf/web/.env
             test "$(stat -c '%a' /opt/everleaf/web/.env)" = '600'
@@ -94,7 +97,11 @@ jobs:
             latest_backup="$(sudo find /opt/everleaf/backups/web -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-)"
             test -n "$latest_backup"
             sudo test -s "$latest_backup/.env"
-            sudo test -d "$latest_backup/data"
+            sudo test -s "$latest_backup/cms.sqlite"
+            sudo test -s "$latest_backup/game-mysql.sql.gz"
+            sudo test -s "$latest_backup/SHA256SUMS"
+            sudo gzip -t "$latest_backup/game-mysql.sql.gz"
+            sudo sh -c "cd '$latest_backup' && sha256sum -c SHA256SUMS >/dev/null"
             backup_age="$(( $(date +%s) - $(sudo stat -c %Y "$latest_backup") ))"
             test "$backup_age" -lt 172800
             echo "web_backup_age_seconds=$backup_age"

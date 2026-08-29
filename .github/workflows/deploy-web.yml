@@ -58,7 +58,7 @@ jobs:
       - name: Backup production state
         run: |
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            'if [ -x /opt/everleaf/web/scripts/backup-production.sh ]; then sudo /opt/everleaf/web/scripts/backup-production.sh; fi'
+            'if [ -f /opt/everleaf/web/scripts/backup-production.sh ]; then sudo bash /opt/everleaf/web/scripts/backup-production.sh; fi'
 
       - name: Sync web source
         run: |
@@ -80,8 +80,12 @@ jobs:
             sudo apt-get update -y
             sudo apt-get install -y nginx certbot python3-certbot-nginx
             sudo install -m 644 /opt/everleaf/web/ops/nginx-everleaf.conf /etc/nginx/conf.d/everleaf.conf
+            sudo install -m 644 /opt/everleaf/web/ops/everleaf-backup.service /etc/systemd/system/everleaf-backup.service
+            sudo install -m 644 /opt/everleaf/web/ops/everleaf-backup.timer /etc/systemd/system/everleaf-backup.timer
             sudo rm -f /etc/nginx/sites-enabled/default
             sudo nginx -t
+            sudo systemctl daemon-reload
+            sudo systemctl enable --now everleaf-backup.timer
             sudo systemctl enable --now nginx
             sudo systemctl reload nginx
 
@@ -106,6 +110,9 @@ jobs:
             systemctl is-active --quiet nginx
             curl -fsS http://127.0.0.1:3000/ >/dev/null
             curl -fsS --resolve "$EVERLEAF_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_TLS_HOST/v1/launcher/status" >/dev/null
+            sudo bash /opt/everleaf/web/scripts/backup-production.sh
+            sudo systemctl is-enabled --quiet everleaf-backup.timer
+            sudo systemctl is-active --quiet everleaf-backup.timer
             echo 'EverLeaf web deployment and local HTTPS health check passed.'
           REMOTE
 
