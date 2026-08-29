@@ -96,7 +96,7 @@ router.get("/donate/paypal/return",async(req,res)=>{
     res.redirect("/donate?checkout=failed");
   }
 });
-router.get("/community", (req,res) => res.render("community",{settings:settings()}));
+router.get("/community", (req,res) => res.redirect(302,env.brand.discordUrl));
 router.get("/help", (req,res) => res.render("help",{settings:settings()}));
 router.get("/terms", (req,res) => res.render("terms",{settings:settings()}));
 

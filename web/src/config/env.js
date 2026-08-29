@@ -17,7 +17,7 @@ module.exports = {
     name: process.env.SERVER_NAME || "EverLeaf",
     tagline: process.env.SERVER_TAGLINE || "Enhanced Classic MapleStory",
     version: process.env.SERVER_VERSION || "v83",
-    discordUrl: process.env.DISCORD_URL || "",
+    discordUrl: process.env.DISCORD_URL || "https://discord.gg/w9ED8vtxa7",
     donationUrl: process.env.DONATION_URL || "",
     launcherUrl: process.env.LAUNCHER_DOWNLOAD_URL || "/launcher/download"
   },
