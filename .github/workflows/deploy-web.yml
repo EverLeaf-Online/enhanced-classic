@@ -117,6 +117,7 @@ jobs:
               -d "$EVERLEAF_TLS_HOST" \
               -d "$EVERLEAF_WWW_HOST" \
               -d "$EVERLEAF_LEGACY_TLS_HOST" \
+              --expand \
               --non-interactive \
               --agree-tos \
               --register-unsafely-without-email \
