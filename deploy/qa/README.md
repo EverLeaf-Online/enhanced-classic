@@ -23,7 +23,7 @@ From a clone/worktree of the `qa-agent-hub` branch:
 cp deploy/qa/.env.qa.example deploy/qa/.env.qa
 ```
 
-Generate a strong random password and place it only in `.env.qa` as `EVERLEAF_QA_DB_ROOT_PASSWORD`. The real `.env.qa` must remain uncommitted.
+Generate a strong random password and place it only in `.env.qa` as `EVERLEAF_QA_DB_ROOT_PASSWORD`. The real `.env.qa` is ignored by Git and must never be committed.
 
 Start the disposable stack:
 
@@ -48,7 +48,7 @@ deploy/qa/qa-stack.sh ports
 - `qa_peer` — second client for trade/concurrency tests
 - `qa_storage` — storage/shop conservation scenarios
 
-Do not reuse production usernames/passwords. These accounts exist only inside `everleaf-qa-db`.
+Do not reuse production usernames/passwords. These accounts exist only inside `everleaf-qa-db`. Log each account into the disposable stack once so the automatic-registration flow creates it before running DB snapshots.
 
 ## Connecting a Windows QA client
 
@@ -58,19 +58,23 @@ Because `config.yaml` advertises `127.0.0.1`, an SSH-tunnel/local-client arrange
 
 ## Runtime harness
 
-First validate a scenario without executing actions:
+The provided adapter uses `tools/qa/staging_probe.py` for read-only snapshots and restarts only the `qa-game` container.
+
+First validate the scenario without executing anything:
 
 ```bash
-python3 tools/qa/everleaf_runtime_qa.py run --environment staging --account qa_runner --adapter tools/qa/adapters/qa-staging.example.json --scenario reconnect --mode persistence --json build/runtime-qa.json
+python3 tools/qa/everleaf_runtime_qa.py run --environment staging --account qa_runner --adapter tools/qa/adapters/qa-staging.example.json --scenario restart_game --mode persistence --json build/runtime-qa.json
 ```
 
-A real action requires both `--allow-actions` and a deliberately exported arming token:
+A real persistence boundary test requires both `--allow-actions` and a deliberately exported arming token:
 
 ```bash
 export EVERLEAF_QA_RUNTIME=I_UNDERSTAND_STAGING_ONLY
+python3 tools/qa/everleaf_runtime_qa.py run --environment staging --account qa_runner --adapter tools/qa/adapters/qa-staging.example.json --scenario restart_game --mode persistence --allow-actions --json build/runtime-qa-restart.json
+unset EVERLEAF_QA_RUNTIME
 ```
 
-Do not persist that token in `.env.qa`.
+The harness snapshots the QA account/character rows, restarts only the disposable `qa-game` container, takes a second snapshot, and fails if durable state changes unexpectedly.
 
 ## Resetting the disposable DB
 
@@ -79,6 +83,7 @@ Normal `down` preserves QA data. A destructive reset is intentionally double-gat
 ```bash
 export EVERLEAF_QA_RESET=I_UNDERSTAND_QA_DATA_WILL_BE_DELETED
 deploy/qa/qa-stack.sh reset
+unset EVERLEAF_QA_RESET
 ```
 
 This removes only the `everleaf-qa` Compose volumes. It does not reference production paths or services.
