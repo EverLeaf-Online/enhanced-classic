@@ -47,6 +47,23 @@ jobs:
             set -euo pipefail
             echo '### Game process'
             pgrep -af 'everleaf-server.*\.jar' | sed -E 's/(password|passwd|secret|token)=[^ ]+/\1=[redacted]/Ig' || true
+            game_pid="$(pgrep -o -f 'everleaf-server.*\.jar' || true)"
+            if [ -n "$game_pid" ]; then
+              printf 'game_working_directory='
+              sudo readlink -f "/proc/$game_pid/cwd"
+              ps -o pid=,ppid=,lstart=,cmd= -p "$game_pid"
+              parent_pid="$(ps -o ppid= -p "$game_pid" | tr -d ' ')"
+              if [ -n "$parent_pid" ]; then
+                ps -o pid=,ppid=,lstart=,cmd= -p "$parent_pid" || true
+              fi
+              echo 'game_environment_keys:'
+              sudo tr '\0' '\n' < "/proc/$game_pid/environ" \
+                | cut -d= -f1 \
+                | grep -E '^(EVERLEAF_|DB_|JAVA_|PATH$)' \
+                | sort || true
+            fi
+            echo '### Deployment files'
+            find /opt/everleaf/current -maxdepth 1 -mindepth 1 -printf '%f:%y\n' | sort
             if [ -d /opt/everleaf/current/.git ]; then
               printf 'deployed_revision='
               git -C /opt/everleaf/current rev-parse HEAD
