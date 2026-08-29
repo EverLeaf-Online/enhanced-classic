@@ -15,7 +15,9 @@ services:
       - ../../scripts:/opt/server/scripts:ro
       - ../../wz:/opt/server/wz:ro
     environment:
-      DB_HOST: qa-db
+      EVERLEAF_DB_HOST: qa-db
+      EVERLEAF_DB_USER: root
+      EVERLEAF_DB_PASS: ${EVERLEAF_QA_DB_ROOT_PASSWORD:?set EVERLEAF_QA_DB_ROOT_PASSWORD in deploy/qa/.env.qa}
     networks:
       - everleaf-qa
     read_only: false
