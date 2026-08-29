@@ -1,0 +1,55 @@
+services:
+  qa-game:
+    build:
+      context: ../..
+    restart: unless-stopped
+    depends_on:
+      qa-db:
+        condition: service_healthy
+    ports:
+      # Loopback-only by default. Use an SSH tunnel for a Windows QA client.
+      - "127.0.0.1:${EVERLEAF_QA_LOGIN_PORT:-18484}:8484"
+      - "127.0.0.1:${EVERLEAF_QA_CHANNEL_START:-17575}-17582:7575-7582"
+    volumes:
+      - ../../config.yaml:/opt/server/config.yaml:ro
+      - ../../scripts:/opt/server/scripts:ro
+      - ../../wz:/opt/server/wz:ro
+    environment:
+      DB_HOST: qa-db
+    networks:
+      - everleaf-qa
+    read_only: false
+    security_opt:
+      - no-new-privileges:true
+
+  qa-db:
+    image: mysql:8.4.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: cosmic
+      MYSQL_ROOT_PASSWORD: ${EVERLEAF_QA_DB_ROOT_PASSWORD:?set EVERLEAF_QA_DB_ROOT_PASSWORD in deploy/qa/.env.qa}
+    # DB is never exposed publicly; optional loopback mapping is for QA snapshots only.
+    ports:
+      - "127.0.0.1:${EVERLEAF_QA_DB_PORT:-13307}:3306"
+    volumes:
+      - everleaf-qa-db:/var/lib/mysql
+      - ../../database/sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    networks:
+      - everleaf-qa
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  everleaf-qa:
+    name: everleaf-qa
+    internal: false
+
+volumes:
+  everleaf-qa-db:
+    name: everleaf-qa-db
