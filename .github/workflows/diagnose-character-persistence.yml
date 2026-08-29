@@ -51,9 +51,14 @@ jobs:
             echo '### Recent character-save errors'
             log_file='/opt/everleaf/current/logs/cosmic-log.log'
             if [ -f "$log_file" ]; then
-              sudo grep -nE 'Error saving chr|SQLException|SQLSyntax|Unknown column|doesn.t exist|Data truncation|saveCharToDB' "$log_file" \
-                | tail -n 160 \
-                | sed -E 's/(Error saving chr) [^,]+/\1 [redacted]/' || true
+              last_save_line="$(sudo grep -n 'Error saving chr' "$log_file" | tail -n 1 | cut -d: -f1 || true)"
+              if [ -n "$last_save_line" ]; then
+                end_line=$((last_save_line + 70))
+                sudo sed -n "${last_save_line},${end_line}p" "$log_file" \
+                  | sed -E 's/(Error saving chr) [^,]+/\1 [redacted]/'
+              else
+                echo 'character_save_errors=none'
+              fi
             else
               echo 'game_log_present=false'
             fi
