@@ -44,6 +44,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Test runtime QA safety gates
+        run: python3 -m unittest tools/qa/test_runtime_qa.py -v
+
       - name: Run baseline QA agent hub
         run: |
           mkdir -p build
