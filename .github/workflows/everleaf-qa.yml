@@ -7,6 +7,8 @@ on:
       - 'database/**'
       - 'src/main/java/**'
       - 'src/test/**'
+      - 'wz/Map.wz/**'
+      - 'wz/Npc.wz/**'
       - 'tools/qa/**'
       - '.github/workflows/everleaf-qa.yml'
   push:
@@ -21,6 +23,8 @@ on:
       - 'database/**'
       - 'src/main/java/**'
       - 'src/test/**'
+      - 'wz/Map.wz/**'
+      - 'wz/Npc.wz/**'
       - 'tools/qa/**'
       - '.github/workflows/everleaf-qa.yml'
 
@@ -30,7 +34,7 @@ permissions:
 jobs:
   static-qa:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,14 +44,20 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Run QA agent hub
+      - name: Run baseline QA agent hub
         run: |
           mkdir -p build
           python3 tools/qa/everleaf_qa.py \
             --json build/qa-report.json \
             --markdown build/qa-report.md
 
-      - name: Upload QA report
+      - name: Run established NPC spawn auditor
+        run: python3 scripts/audit_npc_spawns.py --json > build/npc-spawn-audit.json
+
+      - name: Run deep QA correlations
+        run: python3 tools/qa/everleaf_deep_qa.py --json build/deep-qa-report.json
+
+      - name: Upload QA reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -55,4 +65,6 @@ jobs:
           path: |
             build/qa-report.json
             build/qa-report.md
+            build/npc-spawn-audit.json
+            build/deep-qa-report.json
           if-no-files-found: warn
