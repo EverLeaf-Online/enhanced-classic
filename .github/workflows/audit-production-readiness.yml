@@ -51,6 +51,7 @@ jobs:
           scp -i ~/.ssh/id_everleaf \
             tools/everleaf-ops/verify-live-payment-readiness.js \
             tools/everleaf-ops/audit-discord-community.js \
+            tools/everleaf-ops/audit-everleaf-production.sql \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$audit_dir/"
 
       - name: Audit Oracle production state
@@ -84,15 +85,25 @@ jobs:
             test -s /opt/everleaf/patches/manifest.json
             test -s /opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip
             python3 - <<'PY'
-          import json, zipfile
+          import hashlib, json, pathlib, zipfile
           manifest = json.load(open('/opt/everleaf/patches/manifest.json'))
           paths = [str(item.get('path', '')).lower() for item in manifest.get('files', [])]
           assert len(paths) == 36 and len(set(paths)) == 36
           with zipfile.ZipFile('/opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip') as archive:
               files = [name for name in archive.namelist() if not name.endswith('/')]
           assert files == ['EverLeafLauncher.exe'], files
+          launcher = manifest.get('launcher')
+          assert launcher and launcher.get('url') == '/launcher/download'
+          archive = pathlib.Path('/opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip')
+          version = pathlib.Path('/opt/everleaf/patches/downloads/EverLeafLauncher-version.txt').read_text().strip()
+          with archive.open('rb') as stream:
+              digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+          assert launcher.get('version') == version
+          assert launcher.get('sha256') == digest
+          assert launcher.get('size') == archive.stat().st_size
           print('launcher_manifest_files=36')
           print('launcher_archive=single_executable')
+          print('launcher_self_update_metadata=verified')
           PY
 
             latest_backup="$(sudo find /opt/everleaf/backups/web -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-)"
@@ -121,6 +132,9 @@ jobs:
             ss -ltn | awk '{print $4}' | grep -Eq '(^|:)7575$'
             echo 'game_login_port=ready'
             echo 'game_channel_port=ready'
+
+            sudo mysql --batch --skip-column-names cosmic < \
+              "$audit_dir/audit-everleaf-production.sql"
 
             sudo node "$audit_dir/verify-live-payment-readiness.js" \
               /opt/everleaf/web /opt/everleaf/web/.env
