@@ -9,7 +9,11 @@ namespace EverLeaf.Launcher;
 
 public sealed record ServerStatus(bool Online, string Message, string Version);
 public sealed record PatchEntry(string Path, string Url, string Sha256, long Size);
-public sealed record PatchManifest(string Version, IReadOnlyList<PatchEntry> Files);
+public sealed record LauncherRelease(string Version, string Url, string Sha256, long Size);
+public sealed record PatchManifest(
+    string Version,
+    IReadOnlyList<PatchEntry> Files,
+    LauncherRelease? Launcher = null);
 public sealed record SignedManifest(string Payload, string Signature);
 
 public sealed class InsufficientDiskSpaceException(string message) : IOException(message);
@@ -87,29 +91,7 @@ public sealed class PatchService : IDisposable
         CancellationToken cancellationToken)
     {
         progress.Report((0, "Getting EverLeaf update manifest…"));
-        var envelopeJson = await _http.GetStringAsync(LauncherConfiguration.ManifestUri, cancellationToken);
-        var envelope = JsonSerializer.Deserialize<SignedManifest>(envelopeJson, SerializerOptions)
-                       ?? throw new InvalidOperationException("Invalid patch manifest envelope.");
-
-        if (string.IsNullOrWhiteSpace(envelope.Payload) || string.IsNullOrWhiteSpace(envelope.Signature))
-            throw new InvalidOperationException("Patch manifest envelope is incomplete.");
-
-        byte[] payload;
-        byte[] signature;
-        try
-        {
-            payload = Convert.FromBase64String(envelope.Payload);
-            signature = Convert.FromBase64String(envelope.Signature);
-        }
-        catch (FormatException ex)
-        {
-            throw new InvalidOperationException("Patch manifest encoding is invalid.", ex);
-        }
-
-        VerifySignature(payload, signature, LauncherConfiguration.ManifestPublicKeyPem);
-        var manifest = JsonSerializer.Deserialize<PatchManifest>(payload, SerializerOptions)
-                       ?? throw new InvalidOperationException("Invalid patch manifest.");
-        ValidateManifest(manifest);
+        var manifest = await GetVerifiedManifestAsync(cancellationToken);
         progress.Report((0, "Checking available disk space…"));
         EnsureInstallSpace(manifest);
 
@@ -139,6 +121,34 @@ public sealed class PatchService : IDisposable
 
         RemoveLegacyGameExecutable();
         progress.Report((100, $"EverLeaf is up to date — {manifest.Version}"));
+    }
+
+    internal async Task<PatchManifest> GetVerifiedManifestAsync(CancellationToken cancellationToken)
+    {
+        var envelopeJson = await _http.GetStringAsync(LauncherConfiguration.ManifestUri, cancellationToken);
+        var envelope = JsonSerializer.Deserialize<SignedManifest>(envelopeJson, SerializerOptions)
+                       ?? throw new InvalidOperationException("Invalid patch manifest envelope.");
+
+        if (string.IsNullOrWhiteSpace(envelope.Payload) || string.IsNullOrWhiteSpace(envelope.Signature))
+            throw new InvalidOperationException("Patch manifest envelope is incomplete.");
+
+        byte[] payload;
+        byte[] signature;
+        try
+        {
+            payload = Convert.FromBase64String(envelope.Payload);
+            signature = Convert.FromBase64String(envelope.Signature);
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidOperationException("Patch manifest encoding is invalid.", ex);
+        }
+
+        VerifySignature(payload, signature, LauncherConfiguration.ManifestPublicKeyPem);
+        var manifest = JsonSerializer.Deserialize<PatchManifest>(payload, SerializerOptions)
+                       ?? throw new InvalidOperationException("Invalid patch manifest.");
+        ValidateManifest(manifest);
+        return manifest;
     }
 
     internal void RemoveLegacyGameExecutable()
@@ -289,6 +299,21 @@ public sealed class PatchService : IDisposable
             throw new InvalidOperationException(
                 $"Patch manifest does not contain the complete EverLeaf client. Missing: [{string.Join(", ", missing)}]; unexpected: [{string.Join(", ", unexpected)}].");
         }
+
+        if (manifest.Launcher is not null)
+            ValidateLauncherRelease(manifest.Launcher);
+    }
+
+    internal static void ValidateLauncherRelease(LauncherRelease release)
+    {
+        if (string.IsNullOrWhiteSpace(release.Version) || release.Version.Length > 128)
+            throw new InvalidOperationException("Launcher release has an invalid version.");
+        if (release.Url != "/launcher/download")
+            throw new InvalidOperationException("Launcher release URL is outside the EverLeaf launcher service.");
+        if (release.Size <= 0 || release.Size > 512L * 1024 * 1024)
+            throw new InvalidOperationException("Launcher release has an invalid size.");
+        if (release.Sha256?.Length != 64 || !release.Sha256.All(Uri.IsHexDigit))
+            throw new InvalidOperationException("Launcher release has an invalid SHA-256.");
     }
 
     private string ResolveSafePath(string relativePath)

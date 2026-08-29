@@ -8,6 +8,8 @@ const patchRoot = path.resolve(process.env.LAUNCHER_PATCH_ROOT || "/opt/everleaf
 const filesRoot = path.join(patchRoot, "files");
 const baselinePath = path.resolve(process.env.LAUNCHER_BASELINE_PATH || path.join(patchRoot, "managed-client-baseline.json"));
 const manifestPath = path.resolve(process.env.LAUNCHER_MANIFEST_PATH || path.join(patchRoot, "manifest.json"));
+const portablePath = path.resolve(process.env.LAUNCHER_PORTABLE_PATH || path.join(patchRoot, "downloads", "EverLeafLauncher-portable.zip"));
+const launcherVersionPath = path.resolve(process.env.LAUNCHER_VERSION_PATH || path.join(patchRoot, "downloads", "EverLeafLauncher-version.txt"));
 const version = process.argv[2] || process.env.PATCH_VERSION || new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
 const SHA256 = /^[a-f0-9]{64}$/;
 
@@ -78,12 +80,35 @@ async function main() {
   if (missing.length) throw new Error(`Patch payload is missing managed files: ${missing.join(", ")}`);
   if (!version || typeof version !== "string") throw new Error("Patch version is invalid.");
 
-  const manifest = {version, files};
+  let launcher;
+  if (await exists(portablePath) || await exists(launcherVersionPath)) {
+    if (!await exists(portablePath) || !await exists(launcherVersionPath))
+      throw new Error("Launcher release metadata is incomplete.");
+    const launcherVersion = (await fsp.readFile(launcherVersionPath, "utf8")).trim();
+    if (!/^[A-Za-z0-9._+-]{1,128}$/.test(launcherVersion))
+      throw new Error("Launcher release version is invalid.");
+    const stat = await fsp.stat(portablePath);
+    if (!Number.isSafeInteger(stat.size) || stat.size <= 0 || stat.size > 512 * 1024 * 1024)
+      throw new Error("Launcher release size is invalid.");
+    launcher = {
+      version: launcherVersion,
+      url: "/launcher/download",
+      sha256: await sha256(portablePath),
+      size: stat.size
+    };
+  }
+
+  const manifest = launcher ? {version, files, launcher} : {version, files};
   const tmp = manifestPath + ".new";
   await fsp.mkdir(path.dirname(manifestPath), {recursive: true});
   await fsp.writeFile(tmp, JSON.stringify(manifest, null, 2) + "\n", {encoding: "utf8", mode: 0o644});
   await fsp.rename(tmp, manifestPath);
   console.log(`Published EverLeaf patch manifest ${version}: ${files.length}/${allowed.size} managed files`);
+}
+
+async function exists(file) {
+  try { await fsp.access(file, fs.constants.R_OK); return true; }
+  catch { return false; }
 }
 
 main().catch(error => { console.error(error.stack || error); process.exitCode = 1; });

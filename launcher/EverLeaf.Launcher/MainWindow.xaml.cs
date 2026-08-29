@@ -24,6 +24,22 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        try
+        {
+            PatchStatusText.Text = "Checking for launcher updates…";
+            using var updater = new LauncherUpdateService(_gameDirectory);
+            if (await updater.TryBeginUpdateAsync(CancellationToken.None))
+            {
+                PatchStatusText.Text = "Restarting the updated launcher…";
+                Application.Current.Shutdown();
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorText.Text = $"Launcher update check failed: {FriendlyError(ex)}";
+        }
+
         var gameExists = File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable))
                          || File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.LegacyGameExecutable));
         if (!gameExists)

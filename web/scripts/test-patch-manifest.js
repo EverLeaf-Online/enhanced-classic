@@ -6,7 +6,7 @@ const {spawnSync} = require("child_process");
 
 const generator = path.resolve(__dirname, "build-patch-manifest.js");
 
-function runCase(name, managedFiles, payload, shouldPass) {
+function runCase(name, managedFiles, payload, shouldPass, launcher = null) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `everleaf-${name}-`));
   const files = path.join(root, "files");
   fs.mkdirSync(files, {recursive: true});
@@ -17,10 +17,18 @@ function runCase(name, managedFiles, payload, shouldPass) {
   }
   const baseline = path.join(root, "baseline.json");
   fs.writeFileSync(baseline, JSON.stringify({schemaVersion: 1, managedFiles}));
+  const portable = path.join(root, "downloads", "EverLeafLauncher-portable.zip");
+  const launcherVersion = path.join(root, "downloads", "EverLeafLauncher-version.txt");
+  if (launcher) {
+    fs.mkdirSync(path.dirname(portable), {recursive: true});
+    if (launcher.archive !== undefined) fs.writeFileSync(portable, launcher.archive);
+    if (launcher.version !== undefined) fs.writeFileSync(launcherVersion, launcher.version);
+  }
   const result = spawnSync(process.execPath, [generator, "test"], {
     encoding: "utf8",
     env: {...process.env, LAUNCHER_PATCH_ROOT: root, LAUNCHER_BASELINE_PATH: baseline,
-      LAUNCHER_MANIFEST_PATH: path.join(root, "manifest.json")}
+      LAUNCHER_MANIFEST_PATH: path.join(root, "manifest.json"), LAUNCHER_PORTABLE_PATH: portable,
+      LAUNCHER_VERSION_PATH: launcherVersion}
   });
   fs.rmSync(root, {recursive: true, force: true});
   if ((result.status === 0) !== shouldPass)
@@ -28,6 +36,12 @@ function runCase(name, managedFiles, payload, shouldPass) {
 }
 
 runCase("valid", [{path: "Data/a.bin", redistributable: true}], {"Data/a.bin": "data"}, true);
+runCase("valid-launcher", [{path: "a.bin", redistributable: true}], {"a.bin": "data"}, true,
+  {archive: "portable launcher", version: "0123456789abcdef0123456789abcdef01234567"});
+runCase("missing-launcher-version", [{path: "a.bin", redistributable: true}], {"a.bin": "data"}, false,
+  {archive: "portable launcher"});
+runCase("unsafe-launcher-version", [{path: "a.bin", redistributable: true}], {"a.bin": "data"}, false,
+  {archive: "portable launcher", version: "bad version/../../"});
 runCase("empty", [], {}, false);
 runCase("traversal", [{path: "../a.bin", redistributable: true}], {"a.bin": "data"}, false);
 runCase("duplicate-case", [

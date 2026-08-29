@@ -13,7 +13,7 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
-  EVERLEAF_PUBLIC_BASE: https://everleafms.duckdns.org
+  EVERLEAF_PUBLIC_BASE: https://everleafms.online
 
 jobs:
   build:
@@ -31,6 +31,7 @@ jobs:
           dotnet restore launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj
           dotnet publish launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj `
             --configuration Release --runtime win-x64 --self-contained true `
+            -p:InformationalVersion=$env:GITHUB_SHA `
             --output launcher-publish
           if (-not (Test-Path 'launcher-publish/EverLeafLauncher.exe')) { throw 'Launcher executable missing' }
 
@@ -185,6 +186,11 @@ jobs:
             mv /opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip.new \
                /opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip
             chmod 644 /opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip
+            printf '%s\n' '${{ github.sha }}' > \
+              /opt/everleaf/patches/downloads/EverLeafLauncher-version.txt.new
+            mv /opt/everleaf/patches/downloads/EverLeafLauncher-version.txt.new \
+              /opt/everleaf/patches/downloads/EverLeafLauncher-version.txt
+            chmod 644 /opt/everleaf/patches/downloads/EverLeafLauncher-version.txt
             cd /opt/everleaf/web
             npm run build-patch-manifest
             python3 -c 'import json; m=json.load(open("/opt/everleaf/patches/manifest.json")); b=json.load(open("/opt/everleaf/patches/managed-client-baseline.json")); files=m.get("files"); expected={f["path"].lower() for f in b["managedFiles"]}; actual={f["path"].lower() for f in files}; assert actual==expected and len(actual)==36, f"Manifest/baseline mismatch: {actual} != {expected}"; print(f"PATCH_AUDIT version={m[chr(118)+chr(101)+chr(114)+chr(115)+chr(105)+chr(111)+chr(110)]} managed={len(files)}")'
@@ -215,6 +221,10 @@ jobs:
           pathlib.Path('/tmp/manifest-signature.bin').write_bytes(base64.b64decode(envelope['signature']))
           files=payload.get('files')
           assert isinstance(files, list) and files
+          launcher=payload.get('launcher')
+          assert launcher and launcher.get('version') == '${{ github.sha }}'
+          assert launcher.get('url') == '/launcher/download'
+          assert len(launcher.get('sha256', '')) == 64 and launcher.get('size', 0) > 0
           baseline=json.load(open('client/managed-client-baseline.json'))
           expected={f['path'].lower() for f in baseline['managedFiles']}
           paths={str(f.get('path','')).lower() for f in files}
@@ -236,4 +246,8 @@ jobs:
             curl --fail --silent --show-error --location --max-time 30 --range 0-0 \
               "$EVERLEAF_PUBLIC_BASE$patch_url" >/dev/null
           done < /tmp/managed-urls.txt
+          launcher_url="$(python3 -c 'import json; print(json.load(open("/tmp/manifest-payload.json"))["launcher"]["url"])')"
+          test "$launcher_url" = '/launcher/download'
+          curl --fail --silent --show-error --location --max-time 30 --range 0-0 \
+            "$EVERLEAF_PUBLIC_BASE$launcher_url" >/dev/null
           echo 'Public HTTPS launcher endpoints and patch payload verified.'

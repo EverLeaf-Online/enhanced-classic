@@ -12,6 +12,8 @@ the launcher becomes the game directory.
 5. It downloads all 36 required files and verifies each one before replacement.
 6. Existing installations automatically check every file by size and streaming SHA-256.
 7. After all required files match production, Play starts `EverLeaf.exe`.
+8. Future launcher releases update automatically from the RSA-signed manifest,
+   verify the portable archive with SHA-256, and restart into the new version.
 
 The complete managed set is declared in `client/managed-client-baseline.json`.
 It includes all WZ files, EverLeaf.exe, required DLL/ACM runtime files, and
@@ -25,12 +27,16 @@ so the game-file patcher never attempts to replace itself.
 - Absolute paths, traversal, duplicate paths, and external download URLs are rejected.
 - Every local and downloaded file is checked with streaming SHA-256.
 - The manifest must pass RSA-PSS verification before any file is changed.
+- Launcher updates are accepted only from `/launcher/download` on EverLeaf's
+  production HTTPS origin and must match signed version, size, and SHA-256 metadata.
 - Downloads must use EverLeaf's production HTTPS origin.
 - The manifest signing private key stays only on the production server.
 
 ## Release model
 
 - `EverLeafLauncher-portable.zip` is the single player-facing bootstrap download.
+- Each published launcher embeds its source revision as its version. The server
+  publishes that revision and the portable archive identity in the signed manifest.
 - `/patches/<file>` holds repair copies of every file in the managed baseline.
 - `/v1/launcher/manifest` returns the signed production file identities.
 
