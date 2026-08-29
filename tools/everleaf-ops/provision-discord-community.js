@@ -78,8 +78,15 @@ async function ensureChannel(channels, spec) {
   return { channel, created };
 }
 
-async function post(channelId, content) {
-  await discord(`/channels/${channelId}/messages`, { method: "POST", body: JSON.stringify({ content, allowed_mentions: { parse: [] } }) });
+async function ensureBotMessage(channelId, botId, marker, content) {
+  const messages = await discord(`/channels/${channelId}/messages?limit=100`);
+  const existing = messages.find((message) => message.author?.id === botId && message.content.includes(marker));
+  const body = JSON.stringify({ content, allowed_mentions: { parse: [] } });
+  if (!existing) {
+    await discord(`/channels/${channelId}/messages`, { method: "POST", body });
+  } else if (existing.content !== content) {
+    await discord(`/channels/${channelId}/messages/${existing.id}`, { method: "PATCH", body });
+  }
 }
 
 (async () => {
@@ -150,13 +157,13 @@ async function post(channelId, content) {
   if (existingGeneralVoice && existingGeneralVoice.parent_id !== categories.voice.id) await discord(`/channels/${existingGeneralVoice.id}`, { method: "PATCH", body: JSON.stringify({ parent_id: categories.voice.id }) });
   for (const name of ["Party 1", "Party 2", "Bossing", "AFK"]) await ensureChannel(channels, { name, type: 2, parent_id: categories.voice.id });
 
-  if (created.get("welcome")?.created) await post(created.get("welcome").channel.id, "# Welcome to EverLeaf 🍃\nEnhanced Classic MapleStory v83 with thoughtful quality-of-life improvements, long-term progression, and a strict no-pay-to-win policy. Start with #rules, then visit #downloads-and-links.");
-  if (created.get("rules")?.created) await post(created.get("rules").channel.id, "# EverLeaf Community Rules\n1. Be respectful; harassment, hate speech, threats, and targeted abuse are not allowed.\n2. No cheating, exploiting, botting, real-money trading, or distributing malicious files.\n3. Keep account credentials private. Staff will never ask for your password.\n4. Use the appropriate channels and avoid spam or disruptive advertising.\n5. Report exploits privately to staff; do not publish reproduction steps.\n6. Follow staff direction and the website Terms of Service. Enforcement may include message removal, timeout, removal, or an in-game sanction.");
-  if (created.get("downloads-and-links")?.created) await post(created.get("downloads-and-links").channel.id, "# Official EverLeaf Links\nWebsite: https://everleafms.online\nDownloads and launcher: https://everleafms.online/downloads\nAccount and Discord linking: https://everleafms.online/account\nOnly use files published through the official website and launcher.");
-  if (created.get("announcements")?.created) await post(created.get("announcements").channel.id, "Official EverLeaf announcements will be published here. Enable channel notifications if you want launch, maintenance, and event updates.");
-  if (created.get("server-status")?.created) await post(created.get("server-status").channel.id, "Server availability and planned maintenance notices will appear here. Live status is also available at https://everleafms.online.");
-  if (created.get("patch-notes")?.created) await post(created.get("patch-notes").channel.id, "EverLeaf gameplay, website, and launcher patch notes will be published here.");
-  if (created.get("bug-reports")?.created) await post(created.get("bug-reports").channel.id, "When reporting a bug, include what happened, what you expected, the character/map involved, steps to reproduce, and a screenshot if safe. Never post passwords, tokens, private account data, or exploit instructions.");
+  await ensureBotMessage(created.get("welcome").channel.id, bot.id, "# Welcome to EverLeaf", "# Welcome to EverLeaf 🍃\nEnhanced Classic MapleStory v83 with thoughtful quality-of-life improvements, long-term progression, and a strict no-pay-to-win policy. Start with #rules, then visit #downloads-and-links.");
+  await ensureBotMessage(created.get("rules").channel.id, bot.id, "# EverLeaf Community Rules", "# EverLeaf Community Rules\n1. Be respectful; harassment, hate speech, threats, and targeted abuse are not allowed.\n2. No cheating, exploiting, botting, real-money trading, or distributing malicious files.\n3. Keep account credentials private. Staff will never ask for your password.\n4. Use the appropriate channels and avoid spam or disruptive advertising.\n5. Report exploits privately to staff; do not publish reproduction steps.\n6. Follow staff direction and the website Terms of Service. Enforcement may include message removal, timeout, removal, or an in-game sanction.");
+  await ensureBotMessage(created.get("downloads-and-links").channel.id, bot.id, "# Official EverLeaf Links", "# Official EverLeaf Links\nWebsite: https://everleafms.online\nDownloads and launcher: https://everleafms.online/downloads\nAccount and Discord linking: https://everleafms.online/account\nOnly use files published through the official website and launcher.");
+  await ensureBotMessage(created.get("announcements").channel.id, bot.id, "Official EverLeaf announcements", "Official EverLeaf announcements will be published here. Enable channel notifications if you want launch, maintenance, and event updates.");
+  await ensureBotMessage(created.get("server-status").channel.id, bot.id, "Server availability and planned maintenance", "Server availability and planned maintenance notices will appear here. Live status is also available at https://everleafms.online.");
+  await ensureBotMessage(created.get("patch-notes").channel.id, bot.id, "EverLeaf gameplay, website, and launcher patch notes", "EverLeaf gameplay, website, and launcher patch notes will be published here.");
+  await ensureBotMessage(created.get("bug-reports").channel.id, bot.id, "When reporting a bug", "When reporting a bug, include what happened, what you expected, the character/map involved, steps to reproduce, and a screenshot if safe. Never post passwords, tokens, private account data, or exploit instructions.");
 
   console.log(`discord_roles_ready=true`);
   console.log(`discord_categories_ready=${Object.keys(categories).length}`);

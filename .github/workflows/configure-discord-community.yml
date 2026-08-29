@@ -1,0 +1,72 @@
+name: Configure EverLeaf Discord community
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-discord-community
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage Discord community tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          discord_dir="/tmp/everleaf-discord-$GITHUB_RUN_ID"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "install -d -m 700 '$discord_dir'"
+          scp -i ~/.ssh/id_everleaf \
+            tools/everleaf-ops/provision-discord-community.js \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$discord_dir/"
+
+      - name: Reconcile Discord roles, channels, and official messages
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "DISCORD_RUN_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE'
+            set -euo pipefail
+            case "$DISCORD_RUN_ID" in (*[!0-9]*|'') exit 2;; esac
+            discord_dir="/tmp/everleaf-discord-$DISCORD_RUN_ID"
+            test "$discord_dir" = "/tmp/everleaf-discord-$DISCORD_RUN_ID"
+            cleanup() {
+              find "$discord_dir" -mindepth 1 -maxdepth 1 -type f -delete 2>/dev/null || true
+              rmdir "$discord_dir" 2>/dev/null || true
+            }
+            trap cleanup EXIT
+
+            test -s /etc/everleaf/discord-bot.env
+            test "$(stat -c '%a' /etc/everleaf/discord-bot.env)" = '600'
+            sudo node "$discord_dir/provision-discord-community.js" /etc/everleaf/discord-bot.env
+          REMOTE
