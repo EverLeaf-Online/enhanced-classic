@@ -7,7 +7,8 @@ let text = fs.readFileSync(envPath, "utf8");
 const env = parse(text);
 if (!env.STRIPE_LIVE_SECRET_KEY) throw new Error("Stripe live secret key is missing.");
 
-const endpointUrl = "https://everleafms.duckdns.org/webhooks/stripe";
+const endpointUrl = "https://everleafms.online/webhooks/stripe";
+const legacyEndpointUrl = "https://everleafms.duckdns.org/webhooks/stripe";
 const requiredEvents = ["checkout.session.completed", "charge.refunded"];
 async function request(path, options = {}) {
   const response = await fetch(`https://api.stripe.com${path}`, { ...options, headers: { Authorization: `Bearer ${env.STRIPE_LIVE_SECRET_KEY}`, ...(options.headers || {}) } });
@@ -17,7 +18,7 @@ async function request(path, options = {}) {
 
 (async () => {
   const listed = await request("/v1/webhook_endpoints?limit=100");
-  const existing = (listed.data || []).find((item) => item.url === endpointUrl && item.status === "enabled");
+  const existing = (listed.data || []).find((item) => [endpointUrl,legacyEndpointUrl].includes(item.url) && item.status === "enabled");
   let webhookSecret = env.STRIPE_LIVE_WEBHOOK_SECRET || "";
   if (!existing) {
     const body = new URLSearchParams();
@@ -28,8 +29,9 @@ async function request(path, options = {}) {
     webhookSecret = created.secret;
   } else {
     if (!webhookSecret) throw new Error("A live Stripe webhook already exists, but its signing secret is not installed.");
-    if (!requiredEvents.every((event) => existing.enabled_events.includes(event))) {
+    if (existing.url !== endpointUrl || !requiredEvents.every((event) => existing.enabled_events.includes(event))) {
       const body = new URLSearchParams();
+      body.set("url", endpointUrl);
       for (const event of requiredEvents) body.append("enabled_events[]", event);
       await request(`/v1/webhook_endpoints/${encodeURIComponent(existing.id)}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
     }

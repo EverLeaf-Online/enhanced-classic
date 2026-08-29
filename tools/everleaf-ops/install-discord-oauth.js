@@ -12,7 +12,7 @@ const values = {
   DISCORD_CLIENT_ID: "1542634637862633602",
   DISCORD_CLIENT_SECRET: secret,
   DISCORD_GUILD_ID: "1542634066451365889",
-  DISCORD_REDIRECT_URI: "https://everleafms.duckdns.org/account/discord/callback",
+  DISCORD_REDIRECT_URI: "https://everleafms.online/account/discord/callback",
 };
 for (const [key, value] of Object.entries(values)) {
   const line = `${key}=${value}`;

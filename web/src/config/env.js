@@ -64,7 +64,7 @@ module.exports = {
     botToken: process.env.DISCORD_BOT_TOKEN || "",
     guildId: process.env.DISCORD_GUILD_ID || "",
     supporterRoleId: process.env.DISCORD_SUPPORTER_ROLE_ID || "",
-    redirectUri: process.env.DISCORD_REDIRECT_URI || "https://everleafms.duckdns.org/account/discord/callback"
+    redirectUri: process.env.DISCORD_REDIRECT_URI || "https://everleafms.online/account/discord/callback"
   },
 
   payments: {

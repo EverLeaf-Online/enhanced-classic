@@ -13,12 +13,12 @@ async function json(url, options = {}) {
 (async () => {
   const stripe = await json("https://api.stripe.com/v1/webhook_endpoints?limit=100", { headers: { Authorization: `Bearer ${values.STRIPE_LIVE_SECRET_KEY}` } });
   const stripeEvents = ["checkout.session.completed", "charge.refunded"];
-  const stripeReady = (stripe.data || []).some((item) => item.url === "https://everleafms.duckdns.org/webhooks/stripe" && item.status === "enabled" && stripeEvents.every((event) => item.enabled_events.includes(event)));
+  const stripeReady = (stripe.data || []).some((item) => item.url === "https://everleafms.online/webhooks/stripe" && item.status === "enabled" && stripeEvents.every((event) => item.enabled_events.includes(event)));
 
   const auth = await json("https://api-m.paypal.com/v1/oauth2/token", { method: "POST", headers: { Authorization: `Basic ${Buffer.from(`${values.PAYPAL_LIVE_CLIENT_ID}:${values.PAYPAL_LIVE_CLIENT_SECRET}`).toString("base64")}`, "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=client_credentials" });
   const paypal = await json("https://api-m.paypal.com/v1/notifications/webhooks", { headers: { Authorization: `Bearer ${auth.access_token}` } });
   const paypalEvents = ["PAYMENT.CAPTURE.COMPLETED", "PAYMENT.CAPTURE.REFUNDED"];
-  const paypalReady = (paypal.webhooks || []).some((item) => item.id === values.PAYPAL_LIVE_WEBHOOK_ID && item.url === "https://everleafms.duckdns.org/webhooks/paypal" && paypalEvents.every((name) => item.event_types.some((event) => event.name === name)));
+  const paypalReady = (paypal.webhooks || []).some((item) => item.id === values.PAYPAL_LIVE_WEBHOOK_ID && item.url === "https://everleafms.online/webhooks/paypal" && paypalEvents.every((name) => item.event_types.some((event) => event.name === name)));
 
   console.log(`stripe_environment=${values.STRIPE_ENVIRONMENT}`);
   console.log(`stripe_live_ready=${stripeReady}`);

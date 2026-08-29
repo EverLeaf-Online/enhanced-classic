@@ -13,7 +13,8 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
-  EVERLEAF_PUBLIC_BASE: https://everleafms.duckdns.org
+  EVERLEAF_PUBLIC_BASE: https://everleafms.online
+  EVERLEAF_TLS_HOST: everleafms.online
 
 jobs:
   audit:
@@ -110,8 +111,10 @@ jobs:
             test "$disk_percent" -lt 90
             echo "oracle_disk_used_percent=$disk_percent"
 
-            sudo openssl x509 -checkend 604800 -noout \
-              -in /etc/letsencrypt/live/everleafms.duckdns.org/fullchain.pem
+            certificate_path="$(sudo find /etc/letsencrypt/live -name fullchain.pem -print -quit)"
+            test -n "$certificate_path"
+            sudo openssl x509 -checkend 604800 -noout -in "$certificate_path"
+            sudo openssl x509 -checkhost everleafms.online -noout -in "$certificate_path"
             echo 'tls_certificate_next_7_days=ready'
 
             ss -ltn | awk '{print $4}' | grep -Eq '(^|:)8484$'

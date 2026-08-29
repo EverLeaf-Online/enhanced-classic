@@ -7,7 +7,8 @@ let text = fs.readFileSync(envPath, "utf8");
 const env = parse(text);
 if (!env.PAYPAL_LIVE_CLIENT_ID || !env.PAYPAL_LIVE_CLIENT_SECRET) throw new Error("PayPal live credentials are missing.");
 
-const endpointUrl = "https://everleafms.duckdns.org/webhooks/paypal";
+const endpointUrl = "https://everleafms.online/webhooks/paypal";
+const legacyEndpointUrl = "https://everleafms.duckdns.org/webhooks/paypal";
 const requiredEvents = ["PAYMENT.CAPTURE.COMPLETED", "PAYMENT.CAPTURE.REFUNDED"];
 async function request(path, options = {}) {
   const response = await fetch(`https://api-m.paypal.com${path}`, options);
@@ -23,14 +24,16 @@ async function request(path, options = {}) {
   });
   const headers = { Authorization: `Bearer ${auth.access_token}`, "Content-Type": "application/json" };
   const existing = await request("/v1/notifications/webhooks", { headers });
-  let webhook = (existing.webhooks || []).find((item) => item.url === endpointUrl);
+  let webhook = (existing.webhooks || []).find((item) => [endpointUrl,legacyEndpointUrl].includes(item.url));
   if (!webhook) {
     webhook = await request("/v1/notifications/webhooks", { method: "POST", headers, body: JSON.stringify({ url: endpointUrl, event_types: requiredEvents.map((name) => ({name})) }) });
-  } else if (!requiredEvents.every((name) => webhook.event_types.some((event) => event.name === name))) {
+  } else if (webhook.url !== endpointUrl || !requiredEvents.every((name) => webhook.event_types.some((event) => event.name === name))) {
+    const changes = [{op:"replace",path:"/event_types",value:requiredEvents.map((name)=>({name}))}];
+    if (webhook.url !== endpointUrl) changes.unshift({op:"replace",path:"/url",value:endpointUrl});
     await request(`/v1/notifications/webhooks/${encodeURIComponent(webhook.id)}`, {
       method: "PATCH",
       headers,
-      body: JSON.stringify([{op:"replace",path:"/event_types",value:requiredEvents.map((name)=>({name}))}]),
+      body: JSON.stringify(changes),
     });
   }
 

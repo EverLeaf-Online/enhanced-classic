@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 
-const baseUrl = "https://everleafms.duckdns.org";
+const baseUrl = "https://everleafms.online";
 const username = `e2e${Date.now().toString(36)}`.slice(0, 13);
 const email = `${username}@example.invalid`;
 const originalPassword = crypto.randomBytes(9).toString("base64url");

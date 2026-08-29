@@ -90,6 +90,7 @@ jobs:
 
             set_env_var BASE_URL "https://$EVERLEAF_TLS_HOST"
             set_env_var PUBLIC_BASE_URL "https://$EVERLEAF_TLS_HOST"
+            set_env_var DISCORD_REDIRECT_URI "https://$EVERLEAF_TLS_HOST/account/discord/callback"
             set_env_var TRUST_PROXY "1"
             set_env_var COOKIE_SECURE "true"
 
