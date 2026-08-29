@@ -68,7 +68,7 @@ public class Equip extends Item {
     }
 
     private byte upgradeSlots;
-    private byte level, itemLevel;
+    private byte level, itemLevel, everleafForgeStage;
     private short flag;
     private short str, dex, _int, luk, hp, mp, watk, matk, wdef, mdef, acc, avoid, hands, speed, jump, vicious;
     private float itemExp;
@@ -113,6 +113,7 @@ public class Equip extends Item {
         ret.itemLevel = itemLevel;
         ret.itemExp = itemExp;
         ret.level = level;
+        ret.everleafForgeStage = everleafForgeStage;
         ret.itemLog = new LinkedList<>(itemLog);
         ret.setOwner(getOwner());
         ret.setQuantity(getQuantity());
@@ -278,6 +279,17 @@ public class Equip extends Item {
 
     public void setLevel(byte level) {
         this.level = level;
+    }
+
+    public byte getEverleafForgeStage() {
+        return everleafForgeStage;
+    }
+
+    public void setEverleafForgeStage(byte everleafForgeStage) {
+        if (everleafForgeStage < 0) {
+            throw new IllegalArgumentException("Everleaf forge stage cannot be negative");
+        }
+        this.everleafForgeStage = everleafForgeStage;
     }
 
     private static int getStatModifier(boolean isAttribute) {

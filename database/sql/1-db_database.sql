@@ -12945,6 +12945,7 @@ CREATE TABLE IF NOT EXISTS `inventoryequipment` (
   `itemlevel` int(11) NOT NULL DEFAULT '1',
   `itemexp` int(11) unsigned NOT NULL DEFAULT '0',
   `ringid` int(11) NOT NULL DEFAULT '-1',
+  `everleaf_forge_stage` tinyint(3) unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`inventoryequipmentid`),
   KEY `INVENTORYITEMID` (`inventoryitemid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 AUTO_INCREMENT=1 ;
