@@ -47,6 +47,12 @@ jobs:
             set -euo pipefail
             echo '### Game process'
             pgrep -af 'everleaf-server.*\.jar' | sed -E 's/(password|passwd|secret|token)=[^ ]+/\1=[redacted]/Ig' || true
+            if [ -d /opt/everleaf/current/.git ]; then
+              printf 'deployed_revision='
+              git -C /opt/everleaf/current rev-parse HEAD
+              echo '### Deployed save source around failing line'
+              sed -n '8470,8490p' /opt/everleaf/current/src/main/java/client/Character.java
+            fi
 
             echo '### Recent character-save errors'
             log_file='/opt/everleaf/current/logs/cosmic-log.log'
@@ -103,5 +109,15 @@ jobs:
               'queststatus','questprogress','medalmaps','family_character','storages'
             )
           ORDER BY TABLE_NAME;
+
+          SELECT CONCAT('skills_column=', COLUMN_NAME, ':', COLUMN_TYPE, ':', IS_NULLABLE)
+          FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA='cosmic' AND TABLE_NAME='skills'
+          ORDER BY ORDINAL_POSITION;
+
+          SELECT CONCAT('skills_trigger=', TRIGGER_NAME, ':', ACTION_TIMING, ':', EVENT_MANIPULATION, ':', ACTION_STATEMENT)
+          FROM information_schema.TRIGGERS
+          WHERE TRIGGER_SCHEMA='cosmic' AND EVENT_OBJECT_TABLE='skills'
+          ORDER BY TRIGGER_NAME;
           SQL
           REMOTE
