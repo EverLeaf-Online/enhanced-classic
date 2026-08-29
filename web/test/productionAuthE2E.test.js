@@ -11,6 +11,8 @@ const cleanup = fs.readFileSync(
 test("production authentication cleanup is restricted to empty E2E accounts", () => {
   assert.match(cleanup, /\^e2e\[a-z0-9\]/);
   assert.match(cleanup, /@example\.invalid/);
-  assert.match(cleanup, /FROM characters WHERE accountid/);
-  assert.match(cleanup, /affectedRows !== 1/);
+  assert.match(cleanup, /LEFT JOIN characters c ON c\.accountid = a\.id/);
+  assert.match(cleanup, /c\.id IS NULL/);
+  assert.match(cleanup, /stdout\.trim\(\) !== "1"/);
+  assert.doesNotMatch(cleanup, /GAME_DB_PASSWORD/);
 });
