@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import importlib.util
 import os
+import sys
 import unittest
 from pathlib import Path
 
@@ -8,6 +9,7 @@ MODULE_PATH = Path(__file__).with_name("everleaf_runtime_qa.py")
 spec = importlib.util.spec_from_file_location("everleaf_runtime_qa", MODULE_PATH)
 mod = importlib.util.module_from_spec(spec)
 assert spec and spec.loader
+sys.modules[spec.name] = mod
 spec.loader.exec_module(mod)
 
 
