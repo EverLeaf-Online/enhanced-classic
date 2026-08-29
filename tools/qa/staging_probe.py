@@ -62,13 +62,71 @@ def snapshot(account: str) -> dict:
     aid = accounts[0].get("id")
     if not aid or not aid.isdigit():
         raise RuntimeError("QA account row has no numeric id")
+
     characters = mysql_tsv(f"SELECT * FROM characters WHERE accountid={aid} ORDER BY id")
-    # Remove volatile login/session columns from persistence equality. Keep the raw
-    # account identity and durable character rows as the deterministic baseline.
+    character_ids = [row["id"] for row in characters if row.get("id", "").isdigit()]
+    cid_sql = ",".join(character_ids) if character_ids else "0"
+
+    inventory_items = mysql_tsv(
+        f"SELECT * FROM inventoryitems "
+        f"WHERE accountid={aid} OR characterid IN ({cid_sql}) "
+        f"ORDER BY COALESCE(characterid,0), inventorytype, position, inventoryitemid"
+    )
+    item_ids = [row["inventoryitemid"] for row in inventory_items if row.get("inventoryitemid", "").isdigit()]
+    iid_sql = ",".join(item_ids) if item_ids else "0"
+
+    equipment = mysql_tsv(
+        f"SELECT * FROM inventoryequipment "
+        f"WHERE inventoryitemid IN ({iid_sql}) "
+        f"ORDER BY inventoryitemid, inventoryequipmentid"
+    )
+    quest_status = mysql_tsv(
+        f"SELECT * FROM queststatus "
+        f"WHERE characterid IN ({cid_sql}) "
+        f"ORDER BY characterid, quest, queststatusid"
+    )
+    quest_status_ids = [row["queststatusid"] for row in quest_status if row.get("queststatusid", "").isdigit()]
+    qsid_sql = ",".join(quest_status_ids) if quest_status_ids else "0"
+    quest_progress = mysql_tsv(
+        f"SELECT * FROM questprogress "
+        f"WHERE characterid IN ({cid_sql}) OR queststatusid IN ({qsid_sql}) "
+        f"ORDER BY characterid, queststatusid, progressid, id"
+    )
+    storages = mysql_tsv(f"SELECT * FROM storages WHERE accountid={aid} ORDER BY world, storageid")
+    storage_inventory = mysql_tsv(
+        f"SELECT * FROM inventoryitems "
+        f"WHERE accountid={aid} AND characterid IS NULL "
+        f"ORDER BY inventorytype, position, inventoryitemid"
+    )
+
+    # Exclude credentials and volatile login/session state from persistence
+    # equality while retaining durable gameplay/account state.
     account_row = dict(accounts[0])
-    for key in ("loggedin", "lastlogin", "lastip", "lastknownip", "sessionip", "tempban"):
+    for key in (
+        "password", "pin", "pic", "loggedin", "lastlogin", "lastip",
+        "lastknownip", "sessionip", "tempban", "macs", "hwid", "ip",
+    ):
         account_row.pop(key, None)
-    return {"account": account_row, "characters": characters}
+
+    # These character timestamps are expected to move during legitimate logout,
+    # reconnect, or forced shutdown boundaries. They are not durable gameplay state.
+    normalized_characters = []
+    for row in characters:
+        clean = dict(row)
+        for key in ("lastLogoutTime", "lastExpGainTime"):
+            clean.pop(key, None)
+        normalized_characters.append(clean)
+
+    return {
+        "account": account_row,
+        "characters": normalized_characters,
+        "inventory_items": inventory_items,
+        "equipment": equipment,
+        "quest_status": quest_status,
+        "quest_progress": quest_progress,
+        "storages": storages,
+        "storage_inventory": storage_inventory,
+    }
 
 
 def restart_game() -> None:
