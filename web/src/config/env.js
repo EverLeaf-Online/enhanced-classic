@@ -69,7 +69,7 @@ module.exports = {
 
   payments: {
     currency: String(process.env.PAYMENT_CURRENCY || "usd").toLowerCase(),
-    publicBaseUrl: String(process.env.PUBLIC_BASE_URL || "https://everleafms.duckdns.org").replace(/\/$/, ""),
+    publicBaseUrl: String(process.env.PUBLIC_BASE_URL || "https://everleafms.online").replace(/\/$/, ""),
     stripe: {
       enabled: bool(process.env.STRIPE_ENABLED, false),
       environment: process.env.STRIPE_ENVIRONMENT === "live" ? "live" : "sandbox",
