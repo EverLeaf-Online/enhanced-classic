@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 
 const baseUrl = "https://everleafms.online";
+const probeClassDir = process.env.EVERLEAF_PROBE_CLASS_DIR || "/tmp";
 const username = `e2e${Date.now().toString(36)}`.slice(0, 13);
 const email = `${username}@example.invalid`;
 const originalPassword = crypto.randomBytes(9).toString("base64url");
@@ -56,7 +57,7 @@ expectRedirect(replacementLogin, "/account");
 console.log("WEBSITE_REPLACEMENT_LOGIN=true");
 
 const gameProbe = spawnSync("java", [
-  "-cp", "/opt/everleaf/current/target/everleaf-server-1.0-SNAPSHOT.jar:/tmp",
+  "-cp", `/opt/everleaf/current/target/everleaf-server-1.0-SNAPSHOT.jar:${probeClassDir}`,
   "EverLeafGameLoginProbe", "127.0.0.1", "8484", username
 ], {
   encoding: "utf8",

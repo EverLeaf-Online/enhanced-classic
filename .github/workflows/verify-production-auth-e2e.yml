@@ -1,0 +1,83 @@
+name: Verify EverLeaf production authentication
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-production-auth-e2e
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage authentication probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe_dir="/tmp/everleaf-auth-$GITHUB_RUN_ID"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "install -d -m 700 '$probe_dir'"
+          scp -i ~/.ssh/id_everleaf \
+            tools/everleaf-ops/EverLeafProductionAuthE2E.mjs \
+            tools/everleaf-ops/EverLeafGameLoginProbe.java \
+            tools/everleaf-ops/cleanup-production-auth-e2e.js \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$probe_dir/"
+
+      - name: Verify website and game authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "AUTH_RUN_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE'
+            set -euo pipefail
+            case "$AUTH_RUN_ID" in (*[!0-9]*|'') exit 2;; esac
+            probe_dir="/tmp/everleaf-auth-$AUTH_RUN_ID"
+            test "$probe_dir" = "/tmp/everleaf-auth-$AUTH_RUN_ID"
+            e2e_output=''
+            cleanup() {
+              username="$(printf '%s\n' "$e2e_output" | sed -n 's/^ACCOUNT_CREATED=//p' | tail -n 1)"
+              if [ -n "$username" ]; then
+                sudo node "$probe_dir/cleanup-production-auth-e2e.js" \
+                  /opt/everleaf/web /opt/everleaf/web/.env "$username"
+              fi
+              find "$probe_dir" -mindepth 1 -maxdepth 1 -type f -delete 2>/dev/null || true
+              rmdir "$probe_dir" 2>/dev/null || true
+            }
+            trap cleanup EXIT
+
+            test -s /opt/everleaf/current/target/everleaf-server-1.0-SNAPSHOT.jar
+            javac -cp /opt/everleaf/current/target/everleaf-server-1.0-SNAPSHOT.jar \
+              -d "$probe_dir" "$probe_dir/EverLeafGameLoginProbe.java"
+            e2e_output="$(sudo EVERLEAF_PROBE_CLASS_DIR="$probe_dir" \
+              node "$probe_dir/EverLeafProductionAuthE2E.mjs")"
+            printf '%s\n' "$e2e_output"
+          REMOTE
