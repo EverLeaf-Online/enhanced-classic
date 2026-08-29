@@ -12,15 +12,12 @@
 /out
 *.onetoc2
 
-# Eclipse m2e generated files
-# Eclipse Core
-.project
-# JDT-specific (Eclipse Java Development Tools)
-.classpath
-
 # Database
 database/docker-db-data
 database/docker-pg-db-data
+
+# EverLeaf disposable QA local secrets
+deploy/qa/.env.qa
 
 # macOS files
 .DS_Store
