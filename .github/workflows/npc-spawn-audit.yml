@@ -22,7 +22,7 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Audit all NPC spawns
         run: |
           set +e
@@ -34,10 +34,14 @@ jobs:
           if [ "$audit_status" -ne 0 ] || [ "$json_status" -ne 0 ]; then
             exit 1
           fi
-      - name: Upload audit report
+      - name: Summarize audit report
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: npc-spawn-audit
-          path: npc-spawn-audit.json
-          if-no-files-found: error
+        run: |
+          test -s npc-spawn-audit.json
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          report = json.load(open('npc-spawn-audit.json'))
+          print('### NPC spawn audit')
+          for key in ('mapsScanned', 'mapsWithNpcs', 'npcSpawns', 'errors', 'warnings', 'reviewedExceptions'):
+              print(f'- {key}: {report.get(key)}')
+          PY

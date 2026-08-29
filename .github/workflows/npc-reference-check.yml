@@ -15,6 +15,6 @@ jobs:
   compare:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Compare flagged NPC nodes
         run: python3 tools/compare_npc_spawn_reference.py
