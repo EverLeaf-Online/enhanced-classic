@@ -57,8 +57,16 @@ jobs:
       - name: Run deep QA correlations
         run: python3 tools/qa/everleaf_deep_qa.py --json build/deep-qa-report.json
 
+      - name: Print deep QA summary
+        if: always()
+        run: |
+          if [ -f build/deep-qa-report.json ]; then
+            python3 -c 'import json; d=json.load(open("build/deep-qa-report.json")); print("Deep QA:", d["summary"])'
+          fi
+
       - name: Upload QA reports
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: everleaf-qa-report
