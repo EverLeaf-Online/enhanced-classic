@@ -50,10 +50,11 @@ public final class NxRewardService {
     }
 
     public void startSession(Character player) {
-        sessions.put(player.getAccountID(), new SessionState(player, System.currentTimeMillis()));
+        sessions.putIfAbsent(player.getAccountID(), new SessionState(player, System.currentTimeMillis()));
     }
 
     public RewardSummary claimAvailable(Character player) throws SQLException {
+        startSession(player);
         int daily = claimDaily(player);
         int playtime = claimPlaytime(player);
         int votes = claimPendingVotes(player);
@@ -121,7 +122,8 @@ public final class NxRewardService {
     /**
      * Queue a verified vote without touching the account balance immediately.
      * A unique provider/external id pair makes retries idempotent. The online
-     * player later claims it through @nx, keeping DB and CashShop memory synced.
+     * player later claims it through the NX claim flow, keeping DB and CashShop
+     * memory synced.
      */
     public boolean queueVerifiedVote(int accountId, String provider, String externalVoteId) throws SQLException {
         return queueVerifiedVote(accountId, provider, externalVoteId, DEFAULT_VOTE_NX);
@@ -185,7 +187,7 @@ public final class NxRewardService {
                 accrueSession(session);
                 int reward = claimPlaytimeSteps(player);
                 if (reward > 0) {
-                    player.yellowMessage("EverLeaf playtime reward: +" + reward + " NX Credit. Use @nx to view rewards.");
+                    player.yellowMessage("EverLeaf playtime reward: +" + reward + " NX Credit. Use @points nx to view rewards.");
                 }
             } catch (Exception ignored) {
                 // Reward failures must never take down the game scheduler.
