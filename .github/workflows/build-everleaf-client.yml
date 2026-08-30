@@ -73,11 +73,12 @@ jobs:
           Compress-Archive -Path "$package/*" -DestinationPath "EverleafClient-source-built.zip"
           Get-FileHash "EverleafClient-source-built.zip" -Algorithm SHA256
 
-      - name: Test managed WZ baseline and repair invariants
+      - name: Test managed client and manifest invariants
         shell: pwsh
         run: |
           python client/scripts/test-cosmic-wz-baseline.py
-          python client/scripts/test-managed-repair.py --help
+          python -m py_compile client/scripts/test-managed-repair.py
+          node web/scripts/test-patch-manifest.js
 
       - name: Upload client candidate
         continue-on-error: true
