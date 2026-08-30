@@ -27,21 +27,21 @@ function action(mode, type, selection) {
 
         if (status == 0) {
             if (cm.getMapId() == 108000502) {
-                if (!(cm.haveItem(4031856, 15))) {
-                    cm.sendSimple("You haven't brought me all the crystals yet. I'm looking forward for your progress, mate! \r\n#b#L1#I would like to leave#l");
+                if (!cm.haveItem(4031856, 15)) {
+                    cm.sendSimple("You still need #b15 #t4031856##k to complete this job advancement test.\r\n\r\n#b#L1#Leave the test room.#l");
                 } else {
                     status++;
-                    cm.sendNext("Wow, you have brought me 15 #b#t4031856##k! Congratulations. Let me warp you out now.");
+                    cm.sendNext("You collected all #b15 #t4031856##k. The test is complete, and I'll return you to Kyrin.");
                 }
             } else if (cm.getMapId() == 108000501) {
-                if (!(cm.haveItem(4031857, 15))) {
-                    cm.sendSimple("You haven't brought me all the crystals yet. I'm looking forward for your progress, mate! \r\n#b#L1#I would like to leave#l");
+                if (!cm.haveItem(4031857, 15)) {
+                    cm.sendSimple("You still need #b15 #t4031857##k to complete this job advancement test.\r\n\r\n#b#L1#Leave the test room.#l");
                 } else {
                     status++;
-                    cm.sendNext("Wow, you have brought me 15 #b#t4031857##k! Congratulations. Let me warp you out now.");
+                    cm.sendNext("You collected all #b15 #t4031857##k. The test is complete, and I'll return you to Kyrin.");
                 }
             } else {
-                cm.sendNext("Error. Please report this.");
+                cm.sendOk("This job advancement NPC was opened from an unexpected map. Use #b@unstuck#k if you are trapped, and please report the map in EverLeaf's bug-report channel.");
                 cm.dispose();
             }
         } else if (status == 1) {   // thanks Lame for noticing players getting stuck in area in certain scenarios
