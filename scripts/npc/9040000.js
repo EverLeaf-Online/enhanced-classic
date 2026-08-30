@@ -67,32 +67,32 @@ function action(mode, type, selection) {
         if (status == 0) {
             em = cm.getEventManager("GuildQuest");
             if (em == null) {
-                cm.sendOk("The Guild Quest has encountered an error.");
+                cm.sendOk("The Guild Quest service could not be loaded. Please report this in EverLeaf's bug-report channel and mention Sharenian Ruins.");
                 cm.dispose();
                 return;
             }
 
-            cm.sendSimple("#e#b<Guild Quest: Sharenian Ruins>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nThe path to Sharenian starts here. What would you like to do? #b\r\n#L0#Register your guild for Guild Quest#l\r\n#L1#Join your guild's Guild Quest#l\r\n#L2#I would like to hear more details.#l");
+            cm.sendSimple("#e#b<Guild Quest: Sharenian Ruins>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nThe path to Sharenian starts here. What would you like to do?#b\r\n#L0#Register my guild for the Guild Quest#l\r\n#L1#Join my guild's active Guild Quest lobby#l\r\n#L2#Show Guild Quest details and team requirements#l");
         } else if (status == 1) {
             sel = selection;
             if (selection == 0) {
                 if (!cm.isGuildLeader()) {
-                    cm.sendOk("Your guild master/jr.master must talk to me to register the guild for the guild quest.");
+                    cm.sendOk("Only your #bguild master or junior master#k can register the guild for Sharenian Ruins.");
                     cm.dispose();
                 } else {
                     if (em.isQueueFull()) {
-                        cm.sendOk("The queue on this channel is already full. Please be patient and try again after a while, or try on another channel.");
+                        cm.sendOk("This channel's Guild Quest queue is full. Please try another channel or wait for a queued guild to finish.");
                         cm.dispose();
                     } else {
                         var qsize = em.getQueueSize();
-                        cm.sendYesNo(((qsize > 0) ? "There is currently #r" + qsize + "#k guilds queued on. " : "") + "Do you wish for your guild to join this queue?");
+                        cm.sendYesNo(((qsize > 0) ? "There are currently #r" + qsize + "#k guild(s) ahead of you in this channel's queue.\r\n\r\n" : "") + "Register your guild for this channel's Guild Quest queue?");
                     }
                 }
             } else if (selection == 1) {
                 if (cm.getPlayer().getGuildId() > 0) {
                     var eim = findLobby(cm.getPlayer().getGuildId());
                     if (eim == null) {
-                        cm.sendOk("Your guild is not currently on strategy time on this channel. Check again if your guild is currently planning a Guild Quest or, if so, the channel they are allotted on.");
+                        cm.sendOk("Your guild does not currently have an open Guild Quest lobby on this channel. Check with your guild leader to confirm the assigned channel and whether strategy time is still open.");
                     } else {
                         if (cm.isLeader()) {
                             em.getEligibleParty(cm.getParty());
@@ -102,31 +102,31 @@ function action(mode, type, selection) {
                         }
                     }
                 } else {
-                    cm.sendOk("You can't participate in the guild quest if you don't pertain on a guild yourself!");
+                    cm.sendOk("You must belong to a guild before you can enter the Guild Quest.");
                 }
 
                 cm.dispose();
             } else {
                 var reqStr = "";
-                reqStr += "\r\n\r\n    Team requirements:\r\n\r\n";
-                reqStr += "     - 1 team member #rbelow or equal level 30#k.\r\n";
-                reqStr += "     - 1 team member who is a #rThief with Dark Sight#k skill and #rmaxed Haste#k.\r\n";
-                reqStr += "     - 1 team member who is a Magician with #rmaxed Teleport#k.\r\n";
-                reqStr += "     - 1 team member who is a #rlong ranged attacker#k like Bowman, Assassin, or Gunslinger.\r\n";
-                reqStr += "     - 1 team member with #rgood jumping skills#k like Assassin with maxed Flash Jump or Gunslinger with Wings.\r\n";
+                reqStr += "\r\n\r\n    Recommended team coverage:\r\n\r\n";
+                reqStr += "     - 1 member #rlevel 30 or below#k.\r\n";
+                reqStr += "     - 1 #rThief#k with Dark Sight and strong Haste.\r\n";
+                reqStr += "     - 1 #rMagician#k with Teleport.\r\n";
+                reqStr += "     - 1 #rlong-range attacker#k such as Bowman, Assassin, or Gunslinger.\r\n";
+                reqStr += "     - 1 member with strong mobility/jumping skills.\r\n";
 
-                cm.sendOk("#e#b<Guild Quest: Sharenian Ruins>#k#n\r\n Team up with your guild members in an auspicious attempt to recover the Rubian from the skeleton's grasp, with teamwork overcoming many puzzles and challenges awaiting inside the Sharenian tombs. Great rewards can be obtained upon the instance completion, and Guild Points can be racked up for your Guild." + reqStr);
+                cm.sendOk("#e#b<Guild Quest: Sharenian Ruins>#k#n\r\nWork with your guild to recover the Rubian from Sharenian. The quest contains combat, movement challenges, and puzzles, so bringing a varied team is strongly recommended. Successful clears award Guild Points and other rewards." + reqStr);
                 cm.dispose();
             }
         } else if (status == 2) {
             if (sel == 0) {
                 var entry = em.addGuildToQueue(cm.getPlayer().getGuildId(), cm.getPlayer().getId());
                 if (entry > 0) {
-                    cm.sendOk("Your guild has been registered successfully. A message will pop on your chat keeping your guild aware about the registration status.\r\n\r\nNow, #rimportant#k: as the leader of this instance, #ryou must already be present on this channel#k the right moment your guild is called for the strategy time. #bThe missubmission of this action will void#k your guild registration as a whole, and the next guild will be called immediately. Must be noted also that if you, leader of this instance, become absent from the end of the strategy time to any point on the duration of the instance, it will render the mission interrupted, and your guild will be moved out instantly, moving again the queue.");
+                    cm.sendOk("Your guild is now registered in this channel's Guild Quest queue.\r\n\r\n#rImportant:#k the registering leader must remain available on this channel when the guild is called for strategy time. If the leader is absent when called, the registration may be skipped and the next guild will be selected.");
                 } else if (entry == 0) {
-                    cm.sendOk("The queue on this channel is already full. Please be patient and try again after a while, or try on another channel.");
+                    cm.sendOk("This channel's Guild Quest queue became full before your registration completed. Please try another channel or wait and try again.");
                 } else {
-                    cm.sendOk("Your guild is already queued on a channel. Please wait for your guild's turn.");
+                    cm.sendOk("Your guild is already queued for a Guild Quest. Please wait for that registration to finish before registering again.");
                 }
             }
 
