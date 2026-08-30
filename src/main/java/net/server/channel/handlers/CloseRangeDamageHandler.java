@@ -27,6 +27,9 @@ import client.Client;
 import client.Job;
 import client.Skill;
 import client.SkillFactory;
+import client.inventory.InventoryType;
+import client.inventory.Item;
+import client.inventory.WeaponType;
 import config.YamlConfig;
 import constants.game.GameConstants;
 import constants.id.MapId;
@@ -38,6 +41,7 @@ import constants.skills.NightWalker;
 import constants.skills.Rogue;
 import constants.skills.WindArcher;
 import net.packet.InPacket;
+import server.ItemInformationProvider;
 import server.StatEffect;
 import tools.PacketCreator;
 import tools.Pair;
@@ -53,6 +57,20 @@ public final class CloseRangeDamageHandler extends AbstractDealDamageHandler {
     @Override
     public final void handlePacket(InPacket p, Client c) {
         Character chr = c.getPlayer();
+
+        // v83 clients can fall back to a close-range "whack" when a bow, crossbow,
+        // or claw user is too close to a target. EverLeaf intentionally disables
+        // that fallback. Validate the equipped weapon instead of the character's
+        // job so legitimate dagger/knuckle/sword melee attacks remain untouched.
+        Item weapon = chr.getInventory(InventoryType.EQUIPPED).getItem((short) -11);
+        if (weapon != null) {
+            WeaponType weaponType = ItemInformationProvider.getInstance().getWeaponType(weapon.getItemId());
+            if (weaponType == WeaponType.BOW
+                    || weaponType == WeaponType.CROSSBOW
+                    || weaponType == WeaponType.CLAW) {
+                return;
+            }
+        }
         
         /*long timeElapsed = currentServerTime() - chr.getAutobanManager().getLastSpam(8);
         if(timeElapsed < 300) {
