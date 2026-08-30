@@ -1,12 +1,13 @@
 #include "stdafx.h"
 #include "MainMain.h"
 
-void PrepareEverLeafLoginLayout() {
-    // EverLeaf ships resolution-specific login frame assets. MapleEzorsia's
-    // normal centered-login path keeps the legacy 800x600 presentation in the
-    // middle of an HD window. Enable the full-size login layout after
-    // MainMain has detected EverLeaf_UI.wz and before UpdateResolution runs.
-    if (MainMain::EzorsiaV2WzIncluded || MainMain::CustomLoginFrame) {
-        MainMain::bigLoginFrame = true;
-    }
+namespace {
+    // EverLeaf always ships its HD UI overlay in the managed client package.
+    // Select the full-size login-frame path from process startup so the legacy
+    // 800x600 login presentation is not centered inside a black HD viewport.
+    struct EverLeafLoginLayoutDefaults {
+        EverLeafLoginLayoutDefaults() {
+            MainMain::bigLoginFrame = true;
+        }
+    } gEverLeafLoginLayoutDefaults;
 }
