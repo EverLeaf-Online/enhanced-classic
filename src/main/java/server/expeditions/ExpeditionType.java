@@ -8,8 +8,8 @@
     it under the terms of the GNU Affero General Public License as
     published by the Free Software Foundation version 3 as published by
     the Free Software Foundation. You may not use, modify or distribute
-    this program under any other version of the GNU Affero General Public
-    License.
+    this program under any other version of the
+    GNU Affero General Public License.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -41,6 +41,7 @@ public enum ExpeditionType {
     ARIANT1(2, 7, 20, 30, 5),
     ARIANT2(2, 7, 20, 30, 5),
     PINKBEAN(6, 30, 120, 255, 5),
+    EMPRESS(3, 12, 180, 250, 5),
     CWKPQ(6, 30, 90, 255, 5);   // CWKPQ min-level 90, found thanks to Cato
 
     private final int minSize;
