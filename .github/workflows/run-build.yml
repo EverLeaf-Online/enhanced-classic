@@ -30,13 +30,17 @@ jobs:
       - name: Apply Everleaf configuration
         run: python3 tools/apply_everleaf_config.py
       - name: Apply Everleaf source transforms
-        run: python3 tools/apply_level_cap_250.py
+        run: |
+          python3 tools/apply_level_cap_250.py
+          python3 tools/apply_pq_points.py
       - name: Audit economy and NX drops
         run: python3 tools/audit_economy_balance.py
       - name: Audit Gachapon and reward sources
         run: python3 tools/audit_reward_sources.py
       - name: Audit Vote Point exchange
         run: python3 tools/audit_vote_shop.py
+      - name: Audit PQ Points
+        run: python3 tools/audit_pq_points.py
       - name: Audit world data integrity
         run: python3 tools/audit_world_integrity.py
       - name: Ensure Maven wrapper is executable
