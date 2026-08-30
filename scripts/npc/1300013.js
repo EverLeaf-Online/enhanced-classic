@@ -23,9 +23,9 @@ function action(mode, type, selection) {
         status++;
     }
 
-
     if (cm.getMapId() == 106021402) {
-        if (!(cm.isQuestCompleted(2331))) {
+        if (!cm.isQuestCompleted(2331)) {
+            cm.sendOk("You cannot use this entrance yet. Continue the Mushroom Kingdom questline first.");
             cm.dispose();
             return;
         }
@@ -35,45 +35,70 @@ function action(mode, type, selection) {
         } else if (status == 1) {
             if (selection == 0) {
                 var pepe = cm.getEventManager("KingPepeAndYetis");
+                if (pepe == null) {
+                    cm.sendOk("The King Pepe battle is temporarily unavailable. Please report this in EverLeaf's bug-report channel.");
+                    cm.dispose();
+                    return;
+                }
+
                 pepe.setProperty("player", cm.getPlayer().getName());
-                pepe.startInstance(cm.getPlayer());
+                if (!pepe.startInstance(cm.getPlayer())) {
+                    cm.sendOk("King Pepe is already being challenged in this channel. Try another channel or wait for the current battle to finish.");
+                }
                 cm.dispose();
 
             } else if (selection == 1) {
                 var em = cm.getEventManager("MK_PrimeMinister2");
+                if (em == null) {
+                    cm.sendOk("The Prime Minister battle is temporarily unavailable. Please report this in EverLeaf's bug-report channel.");
+                    cm.dispose();
+                    return;
+                }
 
                 var party = cm.getPlayer().getParty();
                 if (party != null) {
+                    var eligible = em.getEligibleParty(party);
+                    if (eligible.size() <= 0) {
+                        cm.sendOk("Your party is not eligible to enter. Make sure all required members are present on this map and meet the battle requirements.");
+                        cm.dispose();
+                        return;
+                    }
+
                     if (!em.startInstance(party, cm.getMap(), 1)) {
-                        cm.sendOk("Another party is already challenging the boss in this channel.");
+                        cm.sendOk("Another party is already challenging the Prime Minister in this channel. Try another channel or wait for the current battle to finish.");
                     }
                 } else {
                     if (!em.startInstance(cm.getPlayer())) {
-                        cm.sendOk("Another party is already challenging the boss in this channel.");
+                        cm.sendOk("The Prime Minister is already being challenged in this channel. Try another channel or wait for the current battle to finish.");
                     }
                 }
 
                 cm.dispose();
-
             }
         }
     } else {
         var questProgress = cm.getQuestProgressInt(2330, 3300005) + cm.getQuestProgressInt(2330, 3300006) + cm.getQuestProgressInt(2330, 3300007); //3 Yetis
-        if (!(cm.isQuestStarted(2330) && questProgress < 3)) {  // thanks Vcoc for finding an exploit with boss entry through NPC
+        if (!(cm.isQuestStarted(2330) && questProgress < 3)) {
+            cm.sendOk("This entrance is only available during the required Mushroom Kingdom quest objective.");
             cm.dispose();
             return;
         }
 
         if (status == 0) {
             cm.sendSimple("#L1#Enter to fight #bKing Pepe#k and #bYeti Brothers#k.#l");
-        } else if (status == 1) {
-            if (selection == 1) {
-                var pepe = cm.getEventManager("KingPepeAndYetis");
-                pepe.setProperty("player", cm.getPlayer().getName());
-                pepe.startInstance(cm.getPlayer());
+        } else if (status == 1 && selection == 1) {
+            var pepe = cm.getEventManager("KingPepeAndYetis");
+            if (pepe == null) {
+                cm.sendOk("The King Pepe battle is temporarily unavailable. Please report this in EverLeaf's bug-report channel.");
                 cm.dispose();
-
+                return;
             }
+
+            pepe.setProperty("player", cm.getPlayer().getName());
+            if (!pepe.startInstance(cm.getPlayer())) {
+                cm.sendOk("King Pepe is already being challenged in this channel. Try another channel or wait for the current battle to finish.");
+            }
+            cm.dispose();
         }
     }
 }
