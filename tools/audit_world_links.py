@@ -202,6 +202,13 @@ def main() -> int:
 
     if emit_json:
         print(json.dumps(payload, indent=2))
+        # CI commonly redirects the JSON report to a file. Always mirror hard
+        # failures to stderr so the actionable cause remains visible in logs
+        # even when artifact upload/storage is unavailable.
+        for error in parse_errors:
+            print(f"[FAIL] XML parse error: {error}", file=sys.stderr)
+        for finding in hard_findings:
+            print(f"[FAIL] map={finding.map_id} {finding.detail}", file=sys.stderr)
     else:
         print(
             "EverLeaf world link audit: "
