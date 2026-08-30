@@ -2,32 +2,31 @@
 --
 -- Global drops bypass the world's normal Drop/Boss Drop multiplier. The base
 -- data gives both Chaos Scroll 60% and White Scroll a 1,200 / 999,999 roll
--- (~0.12%) from essentially every eligible mob, which is far too generous for
--- long-term Enhanced Classic progression.
+-- (~0.12%) from essentially every eligible mob. That makes two of the most
+-- progression-sensitive scrolls farmable from ordinary grinding and weakens
+-- boss/event reward identity.
 --
--- EverLeaf pre-alpha targets:
---   Chaos Scroll 60% (2049100): 100 / 999,999 ~= 0.0100%
---   White Scroll     (2340000):  40 / 999,999 ~= 0.0040%
+-- EverLeaf policy:
+--   Chaos Scroll 60% (2049100): no ordinary global-mob drop
+--   White Scroll     (2340000): no ordinary global-mob drop
 --
--- At 1,000 kills/hour this averages ~0.10 Chaos Scroll and ~0.04 White Scroll
--- per hour from the global-drop system. Boss/event-specific sources remain
--- separate and can be balanced independently.
+-- Boss-, event-, quest-, gachapon-, and other explicitly authored sources are
+-- separate from drop_data_global and can be audited/balanced independently.
+-- This migration intentionally removes only the universal monster source.
 
 USE `cosmic`;
 
-UPDATE `drop_data_global`
-SET `chance` = 100,
-    `comments` = 'EverLeaf - Chaos Scroll 60% (0.01%)'
+DELETE FROM `drop_data_global`
 WHERE `itemid` = 2049100
   AND `continent` = -1;
 
-UPDATE `drop_data_global`
-SET `chance` = 40,
-    `comments` = 'EverLeaf - White Scroll (0.004%)'
+DELETE FROM `drop_data_global`
 WHERE `itemid` = 2340000
   AND `continent` = -1;
 
+-- Verification: this query should return zero rows after the migration.
 SELECT `itemid`, `continent`, `chance`, `minimum_quantity`, `maximum_quantity`, `comments`
 FROM `drop_data_global`
 WHERE `itemid` IN (2049100, 2340000)
+  AND `continent` = -1
 ORDER BY `itemid`, `continent`;
