@@ -68,6 +68,14 @@ if grep -Eq '^SESSION_SECRET=(dev-only-change-me|replace-with-a-long-random-secr
   echo "ERROR: SESSION_SECRET is not production-safe." >&2
   exit 5
 fi
+if ! grep -q '^GTOP100_PINGBACK_KEY=' "$APP_DIR/.env" || grep -Eq '^GTOP100_PINGBACK_KEY=(|replace-with-the-key-from-gtop100)$' "$APP_DIR/.env"; then
+  echo "ERROR: GTOP100_PINGBACK_KEY must be provisioned before enabling the EverLeaf Vote Point flow." >&2
+  exit 6
+fi
+if ! grep -Eq '^GTOP100_VOTE_URL=https://(www\.)?gtop100\.com/' "$APP_DIR/.env"; then
+  echo "ERROR: GTOP100_VOTE_URL must be an HTTPS gtop100.com URL." >&2
+  exit 7
+fi
 
 set_env_var() {
   local key="$1"
@@ -86,6 +94,8 @@ set_env_var COOKIE_SECURE true
 set_env_var GAME_HOST 127.0.0.1
 set_env_var LOGIN_PORT 8484
 set_env_var CHANNEL_PORTS 7575,7576,7577,7578,7579,7580,7581,7582
+set_env_var GAME_ACCOUNT_VOTE_POINTS_COLUMN votepoints
+set_env_var VOTE_POINTS_REWARD 1
 
 sudo chown -R ubuntu:ubuntu "$APP_DIR"
 sudo chmod 600 "$APP_DIR/.env"
@@ -127,6 +137,9 @@ echo "=== SERVICE ==="
 sudo systemctl is-active everleaf-web
 echo "=== NODE TEST ==="
 curl -fsS -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:3000/
+echo "=== VOTE PINGBACK STATUS ==="
+curl -fsS http://127.0.0.1:3000/api/vote/pingback
+echo
 echo "=== NGINX TEST ==="
 curl -fsS -H "Host: ${PUBLIC_HOST}" -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1/
 echo "=== PUBLIC URL ==="
