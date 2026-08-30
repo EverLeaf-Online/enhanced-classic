@@ -29,7 +29,6 @@ import server.maps.FieldLimit;
 import server.maps.MapleMap;
 import server.maps.MiniDungeonInfo;
 import server.maps.Portal;
-import server.maps.SavedLocationType;
 import tools.PacketCreator;
 
 /**
@@ -94,7 +93,7 @@ public final class EnterMTSHandler extends AbstractPacketHandler {
 
         chr.closePlayerInteractions();
         chr.closePartySearchInteractions();
-        chr.saveLocation(SavedLocationType.FREE_MARKET);
+        chr.saveLocation("FREE_MARKET");
         chr.changeMap(target, targetPortal);
     }
 }
