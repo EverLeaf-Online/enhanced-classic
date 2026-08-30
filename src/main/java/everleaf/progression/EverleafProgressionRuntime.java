@@ -19,6 +19,10 @@ public final class EverleafProgressionRuntime {
                 new JdbcVerdantMarkRepository(DatabaseConnection.getDataSource());
         private static final VerdantMarkService VERDANT_MARK_SERVICE =
                 new VerdantMarkService(VERDANT_MARK_REPOSITORY);
+        private static final PqPointRepository PQ_POINT_REPOSITORY =
+                new JdbcPqPointRepository(DatabaseConnection.getDataSource());
+        private static final PqPointService PQ_POINT_SERVICE =
+                new PqPointService(PQ_POINT_REPOSITORY);
     }
 
     public static WeeklyProgressionService weeklyService() {
@@ -35,5 +39,13 @@ public final class EverleafProgressionRuntime {
 
     public static VerdantMarkRepository verdantMarkRepository() {
         return Holder.VERDANT_MARK_REPOSITORY;
+    }
+
+    public static PqPointService pqPointService() {
+        return Holder.PQ_POINT_SERVICE;
+    }
+
+    public static PqPointRepository pqPointRepository() {
+        return Holder.PQ_POINT_REPOSITORY;
     }
 }
