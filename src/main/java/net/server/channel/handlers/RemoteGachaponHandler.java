@@ -21,6 +21,7 @@
  */
 package net.server.channel.handlers;
 
+import client.Character;
 import client.Client;
 import client.autoban.AutobanFactory;
 import constants.id.ItemId;
@@ -29,6 +30,9 @@ import constants.inventory.ItemConstants;
 import net.AbstractPacketHandler;
 import net.packet.InPacket;
 import scripting.npc.NPCScriptManager;
+import server.maps.FieldLimit;
+import server.maps.MiniDungeonInfo;
+import tools.PacketCreator;
 
 /**
  * @author Generic
@@ -36,18 +40,24 @@ import scripting.npc.NPCScriptManager;
 public final class RemoteGachaponHandler extends AbstractPacketHandler {
     @Override
     public final void handlePacket(InPacket p, Client c) {
+        Character chr = c.getPlayer();
+        if (!canUseRemoteGachapon(chr)) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
         int ticket = p.readInt();
         int gacha = p.readInt();
         if (ticket != ItemId.REMOTE_GACHAPON_TICKET) {
-            AutobanFactory.GENERAL.alert(c.getPlayer(), " Tried to use RemoteGachaponHandler with item id: " + ticket);
+            AutobanFactory.GENERAL.alert(chr, " Tried to use RemoteGachaponHandler with item id: " + ticket);
             c.disconnect(false, false);
             return;
         } else if (gacha < 0 || gacha > 11) {
-            AutobanFactory.GENERAL.alert(c.getPlayer(), " Tried to use RemoteGachaponHandler with mode: " + gacha);
+            AutobanFactory.GENERAL.alert(chr, " Tried to use RemoteGachaponHandler with mode: " + gacha);
             c.disconnect(false, false);
             return;
-        } else if (c.getPlayer().getInventory(ItemConstants.getInventoryType(ticket)).countById(ticket) < 1) {
-            AutobanFactory.GENERAL.alert(c.getPlayer(), " Tried to use RemoteGachaponHandler without a ticket.");
+        } else if (chr.getInventory(ItemConstants.getInventoryType(ticket)).countById(ticket) < 1) {
+            AutobanFactory.GENERAL.alert(chr, " Tried to use RemoteGachaponHandler without a ticket.");
             c.disconnect(false, false);
             return;
         }
@@ -58,5 +68,27 @@ public final class RemoteGachaponHandler extends AbstractPacketHandler {
             npcId = gacha == 8 ? NpcId.GACHAPON_NLC : NpcId.GACHAPON_NAUTILUS;
         }
         NPCScriptManager.getInstance().start(c, npcId, "gachaponRemote", null);
+    }
+
+    private static boolean canUseRemoteGachapon(Character chr) {
+        if (!chr.isAlive() || chr.isChangingMaps() || chr.isBanned()) {
+            return false;
+        }
+        if (chr.getCashShop().isOpened()
+                || chr.getEventInstance() != null
+                || MiniDungeonInfo.isDungeonMap(chr.getMapId())
+                || FieldLimit.CANNOTMIGRATE.check(chr.getMap().getFieldLimit())) {
+            return false;
+        }
+        return chr.getTrade() == null
+                && chr.getShop() == null
+                && chr.getPlayerShop() == null
+                && chr.getHiredMerchant() == null
+                && cConversationClear(chr);
+    }
+
+    private static boolean cConversationClear(Character chr) {
+        Client c = chr.getClient();
+        return c.getCM() == null && c.getQM() == null;
     }
 }
