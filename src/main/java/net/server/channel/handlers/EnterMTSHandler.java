@@ -49,26 +49,34 @@ public final class EnterMTSHandler extends AbstractPacketHandler {
         }
 
         if (!chr.isAlive()) {
-            chr.dropMessage(1, "You cannot enter the Free Market while dead.");
-            c.sendPacket(PacketCreator.enableActions());
+            reject(chr, c, "You cannot enter the Free Market while dead.");
+            return;
+        }
+
+        // Never let the shortcut tear down a transactional interaction. Closing
+        // a trade/storage/shop while a client is simultaneously asking to warp
+        // is exactly the kind of state race that can become a dupe or rollback.
+        if (chr.getTrade() != null
+                || chr.getStorage() != null
+                || chr.getShop() != null
+                || chr.getPlayerShop() != null
+                || chr.getHiredMerchant() != null) {
+            reject(chr, c, "Finish your current trade or shop interaction before entering the Free Market.");
             return;
         }
 
         if (chr.getEventInstance() != null) {
-            chr.dropMessage(1, "You cannot enter the Free Market while participating in an event.");
-            c.sendPacket(PacketCreator.enableActions());
+            reject(chr, c, "You cannot enter the Free Market while participating in an event.");
             return;
         }
 
         if (MiniDungeonInfo.isDungeonMap(chr.getMapId())) {
-            chr.dropMessage(1, "You cannot enter the Free Market from inside a Mini-Dungeon.");
-            c.sendPacket(PacketCreator.enableActions());
+            reject(chr, c, "You cannot enter the Free Market from inside a Mini-Dungeon.");
             return;
         }
 
         if (FieldLimit.CANNOTMIGRATE.check(chr.getMap().getFieldLimit())) {
-            chr.dropMessage(1, "You cannot enter the Free Market from this map.");
-            c.sendPacket(PacketCreator.enableActions());
+            reject(chr, c, "You cannot enter the Free Market from this map.");
             return;
         }
 
@@ -79,15 +87,13 @@ public final class EnterMTSHandler extends AbstractPacketHandler {
 
         MapleMap target = c.getChannelServer().getMapFactory().getMap(FREE_MARKET_ENTRANCE);
         if (target == null) {
-            chr.dropMessage(1, "The Free Market is temporarily unavailable. Please report this in EverLeaf's bug-report channel.");
-            c.sendPacket(PacketCreator.enableActions());
+            reject(chr, c, "The Free Market is temporarily unavailable. Please report this in EverLeaf's bug-report channel.");
             return;
         }
 
         Portal targetPortal = target.getRandomPlayerSpawnpoint();
         if (targetPortal == null) {
-            chr.dropMessage(1, "The Free Market entrance is temporarily unavailable. Please report this in EverLeaf's bug-report channel.");
-            c.sendPacket(PacketCreator.enableActions());
+            reject(chr, c, "The Free Market entrance is temporarily unavailable. Please report this in EverLeaf's bug-report channel.");
             return;
         }
 
@@ -95,5 +101,10 @@ public final class EnterMTSHandler extends AbstractPacketHandler {
         chr.closePartySearchInteractions();
         chr.saveLocation("FREE_MARKET");
         chr.changeMap(target, targetPortal);
+    }
+
+    private static void reject(Character chr, Client c, String message) {
+        chr.dropMessage(1, message);
+        c.sendPacket(PacketCreator.enableActions());
     }
 }
