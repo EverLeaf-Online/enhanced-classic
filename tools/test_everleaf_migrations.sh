@@ -86,45 +86,37 @@ VALUES (1, 'EMBER_CORE', 2, 2, 0), (1, 'ANCIENT_BARK', 1, 1, 0);
 INSERT INTO everleaf_rooted_forge_order
     (account_id, character_id, recipe, target_item_id, target_inventory_type, target_slot, request_key)
 VALUES (1, 10, 'ROOTED_ARMOR_REFINEMENT', 1002001, 1, 1, 'ci-forge-1');
-
-SELECT IF(COUNT(*) = 12, 'migration_tables_ok', CONCAT('migration_tables_bad:', COUNT(*)))
-FROM information_schema.tables
-WHERE table_schema = DATABASE()
-  AND table_name IN (
-      'everleaf_weekly_account_state',
-      'everleaf_weekly_character_objective',
-      'everleaf_verdant_mark_balance',
-      'everleaf_pq_point_balance',
-      'everleaf_pq_point_ledger',
-      'everleaf_account_entitlement',
-      'everleaf_account_entitlement_ledger',
-      'everleaf_vote_reward_ledger',
-      'everleaf_encounter_attempt',
-      'everleaf_encounter_weekly_reward',
-      'everleaf_rooted_material_balance',
-      'everleaf_rooted_forge_order'
-  );
-
-SELECT IF(COUNT(*) = 3, 'weekly_indexes_ok', CONCAT('weekly_indexes_bad:', COUNT(*)))
-FROM information_schema.statistics
-WHERE table_schema = DATABASE()
-  AND (
-      (table_name = 'everleaf_weekly_account_state'
-       AND index_name = 'idx_everleaf_weekly_account_week')
-      OR
-      (table_name = 'everleaf_weekly_character_objective'
-       AND index_name IN (
-           'idx_everleaf_weekly_character_week',
-           'idx_everleaf_weekly_objective_lookup'
-       ))
-  );
-
-SELECT IF(COUNT(*) = 1, 'forge_stage_ok', 'forge_stage_missing')
-FROM information_schema.columns
-WHERE table_schema = DATABASE()
-  AND table_name = 'inventoryequipment'
-  AND column_name = 'everleaf_forge_stage';
 SQL
+
+expect_query_value() {
+    local label="$1"
+    local expected="$2"
+    local statement="$3"
+    local actual
+    actual="$("${mysql_cmd[@]}" "$database" -e "$statement")"
+    if [[ "$actual" != "$expected" ]]; then
+        echo "ERROR: ${label}: expected ${expected}, got ${actual}" >&2
+        exit 1
+    fi
+    echo "${label} OK: ${actual}"
+}
+
+expect_query_value \
+    "migration table count" \
+    "12" \
+    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('everleaf_weekly_account_state','everleaf_weekly_character_objective','everleaf_verdant_mark_balance','everleaf_pq_point_balance','everleaf_pq_point_ledger','everleaf_account_entitlement','everleaf_account_entitlement_ledger','everleaf_vote_reward_ledger','everleaf_encounter_attempt','everleaf_encounter_weekly_reward','everleaf_rooted_material_balance','everleaf_rooted_forge_order');"
+
+# information_schema.statistics has one row per indexed column. Count distinct
+# table/index identities so the two-column objective lookup index counts once.
+expect_query_value \
+    "weekly progression secondary indexes" \
+    "3" \
+    "SELECT COUNT(DISTINCT CONCAT(table_name, ':', index_name)) FROM information_schema.statistics WHERE table_schema = DATABASE() AND ((table_name='everleaf_weekly_account_state' AND index_name='idx_everleaf_weekly_account_week') OR (table_name='everleaf_weekly_character_objective' AND index_name IN ('idx_everleaf_weekly_character_week','idx_everleaf_weekly_objective_lookup')));"
+
+expect_query_value \
+    "forge stage column" \
+    "1" \
+    "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name='inventoryequipment' AND column_name='everleaf_forge_stage';"
 
 expect_duplicate_rejected() {
     local label="$1"
