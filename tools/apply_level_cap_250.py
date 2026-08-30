@@ -64,6 +64,16 @@ replace_once(
     'log.info("{} is now online after {} ms.", service.enhanced.EverleafIdentity.NAME, initDuration.toMillis());',
 )
 
+# EverLeaf QoL: storage is account utility and should be available from level 1.
+# Keep all existing GM restrictions, item checks, fees, and concurrency guards;
+# remove only Cosmic's legacy level-15 gate.
+storage_processor = Path("src/main/java/client/processor/npc/StorageProcessor.java")
+replace_once(
+    storage_processor,
+    """        if (chr.getLevel() < 15) {\n            chr.dropMessage(1, \"You may only use the storage once you have reached level 15.\");\n            c.sendPacket(PacketCreator.enableActions());\n            return;\n        }\n\n""",
+    """        // EverLeaf: storage is available at every character level.\n""",
+)
+
 # Register player-facing Everleaf progression/economy commands without
 # permanently rewriting the large upstream command registry yet. Some branches
 # use explicit gm0 imports while the current EverLeaf registry uses a wildcard;
@@ -117,4 +127,4 @@ if leafshop_registration not in commands_text:
 
 commands.write_text(commands_text, encoding="utf-8")
 
-print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics + progression/marks/leafshop commands).")
+print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics + level-1 storage + progression/marks/leafshop commands).")
