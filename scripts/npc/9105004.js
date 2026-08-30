@@ -64,40 +64,41 @@ function recruitPqAction(mode, type, selection) {
     if (status == 0) {
         em = cm.getEventManager("HolidayPQ_" + pqType);
         if (em == null) {
-            cm.sendOk("The Holiday PQ " + pqType + " has encountered an error.");
+            cm.sendOk("The Holiday Party Quest service could not be loaded. Please report this in EverLeaf's bug-report channel and include Holiday PQ " + pqType + ".");
             cm.dispose();
+            return;
         } else if (cm.isUsingOldPqNpcStyle()) {
             action(1, 0, 0);
             return;
         }
 
-        cm.sendSimple("#e#b<Party Quest: Holiday>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nHow about you and your party members collectively beating a quest? Here you'll find obstacles and problems where you won't be able to beat it without great teamwork. If you want to try it, please tell the #bleader of your party#k to talk to me.#b\r\n#L0#I want to participate in the party quest.\r\n#L1#I would like to " + (cm.getPlayer().isRecvPartySearchInviteEnabled() ? "disable" : "enable") + " Party Search.\r\n#L2#I would like to hear more details.");
+        cm.sendSimple("#e#b<Party Quest: Holiday>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nWork with your party to protect Happyville's snowman and defeat Scrooge. Have your #bparty leader#k speak to me when everyone is ready.#b\r\n#L0#Enter the Holiday Party Quest#l\r\n#L1#" + (cm.getPlayer().isRecvPartySearchInviteEnabled() ? "Disable" : "Enable") + " Party Search#l\r\n#L2#Show Holiday Party Quest details#l");
     } else if (status == 1) {
         if (selection == 0) {
             if (cm.getParty() == null) {
-                cm.sendOk("You can participate in the party quest only if you are in a party.");
+                cm.sendOk("You need to be in a party to enter the Holiday Party Quest.");
                 cm.dispose();
             } else if (!cm.isLeader()) {
-                cm.sendOk("Your party leader must talk to me to start this party quest.");
+                cm.sendOk("Your party leader must speak to me to start the Holiday Party Quest.");
                 cm.dispose();
             } else {
                 var eli = em.getEligibleParty(cm.getParty());
                 if (eli.size() > 0) {
                     if (!em.startInstance(cm.getParty(), cm.getPlayer().getMap(), pqType)) {
-                        cm.sendOk("Another party has already entered the #rParty Quest#k in this channel. Please try another channel, or wait for the current party to finish.");
+                        cm.sendOk("Another party is already running this Holiday Party Quest in the current channel. Please try another channel or wait for them to finish.");
                     }
                 } else {
-                    cm.sendOk("You cannot start this party quest yet, because either your party is not in the range size, some of your party members are not eligible to attempt it or they are not in this map. If you're having trouble finding party members, try Party Search.");
+                    cm.sendOk("Your party cannot enter yet. Make sure the party size is valid, every member is eligible, and all required members are standing here before the leader tries again.");
                 }
 
                 cm.dispose();
             }
         } else if (selection == 1) {
             var psState = cm.getPlayer().toggleRecvPartySearchInvite();
-            cm.sendOk("Your Party Search status is now: #b" + (psState ? "enabled" : "disabled") + "#k. Talk to me whenever you want to change it back.");
+            cm.sendOk("Party Search is now #b" + (psState ? "enabled" : "disabled") + "#k for your character.");
             cm.dispose();
         } else {
-            cm.sendOk("#e#b<Party Quest: Holiday>#k#n\r\n\r\nJoin in with your team to build up the Snowman that will protect Happyville from the misdoings of Scrooge. While inside, work out with your team to protect it at any means necessary while collecting Snow Vigor that will help on the build up of the Snowman.");
+            cm.sendOk("#e#b<Party Quest: Holiday>#k#n\r\n\r\nProtect the Happyville snowman from Scrooge's forces. Defeated enemies can drop Snow Vigor; bring the real Snow Vigor to the snowman to help it grow. Some drops are fake and will damage the snowman instead, so your party must work together carefully.");
             cm.dispose();
         }
     }
@@ -105,27 +106,38 @@ function recruitPqAction(mode, type, selection) {
 
 function insidePqAction(mode, type, selection) {
     var eim = cm.getEventInstance();
+    if (eim == null) {
+        cm.sendOk("Your Holiday Party Quest instance is no longer active. If you are stuck in this map, use #b@unstuck#k. If this keeps happening, please report it in EverLeaf's bug-report channel.");
+        cm.dispose();
+        return;
+    }
+
     var difficulty = eim.getIntProperty("level");
     var stg = eim.getIntProperty("statusStg1");
 
     var mapobj = eim.getInstanceMap(889100001 + 10 * (difficulty - 1));
+    if (mapobj == null) {
+        cm.sendOk("This Holiday Party Quest map could not be loaded. Please use #b@unstuck#k if necessary and report the issue in EverLeaf's bug-report channel.");
+        cm.dispose();
+        return;
+    }
 
     if (status == 0) {
         if (stg == -1) {
-            cm.sendNext("#b#h0##k... you're finally here. This is the place where the residents of Happyville build the giant snowman. But Scrooge's subordinates are attacking it right now. Now Hurry! Our mission is for you and your party to protect the snowman from Scrooge's men within the time limit. If you eliminate them, then they'll drop an item called Snow Vigor. Gather them up and drop them on the snowman, and you'll literally see it grow. Once it returns to its original size, then your task is complete. Just beware of one thing. Some of the subordinates may drop a fake Snow Vigor. A fake Snow Vigor will actually cause the snowman to melt even faster than usual. Best of luck to you.");
+            cm.sendNext("#b#h0##k, this is where Happyville builds its giant snowman. Scrooge's forces are attacking it now. Defeat them, collect real Snow Vigor, and drop it on the snowman to help it grow before time runs out. Be careful: some enemies drop fake Snow Vigor that makes the snowman melt faster.");
         } else if (stg == 0) {
             if (cm.getMap().getMonsterById(9400321 + 5 * difficulty) == null) {
-                cm.sendNext("Please, defeat Scrooge's underlings and make the snowman grow, so that Scrooge has no other way to avoid showing himself up.");
+                cm.sendNext("Keep defeating Scrooge's underlings and feeding the snowman real Snow Vigor. Scrooge will appear once the snowman has recovered enough.");
                 cm.dispose();
             } else {
-                cm.sendNext("Awesome! Just as I expected, you managed to defeat Scrooge's subordinates. Thank you so much! (Stands silent for a while...) Unfortunately, Scrooge doesn't seem like he's going to stop right here. One of his men have already told him what happened, which means... he'll show up soon. Please keep fighting, and again, best of luck to you.");
+                cm.sendNext("The snowman has recovered and Scrooge is preparing to appear. Stay ready and keep your party together.");
             }
         } else {
             if (!eim.isEventCleared()) {
-                cm.sendNext("Please defeat the Scrooge, so our Maplemas keeps safe from harm!");
+                cm.sendNext("Scrooge is still alive. Defeat him to complete the Holiday Party Quest.");
                 cm.dispose();
             } else {
-                cm.sendNext("Wow!! You defeated Scrooge! Thank you so much! You have managed to make this Maplemas safe and sound! Thanks!!");
+                cm.sendNext("You defeated Scrooge and protected Happyville. Nice work!");
             }
         }
     } else if (status == 1) {
@@ -134,7 +146,7 @@ function insidePqAction(mode, type, selection) {
 
         if (stg == -1) {
             if (!cm.isEventLeader()) {
-                cm.sendOk("Please let your party leader talk to me for further details on the mission.");
+                cm.sendOk("Your party leader must speak to me to begin the snowman-defense stage.");
                 cm.dispose();
                 return;
             }
@@ -143,19 +155,19 @@ function insidePqAction(mode, type, selection) {
             var snowman = LifeFactory.getMonster(9400317 + (5 * difficulty));
             mapobj.spawnMonsterOnGroundBelow(snowman, new Point(-180, 15));
             eim.setIntProperty("snowmanLevel", 1);
-            eim.dropMessage(5, "The snowman appeared on the field! Protect it using all means necessary!");
+            eim.dropMessage(5, "The snowman has appeared. Protect it and bring it real Snow Vigor!");
 
             eim.setIntProperty("statusStg1", 0);
             cm.dispose();
 
         } else if (stg == 0) {
             if (!cm.isEventLeader()) {
-                cm.sendOk("Please let your party leader talk to me for further details on the mission.");
+                cm.sendOk("Your party leader must speak to me to advance to the Scrooge battle.");
                 cm.dispose();
                 return;
             }
 
-            mapobj.broadcastStringMessage(5, "As the snowman grows to it's prime, the Scrooge appears!");
+            mapobj.broadcastStringMessage(5, "The snowman reaches full strength and Scrooge appears!");
             eim.getEm().getIv().invokeFunction("snowmanHeal", eim);
 
             var boss = LifeFactory.getMonster(9400318 + difficulty);
@@ -168,11 +180,11 @@ function insidePqAction(mode, type, selection) {
             gift = cm.haveItem(4032092, 1);
             if (gift) {
                 var optStr = generateSelectionMenu(generatePrizeString());
-                cm.sendSimple("Oh, you brought a #b#t4032092##k with you? That's nice, hold on a bit... Here's your Maplemas gift. Please select the one you'd like to receive:\r\n\r\n" + optStr);
+                cm.sendSimple("You brought a #b#t4032092##k. Choose your Maplemas gift:\r\n\r\n" + optStr);
             } else if (eim.gridCheck(cm.getPlayer()) == -1) {
-                cm.sendNext("Here's your Maplemas gift. Enjoy~");
+                cm.sendNext("Your Holiday Party Quest reward is ready.");
             } else {
-                cm.sendOk("Happy Maplemas!!");
+                cm.sendOk("Happy Maplemas!");
                 cm.dispose();
             }
         }
@@ -191,13 +203,13 @@ function insidePqAction(mode, type, selection) {
                     cm.gainItem(selItems[0][1], selItems[1][1]);
                 }
             } else {
-                cm.sendOk("Please make sure you have room in your EQUIP and USE inventories before proceeding.");
+                cm.sendOk("You need enough free space in both your #bEQUIP#k and #bUSE#k inventories before claiming this reward.");
             }
         } else {
             if (eim.giveEventReward(cm.getPlayer(), difficulty)) {
                 eim.gridInsert(cm.getPlayer(), 1);
             } else {
-                cm.sendOk("Please make sure you have room in your EQUIP, USE and ETC inventories before proceeding.");
+                cm.sendOk("You need enough free space in your #bEQUIP#k, #bUSE#k, and #bETC#k inventories before claiming the Party Quest reward.");
             }
         }
 
