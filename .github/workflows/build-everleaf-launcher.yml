@@ -1,0 +1,88 @@
+name: Build EverLeaf launcher
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - "launcher/**"
+      - ".github/workflows/build-everleaf-launcher.yml"
+  pull_request:
+    branches: [release-dev, master]
+    paths:
+      - "launcher/**"
+      - ".github/workflows/build-everleaf-launcher.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj
+
+      - name: Build
+        run: dotnet build launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj --configuration Release --no-restore
+
+      - name: Test signed manifest, repair, and self-update behavior
+        run: dotnet test launcher/EverLeaf.Launcher.Tests/EverLeaf.Launcher.Tests.csproj --configuration Release
+
+      - name: Publish self-contained launcher
+        run: dotnet publish launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj --configuration Release --runtime win-x64 --self-contained true --output launcher-publish
+
+      - name: Verify launcher security invariants
+        shell: pwsh
+        run: |
+          $source = (Get-Content "launcher/EverLeaf.Launcher/LauncherServices.cs" -Raw) + `
+            (Get-Content "launcher/EverLeaf.Launcher/LauncherUpdateService.cs" -Raw)
+          $required = @(
+            "RSASignaturePadding.Pss",
+            "CryptographicOperations.FixedTimeEquals",
+            "Path.IsPathRooted",
+            "UseShellExecute = true",
+            "ManifestPublicKeyPem",
+            "File.Move(temporary, destination, true)",
+            "EnsureInstallSpace(manifest)",
+            "ValidateLauncherRelease",
+            "LauncherUpdateApplier"
+          )
+          foreach ($value in $required) {
+            if (-not $source.Contains($value)) { throw "Missing launcher security invariant: $value" }
+          }
+          if ($source.Contains("EverLeafProductionKeyPending")) { throw "Placeholder manifest public key still present" }
+          if ($source -match "Server=.*;Password=") { throw "Database credential pattern found in launcher source" }
+          if ($source.Contains("EVERLEAF_LAUNCH_TOKEN")) { throw "Deprecated fake launcher SSO token still present" }
+          $window = Get-Content "launcher/EverLeaf.Launcher/MainWindow.xaml.cs" -Raw
+          if (-not $window.Contains('PlayButton.Content = "INSTALL EVERLEAF"')) { throw "Empty-folder install mode is missing" }
+          if ($window.Contains("Extract the full client first")) { throw "Legacy full-client prerequisite remains" }
+          if (-not (Test-Path "launcher-publish/EverLeafLauncher.exe")) { throw "Launcher executable missing" }
+
+      - name: Package portable launcher
+        shell: pwsh
+        run: |
+          Remove-Item 'launcher-publish/*.pdb' -Force -ErrorAction SilentlyContinue
+          Compress-Archive -Path "launcher-publish/*" -DestinationPath "EverLeafLauncher-portable.zip"
+          Expand-Archive 'EverLeafLauncher-portable.zip' 'launcher-artifact-check'
+          $files = @(Get-ChildItem 'launcher-artifact-check' -File -Recurse)
+          if ($files.Count -ne 1 -or $files[0].Name -ne 'EverLeafLauncher.exe') {
+            throw "Portable launcher ZIP must contain only EverLeafLauncher.exe"
+          }
+          Get-FileHash "EverLeafLauncher-portable.zip" -Algorithm SHA256
+
+      - name: Upload launcher candidate
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-launcher-${{ github.sha }}
+          path: EverLeafLauncher-portable.zip
+          if-no-files-found: error
+          retention-days: 7
