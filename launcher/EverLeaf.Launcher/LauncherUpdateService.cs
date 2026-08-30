@@ -73,7 +73,7 @@ public sealed class LauncherUpdateService : IDisposable
         await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken))
         await using (var target = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None,
                          1024 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan))
-            await source.CopyToAsync(target, cancellationToken);
+            await BoundedDownload.CopyExactAsync(source, target, release.Size, cancellationToken);
 
         if (new FileInfo(destination).Length != release.Size
             || !await PatchService.HashMatchesAsync(destination, release.Sha256, cancellationToken))
