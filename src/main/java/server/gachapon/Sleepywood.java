@@ -6,7 +6,6 @@ package server.gachapon;
  * <p>
  * MapleSEA-like loots thanks to AyumiLove - src: https://ayumilovemaple.wordpress.com/maplestory-gachapon-guide/
  */
-
 public class Sleepywood extends GachaponItems {
 
     @Override
@@ -47,7 +46,9 @@ public class Sleepywood extends GachaponItems {
 
     @Override
     public int[] getUncommonItems() {
-        return new int[]{2040804, 2040817, 2040805, 2340000, 1082149, 1442018};
+        // White Scroll stays in the global rare pool only; keeping a local
+        // uncommon copy made Sleepywood dramatically better for farming it.
+        return new int[]{2040804, 2040817, 2040805, 1082149, 1442018};
     }
 
     @Override
