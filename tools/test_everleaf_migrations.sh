@@ -87,11 +87,12 @@ INSERT INTO everleaf_rooted_forge_order
     (account_id, character_id, recipe, target_item_id, target_inventory_type, target_slot, request_key)
 VALUES (1, 10, 'ROOTED_ARMOR_REFINEMENT', 1002001, 1, 1, 'ci-forge-1');
 
-SELECT IF(COUNT(*) = 11, 'migration_tables_ok', CONCAT('migration_tables_bad:', COUNT(*)))
+SELECT IF(COUNT(*) = 12, 'migration_tables_ok', CONCAT('migration_tables_bad:', COUNT(*)))
 FROM information_schema.tables
 WHERE table_schema = DATABASE()
   AND table_name IN (
       'everleaf_weekly_account_state',
+      'everleaf_weekly_character_objective',
       'everleaf_verdant_mark_balance',
       'everleaf_pq_point_balance',
       'everleaf_pq_point_ledger',
@@ -102,6 +103,20 @@ WHERE table_schema = DATABASE()
       'everleaf_encounter_weekly_reward',
       'everleaf_rooted_material_balance',
       'everleaf_rooted_forge_order'
+  );
+
+SELECT IF(COUNT(*) = 3, 'weekly_indexes_ok', CONCAT('weekly_indexes_bad:', COUNT(*)))
+FROM information_schema.statistics
+WHERE table_schema = DATABASE()
+  AND (
+      (table_name = 'everleaf_weekly_account_state'
+       AND index_name = 'idx_everleaf_weekly_account_week')
+      OR
+      (table_name = 'everleaf_weekly_character_objective'
+       AND index_name IN (
+           'idx_everleaf_weekly_character_week',
+           'idx_everleaf_weekly_objective_lookup'
+       ))
   );
 
 SELECT IF(COUNT(*) = 1, 'forge_stage_ok', 'forge_stage_missing')
