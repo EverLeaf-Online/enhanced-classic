@@ -6,8 +6,8 @@ should be structurally impossible in a healthy client/server data set (for
 example, a spawned NPC or mob with no matching WZ definition, or a normal
 portal targeting a map that is absent from Map.wz).
 
-Script coverage is reported as review information because many retail NPCs and
-portals legitimately do not have a server-side script.
+Script coverage and explicitly named test/debug portals are reported as review
+information because old v83 data contains dormant development/event leftovers.
 """
 
 from __future__ import annotations
@@ -71,6 +71,11 @@ def normalize_id(value: str | None) -> str:
     if value.lstrip("-").isdigit():
         return str(int(value))
     return value
+
+
+def is_explicit_test_portal(name: str) -> bool:
+    lowered = name.strip().lower()
+    return lowered == "test" or lowered.startswith("test_") or lowered.startswith("debug")
 
 
 def main() -> int:
@@ -154,10 +159,15 @@ def main() -> int:
 
                 # -1 and 999999999 are standard scripted/special portal sentinels.
                 if target and target not in {"-1", "999999999"} and target not in maps:
-                    hard_findings.append(Finding(
+                    finding = Finding(
                         "missing_target_map", map_id, portal_name,
                         f"Portal {portal_name!r} targets missing map {target}",
-                    ))
+                    )
+                    if is_explicit_test_portal(portal_name):
+                        review_findings.append(finding)
+                        counts["test_portals_with_missing_targets"] += 1
+                    else:
+                        hard_findings.append(finding)
 
                 if script_name:
                     counts["scripted_portals"] += 1
