@@ -82,6 +82,12 @@ jobs:
             test "$(stat -c '%a' /opt/everleaf/web/.env)" = '600'
             echo 'production_env_permissions=ready'
 
+            # EverLeaf uses eight game channels. Keep the website's configured
+            # port list in lock-step with the actual server so status pages do
+            # not silently report only a subset of channels.
+            grep -qx 'CHANNEL_PORTS=7575,7576,7577,7578,7579,7580,7581,7582' /opt/everleaf/web/.env
+            echo 'website_channel_ports=8'
+
             test -s /opt/everleaf/patches/manifest.json
             test -s /opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip
             python3 - <<'PY'
@@ -129,9 +135,12 @@ jobs:
             echo 'tls_certificate_next_7_days=ready'
 
             ss -ltn | awk '{print $4}' | grep -Eq '(^|:)8484$'
-            ss -ltn | awk '{print $4}' | grep -Eq '(^|:)7575$'
             echo 'game_login_port=ready'
-            echo 'game_channel_port=ready'
+            for port in 7575 7576 7577 7578 7579 7580 7581 7582; do
+              ss -ltn | awk '{print $4}' | grep -Eq "(^|:)$port$"
+              echo "game_channel_port_${port}=ready"
+            done
+            echo 'game_channels=8'
 
             sudo mysql --batch --skip-column-names cosmic < \
               "$audit_dir/audit-everleaf-production.sql"
