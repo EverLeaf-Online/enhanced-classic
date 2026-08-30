@@ -13,16 +13,15 @@ also review-only: map 970033000 contains a portal named ``test`` targeting
 Rush content and is intentionally left unchanged until runtime progression
 proves that the dormant target is required.
 
-Boss Rush's real ``raid_stage`` portals compute their destinations in script,
-so this audit reproduces that small formula and verifies every computed stage
-or rest-area target exists. That lets us preserve the legacy 970033000 test
-portal without hiding an actual Boss Rush progression break.
+Boss Rush has many unused map variants in the WZ. EverLeaf's Agent Meow script
+selects only lobbies 0-7, so the audit validates the 8 active lobby variants of
+stages 1-27 plus the five rest maps instead of treating dormant variants as
+production progression.
 """
 
 from __future__ import annotations
 
 import json
-import math
 import sys
 import xml.etree.ElementTree as ET
 from collections import Counter
@@ -36,6 +35,21 @@ MOB_ROOT = ROOT / "wz" / "Mob.wz"
 REACTOR_ROOT = ROOT / "wz" / "Reactor.wz"
 NPC_SCRIPT_ROOT = ROOT / "scripts" / "npc"
 PORTAL_SCRIPT_ROOT = ROOT / "scripts" / "portal"
+
+BOSS_RUSH_LOBBIES = range(8)
+BOSS_RUSH_STAGE_BASES = [970030100 + (100 * index) for index in range(27)]
+BOSS_RUSH_PROGRESS_BASES = BOSS_RUSH_STAGE_BASES[:-1]  # stage 27 is the final boss
+BOSS_RUSH_REST_MAPS = {str(970030001 + index) for index in range(5)}
+BOSS_RUSH_ACTIVE_MAPS = {
+    str(base + lobby)
+    for base in BOSS_RUSH_STAGE_BASES
+    for lobby in BOSS_RUSH_LOBBIES
+}
+BOSS_RUSH_PROGRESS_MAPS = {
+    str(base + lobby)
+    for base in BOSS_RUSH_PROGRESS_BASES
+    for lobby in BOSS_RUSH_LOBBIES
+}
 
 
 @dataclass(frozen=True)
@@ -89,11 +103,11 @@ def is_known_legacy_missing_target(map_id: str, portal_name: str, target: str) -
 
 
 def boss_rush_next_stage(map_id: str) -> str:
-    """Mirror scripts/portal/raid_stage.js for a Boss Rush stage map."""
+    """Mirror scripts/portal/raid_stage.js for an active Boss Rush stage map."""
     current = int(map_id)
     if current % 500 >= 100:
         return str(current + 100)
-    return str(970030001 + math.floor((current - 970030100) / 500))
+    return str(970030001 + ((current - 970030100) // 500))
 
 
 def main() -> int:
@@ -114,6 +128,7 @@ def main() -> int:
     review_findings: list[Finding] = []
     parse_errors: list[str] = []
     counts: Counter[str] = Counter()
+    boss_rush_raid_stage_maps: set[str] = set()
 
     for map_id, path in sorted(maps.items(), key=lambda item: int(item[0])):
         try:
@@ -195,13 +210,37 @@ def main() -> int:
                             f"Portal {portal_name!r} references script {script_name!r}, but scripts/portal/{script_name}.js is missing",
                         ))
                     elif script_name == "raid_stage":
-                        counts["boss_rush_stage_portals"] += 1
-                        next_stage = boss_rush_next_stage(map_id)
-                        if next_stage not in maps:
-                            hard_findings.append(Finding(
-                                "missing_boss_rush_stage", map_id, portal_name,
-                                f"Boss Rush portal {portal_name!r} computes missing next map {next_stage}",
-                            ))
+                        counts["boss_rush_stage_portals_all_variants"] += 1
+                        boss_rush_raid_stage_maps.add(map_id)
+                        if map_id in BOSS_RUSH_PROGRESS_MAPS:
+                            counts["boss_rush_stage_portals_active"] += 1
+                            next_stage = boss_rush_next_stage(map_id)
+                            if next_stage not in maps:
+                                hard_findings.append(Finding(
+                                    "missing_boss_rush_stage", map_id, portal_name,
+                                    f"Active Boss Rush portal {portal_name!r} computes missing next map {next_stage}",
+                                ))
+
+    for map_id in sorted(BOSS_RUSH_ACTIVE_MAPS, key=int):
+        if map_id not in maps:
+            hard_findings.append(Finding(
+                "missing_boss_rush_map", map_id, "BossRushPQ",
+                f"Active Boss Rush lobby/stage map {map_id} is missing",
+            ))
+
+    for map_id in sorted(BOSS_RUSH_REST_MAPS, key=int):
+        if map_id not in maps:
+            hard_findings.append(Finding(
+                "missing_boss_rush_rest_map", map_id, "BossRushPQ",
+                f"Boss Rush rest map {map_id} is missing",
+            ))
+
+    for map_id in sorted(BOSS_RUSH_PROGRESS_MAPS, key=int):
+        if map_id in maps and map_id not in boss_rush_raid_stage_maps:
+            hard_findings.append(Finding(
+                "missing_boss_rush_progress_portal", map_id, "raid_stage",
+                f"Active Boss Rush stage {map_id} has no raid_stage portal",
+            ))
 
     payload = {
         "maps": len(maps),
@@ -228,7 +267,7 @@ def main() -> int:
             f"Hard failures: {payload['hardFailureCount']}; "
             f"review-only findings: {payload['reviewFindingCount']}; "
             f"NPCs without dedicated scripts: {counts['npc_without_script']}; "
-            f"Boss Rush stage portals: {counts['boss_rush_stage_portals']}"
+            f"active Boss Rush stage portals: {counts['boss_rush_stage_portals_active']}"
         )
         for error in parse_errors:
             print(f"[FAIL] XML parse error: {error}")
