@@ -7,6 +7,10 @@ connecting to production or mutating data. Intended to complement everleaf_qa.py
 The Maple WZ format commonly stores portal target maps as unpadded integers while
 map filenames are zero-padded to nine digits. This auditor normalizes those IDs
 before correlation so legacy formatting is not misreported as missing content.
+
+Empress / Knights of Cygnus content is outside EverLeaf's release scope. Maps in
+the 130xxxxxx family and links targeting that family are excluded from deep QA
+counts and review queues.
 """
 from __future__ import annotations
 
@@ -23,6 +27,8 @@ MAP_ROOT = ROOT / "wz" / "Map.wz" / "Map"
 NPC_ROOT = ROOT / "wz" / "Npc.wz"
 NPC_SCRIPTS = ROOT / "scripts" / "npc"
 PORTAL_SCRIPTS = ROOT / "scripts" / "portal"
+EXCLUDED_MAP_START = 130_000_000
+EXCLUDED_MAP_END = 131_000_000
 
 
 @dataclass(frozen=True)
@@ -51,6 +57,14 @@ def normalized_map_id(value: str) -> str | None:
     return f"{number:09d}"
 
 
+def is_excluded_map_id(value: str) -> bool:
+    normalized = normalized_map_id(value)
+    if normalized is None:
+        return False
+    number = int(normalized)
+    return EXCLUDED_MAP_START <= number < EXCLUDED_MAP_END
+
+
 def child(node: ET.Element, name: str) -> str | None:
     for c in node:
         if c.attrib.get("name") == name:
@@ -66,7 +80,12 @@ def section(root: ET.Element, name: str) -> ET.Element | None:
 
 
 def map_files() -> list[Path]:
-    return sorted(MAP_ROOT.glob("Map*/*.img.xml")) if MAP_ROOT.is_dir() else []
+    if not MAP_ROOT.is_dir():
+        return []
+    return sorted(
+        path for path in MAP_ROOT.glob("Map*/*.img.xml")
+        if not is_excluded_map_id(path.name.split(".", 1)[0])
+    )
 
 
 def parse_maps() -> tuple[dict[str, Path], dict[str, set[str]], list[dict], list[dict], list[Finding]]:
@@ -106,7 +125,7 @@ def parse_maps() -> tuple[dict[str, Path], dict[str, set[str]], list[dict], list
 def npc_agent(maps: dict[str, Path], npcs: list[dict]) -> list[Finding]:
     out: list[Finding] = []
     spawned = Counter(n["npc"] for n in npcs if n["npc"].isdigit())
-    out.append(Finding("npc-correlation", "PASS" if npcs else "FAIL", "spawn-inventory", f"Indexed {len(npcs)} NPC spawns across {len(maps)} maps."))
+    out.append(Finding("npc-correlation", "PASS" if npcs else "FAIL", "spawn-inventory", f"Indexed {len(npcs)} NPC spawns across {len(maps)} in-scope maps."))
     missing_assets = []
     no_script = []
     for npc_id in sorted(spawned):
@@ -121,7 +140,7 @@ def npc_agent(maps: dict[str, Path], npcs: list[dict]) -> list[Finding]:
     out.append(Finding("npc-correlation", "REVIEW" if no_script else "PASS", "spawn-script-coverage", f"{len(no_script)} of {len(spawned)} unique spawned NPC IDs have no same-ID NPC script; resolve against shops/decorative/event NPCs."))
     numeric_scripts = {p.stem for p in NPC_SCRIPTS.glob("*.js") if p.stem.isdigit()} if NPC_SCRIPTS.is_dir() else set()
     orphan = sorted(numeric_scripts - set(spawned))
-    out.append(Finding("npc-correlation", "REVIEW" if orphan else "PASS", "orphan-npc-scripts", f"{len(orphan)} numeric NPC scripts are not directly represented by a current map spawn; event/summoned NPCs may be legitimate."))
+    out.append(Finding("npc-correlation", "REVIEW" if orphan else "PASS", "orphan-npc-scripts", f"{len(orphan)} numeric NPC scripts are not directly represented by an in-scope map spawn; event/summoned NPCs may be legitimate."))
     return out
 
 
@@ -132,10 +151,16 @@ def portal_agent(maps: dict[str, Path], portal_names: dict[str, set[str]], porta
     broken_names = []
     missing_scripts = []
     self_loops = []
+    excluded_links = 0
     ignored_raw = {"", "0", "999999999"}
+    in_scope_portals = 0
     for p in portals:
         raw_tm = p["tm"]
         src = p["map"]
+        if is_excluded_map_id(raw_tm):
+            excluded_links += 1
+            continue
+        in_scope_portals += 1
         if p["script"] and not (PORTAL_SCRIPTS / f"{p['script']}.js").is_file():
             missing_scripts.append((src, p["pn"], p["script"]))
         if raw_tm in ignored_raw:
@@ -153,9 +178,6 @@ def portal_agent(maps: dict[str, Path], portal_names: dict[str, set[str]], porta
         if tn and tn not in {"sp", "portal"} and tn not in portal_names.get(tm, set()):
             broken_names.append((src, p["pn"], tm, tn))
 
-    # Legacy WZ contains event/test/disabled portals that may intentionally point
-    # at absent content. Keep these as REVIEW until a runtime/content classifier
-    # establishes that the source portal is player-reachable.
     for src, pn, raw, tm in broken_maps[:100]:
         out.append(Finding("portal-graph", "REVIEW", "missing-target-map", f"Portal {pn or '?'} targets absent map {raw} (normalized {tm}); classify source map/portal reachability.", src))
     for src, pn, tm, tn in broken_names[:100]:
@@ -163,10 +185,11 @@ def portal_agent(maps: dict[str, Path], portal_names: dict[str, set[str]], porta
     for src, pn, script in missing_scripts[:100]:
         out.append(Finding("portal-graph", "REVIEW", "missing-portal-script", f"Portal {pn or '?'} references absent script {script}.js; classify as active/legacy before fixing.", src))
 
-    out.append(Finding("portal-graph", "REVIEW" if broken_maps else "PASS", "target-map-integrity", f"Checked {len(portals)} portals after ID normalization; {len(broken_maps)} reference absent target maps."))
-    out.append(Finding("portal-graph", "REVIEW" if missing_scripts else "PASS", "portal-script-integrity", f"{len(missing_scripts)} portal script references are absent and require active-vs-legacy classification."))
-    out.append(Finding("portal-graph", "REVIEW" if broken_names else "PASS", "target-portal-integrity", f"{len(broken_names)} cross-map target portal names require review."))
-    out.append(Finding("portal-graph", "REVIEW" if self_loops else "PASS", "self-loops", f"{len(self_loops)} explicit numeric portal self-loops found; many may be intentional same-map teleports."))
+    out.append(Finding("portal-graph", "PASS", "excluded-empress-links", f"Excluded {excluded_links} portal links into out-of-scope Empress/Cygnus maps."))
+    out.append(Finding("portal-graph", "REVIEW" if broken_maps else "PASS", "target-map-integrity", f"Checked {in_scope_portals} in-scope portals after ID normalization; {len(broken_maps)} reference absent target maps."))
+    out.append(Finding("portal-graph", "REVIEW" if missing_scripts else "PASS", "portal-script-integrity", f"{len(missing_scripts)} in-scope portal script references are absent and require active-vs-legacy classification."))
+    out.append(Finding("portal-graph", "REVIEW" if broken_names else "PASS", "target-portal-integrity", f"{len(broken_names)} in-scope cross-map target portal names require review."))
+    out.append(Finding("portal-graph", "REVIEW" if self_loops else "PASS", "self-loops", f"{len(self_loops)} in-scope explicit numeric portal self-loops found; many may be intentional same-map teleports."))
 
     starts = [m for m in ("000000000", "100000000", "104000000") if m in maps]
     reached: set[str] = set(starts)
@@ -179,7 +202,7 @@ def portal_agent(maps: dict[str, Path], portal_names: dict[str, set[str]], porta
                 q.append(dst)
     if starts:
         unreachable = len(set(maps) - reached)
-        out.append(Finding("portal-graph", "REVIEW", "static-reachability", f"Numeric portal graph reaches {len(reached)}/{len(maps)} maps from {', '.join(starts)}; {unreachable} maps use other starts, scripted transport/events, or need reachability review."))
+        out.append(Finding("portal-graph", "REVIEW", "static-reachability", f"Numeric portal graph reaches {len(reached)}/{len(maps)} in-scope maps from {', '.join(starts)}; {unreachable} maps use other starts, scripted transport/events, or need reachability review."))
     return out
 
 
