@@ -178,8 +178,11 @@ public class Trade {
     }
 
     public void setMeso(int meso) {
+        // A duplicated/stale SET_MESO packet can arrive after confirmation. The
+        // trade is immutable once locked, so treat the replay as a no-op instead
+        // of throwing into the packet-processing path.
         if (locked.get()) {
-            throw new RuntimeException("Trade is locked.");
+            return;
         }
         if (meso < 0) {
             log.warn("[Hack] Chr {} is trying to trade negative mesos", chr.getName());
@@ -192,7 +195,6 @@ public class Trade {
             if (partner != null) {
                 partner.getChr().sendPacket(PacketCreator.getTradeMesoSet((byte) 1, this.meso));
             }
-        } else {
         }
     }
 
@@ -294,7 +296,23 @@ public class Trade {
 
     public static void completeTrade(Character chr) {
         Trade local = chr.getTrade();
+        if (local == null) {
+            chr.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
         Trade partner = local.getPartner();
+        // CONFIRM is valid only for a fully-established, symmetric trade pair.
+        // Reject stale/replayed packets before any item/meso settlement happens.
+        if (partner == null
+                || partner.getChr().getTrade() != partner
+                || partner.getPartner() != local
+                || !local.isFullTrade()
+                || !partner.isFullTrade()) {
+            cancelTrade(chr, TradeResult.UNSUCCESSFUL);
+            return;
+        }
+
         if (local.checkCompleteHandshake()) {
             local.fetchExchangedItems();
             partner.fetchExchangedItems();
@@ -448,6 +466,11 @@ public class Trade {
     }
 
     public static void inviteTrade(Character c1, Character c2) {
+        // Normal clients create the miniroom before INVITE, but a replayed or
+        // reordered packet must not be able to null-dereference the trade path.
+        if (c1.getTrade() == null) {
+            startTrade(c1);
+        }
 
         if ((c1.isGM() && !c2.isGM()) && c1.gmLevel() < YamlConfig.config.server.MINIMUM_GM_LEVEL_TO_TRADE) {
             c1.message("You cannot trade with non-GM characters.");
