@@ -18,6 +18,7 @@ FISHING = ROOT / "src/main/java/tools/packets/Fishing.java"
 BOSS_RUSH = SCRIPTS_DIR / "event/BossRushPQ.js"
 BOSS_RUSH_ANNOUNCER = SCRIPTS_DIR / "npc/9000038.js"
 LEGACY_EXCHANGE = SCRIPTS_DIR / "npc/9120010.js"
+BOSS_DROP_MIGRATION = ROOT / "database/sql/migration/everleaf_boss_rare_scroll_drops.sql"
 
 CHAOS = 2049100
 WHITE = 2340000
@@ -26,6 +27,16 @@ WATCH = {
     CHAOS: "Chaos Scroll 60%",
     WHITE: "White Scroll",
     LEAF: "Maple Leaves",
+}
+
+NORMAL_BOSS_TARGETS = {
+    8500001: "Papulatus Clock",
+    8510000: "Pianus",
+    9420549: "Furious Scarlion",
+    9420544: "Furious Targa",
+    8800002: "Zakum",
+    8810018: "Horntail",
+    8820001: "Pink Bean",
 }
 
 
@@ -125,6 +136,32 @@ def audit_gacha() -> list[str]:
     return failures
 
 
+def audit_normal_boss_drops() -> list[str]:
+    failures: list[str] = []
+    if not BOSS_DROP_MIGRATION.is_file():
+        return ["Missing EverLeaf normal-boss rare-scroll migration"]
+
+    text = BOSS_DROP_MIGRATION.read_text(encoding="utf-8-sig", errors="replace")
+    if str(CHAOS) not in text or str(WHITE) not in text:
+        failures.append("Normal-boss migration must contain both Chaos and White Scroll item IDs")
+
+    missing = [f"{name} ({mob_id})" for mob_id, name in NORMAL_BOSS_TARGETS.items() if str(mob_id) not in text]
+    if missing:
+        failures.append("Normal-boss rare-scroll migration is missing: " + ", ".join(missing))
+    else:
+        print("  [OK] normal bosses have tiered Chaos/White Scroll drop targets")
+
+    # Guard against accidentally rewarding multipart/transitional Zakum/Horntail
+    # bodies and therefore rolling the rare scroll several times per clear.
+    forbidden = [8800000, 8800001, 8810000, 8810001]
+    for mob_id in forbidden:
+        # Ignore explanatory comments by checking for a VALUES-like tuple.
+        if re.search(rf"\(\s*{mob_id}\s*,", text):
+            failures.append(f"Transitional/multipart boss {mob_id} must not receive direct rare-scroll rows")
+
+    return failures
+
+
 def audit_controlled_sources() -> list[str]:
     failures: list[str] = []
 
@@ -151,7 +188,6 @@ def audit_controlled_sources() -> list[str]:
         failures.append("Missing BossRushPQ.js")
     else:
         text = BOSS_RUSH.read_text(encoding="utf-8-sig", errors="replace")
-        # Reward level 6 is the final completion tier; level 5 is Rest Spot V.
         level6_match = re.search(r"evLevel\s*=\s*6;.*?itemSet\s*=\s*\[(.*?)\];", text, re.DOTALL)
         level5_match = re.search(r"evLevel\s*=\s*5;.*?itemSet\s*=\s*\[(.*?)\];", text, re.DOTALL)
         level6 = [int(x) for x in re.findall(r"\b\d{7}\b", level6_match.group(1))] if level6_match else []
@@ -210,6 +246,7 @@ def main() -> int:
     failures: list[str] = []
     failures.extend(audit_gacha())
     failures.extend(audit_gacha_tier_split())
+    failures.extend(audit_normal_boss_drops())
     failures.extend(audit_controlled_sources())
     audit_authored_sources()
 
