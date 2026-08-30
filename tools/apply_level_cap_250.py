@@ -84,6 +84,8 @@ everleaf_imports = (
     "import client.command.commands.gm0.LeafShopCommand;\n"
     "import client.command.commands.gm0.MarksCommand;\n"
     "import client.command.commands.gm0.ProgressCommand;\n"
+    "import client.command.commands.gm0.VoteCommand;\n"
+    "import client.command.commands.gm0.VoteShopCommand;\n"
     "import client.command.commands.gm0.WeekliesCommand;"
 )
 
@@ -125,6 +127,20 @@ if leafshop_registration not in commands_text:
         1,
     )
 
+vote_registration = (
+    '        addCommand("vote", VoteCommand.class);\n'
+    '        addCommand(new String[]{"voteshop", "voteexchange"}, VoteShopCommand.class);'
+)
+if vote_registration not in commands_text:
+    vote_anchor = leafshop_registration
+    if vote_anchor not in commands_text:
+        raise SystemExit("Could not find EverLeaf leaf shop command registration anchor.")
+    commands_text = commands_text.replace(
+        vote_anchor,
+        vote_anchor + "\n" + vote_registration,
+        1,
+    )
+
 commands.write_text(commands_text, encoding="utf-8")
 
-print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics + level-1 storage + progression/marks/leafshop commands).")
+print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics + level-1 storage + progression/marks/leafshop/vote commands).")
