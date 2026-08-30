@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Apply Everleaf development configuration deterministically.
+"""Apply EverLeaf development configuration deterministically.
 
 This transform keeps the upstream Cosmic configuration easy to compare while
-ensuring builds/tests use Everleaf's intended defaults. It intentionally fails
+ensuring builds/tests use EverLeaf's intended defaults. It intentionally fails
 when expected upstream values change so configuration drift is visible in CI.
 """
 from pathlib import Path
@@ -35,8 +35,9 @@ def main() -> None:
         (
             "    #Properties for Scania 0",
             "    # Everleaf primary world (protocol world id 0 / Scania slot)",
+            "    # EverLeaf primary world (protocol world id 0 / Scania slot)",
         ),
-        "    # Everleaf primary world (protocol world id 0 / Scania slot)",
+        "    # EverLeaf primary world (protocol world id 0 / Scania slot)",
     )
 
     # Quote user-facing strings and keep them ASCII. YamlBeans' tokenizer is
@@ -47,28 +48,32 @@ def main() -> None:
             (
                 "    server_message: Welcome to Scania!",
                 "    server_message: Welcome to Everleaf — Classic roots. New growth.",
+                '    server_message: "Welcome to Everleaf - Classic roots. New growth."',
             ),
-            '    server_message: "Welcome to Everleaf - Classic roots. New growth."',
+            '    server_message: "Welcome to EverLeaf - Classic roots. New growth."',
         ),
         (
             (
                 "    event_message: Scania!",
                 "    event_message: Everleaf — Enhanced Classic v83",
+                '    event_message: "Everleaf - Enhanced Classic v83"',
             ),
-            '    event_message: "Everleaf - Enhanced Classic v83"',
+            '    event_message: "EverLeaf - Enhanced Classic v83"',
         ),
         (
             (
                 "    why_am_i_recommended: Welcome to Scania!",
                 "    why_am_i_recommended: Everleaf — level 250, modern progression, no P2W.",
+                '    why_am_i_recommended: "Everleaf - level 250, modern progression, no P2W."',
             ),
-            '    why_am_i_recommended: "Everleaf - level 250, modern progression, no P2W."',
+            '    why_am_i_recommended: "EverLeaf - level 250, modern progression, no P2W."',
         ),
     ]
     for candidates, new in message_replacements:
         text = replace_first_of(text, candidates, new)
 
     replacements = [
+        ("    channels: 3", "    channels: 8"),
         ("    exp_rate: 10", "    exp_rate: 5"),
         ("    meso_rate: 10", "    meso_rate: 3"),
         ("    drop_rate: 10", "    drop_rate: 2"),
@@ -76,14 +81,21 @@ def main() -> None:
         ("    quest_rate: 5", "    quest_rate: 1"),
         ("    fishing_rate: 10", "    fishing_rate: 2"),
         ("    travel_rate: 10", "    travel_rate: 2"),
+        ("    AUTOMATIC_REGISTER: true", "    AUTOMATIC_REGISTER: false"),
         ("    USE_SUPPLY_RATE_COUPONS: true", "    USE_SUPPLY_RATE_COUPONS: false"),
     ]
 
-    for old, new in replacements:
+    # The primary EverLeaf world is intentionally eight channels. The source
+    # currently already carries this value; accepting either 8 or upstream 3
+    # keeps the transform deterministic if the baseline changes later.
+    if "    channels: 8" not in text:
+        text = replace_once(text, "    channels: 3", "    channels: 8")
+
+    for old, new in replacements[1:]:
         text = replace_once(text, old, new)
 
     CONFIG.write_text(text, encoding="utf-8")
-    print("Everleaf development configuration applied.")
+    print("EverLeaf development configuration applied (8 channels; website registration required).")
 
 
 if __name__ == "__main__":
