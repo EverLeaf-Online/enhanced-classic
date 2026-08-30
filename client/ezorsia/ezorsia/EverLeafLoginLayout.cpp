@@ -1,31 +1,12 @@
 #include "stdafx.h"
-#include "Client.h"
 #include "MainMain.h"
-#include "Memory.h"
 
-namespace {
-    using UpdateResolution_t = void(*)();
-    UpdateResolution_t gUpdateResolution = &Client::UpdateResolution;
-
-    void UpdateResolution_Hook() {
-        // EverLeaf ships resolution-specific login frame assets. MapleEzorsia's
-        // default path treats them as an 800x600-style centered frame unless
-        // bigLoginFrame is enabled. Flip the layout mode immediately before the
-        // normal resolution patch runs so the login presentation uses the full
-        // configured HD viewport instead of leaving the unused black surround.
-        if (MainMain::EzorsiaV2WzIncluded || MainMain::CustomLoginFrame) {
-            MainMain::bigLoginFrame = true;
-        }
-
-        gUpdateResolution();
+void PrepareEverLeafLoginLayout() {
+    // EverLeaf ships resolution-specific login frame assets. MapleEzorsia's
+    // normal centered-login path keeps the legacy 800x600 presentation in the
+    // middle of an HD window. Enable the full-size login layout after
+    // MainMain has detected EverLeaf_UI.wz and before UpdateResolution runs.
+    if (MainMain::EzorsiaV2WzIncluded || MainMain::CustomLoginFrame) {
+        MainMain::bigLoginFrame = true;
     }
-
-    struct EverLeafLoginLayoutBootstrap {
-        EverLeafLoginLayoutBootstrap() {
-            Memory::SetHook(
-                true,
-                reinterpret_cast<void**>(&gUpdateResolution),
-                reinterpret_cast<void*>(&UpdateResolution_Hook));
-        }
-    } gEverLeafLoginLayoutBootstrap;
 }
