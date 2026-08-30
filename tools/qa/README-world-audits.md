@@ -11,6 +11,8 @@ The CI workflow runs:
 
 World-link hard failures are mirrored to stderr in JSON mode so CI logs remain actionable even when GitHub artifact upload is unavailable or storage quotas are exhausted. Independent integration/deep-QA checks use `if: always()` so one world-content failure does not hide unrelated regressions in the same run.
 
+Structural link failures are release gates only when the WZ data contains a concrete static target map and target portal name that cannot resolve. Ambiguous scripted, sentinel, legacy, duplicate, or reference-only differences remain review findings until evidence proves they are active player-facing defects.
+
 Hard failures should represent conditions that cannot be healthy in the supported EverLeaf client/server data set. Ambiguous reference differences and exact duplicates that may be intentional remain review-only until runtime or authoritative reference data proves otherwise.
 
 Empress/Cygnus expansion work is outside the EverLeaf release scope and should not be introduced to satisfy these audits.
