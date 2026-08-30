@@ -9,8 +9,6 @@ const ExpeditionType = Java.type('server.expeditions.ExpeditionType');
 const EmpressContentPolicy = Java.type('everleaf.content.EmpressContentPolicy');
 const EmpressWeeklyLockoutService = Java.type('everleaf.content.EmpressWeeklyLockoutService');
 var exped = ExpeditionType.EMPRESS;
-var expedName = "Empress";
-var expedBoss = "Cygnus";
 var expedMap = "Cygnus's Chamber";
 
 var list = "What would you like to do?#b\r\n\r\n#L1#View current Expedition members#l\r\n#L2#Start the fight!#l\r\n#L3#Stop the expedition.#l";
@@ -28,6 +26,8 @@ function action(mode, type, selection) {
         return;
     }
 
+    // Every character must talk to the recruiter to create/join the expedition,
+    // so the account-scoped weekly check is enforced before registration.
     if (!EmpressWeeklyLockoutService.canEnter(player.getAccountID())) {
         cm.sendOk("Your account has already cleared the Empress expedition this week. EverLeaf weekly lockouts reset Monday at 00:00 UTC.");
         cm.dispose();
@@ -103,17 +103,6 @@ function action(mode, type, selection) {
                 cm.sendOk("The expedition needs at least " + min + " registered players. Current members: " + size + ".");
                 cm.dispose();
                 return;
-            }
-
-            // Recheck all online members' account lockouts before the event starts.
-            var members = expedition.getMemberList();
-            for (var i = 0; i < members.size(); i++) {
-                var member = members.get(i).getKey();
-                if (member != null && !EmpressWeeklyLockoutService.canEnter(member.getAccountID())) {
-                    cm.sendOk(member.getName() + " has already cleared Empress this week. Remove that character before starting.");
-                    cm.dispose();
-                    return;
-                }
             }
 
             cm.sendOk("The expedition is ready. You will now enter #b" + expedMap + "#k.");
