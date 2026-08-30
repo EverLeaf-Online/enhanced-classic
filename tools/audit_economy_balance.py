@@ -16,14 +16,19 @@ NX_MIGRATION = ROOT / "database/sql/migration/everleaf_nx_drop_balance.sql"
 RARE_MIGRATION = ROOT / "database/sql/migration/everleaf_rare_global_drop_balance.sql"
 DENOMINATOR = 999_999  # MapleMap global-drop roll uses nextInt(999999) < chance
 
-# item id -> (label, expected EverLeaf chance, migration file)
-BALANCED_GLOBALS = {
-    4031865: ("100 NX Coupon", 400, NX_MIGRATION),
-    4031866: ("250 NX Coupon", 100, NX_MIGRATION),
-    2049100: ("Chaos Scroll 60%", 100, RARE_MIGRATION),
-    2340000: ("White Scroll", 40, RARE_MIGRATION),
+# item id -> (label, expected EverLeaf chance)
+NX_GLOBALS = {
+    4031865: ("100 NX Coupon", 400),
+    4031866: ("250 NX Coupon", 100),
 }
 NX_VALUES = {4031865: 100, 4031866: 250}
+
+# These items must not remain universal monster drops. Their explicit boss,
+# event, quest, gachapon, and other authored sources are audited separately.
+REMOVED_GLOBALS = {
+    2049100: "Chaos Scroll 60%",
+    2340000: "White Scroll",
+}
 
 
 def read_rate(text: str, key: str) -> int:
@@ -53,16 +58,33 @@ def extract_seed_global(item_id: int) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def extract_target_chance(item_id: int, migration: Path) -> int | None:
-    if not migration.is_file():
-        return None
-    text = migration.read_text(encoding="utf-8-sig", errors="replace")
-    match = re.search(
-        rf"UPDATE\s+`drop_data_global`\s+SET\s+`chance`\s*=\s*(\d+).*?WHERE\s+`itemid`\s*=\s*{item_id}\b",
-        text,
-        re.IGNORECASE | re.DOTALL,
-    )
-    return int(match.group(1)) if match else None
+def sql_statements(path: Path) -> list[str]:
+    if not path.is_file():
+        return []
+    text = path.read_text(encoding="utf-8-sig", errors="replace")
+    return [statement.strip() for statement in text.split(";") if statement.strip()]
+
+
+def extract_update_target(item_id: int, migration: Path) -> int | None:
+    """Return chance from the UPDATE statement that targets exactly item_id."""
+    for statement in sql_statements(migration):
+        if not re.search(r"\bUPDATE\s+`drop_data_global`\b", statement, re.IGNORECASE):
+            continue
+        if not re.search(rf"\b`itemid`\s*=\s*{item_id}\b", statement, re.IGNORECASE):
+            continue
+        match = re.search(r"\b`chance`\s*=\s*(\d+)\b", statement, re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def migration_removes_global(item_id: int, migration: Path) -> bool:
+    for statement in sql_statements(migration):
+        if not re.search(r"\bDELETE\s+FROM\s+`drop_data_global`\b", statement, re.IGNORECASE):
+            continue
+        if re.search(rf"\b`itemid`\s*=\s*{item_id}\b", statement, re.IGNORECASE):
+            return True
+    return False
 
 
 def main() -> int:
@@ -82,9 +104,9 @@ def main() -> int:
     failures: list[str] = []
     expected_nx_per_kill = 0.0
 
-    for item_id, (label, expected_target, migration) in BALANCED_GLOBALS.items():
+    for item_id, (label, expected_target) in NX_GLOBALS.items():
         seed = extract_seed_global(item_id)
-        target = extract_target_chance(item_id, migration)
+        target = extract_update_target(item_id, NX_MIGRATION)
 
         if seed is None:
             failures.append(f"{label} ({item_id}) is missing from base drop_data_global seed")
@@ -107,11 +129,25 @@ def main() -> int:
             f"({probability * 100:.4f}%)"
         )
         if target != expected_target:
-            failures.append(
-                f"{label} ({item_id}) target is {target}; expected {expected_target}"
+            failures.append(f"{label} ({item_id}) target is {target}; expected {expected_target}")
+        expected_nx_per_kill += probability * NX_VALUES[item_id]
+
+    for item_id, label in REMOVED_GLOBALS.items():
+        seed = extract_seed_global(item_id)
+        if seed is None:
+            failures.append(f"{label} ({item_id}) is missing from base drop_data_global seed")
+            print(f"{label} ({item_id}): seed=MISSING")
+        else:
+            print(
+                f"{label} ({item_id}): base chance={seed}/{DENOMINATOR} "
+                f"({seed / DENOMINATOR * 100:.4f}%)"
             )
-        if item_id in NX_VALUES:
-            expected_nx_per_kill += probability * NX_VALUES[item_id]
+
+        if migration_removes_global(item_id, RARE_MIGRATION):
+            print("  EverLeaf target=REMOVED from ordinary global monster drops")
+        else:
+            failures.append(f"{label} ({item_id}) is not removed by the EverLeaf rare-drop migration")
+            print("  EverLeaf target: GLOBAL REMOVAL MISSING")
 
     print(f"EverLeaf NX target expected value: {expected_nx_per_kill * 1000:.2f} NX per 1,000 kills")
     for kills_per_hour in (500, 1000, 2000, 4000):
