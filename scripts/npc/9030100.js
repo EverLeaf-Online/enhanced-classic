@@ -6,6 +6,7 @@
 
 var status = -1;
 var FREE_MARKET = 910000000;
+var GENERAL_STORE_NPC = 2100004;
 
 function start() {
     action(1, 0, 0);
@@ -38,9 +39,10 @@ function action(mode, type, selection) {
         }
 
         if (selection == 1) {
-            // Reuse an existing general-store inventory rather than creating
-            // a progression-bypassing remote shop.
-            cm.openShopNPC(2100002);
+            // Ariant's real general store: basic potions, antidotes, town-return
+            // scrolls and starter ammunition only. Do not expose the weapon shop
+            // or progression gear through this convenience hub.
+            cm.openShopNPC(GENERAL_STORE_NPC);
             cm.dispose();
             return;
         }
