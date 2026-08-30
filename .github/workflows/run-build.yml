@@ -51,8 +51,8 @@ jobs:
         run: python3 tools/audit_rooted_content.py
       - name: Audit world data integrity
         run: python3 tools/audit_world_integrity.py
-      - name: Review script map references
-        run: python3 tools/audit_script_map_references.py
+      - name: Audit script map references
+        run: python3 tools/audit_script_map_references.py --strict
       - name: Ensure Maven wrapper is executable
         run: chmod +x mvnw
       - name: Build with Maven (compile -> test -> package)
