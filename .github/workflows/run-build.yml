@@ -30,7 +30,9 @@ jobs:
       - name: Apply Everleaf configuration
         run: python3 tools/apply_everleaf_config.py
       - name: Apply Everleaf source transforms
-        run: python3 tools/apply_level_cap_250.py
+        run: |
+          python3 tools/apply_level_cap_250.py
+          python3 tools/apply_empress_progress_hooks.py
       - name: Audit economy and NX drops
         run: python3 tools/audit_economy_balance.py
       - name: Audit Gachapon and reward sources
