@@ -1,203 +1,17 @@
 /*
     This file is part of the HeavenMS MapleStory Server, commands OdinMS-based
     Copyleft (L) 2016 - 2019 RonanLana
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as
-    published by the Free Software Foundation version 3 as published by
-    the Free Software Foundation. You may not use, modify or distribute
-    this program under any other version of the GNU Affero General Public
-    License.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-/*
-   @Author: Arthur L - Refactored command content into modules
 */
 package client.command;
 
 import client.Client;
-import client.command.commands.gm0.ChangeLanguageCommand;
-import client.command.commands.gm0.DisposeCommand;
-import client.command.commands.gm0.DropLimitCommand;
-import client.command.commands.gm0.EnableAuthCommand;
-import client.command.commands.gm0.EquipLvCommand;
-import client.command.commands.gm0.GachaCommand;
-import client.command.commands.gm0.GmCommand;
-import client.command.commands.gm0.HelpCommand;
-import client.command.commands.gm0.JoinEventCommand;
-import client.command.commands.gm0.LeaveEventCommand;
-import client.command.commands.gm0.MapOwnerClaimCommand;
-import client.command.commands.gm0.OnlineCommand;
-import client.command.commands.gm0.RanksCommand;
-import client.command.commands.gm0.RatesCommand;
-import client.command.commands.gm0.ReadPointsCommand;
-import client.command.commands.gm0.ReportBugCommand;
-import client.command.commands.gm0.ShowRatesCommand;
-import client.command.commands.gm0.StaffCommand;
-import client.command.commands.gm0.StatDexCommand;
-import client.command.commands.gm0.StatIntCommand;
-import client.command.commands.gm0.StatLukCommand;
-import client.command.commands.gm0.StatStrCommand;
-import client.command.commands.gm0.TimeCommand;
-import client.command.commands.gm0.ToggleExpCommand;
-import client.command.commands.gm0.UptimeCommand;
-import client.command.commands.gm1.BossHpCommand;
-import client.command.commands.gm1.BuffMeCommand;
-import client.command.commands.gm1.GotoCommand;
-import client.command.commands.gm1.MobHpCommand;
-import client.command.commands.gm1.WhatDropsFromCommand;
-import client.command.commands.gm1.WhoDropsCommand;
-import client.command.commands.gm2.ApCommand;
-import client.command.commands.gm2.BombCommand;
-import client.command.commands.gm2.BuffCommand;
-import client.command.commands.gm2.BuffMapCommand;
-import client.command.commands.gm2.ClearDropsCommand;
-import client.command.commands.gm2.ClearSavedLocationsCommand;
-import client.command.commands.gm2.ClearSlotCommand;
-import client.command.commands.gm2.DcCommand;
-import client.command.commands.gm2.EmpowerMeCommand;
-import client.command.commands.gm2.GachaListCommand;
-import client.command.commands.gm2.GmShopCommand;
-import client.command.commands.gm2.HealCommand;
-import client.command.commands.gm2.HideCommand;
-import client.command.commands.gm2.IdCommand;
-import client.command.commands.gm2.ItemCommand;
-import client.command.commands.gm2.ItemDropCommand;
-import client.command.commands.gm2.JailCommand;
-import client.command.commands.gm2.JobCommand;
-import client.command.commands.gm2.LevelCommand;
-import client.command.commands.gm2.LevelProCommand;
-import client.command.commands.gm2.LootCommand;
-import client.command.commands.gm2.MaxSkillCommand;
-import client.command.commands.gm2.MaxStatCommand;
-import client.command.commands.gm2.MobSkillCommand;
-import client.command.commands.gm2.ReachCommand;
-import client.command.commands.gm2.RechargeCommand;
-import client.command.commands.gm2.ResetSkillCommand;
-import client.command.commands.gm2.SearchCommand;
-import client.command.commands.gm2.SetSlotCommand;
-import client.command.commands.gm2.SetStatCommand;
-import client.command.commands.gm2.SpCommand;
-import client.command.commands.gm2.SummonCommand;
-import client.command.commands.gm2.UnBugCommand;
-import client.command.commands.gm2.UnHideCommand;
-import client.command.commands.gm2.UnJailCommand;
-import client.command.commands.gm2.WarpAreaCommand;
-import client.command.commands.gm2.WarpCommand;
-import client.command.commands.gm2.WarpMapCommand;
-import client.command.commands.gm2.WhereaMiCommand;
-import client.command.commands.gm3.BanCommand;
-import client.command.commands.gm3.ChatCommand;
-import client.command.commands.gm3.CheckDmgCommand;
-import client.command.commands.gm3.ClosePortalCommand;
-import client.command.commands.gm3.DebuffCommand;
-import client.command.commands.gm3.EndEventCommand;
-import client.command.commands.gm3.ExpedsCommand;
-import client.command.commands.gm3.FaceCommand;
-import client.command.commands.gm3.FameCommand;
-import client.command.commands.gm3.FlyCommand;
-import client.command.commands.gm3.GiveMesosCommand;
-import client.command.commands.gm3.GiveNxCommand;
-import client.command.commands.gm3.GiveRpCommand;
-import client.command.commands.gm3.GiveVpCommand;
-import client.command.commands.gm3.HairCommand;
-import client.command.commands.gm3.HealMapCommand;
-import client.command.commands.gm3.HealPersonCommand;
-import client.command.commands.gm3.HpMpCommand;
-import client.command.commands.gm3.HurtCommand;
-import client.command.commands.gm3.IgnoreCommand;
-import client.command.commands.gm3.IgnoredCommand;
-import client.command.commands.gm3.InMapCommand;
-import client.command.commands.gm3.KillAllCommand;
-import client.command.commands.gm3.KillCommand;
-import client.command.commands.gm3.KillMapCommand;
-import client.command.commands.gm3.MaxEnergyCommand;
-import client.command.commands.gm3.MaxHpMpCommand;
-import client.command.commands.gm3.MonitorCommand;
-import client.command.commands.gm3.MonitorsCommand;
-import client.command.commands.gm3.MusicCommand;
-import client.command.commands.gm3.MuteMapCommand;
-import client.command.commands.gm3.NightCommand;
-import client.command.commands.gm3.NoticeCommand;
-import client.command.commands.gm3.NpcCommand;
-import client.command.commands.gm3.OnlineTwoCommand;
-import client.command.commands.gm3.OpenPortalCommand;
-import client.command.commands.gm3.PeCommand;
-import client.command.commands.gm3.PosCommand;
-import client.command.commands.gm3.QuestCompleteCommand;
-import client.command.commands.gm3.QuestResetCommand;
-import client.command.commands.gm3.QuestStartCommand;
-import client.command.commands.gm3.ReloadDropsCommand;
-import client.command.commands.gm3.ReloadEventsCommand;
-import client.command.commands.gm3.ReloadMapCommand;
-import client.command.commands.gm3.ReloadPortalsCommand;
-import client.command.commands.gm3.ReloadShopsCommand;
-import client.command.commands.gm3.RipCommand;
-import client.command.commands.gm3.SeedCommand;
-import client.command.commands.gm3.SpawnCommand;
-import client.command.commands.gm3.StartEventCommand;
-import client.command.commands.gm3.StartMapEventCommand;
-import client.command.commands.gm3.StopMapEventCommand;
-import client.command.commands.gm3.TimerAllCommand;
-import client.command.commands.gm3.TimerCommand;
-import client.command.commands.gm3.TimerMapCommand;
-import client.command.commands.gm3.ToggleCouponCommand;
-import client.command.commands.gm3.UnBanCommand;
-import client.command.commands.gm4.BossDropRateCommand;
-import client.command.commands.gm4.CakeCommand;
-import client.command.commands.gm4.DropRateCommand;
-import client.command.commands.gm4.ExpRateCommand;
-import client.command.commands.gm4.FishingRateCommand;
-import client.command.commands.gm4.ForceVacCommand;
-import client.command.commands.gm4.HorntailCommand;
-import client.command.commands.gm4.ItemVacCommand;
-import client.command.commands.gm4.MesoRateCommand;
-import client.command.commands.gm4.PapCommand;
-import client.command.commands.gm4.PianusCommand;
-import client.command.commands.gm4.PinkbeanCommand;
-import client.command.commands.gm4.PlayerNpcCommand;
-import client.command.commands.gm4.PlayerNpcRemoveCommand;
-import client.command.commands.gm4.PmobCommand;
-import client.command.commands.gm4.PmobRemoveCommand;
-import client.command.commands.gm4.PnpcCommand;
-import client.command.commands.gm4.PnpcRemoveCommand;
-import client.command.commands.gm4.ProItemCommand;
-import client.command.commands.gm4.QuestRateCommand;
-import client.command.commands.gm4.ServerMessageCommand;
-import client.command.commands.gm4.SetEqStatCommand;
-import client.command.commands.gm4.TravelRateCommand;
-import client.command.commands.gm4.ZakumCommand;
-import client.command.commands.gm5.DebugCommand;
-import client.command.commands.gm5.IpListCommand;
-import client.command.commands.gm5.SetCommand;
-import client.command.commands.gm5.ShowMoveLifeCommand;
-import client.command.commands.gm5.ShowPacketsCommand;
-import client.command.commands.gm5.ShowSessionsCommand;
-import client.command.commands.gm6.ClearQuestCacheCommand;
-import client.command.commands.gm6.ClearQuestCommand;
-import client.command.commands.gm6.DCAllCommand;
-import client.command.commands.gm6.DevtestCommand;
-import client.command.commands.gm6.EraseAllPNpcsCommand;
-import client.command.commands.gm6.GetAccCommand;
-import client.command.commands.gm6.MapPlayersCommand;
-import client.command.commands.gm6.SaveAllCommand;
-import client.command.commands.gm6.ServerAddChannelCommand;
-import client.command.commands.gm6.ServerAddWorldCommand;
-import client.command.commands.gm6.ServerRemoveChannelCommand;
-import client.command.commands.gm6.ServerRemoveWorldCommand;
-import client.command.commands.gm6.SetGmLevelCommand;
-import client.command.commands.gm6.ShutdownCommand;
-import client.command.commands.gm6.SpawnAllPNpcsCommand;
-import client.command.commands.gm6.SupplyRateCouponCommand;
-import client.command.commands.gm6.WarpWorldCommand;
+import client.command.commands.gm0.*;
+import client.command.commands.gm1.*;
+import client.command.commands.gm2.*;
+import client.command.commands.gm3.*;
+import client.command.commands.gm4.*;
+import client.command.commands.gm5.*;
+import client.command.commands.gm6.*;
 import constants.id.MapId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -261,13 +75,14 @@ public class CommandsExecutor {
             client.getPlayer().yellowMessage("You do not have permission to use commands while in jail.");
             return;
         }
+
         final String splitRegex = "[ ]";
         String[] splitedMessage = message.substring(1).split(splitRegex, 2);
         if (splitedMessage.length < 2) {
             splitedMessage = new String[]{splitedMessage[0], ""};
         }
 
-        client.getPlayer().setLastCommandMessage(splitedMessage[1]);    // thanks Tochi & Nulliphite for noticing string messages being marshalled lowercase
+        client.getPlayer().setLastCommandMessage(splitedMessage[1]);
         final String commandName = splitedMessage[0].toLowerCase();
         final String[] lowercaseParams = splitedMessage[1].toLowerCase().split(splitRegex);
 
@@ -280,6 +95,7 @@ public class CommandsExecutor {
             client.getPlayer().yellowMessage("You do not have permission to use this command.");
             return;
         }
+
         String[] params;
         if (lowercaseParams.length > 0 && !lowercaseParams[0].isEmpty()) {
             params = Arrays.copyOfRange(lowercaseParams, 0, lowercaseParams.length);
@@ -307,9 +123,7 @@ public class CommandsExecutor {
     }
 
     private void addCommand(String syntax, Class<? extends Command> commandClass) {
-        //for (String syntax : syntaxs){
         addCommand(syntax, 0, commandClass);
-        //}
     }
 
     private void addCommand(String[] surtaxes, int rank, Class<? extends Command> commandClass) {
@@ -328,9 +142,8 @@ public class CommandsExecutor {
         addCommandInfo(commandName, commandClass);
 
         try {
-            Command commandInstance = commandClass.getDeclaredConstructor().newInstance();     // thanks Halcyon for noticing commands getting reinstanced every call
+            Command commandInstance = commandClass.getDeclaredConstructor().newInstance();
             commandInstance.setRank(rank);
-
             registeredCommands.put(commandName, commandInstance);
         } catch (Exception e) {
             log.warn("Failed to create command instance", e);
@@ -347,6 +160,7 @@ public class CommandsExecutor {
         addCommand("uptime", UptimeCommand.class);
         addCommand("gacha", GachaCommand.class);
         addCommand("dispose", DisposeCommand.class);
+        addCommand("unstuck", UnstuckCommand.class);
         addCommand("changel", ChangeLanguageCommand.class);
         addCommand("equiplv", EquipLvCommand.class);
         addCommand("showrates", ShowRatesCommand.class);
@@ -371,7 +185,6 @@ public class CommandsExecutor {
         commandsNameDesc.add(levelCommandsCursor);
     }
 
-
     private void registerLv1Commands() {
         levelCommandsCursor = new Pair<>(new ArrayList<String>(), new ArrayList<String>());
 
@@ -382,7 +195,6 @@ public class CommandsExecutor {
 
         commandsNameDesc.add(levelCommandsCursor);
     }
-
 
     private void registerLv2Commands() {
         levelCommandsCursor = new Pair<>(new ArrayList<String>(), new ArrayList<String>());
@@ -561,5 +373,4 @@ public class CommandsExecutor {
 
         commandsNameDesc.add(levelCommandsCursor);
     }
-
 }
