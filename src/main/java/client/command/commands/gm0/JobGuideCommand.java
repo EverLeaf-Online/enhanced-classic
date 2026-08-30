@@ -131,6 +131,29 @@ public class JobGuideCommand extends Command {
             case ARAN4:
                 return "You have reached Aran's final job advancement.";
 
+            case EVAN:
+                return advancementMessage(level, 10, "Evan 1st growth", "continue the Evan storyline with Mir");
+            case EVAN1:
+                return advancementMessage(level, 20, "Evan 2nd growth", "continue the Evan storyline with Mir");
+            case EVAN2:
+                return advancementMessage(level, 30, "Evan 3rd growth", "continue the Evan storyline with Mir");
+            case EVAN3:
+                return advancementMessage(level, 40, "Evan 4th growth", "continue the Evan storyline with Mir");
+            case EVAN4:
+                return advancementMessage(level, 50, "Evan 5th growth", "continue the Evan storyline with Mir");
+            case EVAN5:
+                return advancementMessage(level, 60, "Evan 6th growth", "continue the Evan storyline with Mir");
+            case EVAN6:
+                return advancementMessage(level, 80, "Evan 7th growth", "continue the Evan storyline with Mir");
+            case EVAN7:
+                return advancementMessage(level, 100, "Evan 8th growth", "continue the Evan storyline with Mir");
+            case EVAN8:
+                return advancementMessage(level, 120, "Evan 9th growth", "continue the Evan storyline with Mir");
+            case EVAN9:
+                return advancementMessage(level, 160, "Evan final growth", "continue the Evan storyline with Mir");
+            case EVAN10:
+                return "You have reached Evan's final growth stage.";
+
             default:
                 return "Follow your current job questline for advancement information. Current job: " + job.name() + ".";
         }
