@@ -31,9 +31,17 @@ SCRIPT_ROOTS = [
 # Explicit non-map constants/sentinels that commonly appear in map APIs.
 SPECIAL_IDS = {-1, 0, 999999999}
 
-# Known legacy Boss Rush target is already documented by audit_world_integrity.
+# Known references intentionally retained for source compatibility/review.
+# - 970033001 is the documented legacy Boss Rush target from map 970033000.
+# - 900090101/900090103 belong to post-v83 Evan tutorial remnants. Their NPCs
+#   are not spawned by the current v83 WZ and the destination maps are absent.
+# - 912060300 belongs to the post-v83 Cannon Shooter tutorial. Its portal/NPC
+#   script is retained as legacy source data, but the destination map is absent.
 KNOWN_REVIEW_REFERENCES = {
     ("scripts/portal/raid_stage.js", 970033001),
+    ("scripts/npc/1013001.js", 900090101),
+    ("scripts/npc/1013002.js", 900090103),
+    ("scripts/npc/1096005.js", 912060300),
 }
 
 # A reference is literal only when the numeric token is not immediately used as
