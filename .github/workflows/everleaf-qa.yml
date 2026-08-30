@@ -76,9 +76,27 @@ jobs:
         run: python3 tools/audit_world_integrity.py --json > build/world-integrity-audit.json
 
       - name: Run static world-link audit
-        run: python3 tools/audit_world_links.py --json > build/world-links-audit.json
+        run: |
+          set +e
+          python3 tools/audit_world_links.py --json > build/world-links-audit.json
+          rc=$?
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('build/world-links-audit.json')
+          if path.exists():
+              data = json.loads(path.read_text())
+              print('World-link hard failures:', data.get('hardFailureCount', 0))
+              for finding in data.get('hardFindings', [])[:60]:
+                  print('[WORLD-LINK FAIL]', finding.get('map_id'), finding.get('object_id'), finding.get('detail'))
+              errors = data.get('parseErrors', [])
+              for error in errors[:20]:
+                  print('[WORLD-LINK XML FAIL]', error)
+          PY
+          exit $rc
 
       - name: Run deep QA correlations
+        if: always()
         run: python3 tools/qa/everleaf_deep_qa.py --json build/deep-qa-report.json
 
       - name: Print deep QA summary
