@@ -12,5 +12,6 @@ public class WorldConfig {
     public int boss_drop_rate = 1;
     public int quest_rate = 1;
     public int travel_rate = 1;
+    public boolean instant_travel = false;
     public int fishing_rate = 1;
 }
