@@ -5301,8 +5301,17 @@ public class Character extends AbstractCharacterObject {
         return localwatk;
     }
 
+    public int applyEnhancedPermanentMaxHpFloor(int targetMaxHp) {
+        int clampedTarget = Math.min(30000, Math.max(getMaxHp(), targetMaxHp));
+        int increase = clampedTarget - getMaxHp();
+        if (increase > 0) {
+            setMaxHp(clampedTarget);
+        }
+        return increase;
+    }
+
     public int getMaxClassLevel() {
-        return isCygnus() ? 120 : 200;
+        return service.enhanced.LevelCapPolicy.maxLevel(job);
     }
 
     public int getMaxLevel() {
@@ -6404,6 +6413,8 @@ public class Character extends AbstractCharacterObject {
             level = maxClassLevel; //To prevent levels past the maximum
         }
 
+        new service.enhanced.SurvivabilityService().applyCurrentFloor(this);
+
         levelUpGainSp();
 
         effLock.lock();
@@ -7111,6 +7122,7 @@ public class Character extends AbstractCharacterObject {
 
             ret.cashshop = new CashShop(ret.accountid, ret.id, ret.getJobType());
             ret.autoban = new AutobanManager(ret);
+            new service.enhanced.SurvivabilityService().applyCurrentFloor(ret);
 
             // Blessing of the Fairy
             try (PreparedStatement ps = con.prepareStatement("SELECT name, level FROM characters WHERE accountid = ? AND id != ? ORDER BY level DESC limit 1")) {

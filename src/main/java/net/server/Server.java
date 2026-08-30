@@ -859,7 +859,9 @@ public class Server {
 
     public void init() {
         Instant beforeInit = Instant.now();
-        log.info("Cosmic v{} starting up.", ServerConstants.VERSION);
+        log.info("{} starting up (protocol v{}).", service.enhanced.EverleafIdentity.displayName(), ServerConstants.VERSION);
+        service.enhanced.DeploymentSafetyPolicy.warnings(YamlConfig.config.server)
+                .forEach(warning -> log.warn("Everleaf deployment warning: {}", warning));
 
         if (YamlConfig.config.server.SHUTDOWNHOOK) {
             Runtime.getRuntime().addShutdownHook(new Thread(shutdown(false)));
@@ -936,7 +938,7 @@ public class Server {
 
         online = true;
         Duration initDuration = Duration.between(beforeInit, Instant.now());
-        log.info("Cosmic is now online after {} ms.", initDuration.toMillis());
+        log.info("{} is now online after {} ms.", service.enhanced.EverleafIdentity.NAME, initDuration.toMillis());
 
         OpcodeConstants.generateOpcodeNames();
         CommandsExecutor.getInstance();

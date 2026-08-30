@@ -50,7 +50,21 @@ public final class NxRewardService {
     }
 
     public void startSession(Character player) {
-        sessions.putIfAbsent(player.getAccountID(), new SessionState(player, System.currentTimeMillis()));
+        long now = System.currentTimeMillis();
+        sessions.compute(player.getAccountID(), (id, current) ->
+                current == null || current.player != player ? new SessionState(player, now) : current);
+    }
+
+    public void endSession(Character player) {
+        SessionState session = sessions.remove(player.getAccountID());
+        if (session == null) {
+            return;
+        }
+        try {
+            accrueSession(session);
+        } catch (SQLException ignored) {
+            // Playtime checkpoint failure must never block logout or channel changes.
+        }
     }
 
     public RewardSummary claimAvailable(Character player) throws SQLException {

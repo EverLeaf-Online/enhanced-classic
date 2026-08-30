@@ -58,6 +58,7 @@ import scripting.npc.NPCConversationManager;
 import scripting.npc.NPCScriptManager;
 import scripting.quest.QuestActionManager;
 import scripting.quest.QuestScriptManager;
+import service.NxRewardService;
 import server.MapleLeafLogger;
 import server.ThreadManager;
 import server.TimerManager;
@@ -986,6 +987,7 @@ public class Client extends ChannelInboundHandlerAdapter {
     }
 
     private void disconnectInternal(boolean shutdown, boolean cashshop) {//once per Client instance
+        if (player != null) NxRewardService.getInstance().endSession(player);
         if (player != null && player.isLoggedin() && player.getClient() != null) {
             final int messengerid = player.getMessenger() == null ? 0 : player.getMessenger().getId();
             //final int fid = player.getFamilyId();
