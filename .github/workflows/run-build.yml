@@ -45,6 +45,8 @@ jobs:
         run: python3 tools/audit_pet_vac.py
       - name: Audit Maple Leaf exchange
         run: python3 tools/audit_leaf_shop.py
+      - name: Audit Rooted content
+        run: python3 tools/audit_rooted_content.py
       - name: Audit world data integrity
         run: python3 tools/audit_world_integrity.py
       - name: Ensure Maven wrapper is executable
