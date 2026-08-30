@@ -83,12 +83,15 @@ jobs:
         run: python3 tools/audit_world_links.py --json > build/world-link-audit.json
 
       - name: Verify Trade to Free Market integration
+        if: always()
         run: python3 tools/qa/audit_trade_fm_integration.py
 
       - name: Verify ranged whack server integration
+        if: always()
         run: python3 tools/qa/audit_ranged_whack_integration.py
 
       - name: Run deep QA correlations
+        if: always()
         run: python3 tools/qa/everleaf_deep_qa.py --json build/deep-qa-report.json
 
       - name: Print deep QA summary
