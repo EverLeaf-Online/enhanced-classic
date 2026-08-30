@@ -25,19 +25,27 @@ BossRushPQ - Rest Spot portal
 */
 
 function enter(pi) {
+    var eim = pi.getPlayer().getEventInstance();
+    if (eim == null) {
+        pi.message("Your Boss Rush instance is no longer active. Returning to the lobby.");
+        pi.playPortalSound();
+        pi.warp(970030000);
+        return true;
+    }
+
     var evLevel = ((pi.getMapId() - 1) % 5) + 1;
 
-    if (pi.getPlayer().getEventInstance().isEventLeader(pi.getPlayer()) && pi.getPlayer().getEventInstance().getPlayerCount() > 1) {
-        pi.message("Being the party leader, you cannot leave before your teammates leave first or you pass leadership.");
+    if (eim.isEventLeader(pi.getPlayer()) && eim.getPlayerCount() > 1) {
+        pi.message("As party leader, let your teammates leave first or pass party leadership before exiting Boss Rush.");
         return false;
     }
 
-    if (pi.getPlayer().getEventInstance().giveEventReward(pi.getPlayer(), evLevel)) {
+    if (eim.giveEventReward(pi.getPlayer(), evLevel)) {
         pi.playPortalSound();
         pi.warp(970030000);
         return true;
     } else {
-        pi.message("Make a room available on all EQUIP, USE, SET-UP and ETC inventory to claim an instance prize.");
+        pi.message("You need at least one free slot in EQUIP, USE, SET-UP, and ETC to claim your Boss Rush reward.");
         return false;
     }
 }
