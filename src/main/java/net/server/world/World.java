@@ -125,6 +125,7 @@ public class World {
     private int mesorate;
     private int questrate;
     private int travelrate;
+    private final boolean instantTravel;
     private int fishingrate;
     private final String eventmsg;
     private final List<Channel> channels = new ArrayList<>();
@@ -200,7 +201,7 @@ public class World {
     private ScheduledFuture<?> timeoutSchedule;
     private ScheduledFuture<?> hpDecSchedule;
 
-    public World(int world, int flag, String eventmsg, int exprate, int droprate, int bossdroprate, int mesorate, int questrate, int travelrate, int fishingrate) {
+    public World(int world, int flag, String eventmsg, int exprate, int droprate, int bossdroprate, int mesorate, int questrate, int travelrate, boolean instantTravel, int fishingrate) {
         this.id = world;
         this.flag = flag;
         this.eventmsg = eventmsg;
@@ -210,6 +211,7 @@ public class World {
         this.mesorate = mesorate;
         this.questrate = questrate;
         this.travelrate = travelrate;
+        this.instantTravel = instantTravel;
         this.fishingrate = fishingrate;
         runningPartyId.set(1000000001); // partyid must not clash with charid to solve update item looting issues, found thanks to Vcoc
         runningMessengerId.set(1);
@@ -447,7 +449,11 @@ public class World {
     }
 
     public int getTransportationTime(int travelTime) {
-        return (int) Math.ceil((double) travelTime / travelrate);
+        return TransportationTimePolicy.scaledTime(travelTime, travelrate);
+    }
+
+    public int getTransportationRideTime(int travelTime) {
+        return TransportationTimePolicy.rideTime(travelTime, travelrate, instantTravel);
     }
 
     public int getFishingRate() {

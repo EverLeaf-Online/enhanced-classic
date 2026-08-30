@@ -886,6 +886,10 @@ public class EventManager {
         return this.getWorldServer().getTransportationTime(travelTime);
     }
 
+    public int getTransportationRideTime(int travelTime) {
+        return this.getWorldServer().getTransportationRideTime(travelTime);
+    }
+
     private void fillEimQueue() {
         ThreadManager.getInstance().newTask(new EventManagerTask());  //call new thread to fill up readied instances queue
     }

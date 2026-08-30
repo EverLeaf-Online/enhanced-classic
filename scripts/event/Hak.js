@@ -11,7 +11,7 @@ var onRide;
 var rideTime = 60 * 1000;
 
 function init() {
-    rideTime = em.getTransportationTime(rideTime);
+    rideTime = em.getTransportationRideTime(rideTime);
 }
 
 function setup(level, lobbyid) {

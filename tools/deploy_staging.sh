@@ -56,6 +56,7 @@ cd "${release_dir}"
 python3 tools/apply_everleaf_config.py
 python3 tools/apply_level_cap_250.py
 if sudo test -f "${persistent_config}"; then
+    sudo python3 tools/enable_instant_travel.py "${persistent_config}"
     sudo install -o "$(id -un)" -g "$(id -gn)" -m 600 \
         "${persistent_config}" "${release_dir}/config.yaml"
 fi

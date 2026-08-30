@@ -17,7 +17,7 @@ var invasionDelay = 5 * 1000; //The time that spawn balrog
 function init() {
     closeTime = em.getTransportationTime(closeTime);
     beginTime = em.getTransportationTime(beginTime);
-    rideTime = em.getTransportationTime(rideTime);
+    rideTime = em.getTransportationRideTime(rideTime);
     invasionStartTime = em.getTransportationTime(invasionStartTime);
     invasionDelayTime = em.getTransportationTime(invasionDelayTime);
 
