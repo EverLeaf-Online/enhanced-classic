@@ -6,8 +6,12 @@ should be structurally impossible in a healthy client/server data set (for
 example, a spawned NPC or mob with no matching WZ definition, or a normal
 portal targeting a map that is absent from Map.wz).
 
-Script coverage and explicitly named test/debug portals are reported as review
-information because old v83 data contains dormant development/event leftovers.
+Script coverage is review information because many retail/client-side portals
+do not require a server-side script. One known Boss Rush legacy reference is
+also review-only: map 970033000 contains a portal named ``test`` targeting
+970033001, which is absent from this v83 data set. The map is legitimate Boss
+Rush content and is intentionally left unchanged until runtime progression
+proves that the dormant target is required.
 """
 
 from __future__ import annotations
@@ -73,9 +77,9 @@ def normalize_id(value: str | None) -> str:
     return value
 
 
-def is_explicit_test_portal(name: str) -> bool:
-    lowered = name.strip().lower()
-    return lowered == "test" or lowered.startswith("test_") or lowered.startswith("debug")
+def is_known_legacy_missing_target(map_id: str, portal_name: str, target: str) -> bool:
+    """Return True only for explicitly researched, intentionally preserved data."""
+    return map_id == "970033000" and portal_name == "test" and target == "970033001"
 
 
 def main() -> int:
@@ -163,9 +167,9 @@ def main() -> int:
                         "missing_target_map", map_id, portal_name,
                         f"Portal {portal_name!r} targets missing map {target}",
                     )
-                    if is_explicit_test_portal(portal_name):
+                    if is_known_legacy_missing_target(map_id, portal_name, target):
                         review_findings.append(finding)
-                        counts["test_portals_with_missing_targets"] += 1
+                        counts["known_legacy_missing_targets"] += 1
                     else:
                         hard_findings.append(finding)
 
