@@ -40,6 +40,10 @@ public final class ChangeMapSpecialHandler extends AbstractPacketHandler {
             c.sendPacket(PacketCreator.enableActions());
             return;
         }
+        if (portal.getPosition().distanceSq(c.getPlayer().getPosition()) > 400000) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
         if (c.getPlayer().isChangingMaps() || c.getPlayer().isBanned()) {
             c.sendPacket(PacketCreator.enableActions());
             return;
