@@ -19,6 +19,7 @@ on:
       - content-dev
       - progression-dev
       - qa-agent-hub
+      - release-dev
     paths:
       - 'scripts/**'
       - 'database/**'
