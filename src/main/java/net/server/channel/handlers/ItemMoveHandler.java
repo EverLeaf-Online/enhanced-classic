@@ -21,6 +21,7 @@
 */
 package net.server.channel.handlers;
 
+import client.Character;
 import client.Client;
 import client.inventory.InventoryType;
 import client.inventory.manipulator.InventoryManipulator;
@@ -34,8 +35,14 @@ import tools.PacketCreator;
 public final class ItemMoveHandler extends AbstractPacketHandler {
     @Override
     public final void handlePacket(InPacket p, Client c) {
+        Character chr = c.getPlayer();
+        if (chr.getTrade() != null && chr.getTrade().isFullTrade()) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
         p.skip(4);
-        if (c.getPlayer().getAutobanManager().getLastSpam(6) + 300 > currentServerTime()) {
+        if (chr.getAutobanManager().getLastSpam(6) + 300 > currentServerTime()) {
             c.sendPacket(PacketCreator.enableActions());
             return;
         }
@@ -55,6 +62,6 @@ public final class ItemMoveHandler extends AbstractPacketHandler {
             InventoryManipulator.move(c, type, src, action);
         }
 
-        c.getPlayer().getAutobanManager().spam(6);
+        chr.getAutobanManager().spam(6);
     }
 }
