@@ -50,7 +50,7 @@ function action(mode, type, selection) {
         if (status == 0) {
             em = cm.getEventManager("PiratePQ");
             if (em == null) {
-                cm.sendOk("The Pirate PQ has encountered an error.");
+                cm.sendOk("The Pirate Ship Party Quest is temporarily unavailable because its event could not be loaded. Please report this in EverLeaf's bug-report channel.");
                 cm.dispose();
                 return;
             } else if (cm.isUsingOldPqNpcStyle()) {
@@ -58,33 +58,33 @@ function action(mode, type, selection) {
                 return;
             }
 
-            cm.sendSimple("#e#b<Party Quest: Pirate Ship>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nHelp! My son has been kidnapped and is bound on the hands of the fearful #rLord Pirate#k. I need your help... Would you please assemble or join a team to save him? Have your #bparty leader#k talk to me or make yourself a party.#b\r\n#L0#I want to participate in the party quest.\r\n#L1#I would like to " + (cm.getPlayer().isRecvPartySearchInviteEnabled() ? "disable" : "enable") + " Party Search.\r\n#L2#I would like to hear more details.");
+            cm.sendSimple("#e#b<Party Quest: Pirate Ship>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nHelp rescue my son from Lord Pirate. Assemble an eligible party, keep everyone together in this map, and have the #bparty leader#k speak with me when you're ready.#b\r\n#L0#Enter the Pirate Ship Party Quest.\r\n#L1#" + (cm.getPlayer().isRecvPartySearchInviteEnabled() ? "Disable" : "Enable") + " Party Search invitations.\r\n#L2#Tell me how this Party Quest works.");
         } else if (status == 1) {
             if (selection == 0) {
                 if (cm.getParty() == null) {
-                    cm.sendOk("You can participate in the party quest only if you are in a party.");
+                    cm.sendOk("You need to be in a party before you can enter the Pirate Ship Party Quest.");
                     cm.dispose();
                 } else if (!cm.isLeader()) {
-                    cm.sendOk("Your party leader must talk to me to start this party quest.");
+                    cm.sendOk("Only your party leader can start the Pirate Ship Party Quest. Have the leader speak with me once everyone is ready.");
                     cm.dispose();
                 } else {
                     var eli = em.getEligibleParty(cm.getParty());
                     if (eli.size() > 0) {
                         if (!em.startInstance(cm.getParty(), cm.getPlayer().getMap(), 1)) {
-                            cm.sendOk("Another party has already entered the #rParty Quest#k in this channel. Please try another channel, or wait for the current party to finish.");
+                            cm.sendOk("Another party is already using the Pirate Ship Party Quest in this channel. Try another channel or wait for the current group to finish.");
                         }
                     } else {
-                        cm.sendOk("You cannot start this party quest yet, because either your party is not in the range size, some of your party members are not eligible to attempt it or they are not in this map. If you're having trouble finding party members, try Party Search.");
+                        cm.sendOk("Your party is not currently eligible to enter. Check the required party size and levels, and make sure every participating member is together in this map. Party Search can help if you still need members.");
                     }
 
                     cm.dispose();
                 }
             } else if (selection == 1) {
                 var psState = cm.getPlayer().toggleRecvPartySearchInvite();
-                cm.sendOk("Your Party Search status is now: #b" + (psState ? "enabled" : "disabled") + "#k. Talk to me whenever you want to change it back.");
+                cm.sendOk("Party Search invitations are now #b" + (psState ? "enabled" : "disabled") + "#k. Talk to me whenever you want to change this setting.");
                 cm.dispose();
             } else {
-                cm.sendOk("#e#b<Party Quest: Pirate Ship>#k#n\r\nIn this PQ, your mission is to progressively make your way through the ship, taking on all pirates and baddies in your path. Reaching the #rLord Pirate#k, depending on how many great chests you opened on the stages before, the boss will reveal himself even more powerful, so stay alert. Said chests, if opened, gives many extra rewards to your crew, it's worth a shot! Good luck.");
+                cm.sendOk("#e#b<Party Quest: Pirate Ship>#k#n\r\nFight your way through the ship and defeat Lord Pirate. Opening the large chests in earlier stages can make the final encounter more difficult, but also improves the rewards available to your crew. Keep your party together and be ready before advancing.");
                 cm.dispose();
             }
         }
