@@ -76,8 +76,11 @@ function setEventRewards(eim) {
     var itemSet, itemQty, evLevel;
 
     evLevel = 6;    //Rewards at event completion
-    itemSet = [3010061, 1122018, 1122005, 1022088, 1402013, 1032030, 1032070, 1102046, 2330004, 2041013, 2041016, 2041019, 2041022, 2049100, 2049003, 2020012, 2020013, 2020014, 2020015, 2022029, 2022045, 2022068, 2022069, 2022180, 2022179, 4004000, 4004001, 4004002, 4004003, 4004004, 4003000];
-    itemQty = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 25, 25, 25, 25, 25, 25, 25, 25, 4, 4, 12, 12, 12, 12, 12, 25];
+    // EverLeaf keeps White Scroll substantially rarer than Chaos Scroll: it is
+    // only available from the final Boss Rush reward tier, while Chaos is also
+    // available at Rest Spot V.
+    itemSet = [3010061, 1122018, 1122005, 1022088, 1402013, 1032030, 1032070, 1102046, 2330004, 2041013, 2041016, 2041019, 2041022, 2049100, 2340000, 2049003, 2020012, 2020013, 2020014, 2020015, 2022029, 2022045, 2022068, 2022069, 2022180, 2022179, 4004000, 4004001, 4004002, 4004003, 4004004, 4003000];
+    itemQty = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 25, 25, 25, 25, 25, 25, 25, 25, 4, 4, 12, 12, 12, 12, 12, 25];
     eim.setEventRewards(evLevel, itemSet, itemQty);
 
     evLevel = 5;    //Rewards at Rest Spot V
@@ -106,7 +109,7 @@ function setEventRewards(eim) {
     eim.setEventRewards(evLevel, itemSet, itemQty);
 }
 
-function getEligibleParty(party) {      //selects, from the given party, the team that is allowed to attempt this event
+function getEligibleParty(party) {
     var eligible = [];
     var hasLeader = false;
 
@@ -186,7 +189,7 @@ function changedLeader(eim, leader) {
 
 function playerDead(eim, player) {}
 
-function playerRevive(eim, player) { // player presses ok on the death pop up.
+function playerRevive(eim, player) {
     if (eim.isEventTeamLackingNow(true, minPlayers, player)) {
         eim.unregisterPlayer(player);
         end(eim);
@@ -231,7 +234,7 @@ function end(eim) {
 
 function clearPQ(eim) {
     eim.stopEventTimer();
-    eim.setEventCleared();      // from now on event just finishes when ALL players gets out of the range defined inside changedMap function.
+    eim.setEventCleared();
 }
 
 function giveRandomEventReward(eim, player) {
