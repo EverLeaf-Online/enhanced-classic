@@ -17,7 +17,7 @@ DENOMINATOR = 999_999  # MapleMap global-drop roll uses nextInt(999999) < chance
 
 
 def read_rate(text: str, key: str) -> int:
-    match = re.search(rf"^\s*{re.escape(key)}:\s*(\d+)\s*$", text, re.MULTILINE)
+    match = re.search(rf"^\s*{re.escape(key)}:\s*(\d+)(?:\s*#.*)?\s*$", text, re.MULTILINE)
     if not match:
         raise SystemExit(f"Missing {key} in config.yaml")
     return int(match.group(1))
