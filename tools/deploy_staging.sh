@@ -10,6 +10,7 @@ commit_sha="$1"
 source_archive="$2"
 root_dir="/opt/everleaf"
 release_dir="${root_dir}/releases/${commit_sha}"
+persistent_config="/etc/everleaf/config.yaml"
 
 mkdir -p "${root_dir}/releases"
 
@@ -54,6 +55,10 @@ fi
 cd "${release_dir}"
 python3 tools/apply_everleaf_config.py
 python3 tools/apply_level_cap_250.py
+if sudo test -f "${persistent_config}"; then
+    sudo install -o "$(id -un)" -g "$(id -gn)" -m 600 \
+        "${persistent_config}" "${release_dir}/config.yaml"
+fi
 chmod +x mvnw
 chmod +x tools/backup_database.sh
 chmod +x tools/check_disk_usage.sh
@@ -108,6 +113,7 @@ ReadWritePaths=/opt/everleaf
 WantedBy=multi-user.target
 UNIT
 
+if ! sudo test -f /etc/systemd/system/everleaf-backup.service; then
 sudo tee /etc/systemd/system/everleaf-backup.service >/dev/null <<'UNIT'
 [Unit]
 Description=Back up the Everleaf MySQL database
@@ -125,7 +131,9 @@ ProtectSystem=full
 ProtectHome=true
 ReadWritePaths=/var/backups/everleaf
 UNIT
+fi
 
+if ! sudo test -f /etc/systemd/system/everleaf-backup.timer; then
 sudo tee /etc/systemd/system/everleaf-backup.timer >/dev/null <<'UNIT'
 [Unit]
 Description=Daily Everleaf MySQL backup
@@ -139,6 +147,7 @@ Unit=everleaf-backup.service
 [Install]
 WantedBy=timers.target
 UNIT
+fi
 
 sudo tee /etc/systemd/system/everleaf-disk-monitor.service >/dev/null <<'UNIT'
 [Unit]
@@ -176,7 +185,7 @@ sudo install -d -m 700 /var/backups/everleaf
 sudo systemctl enable --now everleaf-backup.timer
 sudo systemctl enable --now everleaf-disk-monitor.timer
 sudo ufw allow 8484/tcp comment 'Everleaf login'
-sudo ufw allow 7575:7577/tcp comment 'Everleaf channels'
+sudo ufw allow 7575:7582/tcp comment 'Everleaf channels'
 sudo systemctl restart everleaf.service
 
 for attempt in {1..30}; do
@@ -196,7 +205,12 @@ for attempt in {1..30}; do
 done
 
 sudo systemctl --no-pager --full status everleaf.service
-ss -ltn | grep -E ':(8484|7575|7576|7577)[[:space:]]'
+for port in 8484 {7575..7582}; do
+    if ! ss -ltn | awk '{print $4}' | grep -Eq "(^|:)${port}$"; then
+        echo "Everleaf did not open required port ${port}." >&2
+        exit 1
+    fi
+done
 sudo ufw status numbered
 
 if ! sudo systemctl start everleaf-backup.service; then
