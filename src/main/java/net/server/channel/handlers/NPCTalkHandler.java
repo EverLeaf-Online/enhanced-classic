@@ -35,6 +35,8 @@ import server.life.PlayerNPC;
 import server.maps.MapObject;
 import tools.PacketCreator;
 
+import java.awt.Point;
+
 public final class NPCTalkHandler extends AbstractPacketHandler {
     private static final Logger log = LoggerFactory.getLogger(NPCTalkHandler.class);
 
@@ -52,6 +54,11 @@ public final class NPCTalkHandler extends AbstractPacketHandler {
 
         int oid = p.readInt();
         MapObject obj = c.getPlayer().getMap().getMapObject(oid);
+        if (obj == null || !isNearby(c, obj)) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
         if (obj instanceof NPC npc) {
             if (YamlConfig.config.server.USE_DEBUG) {
                 c.getPlayer().dropMessage(5, "Talking to NPC " + npc.getId());
@@ -94,5 +101,12 @@ public final class NPCTalkHandler extends AbstractPacketHandler {
                 nsm.start(c, pnpc.getScriptId(), null);
             }
         }
+    }
+
+    private static boolean isNearby(Client c, MapObject obj) {
+        Point playerPos = c.getPlayer().getPosition();
+        Point objectPos = obj.getPosition();
+        return Math.abs(objectPos.x - playerPos.x) <= 1200
+                && Math.abs(objectPos.y - playerPos.y) <= 800;
     }
 }
