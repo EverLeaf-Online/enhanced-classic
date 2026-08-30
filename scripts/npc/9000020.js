@@ -23,6 +23,9 @@
 var status = -1;
 var selectedDestination = -1;
 
+const FieldLimit = Java.type('server.maps.FieldLimit');
+const MiniDungeonInfo = Java.type('server.maps.MiniDungeonInfo');
+
 // EverLeaf instant-travel hub. Keep this focused on safe towns/hubs so travel
 // removes repetitive transit without bypassing bosses, instances, or progression.
 var TRAVEL_FEE = 5000;
@@ -50,7 +53,38 @@ var destinations = [
 ];
 
 function start() {
+    if (!canTravelFromCurrentMap()) {
+        cm.dispose();
+        return;
+    }
+
     action(1, 0, 0);
+}
+
+function canTravelFromCurrentMap() {
+    var player = cm.getPlayer();
+
+    if (!player.isAlive()) {
+        cm.sendOk("You cannot use Instant Travel while dead.");
+        return false;
+    }
+
+    if (player.getEventInstance() != null) {
+        cm.sendOk("You cannot use Instant Travel while participating in an event or instance.");
+        return false;
+    }
+
+    if (MiniDungeonInfo.isDungeonMap(player.getMapId())) {
+        cm.sendOk("You cannot use Instant Travel from inside a Mini-Dungeon.");
+        return false;
+    }
+
+    if (FieldLimit.CANNOTMIGRATE.check(player.getMap().getFieldLimit())) {
+        cm.sendOk("You cannot use Instant Travel from this map.");
+        return false;
+    }
+
+    return true;
 }
 
 function action(mode, type, selection) {
@@ -98,6 +132,11 @@ function action(mode, type, selection) {
     }
 
     if (status == 2) {
+        if (!canTravelFromCurrentMap()) {
+            cm.dispose();
+            return;
+        }
+
         var destination = destinations[selectedDestination];
 
         if (cm.getMeso() < TRAVEL_FEE) {
