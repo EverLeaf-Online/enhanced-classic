@@ -5,7 +5,6 @@ package server.gachapon;
  * <p>
  * MapleSEA-like loots thanks to AyumiLove - src: https://ayumilovemaple.wordpress.com/maplestory-gachapon-guide/
  */
-
 public class ElNath extends GachaponItems {
 
     @Override
@@ -53,7 +52,9 @@ public class ElNath extends GachaponItems {
 
     @Override
     public int[] getUncommonItems() {
-        return new int[]{2022439, 2040804, 2040805, 2340000};
+        // White Scroll is intentionally supplied through the shared global
+        // rare pool so El Nath does not have a second, much easier roll for it.
+        return new int[]{2022439, 2040804, 2040805};
     }
 
     @Override
