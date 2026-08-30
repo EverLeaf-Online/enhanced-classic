@@ -14,7 +14,9 @@ DROP DATABASE IF EXISTS ${database};
 CREATE DATABASE ${database} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE ${database};
 CREATE TABLE accounts (
-    id INT NOT NULL PRIMARY KEY
+    id INT NOT NULL PRIMARY KEY,
+    name VARCHAR(32) NOT NULL UNIQUE,
+    votepoints INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB;
 CREATE TABLE characters (
     id INT NOT NULL PRIMARY KEY,
@@ -25,7 +27,7 @@ CREATE TABLE inventoryequipment (
     inventoryitemid BIGINT NOT NULL PRIMARY KEY,
     ringid INT NOT NULL DEFAULT -1
 ) ENGINE=InnoDB;
-INSERT INTO accounts (id) VALUES (1), (2);
+INSERT INTO accounts (id, name) VALUES (1, 'Alpha'), (2, 'Beta');
 INSERT INTO characters (id, accountid) VALUES (10, 1), (11, 1), (20, 2);
 SQL
 
@@ -34,6 +36,7 @@ structural_migrations=(
     database/sql/migration/everleaf_verdant_marks.sql
     database/sql/migration/everleaf_pq_points.sql
     database/sql/migration/everleaf_account_entitlements.sql
+    database/sql/migration/everleaf_vote_rewards.sql
     database/sql/migration/everleaf_enhanced_encounters.sql
     database/sql/migration/everleaf_rooted_materials.sql
     database/sql/migration/everleaf_inventoryequipment_forge_stage.sql
@@ -65,6 +68,10 @@ INSERT INTO everleaf_account_entitlement_ledger
     (account_id, character_id, entitlement_key, action, source_type, source_key, new_expires_at)
 VALUES (1, 10, 'PET_VAC', 'EXTEND', 'VOTE_SHOP', 'ci-petvac-1', DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 7 DAY));
 
+INSERT INTO everleaf_vote_reward_ledger
+    (account_id, provider, vote_date_utc, source_username, voter_ip, vote_points, provider_reason)
+VALUES (1, 'gtop100', '2026-08-30', 'Alpha', '203.0.113.10', 1, 'ci');
+
 INSERT INTO everleaf_encounter_attempt
     (account_id, character_id, encounter_id, started_at, finished_at, result, weekly_reward_claimed)
 VALUES (1, 10, 'rooted_zakum', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'CLEARED', 1);
@@ -80,7 +87,7 @@ INSERT INTO everleaf_rooted_forge_order
     (account_id, character_id, recipe, target_item_id, target_inventory_type, target_slot, request_key)
 VALUES (1, 10, 'ROOTED_ARMOR_REFINEMENT', 1002001, 1, 1, 'ci-forge-1');
 
-SELECT IF(COUNT(*) = 10, 'migration_tables_ok', CONCAT('migration_tables_bad:', COUNT(*)))
+SELECT IF(COUNT(*) = 11, 'migration_tables_ok', CONCAT('migration_tables_bad:', COUNT(*)))
 FROM information_schema.tables
 WHERE table_schema = DATABASE()
   AND table_name IN (
@@ -90,6 +97,7 @@ WHERE table_schema = DATABASE()
       'everleaf_pq_point_ledger',
       'everleaf_account_entitlement',
       'everleaf_account_entitlement_ledger',
+      'everleaf_vote_reward_ledger',
       'everleaf_encounter_attempt',
       'everleaf_encounter_weekly_reward',
       'everleaf_rooted_material_balance',
@@ -121,6 +129,10 @@ expect_duplicate_rejected \
     "Pet Vac entitlement source" \
     "INSERT INTO everleaf_account_entitlement_ledger (account_id, character_id, entitlement_key, action, source_type, source_key) VALUES (1,10,'PET_VAC','EXTEND','VOTE_SHOP','ci-petvac-1');"
 
+expect_duplicate_rejected \
+    "one verified vote reward per provider/day/account" \
+    "INSERT INTO everleaf_vote_reward_ledger (account_id, provider, vote_date_utc, source_username, vote_points) VALUES (1,'gtop100','2026-08-30','Alpha',1);"
+
 # Weekly boss reward ownership is account-scoped: a second character on the same
 # account cannot consume the same encounter/week reward bucket.
 "${mysql_cmd[@]}" "$database" -e \
@@ -130,8 +142,9 @@ expect_duplicate_rejected \
     "account-scoped weekly encounter reward" \
     "INSERT INTO everleaf_encounter_weekly_reward (account_id, encounter_id, week_start_utc, attempt_id) VALUES (1,'rooted_zakum','2026-08-24',${second_attempt});"
 
-# Foreign-key scope must reject a character belonging to another account in
-# account-owned ledgers.
+# These schemas independently reference account_id and character_id. The
+# service layer additionally verifies that the character belongs to that
+# account; keep that ownership check in runtime tests as well.
 if "${mysql_cmd[@]}" "$database" -e \
     "INSERT INTO everleaf_pq_point_ledger (account_id, character_id, amount, balance_after, reason_type, reason_key) VALUES (1,20,1,11,'PQ_CLEAR','cross-account-ci');" >/dev/null 2>&1; then
     echo "NOTE: schema FKs do not prove account-character ownership; service-layer ownership validation remains required."
