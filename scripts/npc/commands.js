@@ -1,9 +1,8 @@
-/* @Author Ronan
- * @Author Vcoc
-        Name: Steward
-        Map(s): Foyer
-        Info: Commands
-        Script: commands.js
+/*
+    Name: Steward
+    Map(s): Foyer
+    Info: EverLeaf Commands
+    Script: commands.js
 */
 
 var status;
@@ -14,14 +13,14 @@ var staff_heading = "!";
 var levels = ["Common", "Donator", "JrGM", "GM", "SuperGM", "Developer", "Admin"];
 var commands;
 
-function writeHeavenMSCommands() {
+function loadEverLeafCommands() {
     const CommandsExecutor = Java.type('client.command.CommandsExecutor');
     commands = CommandsExecutor.getInstance().getGmCommands();
 }
 
 function start() {
     status = -1;
-    writeHeavenMSCommands();
+    loadEverLeafCommands();
     action(1, 0, 0);
 }
 
@@ -40,7 +39,7 @@ function action(mode, type, selection) {
         }
 
         if (status == 0) {
-            var sendStr = "There are all available commands for you:\r\n\r\n#b";
+            var sendStr = "EverLeaf commands available to you:\r\n\r\n#b";
             for (var i = 0; i <= cm.getPlayer().gmLevel(); i++) {
                 sendStr += "#L" + i + "#" + levels[i] + "#l\r\n";
             }
