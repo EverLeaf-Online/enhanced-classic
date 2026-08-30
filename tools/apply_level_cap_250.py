@@ -65,17 +65,44 @@ replace_once(
 )
 
 # Register player-facing Everleaf progression commands without permanently
-# rewriting the large upstream command registry yet.
+# rewriting the large upstream command registry yet. Some branches use explicit
+# gm0 imports while the current EverLeaf registry uses a wildcard; support both
+# source shapes so CI remains deterministic as the registry evolves.
 commands = Path("src/main/java/client/command/CommandsExecutor.java")
-replace_once(
-    commands,
-    "import client.command.commands.gm0.OnlineCommand;",
-    "import client.command.commands.gm0.OnlineCommand;\nimport client.command.commands.gm0.MarksCommand;\nimport client.command.commands.gm0.ProgressCommand;\nimport client.command.commands.gm0.WeekliesCommand;",
+commands_text = commands.read_text(encoding="utf-8")
+progression_imports = (
+    "import client.command.commands.gm0.MarksCommand;\n"
+    "import client.command.commands.gm0.ProgressCommand;\n"
+    "import client.command.commands.gm0.WeekliesCommand;"
 )
-replace_once(
-    commands,
-    '        addCommand("online", OnlineCommand.class);',
-    '        addCommand("online", OnlineCommand.class);\n        addCommand(new String[]{"marks", "verdant"}, MarksCommand.class);\n        addCommand("progress", ProgressCommand.class);\n        addCommand(new String[]{"weeklies", "weekly"}, WeekliesCommand.class);',
+
+if "import client.command.commands.gm0.*;" not in commands_text and progression_imports not in commands_text:
+    import_anchor = "import client.command.commands.gm0.OnlineCommand;"
+    if import_anchor not in commands_text:
+        raise SystemExit(
+            "Expected either gm0 wildcard import or OnlineCommand import in CommandsExecutor.java"
+        )
+    commands_text = commands_text.replace(
+        import_anchor,
+        import_anchor + "\n" + progression_imports,
+        1,
+    )
+
+progression_registration = (
+    '        addCommand(new String[]{"marks", "verdant"}, MarksCommand.class);\n'
+    '        addCommand("progress", ProgressCommand.class);\n'
+    '        addCommand(new String[]{"weeklies", "weekly"}, WeekliesCommand.class);'
 )
+if progression_registration not in commands_text:
+    online_anchor = '        addCommand("online", OnlineCommand.class);'
+    if online_anchor not in commands_text:
+        raise SystemExit("Could not find 'online' player command registration.")
+    commands_text = commands_text.replace(
+        online_anchor,
+        online_anchor + "\n" + progression_registration,
+        1,
+    )
+
+commands.write_text(commands_text, encoding="utf-8")
 
 print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics + progression/marks commands).")
