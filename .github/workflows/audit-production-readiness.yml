@@ -169,25 +169,25 @@ jobs:
             sudo mysql --batch --skip-column-names cosmic < \
               "$audit_dir/audit-everleaf-production.sql"
 
-            # High-impact global drops bypass the normal Drop/Boss Drop
-            # multiplier. Require exactly one balanced global row for each item
-            # before a production-readiness audit can pass.
+            # NX coupons remain rare universal drops. Chaos/White Scrolls must
+            # not be universal mob drops; they are reserved for explicitly
+            # authored boss/event/progression sources.
             nx100_rows="$(sudo mysql --batch --skip-column-names cosmic -e \
               "SELECT COUNT(*) FROM drop_data_global WHERE continent=-1 AND itemid=4031865 AND chance=400")"
             nx250_rows="$(sudo mysql --batch --skip-column-names cosmic -e \
               "SELECT COUNT(*) FROM drop_data_global WHERE continent=-1 AND itemid=4031866 AND chance=100")"
-            chaos_rows="$(sudo mysql --batch --skip-column-names cosmic -e \
-              "SELECT COUNT(*) FROM drop_data_global WHERE continent=-1 AND itemid=2049100 AND chance=100")"
-            white_rows="$(sudo mysql --batch --skip-column-names cosmic -e \
-              "SELECT COUNT(*) FROM drop_data_global WHERE continent=-1 AND itemid=2340000 AND chance=40")"
-            balanced_total_rows="$(sudo mysql --batch --skip-column-names cosmic -e \
-              "SELECT COUNT(*) FROM drop_data_global WHERE continent=-1 AND itemid IN (4031865,4031866,2049100,2340000)")"
+            nx_total_rows="$(sudo mysql --batch --skip-column-names cosmic -e \
+              "SELECT COUNT(*) FROM drop_data_global WHERE continent=-1 AND itemid IN (4031865,4031866)")"
+            chaos_global_rows="$(sudo mysql --batch --skip-column-names cosmic -e \
+              "SELECT COUNT(*) FROM drop_data_global WHERE continent=-1 AND itemid=2049100")"
+            white_global_rows="$(sudo mysql --batch --skip-column-names cosmic -e \
+              "SELECT COUNT(*) FROM drop_data_global WHERE continent=-1 AND itemid=2340000")"
             test "$nx100_rows" = '1'
             test "$nx250_rows" = '1'
-            test "$chaos_rows" = '1'
-            test "$white_rows" = '1'
-            test "$balanced_total_rows" = '4'
-            echo 'high_impact_global_drop_rates=balanced'
+            test "$nx_total_rows" = '2'
+            test "$chaos_global_rows" = '0'
+            test "$white_global_rows" = '0'
+            echo 'high_impact_global_drop_policy=balanced'
 
             sudo node "$audit_dir/verify-live-payment-readiness.js" \
               /opt/everleaf/web /opt/everleaf/web/.env
