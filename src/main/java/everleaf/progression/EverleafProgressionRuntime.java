@@ -25,6 +25,21 @@ public final class EverleafProgressionRuntime {
                 new PqPointService(PQ_POINT_REPOSITORY);
         private static final AccountEntitlementService ACCOUNT_ENTITLEMENT_SERVICE =
                 new AccountEntitlementService(DatabaseConnection.getDataSource());
+        private static final EncounterRepository ENCOUNTER_REPOSITORY =
+                new JdbcEncounterRepository(DatabaseConnection.getDataSource());
+        private static final EncounterService ENCOUNTER_SERVICE =
+                new EncounterService(ENCOUNTER_REPOSITORY);
+        private static final RootedMaterialRepository ROOTED_MATERIAL_REPOSITORY =
+                new JdbcRootedMaterialRepository(DatabaseConnection.getDataSource());
+        private static final RootedForgeRepository ROOTED_FORGE_REPOSITORY =
+                new JdbcRootedForgeRepository(DatabaseConnection.getDataSource());
+        private static final RootedForgeService ROOTED_FORGE_SERVICE =
+                new RootedForgeService(ROOTED_FORGE_REPOSITORY);
+        private static final RootedForgeFulfillmentService ROOTED_FORGE_FULFILLMENT_SERVICE =
+                new RootedForgeFulfillmentService(ROOTED_FORGE_REPOSITORY);
+        private static final RootedZakumLifecycleService ROOTED_ZAKUM_LIFECYCLE_SERVICE =
+                new RootedZakumLifecycleService(ENCOUNTER_SERVICE, ENCOUNTER_REPOSITORY,
+                        VERDANT_MARK_REPOSITORY, ROOTED_MATERIAL_REPOSITORY);
     }
 
     public static WeeklyProgressionService weeklyService() {
@@ -53,5 +68,33 @@ public final class EverleafProgressionRuntime {
 
     public static AccountEntitlementService accountEntitlementService() {
         return Holder.ACCOUNT_ENTITLEMENT_SERVICE;
+    }
+
+    public static EncounterService encounterService() {
+        return Holder.ENCOUNTER_SERVICE;
+    }
+
+    public static EncounterRepository encounterRepository() {
+        return Holder.ENCOUNTER_REPOSITORY;
+    }
+
+    public static RootedMaterialRepository rootedMaterialRepository() {
+        return Holder.ROOTED_MATERIAL_REPOSITORY;
+    }
+
+    public static RootedForgeRepository rootedForgeRepository() {
+        return Holder.ROOTED_FORGE_REPOSITORY;
+    }
+
+    public static RootedForgeService rootedForgeService() {
+        return Holder.ROOTED_FORGE_SERVICE;
+    }
+
+    public static RootedForgeFulfillmentService rootedForgeFulfillmentService() {
+        return Holder.ROOTED_FORGE_FULFILLMENT_SERVICE;
+    }
+
+    public static RootedZakumLifecycleService rootedZakumLifecycleService() {
+        return Holder.ROOTED_ZAKUM_LIFECYCLE_SERVICE;
     }
 }
