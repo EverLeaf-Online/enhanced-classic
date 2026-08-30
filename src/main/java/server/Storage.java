@@ -56,7 +56,8 @@ public class Storage {
     private static final Map<Integer, Integer> trunkPutCache = new HashMap<>();
 
     private final int id;
-    private int currentNpcid;
+    private int currentNpcid = -1;
+    private int currentMapId = -1;
     private int meso;
     private byte slots;
     private final Map<InventoryType, List<Item>> typeItems = new HashMap<>();
@@ -253,7 +254,19 @@ public class Storage {
             }
 
             currentNpcid = npcId;
+            currentMapId = c.getPlayer().getMapId();
             c.sendPacket(PacketCreator.getStorage(npcId, slots, storageItems, meso));
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public boolean isOpenFor(Client c) {
+        lock.lock();
+        try {
+            return currentNpcid > 0
+                    && currentMapId == c.getPlayer().getMapId()
+                    && !typeItems.isEmpty();
         } finally {
             lock.unlock();
         }
@@ -357,6 +370,8 @@ public class Storage {
     public void close() {
         lock.lock();
         try {
+            currentNpcid = -1;
+            currentMapId = -1;
             typeItems.clear();
         } finally {
             lock.unlock();
