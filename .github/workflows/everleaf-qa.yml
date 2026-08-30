@@ -60,7 +60,7 @@ jobs:
 
       - name: Validate staging QA tooling
         run: |
-          python3 -m py_compile tools/qa/staging_probe.py tools/qa/everleaf_runtime_qa.py tools/qa/audit_trade_fm_integration.py tools/audit_world_integrity.py tools/audit_world_links.py
+          python3 -m py_compile tools/qa/staging_probe.py tools/qa/everleaf_runtime_qa.py tools/qa/audit_trade_fm_integration.py tools/qa/audit_ranged_whack_integration.py tools/audit_world_integrity.py tools/audit_world_links.py
           cp deploy/qa/.env.qa.example deploy/qa/.env.qa
           sed -i 's/replace-with-a-long-random-value/ci-only-not-a-production-secret/' deploy/qa/.env.qa
           docker compose --env-file deploy/qa/.env.qa -f deploy/qa/docker-compose.qa.yml -p everleaf-qa config >/dev/null
@@ -84,6 +84,9 @@ jobs:
 
       - name: Verify Trade to Free Market integration
         run: python3 tools/qa/audit_trade_fm_integration.py
+
+      - name: Verify ranged whack server integration
+        run: python3 tools/qa/audit_ranged_whack_integration.py
 
       - name: Run deep QA correlations
         run: python3 tools/qa/everleaf_deep_qa.py --json build/deep-qa-report.json
