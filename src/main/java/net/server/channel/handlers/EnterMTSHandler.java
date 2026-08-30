@@ -54,6 +54,21 @@ public final class EnterMTSHandler extends AbstractPacketHandler {
             return;
         }
 
+        if (chr.isChangingMaps()) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
+        if (chr.getTrade() != null
+                || chr.getStorage() != null
+                || chr.getShop() != null
+                || chr.getPlayerShop() != null
+                || chr.getHiredMerchant() != null) {
+            chr.dropMessage(1, "Finish your current trade, shop, storage, or merchant interaction before entering the Free Market.");
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
         if (chr.getEventInstance() != null) {
             chr.dropMessage(1, "You cannot enter the Free Market while participating in an event.");
             c.sendPacket(PacketCreator.enableActions());
@@ -91,7 +106,6 @@ public final class EnterMTSHandler extends AbstractPacketHandler {
             return;
         }
 
-        chr.closePlayerInteractions();
         chr.closePartySearchInteractions();
         chr.saveLocation("FREE_MARKET");
         chr.changeMap(target, targetPortal);
