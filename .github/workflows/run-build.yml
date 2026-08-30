@@ -31,6 +31,8 @@ jobs:
         run: python3 tools/apply_level_cap_250.py
       - name: Audit economy and NX drops
         run: python3 tools/audit_economy_balance.py
+      - name: Audit Gachapon and reward sources
+        run: python3 tools/audit_reward_sources.py
       - name: Audit world data integrity
         run: python3 tools/audit_world_integrity.py
       - name: Ensure Maven wrapper is executable
