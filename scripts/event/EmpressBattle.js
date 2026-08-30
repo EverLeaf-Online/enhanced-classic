@@ -106,8 +106,6 @@ function changedLeader(eim, leader) {}
 function playerDead(eim, player) {}
 
 function playerRevive(eim, player) {
-    // Death removes the player from the run. Re-entry behavior will be added
-    // only after the reconnect/recall policy is validated for Empress.
     eim.unregisterPlayer(player);
     player.changeMap(exitMap, 0);
     return false;
@@ -149,6 +147,15 @@ function clearPQ(eim) {
     eim.setEventCleared();
 }
 
+function recordWeeklyClears(eim) {
+    const EmpressWeeklyLockoutService = Java.type('everleaf.content.EmpressWeeklyLockoutService');
+    var players = eim.getPlayers();
+    for (var i = 0; i < players.size(); i++) {
+        var player = players.get(i);
+        EmpressWeeklyLockoutService.markClear(player.getAccountID());
+    }
+}
+
 function monsterKilled(mob, eim) {
     if (mob.getId() != CYGNUS_FINAL) {
         return;
@@ -156,9 +163,10 @@ function monsterKilled(mob, eim) {
 
     eim.setIntProperty("defeatedBoss", 1);
     eim.setIntProperty("canJoin", 0);
+    recordWeeklyClears(eim);
     eim.showClearEffect(mob.getMap().getId());
     eim.clearPQ();
-    eim.dropMessage(6, "[Expedition] Cygnus has been defeated.");
+    eim.dropMessage(6, "[Expedition] Cygnus has been defeated. Weekly clear credit has been recorded for the expedition.");
 }
 
 function allMonstersDead(eim) {}
