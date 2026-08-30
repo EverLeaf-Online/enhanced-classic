@@ -68,11 +68,11 @@ def sql_statements(path: Path) -> list[str]:
 def extract_update_target(item_id: int, migration: Path) -> int | None:
     """Return chance from the UPDATE statement that targets exactly item_id."""
     for statement in sql_statements(migration):
-        if not re.search(r"\bUPDATE\s+`drop_data_global`\b", statement, re.IGNORECASE):
+        if not re.search(r"\bUPDATE\s+`drop_data_global`", statement, re.IGNORECASE):
             continue
-        if not re.search(rf"\b`itemid`\s*=\s*{item_id}\b", statement, re.IGNORECASE):
+        if not re.search(rf"`itemid`\s*=\s*{item_id}\b", statement, re.IGNORECASE):
             continue
-        match = re.search(r"\b`chance`\s*=\s*(\d+)\b", statement, re.IGNORECASE)
+        match = re.search(r"`chance`\s*=\s*(\d+)\b", statement, re.IGNORECASE)
         if match:
             return int(match.group(1))
     return None
@@ -80,9 +80,9 @@ def extract_update_target(item_id: int, migration: Path) -> int | None:
 
 def migration_removes_global(item_id: int, migration: Path) -> bool:
     for statement in sql_statements(migration):
-        if not re.search(r"\bDELETE\s+FROM\s+`drop_data_global`\b", statement, re.IGNORECASE):
+        if not re.search(r"\bDELETE\s+FROM\s+`drop_data_global`", statement, re.IGNORECASE):
             continue
-        if re.search(rf"\b`itemid`\s*=\s*{item_id}\b", statement, re.IGNORECASE):
+        if re.search(rf"`itemid`\s*=\s*{item_id}\b", statement, re.IGNORECASE):
             return True
     return False
 
