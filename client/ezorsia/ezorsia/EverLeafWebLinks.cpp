@@ -80,8 +80,9 @@ namespace {
             return rawUrl;
         }
 
-        std::string utf8(static_cast<size_t>(required - 1), '\0');
+        std::string utf8(static_cast<size_t>(required), '\0');
         WideCharToMultiByte(CP_UTF8, 0, rawUrl, -1, utf8.data(), required, nullptr, nullptr);
+        utf8.resize(static_cast<size_t>(required - 1));
         const std::string routed = RouteLegacyUrl(utf8.c_str());
 
         const int wideRequired = MultiByteToWideChar(CP_UTF8, 0, routed.c_str(), -1, nullptr, 0);
@@ -89,8 +90,9 @@ namespace {
             return rawUrl;
         }
 
-        std::wstring result(static_cast<size_t>(wideRequired - 1), L'\0');
+        std::wstring result(static_cast<size_t>(wideRequired), L'\0');
         MultiByteToWideChar(CP_UTF8, 0, routed.c_str(), -1, result.data(), wideRequired);
+        result.resize(static_cast<size_t>(wideRequired - 1));
         return result;
     }
 
