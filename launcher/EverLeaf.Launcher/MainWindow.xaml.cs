@@ -110,6 +110,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        string? launchTicket = null;
         try
         {
             SetBusy(true);
@@ -125,11 +126,14 @@ public partial class MainWindow : Window
             }
 
             PatchStatusText.Text = "Launching EverLeaf…";
+            launchTicket = LaunchTicket.Create(_gameDirectory);
             GameLauncher.Start(_gameDirectory);
+            launchTicket = null; // EverLeaf.exe consumes and deletes the one-time ticket.
             Close();
         }
         catch (Exception ex)
         {
+            LaunchTicket.Delete(launchTicket);
             ErrorText.Text = FriendlyError(ex);
             PatchStatusText.Text = "Ready";
         }
