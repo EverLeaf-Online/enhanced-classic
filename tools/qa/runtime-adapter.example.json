@@ -1,0 +1,42 @@
+{
+  "snapshot_command": [
+    "/opt/everleaf-qa/bin/snapshot-character",
+    "--account",
+    "{account}",
+    "--json"
+  ],
+  "snapshot_timeout": 60,
+  "action_timeout": 120,
+  "actions": {
+    "disconnect-reconnect": [
+      "/opt/everleaf-qa/bin/run-scenario",
+      "disconnect-reconnect",
+      "--account",
+      "{account}"
+    ],
+    "staging-restart": [
+      "/opt/everleaf-qa/bin/run-scenario",
+      "staging-restart",
+      "--account",
+      "{account}"
+    ],
+    "trade-roundtrip": [
+      "/opt/everleaf-qa/bin/run-scenario",
+      "trade-roundtrip",
+      "--account",
+      "{account}"
+    ],
+    "storage-roundtrip": [
+      "/opt/everleaf-qa/bin/run-scenario",
+      "storage-roundtrip",
+      "--account",
+      "{account}"
+    ],
+    "shop-buy-sell": [
+      "/opt/everleaf-qa/bin/run-scenario",
+      "shop-buy-sell",
+      "--account",
+      "{account}"
+    ]
+  }
+}
