@@ -82,6 +82,30 @@ jobs:
             test "$(stat -c '%a' /opt/everleaf/web/.env)" = '600'
             echo 'production_env_permissions=ready'
 
+            read_env() {
+              local key="$1"
+              sed -n "s/^${key}=//p" /opt/everleaf/web/.env | tail -1
+            }
+
+            session_secret="$(read_env SESSION_SECRET)"
+            test -n "$session_secret"
+            test "$session_secret" != 'dev-only-change-me'
+            test "${#session_secret}" -ge 32
+            echo 'session_secret=ready'
+
+            game_db_password="$(read_env GAME_DB_PASSWORD)"
+            test -n "$game_db_password"
+            echo 'game_db_password=ready'
+
+            test "$(read_env GAME_PASSWORD_MODE)" = 'bcrypt'
+            echo 'website_password_mode=bcrypt'
+
+            case "$(printf '%s' "$(read_env GAME_REGISTRATION_ENABLED)" | tr '[:upper:]' '[:lower:]')" in
+              1|true|yes|on) ;;
+              *) echo 'Website registration must be enabled before public launch.' >&2; exit 1;;
+            esac
+            echo 'website_registration=enabled'
+
             # EverLeaf uses eight game channels. Keep the website's configured
             # port list in lock-step with the actual server so status pages do
             # not silently report only a subset of channels.
