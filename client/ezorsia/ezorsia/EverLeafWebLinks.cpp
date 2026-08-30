@@ -37,8 +37,8 @@ namespace {
         const std::string original(rawUrl);
         const std::string url = ToLower(original);
 
-        // Only rewrite web traffic that looks like an old MapleStory/Nexon account link.
-        // Everything else keeps its original destination.
+        // Only rewrite legacy MapleStory/Nexon web destinations. Other programs/files
+        // opened by the client are deliberately left untouched.
         const bool mapleLink =
             url.find("maplestory") != std::string::npos ||
             url.find("nexon") != std::string::npos ||
@@ -55,8 +55,9 @@ namespace {
             return base + "/register";
         }
 
-        // The CMS does not yet expose unauthenticated ID/password recovery.
-        // Send those buttons to the official support page instead of a dead legacy URL.
+        // The CMS currently supports authenticated password changes, but it does not
+        // yet have public forgot-ID/forgot-password routes. Route those old buttons
+        // to EverLeaf Support rather than sending players to dead Nexon pages.
         if (url.find("password") != std::string::npos ||
             url.find("passwd") != std::string::npos ||
             url.find("forgot") != std::string::npos ||
@@ -114,4 +115,16 @@ bool EverLeafWebLinks::Install() {
     ok &= Memory::SetHook(true, reinterpret_cast<void**>(&gShellExecuteA), reinterpret_cast<void*>(&ShellExecuteA_Hook));
     ok &= Memory::SetHook(true, reinterpret_cast<void**>(&gShellExecuteW), reinterpret_cast<void*>(&ShellExecuteW_Hook));
     return ok;
+}
+
+namespace {
+    // This translation unit is included by stdafx.cpp so it remains part of the
+    // existing Visual Studio project without requiring users to repair project files.
+    // The DLL already installs Windows API detours during process attach; doing the
+    // same here makes the legacy login web buttons available before the login UI runs.
+    struct EverLeafWebLinkBootstrap {
+        EverLeafWebLinkBootstrap() {
+            EverLeafWebLinks::Install();
+        }
+    } gEverLeafWebLinkBootstrap;
 }
