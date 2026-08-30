@@ -22,6 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MAP_ROOT = ROOT / "wz" / "Map.wz" / "Map"
 SPECIAL_TARGETS = {"-1", "999999999"}
+GENERIC_TARGET_PORTALS = {"sp", "portal"}
 
 
 @dataclass(frozen=True)
@@ -167,7 +168,10 @@ def main() -> int:
             # Scripted/sentinel portals are validated by the existing integrity audit.
             if script_name or not target_map or target_map in SPECIAL_TARGETS or target_map not in maps:
                 continue
-            if not target_name:
+            # `sp` and `portal` are conventional v83 fallback destinations rather
+            # than promises that a literal portal with that name exists. The
+            # existing deep QA uses the same exclusion.
+            if not target_name or target_name in GENERIC_TARGET_PORTALS:
                 continue
 
             counts["named_static_portals"] += 1
