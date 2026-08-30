@@ -18,14 +18,23 @@ FORBIDDEN_VOTE_REWARD_NAMES = [
     "AP_RESET",
 ]
 
+EXPECTED_COSTS = {
+    "VOTE_LEAF_COST": 1,
+    "VOTE_CHARM_COST": 2,
+    "VOTE_MERCHANT_COST": 3,
+    "VOTE_CHAIR_COST": 1,
+    "VOTE_PET_VAC_7_COST": 5,
+    "VOTE_PET_VAC_30_COST": 18,
+}
+
 REQUIRED_SNIPPETS = [
     "Vote Point Exchange",
     "getVotePoints()",
     "useVotePoints(",
-    "VOTE_LEAF_COST",
-    "VOTE_CHARM_COST",
-    "VOTE_MERCHANT_COST",
-    "VOTE_CHAIR_COST",
+    "purchasePetVac(7, VOTE_PET_VAC_7_COST)",
+    "purchasePetVac(30, VOTE_PET_VAC_30_COST)",
+    "grantTimed(",
+    "addVotePoints(cost)",
 ]
 
 
@@ -55,18 +64,30 @@ def main() -> None:
 
     costs = {
         name: int(value)
-        for name, value in re.findall(r"var\s+(VOTE_[A-Z_]+_COST)\s*=\s*(\d+)\s*;", text)
+        for name, value in re.findall(r"var\s+(VOTE_[A-Z0-9_]+_COST)\s*=\s*(\d+)\s*;", text)
     }
-    expected_costs = {
-        "VOTE_LEAF_COST",
-        "VOTE_CHARM_COST",
-        "VOTE_MERCHANT_COST",
-        "VOTE_CHAIR_COST",
-    }
-    if set(costs) != expected_costs:
+    if costs != EXPECTED_COSTS:
         fail(f"Unexpected Vote Point price set: {costs}")
     if any(value <= 0 for value in costs.values()):
         fail(f"Vote Point prices must be positive: {costs}")
+
+    # The longer option should reward commitment without making the convenience
+    # effectively free. At 5 VP/7d vs 18 VP/30d the 30-day option is cheaper per
+    # day while still costing more than three 7-day purchases in absolute VP.
+    if costs["VOTE_PET_VAC_30_COST"] >= costs["VOTE_PET_VAC_7_COST"] * (30 / 7):
+        fail("30-day Pet Vac should be cheaper per day than the 7-day option")
+    if costs["VOTE_PET_VAC_30_COST"] < costs["VOTE_PET_VAC_7_COST"] * 3:
+        fail("30-day Pet Vac is priced too cheaply relative to the 7-day option")
+
+    permanent_markers = [
+        "permanent Pet Vac -",
+        "purchasePetVacPermanent",
+        "grantPermanent(",
+        "VOTE_PET_VAC_PERMANENT_COST",
+    ]
+    for marker in permanent_markers:
+        if marker in vote_section:
+            fail(f"Permanent Vote Point Pet Vac is not approved: {marker}")
 
     chair_match = re.search(r"var\s+voteChairs\s*=\s*\[(.*?)\];", text, re.S)
     if not chair_match:
@@ -94,6 +115,7 @@ def main() -> None:
     print(f"       prices={costs}")
     print(f"       cosmetic_chairs={len(chairs)}")
     print("       direct rewards=Maple Leaves, Safety Charms, Hired Merchant, cosmetic chair")
+    print("       Pet Vac=timed account entitlement (7d/30d), no permanent option")
     print("       progression rewards=blocked")
 
 
