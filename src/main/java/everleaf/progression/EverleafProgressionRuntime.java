@@ -23,6 +23,8 @@ public final class EverleafProgressionRuntime {
                 new JdbcPqPointRepository(DatabaseConnection.getDataSource());
         private static final PqPointService PQ_POINT_SERVICE =
                 new PqPointService(PQ_POINT_REPOSITORY);
+        private static final AccountEntitlementService ACCOUNT_ENTITLEMENT_SERVICE =
+                new AccountEntitlementService(DatabaseConnection.getDataSource());
     }
 
     public static WeeklyProgressionService weeklyService() {
@@ -47,5 +49,9 @@ public final class EverleafProgressionRuntime {
 
     public static PqPointRepository pqPointRepository() {
         return Holder.PQ_POINT_REPOSITORY;
+    }
+
+    public static AccountEntitlementService accountEntitlementService() {
+        return Holder.ACCOUNT_ENTITLEMENT_SERVICE;
     }
 }
