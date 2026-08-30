@@ -61,6 +61,15 @@ public final class CloseRangeDamageHandler extends AbstractDealDamageHandler {
         chr.getAutobanManager().spam(8);*/
 
         AttackInfo attack = parseDamage(p, chr, false, false);
+
+        // EverLeaf QoL: ranged classes should never fall back to the old close-range
+        // basic-attack "whack" for server-authoritative damage. Skills still flow
+        // through normally, including close-range skills that intentionally use this
+        // handler. The client animation is handled separately by the client patch.
+        if (attack.skill == 0 && usesRangedBasicAttack(chr.getJob())) {
+            return;
+        }
+
         if (chr.getBuffEffect(BuffStat.MORPH) != null) {
             if (chr.getBuffEffect(BuffStat.MORPH).isMorphWithoutAttack()) {
                 // How are they attacking when the client won't let them?
@@ -194,5 +203,13 @@ public final class CloseRangeDamageHandler extends AbstractDealDamageHandler {
         }
 
         applyAttack(attack, chr, attackCount);
+    }
+
+    private static boolean usesRangedBasicAttack(Job job) {
+        return job.isA(Job.BOWMAN)
+                || job.isA(Job.ASSASSIN)
+                || job.isA(Job.GUNSLINGER)
+                || job.isA(Job.WINDARCHER1)
+                || job.isA(Job.NIGHTWALKER1);
     }
 }
