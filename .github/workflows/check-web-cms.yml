@@ -1,0 +1,67 @@
+name: Check EverLeaf Web CMS
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - "web/**"
+      - ".github/workflows/check-web-cms.yml"
+  pull_request:
+    branches: [release-dev, master]
+    paths:
+      - "web/**"
+      - ".github/workflows/check-web-cms.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package.json
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+
+      - name: Syntax-check server sources
+        run: |
+          find src scripts -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: Verify release-safe defaults
+        run: |
+          node - <<'NODE'
+          const env = require('./src/config/env');
+          const expected = [7575,7576,7577,7578,7579,7580,7581,7582];
+          if (JSON.stringify(env.game.channelPorts) !== JSON.stringify(expected)) {
+            throw new Error(`Expected 8 EverLeaf channels, got ${env.game.channelPorts}`);
+          }
+          if (env.registration.enabled) {
+            throw new Error('Registration must default disabled unless explicitly configured.');
+          }
+          if (env.brand.name !== 'EverLeaf') {
+            throw new Error(`Unexpected brand: ${env.brand.name}`);
+          }
+          NODE
+
+      - name: Initialize disposable CMS database
+        env:
+          NODE_ENV: test
+          CMS_DB_PATH: ./data/ci-everleaf-cms.sqlite
+        run: npm run init-db
+
+      - name: Validate patch-manifest scripts
+        working-directory: .
+        run: |
+          node --check web/scripts/build-patch-manifest.js
+          node --check web/scripts/test-patch-manifest.js
