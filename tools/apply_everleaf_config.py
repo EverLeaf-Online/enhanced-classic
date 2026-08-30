@@ -83,6 +83,7 @@ def main() -> None:
         ("    travel_rate: 10", "    travel_rate: 2"),
         ("    AUTOMATIC_REGISTER: true", "    AUTOMATIC_REGISTER: false"),
         ("    USE_SUPPLY_RATE_COUPONS: true", "    USE_SUPPLY_RATE_COUPONS: false"),
+        ("    USE_ANNOUNCE_NX_COUPON_LOOT: false", "    USE_ANNOUNCE_NX_COUPON_LOOT: true"),
     ]
 
     # The primary EverLeaf world is intentionally eight channels. The source
