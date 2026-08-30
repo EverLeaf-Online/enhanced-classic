@@ -57,9 +57,9 @@ namespace {
             return base + "/register";
         }
 
-        // The CMS currently supports authenticated password changes, but it does not
-        // yet have public forgot-ID/forgot-password routes. Route those old buttons
-        // to EverLeaf Support rather than sending players to dead Nexon pages.
+        // Public account-recovery email is not live yet. Keep the old Find ID /
+        // Find Password buttons useful by routing them to the real EverLeaf support
+        // center rather than a dead Nexon page (or the donation page).
         if (url.find("password") != std::string::npos ||
             url.find("passwd") != std::string::npos ||
             url.find("forgot") != std::string::npos ||
@@ -67,7 +67,7 @@ namespace {
             url.find("find_id") != std::string::npos ||
             url.find("find-id") != std::string::npos ||
             url.find("account") != std::string::npos) {
-            return base + "/support";
+            return base + "/help";
         }
 
         return base + "/";
