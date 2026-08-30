@@ -31,7 +31,7 @@ function action(mode, type, selection) {
         if (status == 0) {
             em = cm.getEventManager("LudiPQ");
             if (em == null) {
-                cm.sendOk("The Ludibrium PQ has encountered an error.");
+                cm.sendOk("Ludibrium Party Quest is temporarily unavailable. Please report this in EverLeaf's bug-report channel.");
                 cm.dispose();
                 return;
             } else if (cm.isUsingOldPqNpcStyle()) {
@@ -39,33 +39,32 @@ function action(mode, type, selection) {
                 return;
             }
 
-            cm.sendSimple("#e#b<Party Quest: Dimensional Schism>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nYou can't go any higher because of the extremely dangerous creatures above. Would you like to collaborate with party members to complete the quest? If so, please have your #bparty leader#k talk to me.#b\r\n#L0#I want to participate in the party quest.\r\n#L1#I would like to " + (cm.getPlayer().isRecvPartySearchInviteEnabled() ? "disable" : "enable") + " Party Search.\r\n#L2#I would like to hear more details.");
+            cm.sendSimple("#e#b<Party Quest: Dimensional Schism>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nHave your #bparty leader#k talk to me when everyone is ready.#b\r\n#L0#Enter the party quest.\r\n#L1#" + (cm.getPlayer().isRecvPartySearchInviteEnabled() ? "Disable" : "Enable") + " Party Search.\r\n#L2#Tell me about this party quest.");
         } else if (status == 1) {
             if (selection == 0) {
                 if (cm.getParty() == null) {
-                    cm.sendOk("You can participate in the party quest only if you are in a party.");
+                    cm.sendOk("You need to be in a party before entering Ludibrium Party Quest.");
                     cm.dispose();
                 } else if (!cm.isLeader()) {
-                    cm.sendOk("Your party leader must talk to me to start this party quest.");
+                    cm.sendOk("Your party leader must talk to me to start Ludibrium Party Quest.");
                     cm.dispose();
                 } else {
-                    var eli = em.getEligibleParty(cm.getParty());
-                    if (eli.size() > 0) {
+                    var eligible = em.getEligibleParty(cm.getParty());
+                    if (eligible.size() > 0) {
                         if (!em.startInstance(cm.getParty(), cm.getPlayer().getMap(), 1)) {
-                            cm.sendOk("Another party has already entered the #rParty Quest#k in this channel. Please try another channel, or wait for the current party to finish.");
+                            cm.sendOk("Another party is already running Ludibrium Party Quest in this channel. Try another channel or wait for the current group to finish.");
                         }
                     } else {
-                        cm.sendOk("You cannot start this party quest yet, because either your party is not in the range size, some of your party members are not eligible to attempt it or they are not in this map. If you're having trouble finding party members, try Party Search.");
+                        cm.sendOk("Your party is not eligible to enter. Check the party-size and level requirements, and make sure every required member is present on this map.");
                     }
-
                     cm.dispose();
                 }
             } else if (selection == 1) {
                 var psState = cm.getPlayer().toggleRecvPartySearchInvite();
-                cm.sendOk("Your Party Search status is now: #b" + (psState ? "enabled" : "disabled") + "#k. Talk to me whenever you want to change it back.");
+                cm.sendOk("Party Search is now #b" + (psState ? "enabled" : "disabled") + "#k.");
                 cm.dispose();
             } else {
-                cm.sendOk("#e#b<Party Quest: Dimensional Schism>#k#n\r\nA Dimensional Schism has appeared in #b#m220000000#!#k We desperately need brave adventurers who can defeat the intruding monsters. Please, party with some dependable allies to save #m220000000#! You must pass through various stages by defeating monsters and solving quizzes, and ultimately defeat #r#o9300012##k.");
+                cm.sendOk("#e#b<Party Quest: Dimensional Schism>#k#n\r\nA Dimensional Schism has appeared in #b#m220000000#!#k. Form a party, clear the stages, and defeat #r#o9300012##k.");
                 cm.dispose();
             }
         }
