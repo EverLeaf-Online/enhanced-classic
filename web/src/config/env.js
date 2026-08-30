@@ -42,6 +42,7 @@ module.exports = {
     accountEmail: process.env.GAME_ACCOUNT_EMAIL_COLUMN || "email",
     accountBanned: process.env.GAME_ACCOUNT_BANNED_COLUMN || "banned",
     accountLoggedIn: process.env.GAME_ACCOUNT_LOGGEDIN_COLUMN || "loggedin",
+    accountVotePoints: process.env.GAME_ACCOUNT_VOTE_POINTS_COLUMN || "votepoints",
     characterAccountId: process.env.GAME_CHARACTER_ACCOUNT_ID_COLUMN || "accountid",
     characterName: process.env.GAME_CHARACTER_NAME_COLUMN || "name",
     characterLevel: process.env.GAME_CHARACTER_LEVEL_COLUMN || "level",
@@ -54,6 +55,13 @@ module.exports = {
   registration: {
     enabled: bool(process.env.GAME_REGISTRATION_ENABLED, false),
     mode: String(process.env.GAME_PASSWORD_MODE || "bcrypt").toLowerCase()
+  },
+
+  vote: {
+    provider: "gtop100",
+    rewardPoints: Math.max(1, Math.min(10, Number(process.env.VOTE_POINTS_REWARD || 1))),
+    gtopVoteUrl: process.env.GTOP100_VOTE_URL || "https://gtop100.com/MapleStory/server-106444?vote=1",
+    gtopPingbackKey: process.env.GTOP100_PINGBACK_KEY || ""
   },
 
   cmsDbPath: path.resolve(process.env.CMS_DB_PATH || "./data/everleaf-cms.sqlite")
