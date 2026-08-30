@@ -64,19 +64,20 @@ replace_once(
     'log.info("{} is now online after {} ms.", service.enhanced.EverleafIdentity.NAME, initDuration.toMillis());',
 )
 
-# Register player-facing Everleaf progression commands without permanently
-# rewriting the large upstream command registry yet. Some branches use explicit
-# gm0 imports while the current EverLeaf registry uses a wildcard; support both
-# source shapes so CI remains deterministic as the registry evolves.
+# Register player-facing Everleaf progression/economy commands without
+# permanently rewriting the large upstream command registry yet. Some branches
+# use explicit gm0 imports while the current EverLeaf registry uses a wildcard;
+# support both source shapes so CI remains deterministic as the registry evolves.
 commands = Path("src/main/java/client/command/CommandsExecutor.java")
 commands_text = commands.read_text(encoding="utf-8")
-progression_imports = (
+everleaf_imports = (
+    "import client.command.commands.gm0.LeafShopCommand;\n"
     "import client.command.commands.gm0.MarksCommand;\n"
     "import client.command.commands.gm0.ProgressCommand;\n"
     "import client.command.commands.gm0.WeekliesCommand;"
 )
 
-if "import client.command.commands.gm0.*;" not in commands_text and progression_imports not in commands_text:
+if "import client.command.commands.gm0.*;" not in commands_text and everleaf_imports not in commands_text:
     import_anchor = "import client.command.commands.gm0.OnlineCommand;"
     if import_anchor not in commands_text:
         raise SystemExit(
@@ -84,7 +85,7 @@ if "import client.command.commands.gm0.*;" not in commands_text and progression_
         )
     commands_text = commands_text.replace(
         import_anchor,
-        import_anchor + "\n" + progression_imports,
+        import_anchor + "\n" + everleaf_imports,
         1,
     )
 
@@ -103,6 +104,17 @@ if progression_registration not in commands_text:
         1,
     )
 
+leafshop_registration = '        addCommand(new String[]{"leafshop", "leaves"}, LeafShopCommand.class);'
+if leafshop_registration not in commands_text:
+    progression_anchor = '        addCommand(new String[]{"weeklies", "weekly"}, WeekliesCommand.class);'
+    if progression_anchor not in commands_text:
+        raise SystemExit("Could not find EverLeaf weekly command registration anchor.")
+    commands_text = commands_text.replace(
+        progression_anchor,
+        progression_anchor + "\n" + leafshop_registration,
+        1,
+    )
+
 commands.write_text(commands_text, encoding="utf-8")
 
-print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics + progression/marks commands).")
+print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics + progression/marks/leafshop commands).")
