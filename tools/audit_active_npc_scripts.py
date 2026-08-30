@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Inventory active NPC script coverage for EverLeaf.
 
-This review audit scans NPCs that are actually spawned in Map.wz and classifies
+This audit scans NPCs that are actually spawned in Map.wz and classifies
 whether their dedicated scripts are missing, trivial stubs, or substantive.
-It is intentionally non-fatal for now: some retail NPCs are informational or
-client-driven, so a missing/stub script must be triaged before becoming a hard
-CI failure.
+Missing dedicated scripts remain review-only because many retail NPCs are
+client-driven or intentionally non-interactive. A spawned NPC that *does* have
+a dedicated script which only disposes immediately is treated as a hard defect:
+it advertises server-side behavior while guaranteeing a dead interaction.
 """
 from __future__ import annotations
 
@@ -49,7 +50,6 @@ def is_trivial_stub(text: str) -> bool:
     }
     if normalized in trivial:
         return True
-    # Catch equivalent one-function scripts that do nothing except dispose.
     return bool(re.fullmatch(r"functionstart\(\)\{(?:cm\.)?dispose\(\);\}", normalized))
 
 
@@ -114,17 +114,15 @@ def main() -> int:
             f"{len(missing)} missing dedicated scripts; {len(stubs)} trivial stubs"
         )
         for item in stubs[:40]:
-            print(f"[REVIEW] stub NPC {item['npcId']} spawned on maps {item['maps']}")
-        if len(stubs) > 40:
-            print(f"[REVIEW] ... {len(stubs) - 40} additional stub NPCs omitted")
+            print(f"[FAIL] stub NPC {item['npcId']} spawned on maps {item['maps']}")
         for item in missing[:40]:
             print(f"[REVIEW] no dedicated script for NPC {item['npcId']} on maps {item['maps']}")
         if len(missing) > 40:
             print(f"[REVIEW] ... {len(missing) - 40} additional missing scripts omitted")
         for error in parse_errors[:20]:
-            print(f"[REVIEW] XML parse error: {error}")
+            print(f"[FAIL] XML parse error: {error}")
 
-    return 0
+    return 1 if stubs or parse_errors else 0
 
 
 if __name__ == "__main__":
