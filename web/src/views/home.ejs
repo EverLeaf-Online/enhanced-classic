@@ -12,7 +12,7 @@
     <div class="heroActions"><a class="btn primary" href="/register">PLAY NOW</a><a class="btn" href="/downloads">DOWNLOAD</a></div>
     <div class="statusStrip">
       <div class="statusCell"><div class="statusIcon statusDot">●</div><div><div class="statusLabel">Server Status</div><div id="live-status" class="statusValue <%=status.online?'online':''%>"><%=status.online?'ONLINE':'OFFLINE'%></div></div></div>
-      <div class="statusCell"><div class="statusIcon">👥</div><div><div class="statusLabel">Players Online</div><div id="live-players" class="statusValue"><%=players===null?'—':players%></div></div></div>
+      <div class="statusCell"><div class="statusIcon">👥</div><div><div class="statusLabel">Players Online</div><div id="live-players" class="statusValue"><%=players%></div></div></div>
       <div class="statusCell"><div class="statusIcon">★</div><div><div class="statusLabel">Channels</div><div id="live-channels" class="statusValue gold"><%=status.channels%>/<%=status.totalChannels%></div></div></div>
       <div class="statusCell"><div class="statusIcon">🍃</div><div><div class="statusLabel">Version</div><div class="statusValue"><%=brand.version%></div></div></div>
     </div>

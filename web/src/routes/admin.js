@@ -5,7 +5,6 @@ const {requireAdmin}=require("../middleware/auth");
 const game=require("../services/gameService");
 const {getPool,safeIdent:I}=require("../db/game");
 const env=require("../config/env");
-const adminSupporter=require("../services/adminSupporterService");
 const router=express.Router();
 
 router.get("/login",(req,res)=>res.render("admin-login",{error:"",settings:settings()}));
@@ -18,30 +17,12 @@ router.post("/login",async(req,res)=>{
 });
 router.post("/logout",(req,res)=>req.session.destroy(()=>res.redirect("/admin/login")));
 
-router.get("/supporters",requireAdmin,(req,res)=>{
-  const filters={
-    status:String(req.query.status||""),
-    provider:String(req.query.provider||""),
-    search:String(req.query.search||""),
-    roleStatus:String(req.query.roleStatus||""),
-    page:Number(req.query.page||1)
-  };
-  const payments=adminSupporter.listPayments(filters);
-  const supporters=adminSupporter.listSupporters(filters);
-  const syncStatus=String(req.query.supporterSync||"");
-  res.render("admin-supporters",{payments,supporters,summary:adminSupporter.dashboardSummary(),filters,syncStatus,settings:settings()});
-});
-
 router.get("/",requireAdmin,async(req,res)=>{
   const posts=db.prepare("SELECT * FROM posts ORDER BY created_at DESC").all();
   const downloads=db.prepare("SELECT * FROM downloads ORDER BY created_at DESC").all();
   const announcements=db.prepare("SELECT * FROM announcements ORDER BY created_at DESC LIMIT 10").all();
   const donations=db.prepare("SELECT * FROM donations ORDER BY created_at DESC LIMIT 10").all();
   const donationTotal=db.prepare("SELECT COALESCE(SUM(amount_cents),0) total FROM donations WHERE status='completed'").get().total;
-  const paymentOrders=db.prepare("SELECT * FROM payment_orders ORDER BY created_at DESC LIMIT 20").all();
-  const supporterProfiles=db.prepare("SELECT * FROM supporter_profiles ORDER BY lifetime_cents DESC,created_at DESC LIMIT 20").all();
-  const supporterSummary=adminSupporter.dashboardSummary();
-  const auditLog=db.prepare("SELECT action,details,created_at FROM audit_log ORDER BY id DESC LIMIT 20").all();
   let players=0,accounts=0,recentAccounts=[],status={online:false,channels:0,totalChannels:env.game.channelPorts.length};
   try{
     const pool=getPool(),g=env.gameDb;
@@ -51,22 +32,7 @@ router.get("/",requireAdmin,async(req,res)=>{
     recentAccounts=recentRows;
     [players,status]=await Promise.all([game.onlineCount(),game.serverStatus()]);
   }catch{}
-  const syncStatus=String(req.query.supporterSync||"");
-  res.render("admin",{posts,downloads,announcements,donations,donationTotal,paymentOrders,supporterProfiles,supporterSummary,auditLog,syncStatus,players,accounts,recentAccounts,status,site:settings(),settings:settings()});
-});
-
-router.post("/supporters/:accountId/sync-discord",requireAdmin,async(req,res)=>{
-  try {
-    const status=await adminSupporter.retryDiscordRole(req.params.accountId,req.session.admin.id);
-    if(req.get("referer")?.includes("/admin/supporters"))
-      res.redirect(`/admin/supporters?supporterSync=${encodeURIComponent(status)}`);
-    else
-      res.redirect(`/admin?supporterSync=${encodeURIComponent(status)}#donations`);
-  } catch(error) {
-    console.warn("Admin Discord role sync failed:",error.message);
-    if(req.get("referer")?.includes("/admin/supporters")) res.redirect("/admin/supporters?supporterSync=failed");
-    else res.redirect("/admin?supporterSync=failed#donations");
-  }
+  res.render("admin",{posts,downloads,announcements,donations,donationTotal,players,accounts,recentAccounts,status,site:settings(),settings:settings()});
 });
 
 router.post("/posts",requireAdmin,(req,res)=>{

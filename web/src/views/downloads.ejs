@@ -1,25 +1,23 @@
 <%- include("partials/header",{title:"Downloads"}) %>
-<main class="lightPage"><div class="lightTitle"><div class="wrap"><h1>Downloads</h1><p>One launcher installs, verifies, updates, and starts EverLeaf.</p></div></div><div class="wrap">
+<main class="lightPage"><div class="lightTitle"><div class="wrap"><h1>Downloads</h1><p>Get the latest EverLeaf client, launcher, and tools.</p></div></div><div class="wrap">
 <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,.8fr);gap:18px;align-items:start">
 <div>
-<div class="downloadCard"><div style="display:flex;gap:14px;align-items:center"><div class="downloadIcon">🚀</div><div><strong>EverLeaf Launcher</strong><div class="muted">Extract it into an empty folder. It securely installs and verifies all 36 required files, keeps them updated, and starts EverLeaf.exe.</div><small>Windows 64-bit · ZIP archive</small></div></div><a class="btn primary" href="<%=brand.launcherUrl%>">DOWNLOAD EVERLEAF</a></div>
-<% const groups=[["launcher","Additional Launcher Builds","🚀"],["patch","Patches","🩹"],["tool","Tools","🛠"]]; %>
+<% const groups=[["client","Game Client","💿"],["launcher","Launcher","🚀"],["patch","Patches","🩹"],["tool","Tools","🛠"]]; %>
 <% groups.forEach(([kind,label,icon])=>{ const items=rows.filter(r=>r.kind===kind); if(!items.length) return; %>
 <h3 class="downloadGroupTitle"><%=label%></h3>
 <% items.forEach(r=>{ %><div class="downloadCard"><div style="display:flex;gap:14px;align-items:center"><div class="downloadIcon"><%=icon%></div><div><strong><%=r.name%></strong><div class="muted"><%=r.description%></div><small><%=r.version?('v'+r.version):''%></small></div></div><a class="btn primary" href="<%=r.url%>">DOWNLOAD</a></div><% }) %>
 <% }) %>
+<% if(!rows.length){ %><div class="paperCard"><strong>Downloads are being prepared.</strong><p class="muted">The EverLeaf Launcher will be the recommended way to install and patch the game.</p></div><% } %>
 </div>
 <div>
 <div class="paperCard">
 <h3>Installation Guide</h3>
 <ol style="padding-left:20px;line-height:1.8">
-<li>Create an empty folder you control, such as <strong>Documents\EverLeaf</strong>.</li>
-<li>Download the launcher ZIP and extract it into that folder.</li>
-<li>Open <strong>EverLeafLauncher.exe</strong> and click <strong>Install EverLeaf</strong>.</li>
-<li>The launcher downloads and verifies all 36 required files before starting <strong>EverLeaf.exe</strong>.</li>
-<li>Log in normally inside EverLeaf.</li>
+<li>Download and install the EverLeaf Launcher.</li>
+<li>Run the launcher and log in with your account.</li>
+<li>Click Play and the game will start automatically.</li>
 </ol>
-<p class="muted" style="margin-top:14px">If an install or update is interrupted, reopen the launcher and use <strong>Install / Repair Files</strong>. It downloads only missing or changed files. Need help? Visit our <a href="/help" style="color:#2f9b43;font-weight:800">Support Center</a>.</p>
+<p class="muted" style="margin-top:14px">Need help? Visit our <a href="/help" style="color:#2f9b43;font-weight:800">Support Center</a>.</p>
 </div>
 </div>
 </div>

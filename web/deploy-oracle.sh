@@ -3,8 +3,7 @@ set -euo pipefail
 
 APP_SRC="${1:-$(pwd)}"
 APP_DIR="/opt/everleaf/web"
-SERVER_DIR="/opt/everleaf/current"
-[ -f "$SERVER_DIR/config.yaml" ] || SERVER_DIR="/opt/everleaf/server"
+SERVER_DIR="/opt/everleaf/server"
 PUBLIC_IP="132.145.141.79"
 
 echo "=== EverLeaf web deployment ==="
@@ -73,14 +72,14 @@ COOKIE_SECURE=false
 SERVER_NAME=EverLeaf
 SERVER_TAGLINE=Enhanced Classic MapleStory
 SERVER_VERSION=v83
-DISCORD_URL=https://discord.gg/w9ED8vtxa7
+DISCORD_URL=
 DONATION_URL=
 LAUNCHER_DOWNLOAD_URL=
-LAUNCHER_PORTABLE_PATH=/opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip
+FULL_CLIENT_DOWNLOAD_URL=
 
 GAME_HOST=127.0.0.1
 LOGIN_PORT=8484
-CHANNEL_PORTS=7575,7576,7577,7578,7579,7580,7581,7582
+CHANNEL_PORTS=7575,7576,7577
 
 GAME_DB_HOST=${DB_HOST}
 GAME_DB_PORT=3306

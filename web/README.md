@@ -43,10 +43,6 @@ npm start
 ## Registration
 EverLeaf website registration uses BCrypt for all newly created accounts. The current `enhanced-classic` login server accepts BCrypt directly and also recognizes legacy plaintext, SHA-1, and SHA-512 passwords for older accounts. Website-created accounts explicitly set `tos=1`; all other required account fields use the defaults defined by the EverLeaf/Cosmic `accounts` table.
 
-Player passwords created through registration or password change must be 8-12 characters because the v83 game client accepts at most 12 characters. Website login intentionally continues accepting longer existing passwords so affected players can sign in and shorten them from the account page.
-
-For an operator-assisted reset, run `npm run reset-player-password -- <username>` from the deployed web directory in an interactive terminal. The utility enforces the same 8-12 character policy and reads the password without echoing it or accepting it in command-line arguments.
-
 ```env
 GAME_REGISTRATION_ENABLED=true
 GAME_PASSWORD_MODE=bcrypt
@@ -57,12 +53,6 @@ GAME_PASSWORD_MODE=bcrypt
 
 ## Player account portal
 Authenticated players can view all characters on their account and change the password used by both the website and EverLeaf game client. New passwords are stored as BCrypt.
-
-## Supporter payments
-
-`/donate` provides the account-linked supporter experience. Payment providers fail closed: Stripe and PayPal controls remain disabled until their explicit enable flag and complete server-side credential set are present. Provider secrets are never rendered to players or stored in the CMS database.
-
-The CMS maintains separate supporter profiles, payment orders, and idempotent provider-event records. Raw webhook payloads are not retained; only a SHA-256 identity is stored for auditing. Payment fulfillment must follow the allowed order state transitions and must never grant competitive gameplay power.
 
 The homepage refreshes server status, online players, and online channel counts every 30 seconds through `/api/status`.
 
