@@ -5,9 +5,11 @@ Complements audit_world_integrity.py with checks that need a complete map index:
 - static portals whose named destination portal does not exist on the target map
 - exact duplicate NPC, mob, reactor, or portal records at the same coordinates
 
-Ambiguous duplicate content is review-only. Broken named static portal destinations are
-hard failures because the source map points at a concrete target map + portal pair that
-cannot be resolved from Map.wz.
+EverLeaf's runtime deliberately falls back to target portal ID 0 when a named
+static destination portal is missing. The audit mirrors that behavior: a missing
+name with a valid portal-0 fallback is review-only; it is a hard failure only
+when neither the requested name nor the runtime fallback can be resolved.
+Ambiguous duplicate content is review-only.
 """
 
 from __future__ import annotations
@@ -77,11 +79,12 @@ def main() -> int:
     parsed: dict[str, ET.Element] = {}
     parse_errors: list[str] = []
     portal_names: dict[str, set[str]] = defaultdict(set)
+    portal_ids: dict[str, set[int]] = defaultdict(set)
     counts: Counter[str] = Counter()
     hard_findings: list[Finding] = []
     review_findings: list[Finding] = []
 
-    # First pass: parse once and build the complete portal-name index.
+    # First pass: parse once and build the complete runtime portal indexes.
     for map_id, path in sorted(maps.items(), key=lambda item: int(item[0])):
         try:
             root = ET.parse(path).getroot()
@@ -99,6 +102,9 @@ def main() -> int:
             name = (child_value(node, "pn") or "").strip()
             if name:
                 portal_names[map_id].add(name)
+            raw_id = (node.attrib.get("name") or "").strip()
+            if raw_id.lstrip("-").isdigit():
+                portal_ids[map_id].add(int(raw_id))
 
     # Second pass: validate static target portal names and exact duplicate records.
     for map_id, root in sorted(parsed.items(), key=lambda item: int(item[0])):
@@ -164,19 +170,32 @@ def main() -> int:
             target_name = (child_value(node, "tn") or "").strip()
             script_name = (child_value(node, "script") or "").strip()
 
-            # Scripted/sentinel portals are validated by the existing integrity audit.
+            # Scripted/sentinel/missing-map portals are validated by the existing
+            # integrity audit and are not name-resolved here.
             if script_name or not target_map or target_map in SPECIAL_TARGETS or target_map not in maps:
                 continue
             if not target_name:
                 continue
 
             counts["named_static_portals"] += 1
-            if target_name not in portal_names.get(target_map, set()):
-                hard_findings.append(Finding(
-                    "missing_target_portal",
+            if target_name in portal_names.get(target_map, set()):
+                continue
+
+            if 0 in portal_ids.get(target_map, set()):
+                counts["missing_target_portal_with_fallback"] += 1
+                review_findings.append(Finding(
+                    "missing_target_portal_with_fallback",
                     map_id,
                     portal_name,
-                    f"Portal {portal_name!r} targets map {target_map} portal {target_name!r}, but that portal name does not exist",
+                    f"Portal {portal_name!r} targets map {target_map} portal {target_name!r}, which is missing; runtime will fall back to portal ID 0",
+                ))
+            else:
+                counts["missing_target_portal_no_fallback"] += 1
+                hard_findings.append(Finding(
+                    "missing_target_portal_no_fallback",
+                    map_id,
+                    portal_name,
+                    f"Portal {portal_name!r} targets map {target_map} portal {target_name!r}, but neither that name nor runtime fallback portal ID 0 exists",
                 ))
 
         for (portal_name, x, y), amount in seen_portals.items():

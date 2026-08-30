@@ -9,7 +9,9 @@ on:
       - 'src/test/**'
       - 'wz/Map.wz/**'
       - 'wz/Npc.wz/**'
-      - 'tools/qa/**'
+      - 'wz/Mob.wz/**'
+      - 'wz/Reactor.wz/**'
+      - 'tools/**'
       - 'deploy/qa/**'
       - '.github/workflows/everleaf-qa.yml'
   push:
@@ -27,7 +29,9 @@ on:
       - 'src/test/**'
       - 'wz/Map.wz/**'
       - 'wz/Npc.wz/**'
-      - 'tools/qa/**'
+      - 'wz/Mob.wz/**'
+      - 'wz/Reactor.wz/**'
+      - 'tools/**'
       - 'deploy/qa/**'
       - '.github/workflows/everleaf-qa.yml'
 
@@ -52,7 +56,13 @@ jobs:
 
       - name: Validate staging QA tooling
         run: |
-          python3 -m py_compile tools/qa/staging_probe.py tools/qa/everleaf_runtime_qa.py
+          python3 -m py_compile \
+            tools/qa/staging_probe.py \
+            tools/qa/everleaf_runtime_qa.py \
+            tools/qa/audit_trade_fm_integration.py \
+            tools/qa/audit_ranged_whack_integration.py \
+            tools/audit_world_integrity.py \
+            tools/audit_world_links.py
           cp deploy/qa/.env.qa.example deploy/qa/.env.qa
           sed -i 's/replace-with-a-long-random-value/ci-only-not-a-production-secret/' deploy/qa/.env.qa
           docker compose --env-file deploy/qa/.env.qa -f deploy/qa/docker-compose.qa.yml -p everleaf-qa config >/dev/null
@@ -68,7 +78,39 @@ jobs:
       - name: Run established NPC spawn auditor
         run: python3 scripts/audit_npc_spawns.py --json > build/npc-spawn-audit.json
 
+      - name: Run world integrity audit
+        run: python3 tools/audit_world_integrity.py --json > build/world-integrity-audit.json
+
+      - name: Run static world-link audit
+        run: |
+          set +e
+          python3 tools/audit_world_links.py --json > build/world-links-audit.json
+          rc=$?
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('build/world-links-audit.json')
+          if path.exists():
+              data = json.loads(path.read_text())
+              print('World-link hard failures:', data.get('hardFailureCount', 0))
+              for finding in data.get('hardFindings', [])[:60]:
+                  print('[WORLD-LINK FAIL]', finding.get('map_id'), finding.get('object_id'), finding.get('detail'))
+              errors = data.get('parseErrors', [])
+              for error in errors[:20]:
+                  print('[WORLD-LINK XML FAIL]', error)
+          PY
+          exit $rc
+
+      - name: Verify Trade to Free Market integration
+        if: always()
+        run: python3 tools/qa/audit_trade_fm_integration.py
+
+      - name: Verify ranged whack server integration
+        if: always()
+        run: python3 tools/qa/audit_ranged_whack_integration.py
+
       - name: Run deep QA correlations
+        if: always()
         run: python3 tools/qa/everleaf_deep_qa.py --json build/deep-qa-report.json
 
       - name: Print deep QA summary
@@ -76,6 +118,12 @@ jobs:
         run: |
           if [ -f build/deep-qa-report.json ]; then
             python3 -c 'import json; d=json.load(open("build/deep-qa-report.json")); print("Deep QA:", d["summary"])'
+          fi
+          if [ -f build/world-integrity-audit.json ]; then
+            python3 -c 'import json; d=json.load(open("build/world-integrity-audit.json")); print("World integrity: hard failures=", d.get("hardFailureCount"), "review=", d.get("reviewFindingCount"))'
+          fi
+          if [ -f build/world-links-audit.json ]; then
+            python3 -c 'import json; d=json.load(open("build/world-links-audit.json")); print("World links: hard failures=", d.get("hardFailureCount"), "review=", d.get("reviewFindingCount"))'
           fi
 
       - name: Upload QA reports
@@ -88,5 +136,7 @@ jobs:
             build/qa-report.json
             build/qa-report.md
             build/npc-spawn-audit.json
+            build/world-integrity-audit.json
+            build/world-links-audit.json
             build/deep-qa-report.json
           if-no-files-found: warn
