@@ -9,7 +9,9 @@ on:
       - 'src/test/**'
       - 'wz/Map.wz/**'
       - 'wz/Npc.wz/**'
-      - 'tools/qa/**'
+      - 'wz/Mob.wz/**'
+      - 'wz/Reactor.wz/**'
+      - 'tools/**'
       - 'deploy/qa/**'
       - '.github/workflows/everleaf-qa.yml'
   push:
@@ -27,7 +29,9 @@ on:
       - 'src/test/**'
       - 'wz/Map.wz/**'
       - 'wz/Npc.wz/**'
-      - 'tools/qa/**'
+      - 'wz/Mob.wz/**'
+      - 'wz/Reactor.wz/**'
+      - 'tools/**'
       - 'deploy/qa/**'
       - '.github/workflows/everleaf-qa.yml'
 
@@ -68,6 +72,12 @@ jobs:
       - name: Run established NPC spawn auditor
         run: python3 scripts/audit_npc_spawns.py --json > build/npc-spawn-audit.json
 
+      - name: Run world integrity audit
+        run: python3 tools/audit_world_integrity.py --json > build/world-integrity-audit.json
+
+      - name: Run static world-link audit
+        run: python3 tools/audit_world_links.py --json > build/world-links-audit.json
+
       - name: Run deep QA correlations
         run: python3 tools/qa/everleaf_deep_qa.py --json build/deep-qa-report.json
 
@@ -76,6 +86,12 @@ jobs:
         run: |
           if [ -f build/deep-qa-report.json ]; then
             python3 -c 'import json; d=json.load(open("build/deep-qa-report.json")); print("Deep QA:", d["summary"])'
+          fi
+          if [ -f build/world-integrity-audit.json ]; then
+            python3 -c 'import json; d=json.load(open("build/world-integrity-audit.json")); print("World integrity: hard failures=", d.get("hardFailureCount"), "review=", d.get("reviewFindingCount"))'
+          fi
+          if [ -f build/world-links-audit.json ]; then
+            python3 -c 'import json; d=json.load(open("build/world-links-audit.json")); print("World links: hard failures=", d.get("hardFailureCount"), "review=", d.get("reviewFindingCount"))'
           fi
 
       - name: Upload QA reports
@@ -88,5 +104,7 @@ jobs:
             build/qa-report.json
             build/qa-report.md
             build/npc-spawn-audit.json
+            build/world-integrity-audit.json
+            build/world-links-audit.json
             build/deep-qa-report.json
           if-no-files-found: warn
