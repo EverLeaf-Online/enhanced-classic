@@ -52,7 +52,13 @@ jobs:
           if (env.brand.name !== 'EverLeaf') {
             throw new Error(`Unexpected brand: ${env.brand.name}`);
           }
+          if (env.vote.rewardPoints !== 1) {
+            throw new Error(`Default verified vote reward must be 1 VP, got ${env.vote.rewardPoints}`);
+          }
           NODE
+
+      - name: Test Vote Point pingback integration
+        run: node scripts/test-vote-integration.js
 
       - name: Initialize disposable CMS database
         env:
