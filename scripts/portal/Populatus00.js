@@ -5,11 +5,10 @@
 		       Jan Christian Meyer <vimes@odinms.de>
 
     This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as
-    published by the Free Software Foundation version 3 as published by
-    the Free Software Foundation. You may not use, modify or distribute
-    this program under any other version of the GNU Affero General Public
-    License.
+    it under the terms of the GNU Affero General Public License version 3
+    as published by the Free Software Foundation. You may not use, modify
+    or distribute this program under any other version of the
+    GNU Affero General Public License.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -26,21 +25,26 @@ function enter(pi) {
     if (!((pi.isQuestStarted(6361) && pi.haveItem(4031870, 1)) || (pi.isQuestCompleted(6361) && !pi.isQuestCompleted(6363)))) {
         var em = pi.getEventManager("PapulatusBattle");
 
+        if (em == null) {
+            pi.playerMessage(5, "Papulatus is temporarily unavailable because the event could not be loaded. Please report this in EverLeaf's bug-report channel.");
+            return false;
+        }
+
         if (pi.getParty() == null) {
-            pi.playerMessage(5, "You are currently not in a party, create one to attempt the boss.");
+            pi.playerMessage(5, "Papulatus requires a party. Create or join a party, then have the party leader enter this portal.");
             return false;
         } else if (!pi.isLeader()) {
-            pi.playerMessage(5, "Your party leader must enter the portal to start the battle.");
+            pi.playerMessage(5, "Only your party leader can start the Papulatus battle. Ask the leader to enter this portal first.");
             return false;
         } else {
             var eli = em.getEligibleParty(pi.getParty());
             if (eli.size() > 0) {
                 if (!em.startInstance(pi.getParty(), pi.getPlayer().getMap(), 1)) {
-                    pi.playerMessage(5, "The battle against the boss has already begun, so you may not enter this place yet.");
+                    pi.playerMessage(5, "A Papulatus battle is already active on this channel. Try another channel or wait for the current battle to finish.");
                     return false;
                 }
-            } else {  //this should never appear
-                pi.playerMessage(5, "You cannot start this battle yet, because either your party is not in the range size, some of your party members are not eligible to attempt it or they are not in this map. If you're having trouble finding party members, try Party Search.");
+            } else {
+                pi.playerMessage(5, "Your party is not eligible to enter Papulatus right now. Make sure all required party members are present on this map and meet the battle requirements.");
                 return false;
             }
 
