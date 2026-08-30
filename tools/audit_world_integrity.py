@@ -12,11 +12,17 @@ also review-only: map 970033000 contains a portal named ``test`` targeting
 970033001, which is absent from this v83 data set. The map is legitimate Boss
 Rush content and is intentionally left unchanged until runtime progression
 proves that the dormant target is required.
+
+Boss Rush's real ``raid_stage`` portals compute their destinations in script,
+so this audit reproduces that small formula and verifies every computed stage
+or rest-area target exists. That lets us preserve the legacy 970033000 test
+portal without hiding an actual Boss Rush progression break.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import sys
 import xml.etree.ElementTree as ET
 from collections import Counter
@@ -80,6 +86,14 @@ def normalize_id(value: str | None) -> str:
 def is_known_legacy_missing_target(map_id: str, portal_name: str, target: str) -> bool:
     """Return True only for explicitly researched, intentionally preserved data."""
     return map_id == "970033000" and portal_name == "test" and target == "970033001"
+
+
+def boss_rush_next_stage(map_id: str) -> str:
+    """Mirror scripts/portal/raid_stage.js for a Boss Rush stage map."""
+    current = int(map_id)
+    if current % 500 >= 100:
+        return str(current + 100)
+    return str(970030001 + math.floor((current - 970030100) / 500))
 
 
 def main() -> int:
@@ -180,6 +194,14 @@ def main() -> int:
                             "missing_portal_script", map_id, portal_name,
                             f"Portal {portal_name!r} references script {script_name!r}, but scripts/portal/{script_name}.js is missing",
                         ))
+                    elif script_name == "raid_stage":
+                        counts["boss_rush_stage_portals"] += 1
+                        next_stage = boss_rush_next_stage(map_id)
+                        if next_stage not in maps:
+                            hard_findings.append(Finding(
+                                "missing_boss_rush_stage", map_id, portal_name,
+                                f"Boss Rush portal {portal_name!r} computes missing next map {next_stage}",
+                            ))
 
     payload = {
         "maps": len(maps),
@@ -205,7 +227,8 @@ def main() -> int:
         print(
             f"Hard failures: {payload['hardFailureCount']}; "
             f"review-only findings: {payload['reviewFindingCount']}; "
-            f"NPCs without dedicated scripts: {counts['npc_without_script']}"
+            f"NPCs without dedicated scripts: {counts['npc_without_script']}; "
+            f"Boss Rush stage portals: {counts['boss_rush_stage_portals']}"
         )
         for error in parse_errors:
             print(f"[FAIL] XML parse error: {error}")
