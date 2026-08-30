@@ -3,13 +3,13 @@
 */
 package client.command.commands.gm0;
 
-import client.Job;
 import client.Client;
+import client.Job;
 import client.command.Command;
 
 public class JobGuideCommand extends Command {
     {
-        setDescription("Show your next job advancement level.");
+        setDescription("Show your next job advancement and where to go.");
     }
 
     @Override
@@ -28,14 +28,24 @@ public class JobGuideCommand extends Command {
 
         switch (job) {
             case BEGINNER:
-                return "Explorer first advancement: Magician at Lv. 8; Warrior, Bowman, Thief, or Pirate at Lv. 10. Visit the appropriate job instructor when ready.";
+                if (level >= 10) {
+                    return "You are ready for your first Explorer job. Warrior: Perion; Magician: Ellinia; Bowman: Henesys; Thief: Kerning City; Pirate: Nautilus Harbor.";
+                }
+                if (level >= 8) {
+                    return "Magician is available now in Ellinia. Warrior, Bowman, Thief, and Pirate become available at Lv. 10.";
+                }
+                return "First advancement: Magician at Lv. 8; Warrior, Bowman, Thief, or Pirate at Lv. 10.";
 
             case WARRIOR:
+                return advancementMessage(level, 30, "2nd Job", "Perion — return to Dances with Balrog");
             case MAGICIAN:
+                return advancementMessage(level, 30, "2nd Job", "Ellinia — return to Grendel the Really Old");
             case BOWMAN:
+                return advancementMessage(level, 30, "2nd Job", "Henesys — return to Athena Pierce");
             case THIEF:
+                return advancementMessage(level, 30, "2nd Job", "Kerning City — return to Dark Lord");
             case PIRATE:
-                return advancementMessage(level, 30, "2nd Job", "your class instructor");
+                return advancementMessage(level, 30, "2nd Job", "Nautilus Harbor — return to Kyrin");
 
             case FIGHTER:
             case PAGE:
@@ -49,7 +59,7 @@ public class JobGuideCommand extends Command {
             case BANDIT:
             case BRAWLER:
             case GUNSLINGER:
-                return advancementMessage(level, 70, "3rd Job", "your 3rd Job advancement quest");
+                return advancementMessage(level, 70, "3rd Job", "El Nath — speak with the appropriate 3rd Job Instructor");
 
             case CRUSADER:
             case WHITEKNIGHT:
@@ -63,7 +73,7 @@ public class JobGuideCommand extends Command {
             case CHIEFBANDIT:
             case MARAUDER:
             case OUTLAW:
-                return advancementMessage(level, 120, "4th Job", "your 4th Job advancement quest");
+                return advancementMessage(level, 120, "4th Job", "Leafre — begin your class's 4th Job advancement quest");
 
             case HERO:
             case PALADIN:
@@ -77,31 +87,31 @@ public class JobGuideCommand extends Command {
             case SHADOWER:
             case BUCCANEER:
             case CORSAIR:
-                return "You have reached 4th Job. There is no further Explorer job advancement.";
+                return "You have reached the final Explorer job advancement for your branch.";
 
             case NOBLESSE:
-                return advancementMessage(level, 10, "Cygnus Knight 1st Job", "the appropriate Knight instructor in Ereve");
+                return advancementMessage(level, 10, "Cygnus Knight 1st Job", "Ereve — speak with the appropriate Knight instructor");
 
             case DAWNWARRIOR1:
             case BLAZEWIZARD1:
             case WINDARCHER1:
             case NIGHTWALKER1:
             case THUNDERBREAKER1:
-                return advancementMessage(level, 30, "2nd Job", "your Cygnus advancement quest");
+                return advancementMessage(level, 30, "Cygnus Knight 2nd Job", "Ereve — return to your job instructor");
 
             case DAWNWARRIOR2:
             case BLAZEWIZARD2:
             case WINDARCHER2:
             case NIGHTWALKER2:
             case THUNDERBREAKER2:
-                return advancementMessage(level, 70, "3rd Job", "your Cygnus advancement quest");
+                return advancementMessage(level, 70, "Cygnus Knight 3rd Job", "Ereve — return to your job instructor");
 
             case DAWNWARRIOR3:
             case BLAZEWIZARD3:
             case WINDARCHER3:
             case NIGHTWALKER3:
             case THUNDERBREAKER3:
-                return advancementMessage(level, 120, "4th Job", "your Cygnus advancement quest");
+                return advancementMessage(level, 120, "Cygnus Knight final advancement", "Ereve — return to your job instructor");
 
             case DAWNWARRIOR4:
             case BLAZEWIZARD4:
@@ -111,27 +121,26 @@ public class JobGuideCommand extends Command {
                 return "You have reached your final Cygnus Knight advancement.";
 
             case LEGEND:
-                return advancementMessage(level, 10, "Aran 1st Job", "the Aran advancement quest in Rien");
-
+                return advancementMessage(level, 10, "Aran 1st Job", "Rien — continue the Aran storyline");
             case ARAN1:
-                return advancementMessage(level, 30, "Aran 2nd Job", "your Aran advancement quest");
+                return advancementMessage(level, 30, "Aran 2nd Job", "Rien — continue the Aran advancement questline");
             case ARAN2:
-                return advancementMessage(level, 70, "Aran 3rd Job", "your Aran advancement quest");
+                return advancementMessage(level, 70, "Aran 3rd Job", "Rien — continue the Aran advancement questline");
             case ARAN3:
-                return advancementMessage(level, 120, "Aran 4th Job", "your Aran advancement quest");
+                return advancementMessage(level, 120, "Aran final advancement", "Rien — continue the Aran advancement questline");
             case ARAN4:
                 return "You have reached Aran's final job advancement.";
 
             default:
-                return "Follow your current job questline for advancement information. Your current job is " + job.name() + ".";
+                return "Follow your current job questline for advancement information. Current job: " + job.name() + ".";
         }
     }
 
     private String advancementMessage(int currentLevel, int requiredLevel, String advancement, String destination) {
         if (currentLevel >= requiredLevel) {
-            return advancement + " is available now (Lv. " + requiredLevel + "). Continue through " + destination + ".";
+            return "You are ready for " + advancement + ". Destination: " + destination + ".";
         }
 
-        return "Next: " + advancement + " at Lv. " + requiredLevel + ". You need " + (requiredLevel - currentLevel) + " more level(s). Then continue through " + destination + ".";
+        return "Next: " + advancement + " at Lv. " + requiredLevel + ". You need " + (requiredLevel - currentLevel) + " more level(s). Destination when ready: " + destination + ".";
     }
 }
