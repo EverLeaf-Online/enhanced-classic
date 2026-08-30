@@ -19,6 +19,11 @@ var eventTime = 60;
 
 const maxLobbies = 1;
 const CYGNUS_FINAL = 8850011;
+const PHASE_ONE = [8850000, 8850001, 8850002, 8850003, 8850004];
+const PHASE_TWO = [8850005, 8850006, 8850007, 8850008, 8850009];
+const PHASE_THREE = [8850010];
+const PHASE_FOUR = [CYGNUS_FINAL];
+const SPAWN_X = [-560, -280, 0, 280, 560];
 
 function init() {
     setEventRequirements();
@@ -58,17 +63,10 @@ function setup(channel) {
     eim.setProperty("canJoin", 1);
     eim.setProperty("defeatedBoss", 0);
     eim.setProperty("channel", channel);
+    eim.setProperty("phase", 1);
 
     var map = eim.getInstanceMap(entryMap);
     map.resetPQ(1);
-
-    // The imported encounter package carries Cygnus and her summon family.
-    // Until the MobSkill review is complete, only the final body is spawned
-    // explicitly here; unsupported summon/skill behavior remains gated.
-    const LifeFactory = Java.type('server.life.LifeFactory');
-    const Point = Java.type('java.awt.Point');
-    var cygnus = LifeFactory.getMonster(CYGNUS_FINAL);
-    map.spawnMonsterOnGroundBelow(cygnus, new Point(0, 0));
 
     eim.startEventTimer(eventTime * 60000);
     setEventRewards(eim);
@@ -77,7 +75,47 @@ function setup(channel) {
 }
 
 function afterSetup(eim) {
-    eim.dropMessage(5, "[Expedition] The Empress battle has begun. Defeat Cygnus before time expires.");
+    eim.dropMessage(5, "[Expedition] The Empress battle has begun. The Chief Knights are approaching.");
+    spawnPhase(eim, 1);
+}
+
+function spawnMob(eim, mobId, x, allowDrops) {
+    const LifeFactory = Java.type('server.life.LifeFactory');
+    const Point = Java.type('java.awt.Point');
+    var mob = LifeFactory.getMonster(mobId);
+    if (!allowDrops) {
+        mob.disableDrops();
+    }
+    eim.getInstanceMap(entryMap).spawnMonsterOnGroundBelow(mob, new Point(x, 0));
+}
+
+function spawnPhase(eim, phase) {
+    var ids;
+    var allowDrops = false;
+
+    if (phase == 1) {
+        ids = PHASE_ONE;
+        eim.dropMessage(6, "[Empress] Phase 1: Mihile, Oz, Irena, Eckhart, and Hawkeye enter the chamber.");
+    } else if (phase == 2) {
+        ids = PHASE_TWO;
+        eim.dropMessage(6, "[Empress] Phase 2: the empowered Chief Knights return for a final stand.");
+    } else if (phase == 3) {
+        ids = PHASE_THREE;
+        eim.dropMessage(6, "[Empress] Phase 3: Shinsoo guards the path to Cygnus.");
+    } else if (phase == 4) {
+        ids = PHASE_FOUR;
+        allowDrops = true;
+        eim.setIntProperty("canJoin", 0);
+        eim.dropMessage(6, "[Empress] Final Phase: Empress Cygnus enters the battle.");
+    } else {
+        return;
+    }
+
+    eim.setIntProperty("phase", phase);
+    for (var i = 0; i < ids.length; i++) {
+        var x = ids.length == 1 ? 0 : SPAWN_X[i];
+        spawnMob(eim, ids[i], x, allowDrops);
+    }
 }
 
 function playerEntry(eim, player) {
@@ -169,6 +207,26 @@ function monsterKilled(mob, eim) {
     eim.dropMessage(6, "[Expedition] Cygnus has been defeated. Weekly clear credit has been recorded for the expedition.");
 }
 
-function allMonstersDead(eim) {}
+function allMonstersDead(eim) {
+    if (eim.isEventCleared()) {
+        return;
+    }
+
+    var phase = eim.getIntProperty("phase");
+    if (phase >= 1 && phase < 4) {
+        var next = phase + 1;
+        eim.dropMessage(5, "[Empress] The next phase begins in 8 seconds. Prepare yourselves.");
+        eim.setIntProperty("phase", next);
+        eim.schedule("startNextPhase", 8 * 1000);
+    }
+}
+
+function startNextPhase(eim) {
+    if (eim == null || eim.isEventCleared()) {
+        return;
+    }
+    spawnPhase(eim, eim.getIntProperty("phase"));
+}
+
 function cancelSchedule() {}
 function dispose(eim) {}
