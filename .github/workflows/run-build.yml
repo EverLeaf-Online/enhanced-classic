@@ -41,6 +41,8 @@ jobs:
         run: python3 tools/audit_vote_shop.py
       - name: Audit PQ Points
         run: python3 tools/audit_pq_points.py
+      - name: Audit Pet Vac safety
+        run: python3 tools/audit_pet_vac.py
       - name: Audit world data integrity
         run: python3 tools/audit_world_integrity.py
       - name: Ensure Maven wrapper is executable
