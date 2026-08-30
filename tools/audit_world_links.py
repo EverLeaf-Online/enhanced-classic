@@ -5,9 +5,10 @@ Complements audit_world_integrity.py with checks that need a complete map index:
 - static portals whose named destination portal does not exist on the target map
 - exact duplicate NPC, mob, reactor, or portal records at the same coordinates
 
-Ambiguous duplicate content is review-only. Broken named static portal destinations are
-hard failures because the source map points at a concrete target map + portal pair that
-cannot be resolved from Map.wz.
+The v83 WZ baseline contains many legacy cross-map target-name mismatches, so those
+remain review findings until a route is proven active/player-facing. Structurally
+impossible references such as missing target maps remain hard failures in the existing
+world-integrity audit.
 """
 
 from __future__ import annotations
@@ -176,11 +177,12 @@ def main() -> int:
 
             counts["named_static_portals"] += 1
             if target_name not in portal_names.get(target_map, set()):
-                hard_findings.append(Finding(
+                counts["missing_target_portal_review"] += 1
+                review_findings.append(Finding(
                     "missing_target_portal",
                     map_id,
                     portal_name,
-                    f"Portal {portal_name!r} targets map {target_map} portal {target_name!r}, but that portal name does not exist",
+                    f"Portal {portal_name!r} targets map {target_map} portal {target_name!r}, but that portal name does not exist; classify route as active vs legacy before promoting to a blocker",
                 ))
 
         for (portal_name, x, y), amount in seen_portals.items():
