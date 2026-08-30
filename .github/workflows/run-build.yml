@@ -37,6 +37,8 @@ jobs:
         run: python3 tools/audit_reward_sources.py
       - name: Audit Empress content safety
         run: python3 tools/audit_empress_content.py
+      - name: Audit Empress MobSkill compatibility
+        run: python3 tools/audit_empress_mobskills.py
       - name: Audit world data integrity
         run: python3 tools/audit_world_integrity.py
       - name: Ensure Maven wrapper is executable
