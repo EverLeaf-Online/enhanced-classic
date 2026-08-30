@@ -36,13 +36,19 @@ KNOWN_REVIEW_REFERENCES = {
     ("scripts/portal/raid_stage.js", 970033001),
 }
 
+# A reference is literal only when the numeric token is not immediately used as
+# the base of an arithmetic expression. For example, getMap(970030100 + lobby)
+# is dynamic allocation and must not be reported as if 970030100 itself were the
+# final target map.
+LITERAL_MAP_ID = r"(\d{6,9})\b(?!\s*[+\-*/%])"
+
 # Match only APIs where a numeric literal is in map-id position. Keep this list
 # narrow rather than treating every 9-digit number in scripts as a map.
 PATTERNS = [
-    re.compile(r"\b(?:cm|player|chr|victim|target)\.(?:warp|changeMap)\s*\(\s*(\d{6,9})\b"),
-    re.compile(r"\b(?:getMap|warpMap|warpAllPlayer|warpEveryone|warpAllPlayers)\s*\(\s*(\d{6,9})\b"),
-    re.compile(r"\b(?:getInstanceMap|getMapInstance)\s*\(\s*(\d{6,9})\b"),
-    re.compile(r"\b(?:entryMap|exitMap|recruitMap|clearMap|minMapId|maxMapId)\s*=\s*(\d{6,9})\b"),
+    re.compile(r"\b(?:cm|player|chr|victim|target)\.(?:warp|changeMap)\s*\(\s*" + LITERAL_MAP_ID),
+    re.compile(r"\b(?:getMap|warpMap|warpAllPlayer|warpEveryone|warpAllPlayers)\s*\(\s*" + LITERAL_MAP_ID),
+    re.compile(r"\b(?:getInstanceMap|getMapInstance)\s*\(\s*" + LITERAL_MAP_ID),
+    re.compile(r"\b(?:entryMap|exitMap|recruitMap|clearMap|minMapId|maxMapId)\s*=\s*" + LITERAL_MAP_ID),
 ]
 
 
