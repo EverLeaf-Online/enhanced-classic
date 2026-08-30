@@ -36,7 +36,8 @@ var maxMapId = 970042711;
 
 var eventTime = 5;     //5 minutes
 
-const maxLobbies = 7;
+// Lobby ids 0-7 are used by Agent Meow's level-based matchmaking.
+const maxLobbies = 8;
 
 function init() {
     setEventRequirements();
@@ -193,7 +194,6 @@ function playerRevive(eim, player) { // player presses ok on the death pop up.
         eim.unregisterPlayer(player);
     }
 }
-
 
 function playerDisconnected(eim, player) {
     if (eim.isEventTeamLackingNow(true, minPlayers, player)) {
