@@ -210,29 +210,26 @@ public class StorageProcessor {
                         return;
                     }
 
-                    if ((meso > 0 && storageMesos >= meso) || (meso < 0 && playerMesos >= -meso)) {
-                        if (meso < 0 && (storageMesos - meso) < 0) {
-                            meso = Integer.MIN_VALUE + storageMesos;
-                            if (meso < playerMesos) {
-                                c.sendPacket(PacketCreator.enableActions());
-                                return;
-                            }
-                        } else if (meso > 0 && (playerMesos + meso) < 0) {
-                            meso = Integer.MAX_VALUE - playerMesos;
-                            if (meso > storageMesos) {
-                                c.sendPacket(PacketCreator.enableActions());
-                                return;
-                            }
-                        }
-                        storage.setMeso(storageMesos - meso);
-                        chr.gainMeso(meso, false, true, false);
-                        chr.setUsedStorage();
-                        log.debug("Chr {} {} {} mesos", c.getPlayer().getName(), meso > 0 ? "took out" : "stored", Math.abs(meso));
-                        storage.sendMeso(c);
-                    } else {
+                    if (meso == 0) {
                         c.sendPacket(PacketCreator.enableActions());
                         return;
                     }
+
+                    long newStorageMesos = (long) storageMesos - meso;
+                    long newPlayerMesos = (long) playerMesos + meso;
+                    if (newStorageMesos < 0 || newStorageMesos > Integer.MAX_VALUE
+                            || newPlayerMesos < 0 || newPlayerMesos > Integer.MAX_VALUE) {
+                        log.warn("Chr {} attempted invalid storage meso transfer: delta={}, player={}, storage={}",
+                                chr.getName(), meso, playerMesos, storageMesos);
+                        c.sendPacket(PacketCreator.enableActions());
+                        return;
+                    }
+
+                    storage.setMeso((int) newStorageMesos);
+                    chr.gainMeso(meso, false, true, false);
+                    chr.setUsedStorage();
+                    log.debug("Chr {} {} {} mesos", c.getPlayer().getName(), meso > 0 ? "took out" : "stored", Math.abs((long) meso));
+                    storage.sendMeso(c);
                     break;
                 }
                 case 8: // Close (unless the player decides to enter cash shop)
