@@ -10,6 +10,10 @@ static destination portal is missing. The audit mirrors that behavior: a missing
 name with a valid portal-0 fallback is review-only; it is a hard failure only
 when neither the requested name nor the runtime fallback can be resolved.
 Ambiguous duplicate content is review-only.
+
+Empress / Knights of Cygnus content is outside EverLeaf's release scope. Maps in
+the 130xxxxxx family and links targeting that family are excluded from this
+audit instead of appearing as release findings.
 """
 
 from __future__ import annotations
@@ -24,6 +28,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MAP_ROOT = ROOT / "wz" / "Map.wz" / "Map"
 SPECIAL_TARGETS = {"-1", "999999999"}
+EXCLUDED_MAP_START = 130_000_000
+EXCLUDED_MAP_END = 131_000_000
 
 
 @dataclass(frozen=True)
@@ -57,11 +63,22 @@ def normalize_id(value: str | None) -> str:
     return value
 
 
+def is_excluded_map(value: str | None) -> bool:
+    normalized = normalize_id(value)
+    if not normalized.isdigit():
+        return False
+    number = int(normalized)
+    return EXCLUDED_MAP_START <= number < EXCLUDED_MAP_END
+
+
 def map_files() -> dict[str, Path]:
     files: dict[str, Path] = {}
     for path in MAP_ROOT.glob("Map*/*.img.xml"):
         raw = path.name.split(".", 1)[0]
-        files[str(int(raw)) if raw.isdigit() else raw] = path
+        map_id = str(int(raw)) if raw.isdigit() else raw
+        if is_excluded_map(map_id):
+            continue
+        files[map_id] = path
     return files
 
 
@@ -170,6 +187,10 @@ def main() -> int:
             target_name = (child_value(node, "tn") or "").strip()
             script_name = (child_value(node, "script") or "").strip()
 
+            if is_excluded_map(target_map):
+                counts["excluded_empress_links"] += 1
+                continue
+
             # Scripted/sentinel/missing-map portals are validated by the existing
             # integrity audit and are not name-resolved here.
             if script_name or not target_map or target_map in SPECIAL_TARGETS or target_map not in maps:
@@ -224,12 +245,13 @@ def main() -> int:
     else:
         print(
             "EverLeaf world link audit: "
-            f"{len(maps)} maps, {counts['portals']} portals, "
+            f"{len(maps)} in-scope maps, {counts['portals']} portals, "
             f"{counts['named_static_portals']} named static portal links"
         )
         print(
             f"Hard failures: {payload['hardFailureCount']}; "
-            f"review-only findings: {payload['reviewFindingCount']}"
+            f"review-only findings: {payload['reviewFindingCount']}; "
+            f"excluded Empress links: {counts['excluded_empress_links']}"
         )
         for error in parse_errors:
             print(f"[FAIL] XML parse error: {error}")
