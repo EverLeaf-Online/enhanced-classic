@@ -112,7 +112,7 @@ public final class AccountEntitlementService {
 
                 if (permanent) {
                     connection.rollback();
-                    return GrantResult.permanent();
+                    return GrantResult.permanentResult();
                 }
 
                 Instant base = oldExpiry != null && oldExpiry.isAfter(now) ? oldExpiry : now;
@@ -197,7 +197,7 @@ public final class AccountEntitlementService {
             return new GrantResult(false, true, false, expiresAt);
         }
 
-        public static GrantResult permanent() {
+        public static GrantResult permanentResult() {
             return new GrantResult(false, false, true, Instant.MAX);
         }
     }
