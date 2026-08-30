@@ -33,13 +33,13 @@ import java.util.TimeZone;
 
 public class TimeCommand extends Command {
     {
-        setDescription("Show current server time.");
+        setDescription("Show current EverLeaf server time.");
     }
 
     @Override
     public void execute(Client client, String[] params) {
-        DateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
+        DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss z");
         dateFormat.setTimeZone(TimeZone.getDefault());
-        client.getPlayer().yellowMessage("Cosmic Server Time: " + dateFormat.format(new Date()));
+        client.getPlayer().yellowMessage("EverLeaf Server Time: " + dateFormat.format(new Date()));
     }
 }
