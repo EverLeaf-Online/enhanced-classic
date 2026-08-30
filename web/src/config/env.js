@@ -24,7 +24,7 @@ module.exports = {
   game: {
     host: process.env.GAME_HOST || "127.0.0.1",
     loginPort: Number(process.env.LOGIN_PORT || 8484),
-    channelPorts: String(process.env.CHANNEL_PORTS || "7575")
+    channelPorts: String(process.env.CHANNEL_PORTS || "7575,7576,7577,7578,7579,7580,7581,7582")
       .split(",").map(x => Number(x.trim())).filter(Number.isFinite)
   },
 
