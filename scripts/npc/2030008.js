@@ -59,11 +59,11 @@ function action(mode, type, selection) {
             return;
         }
 
-        if (!(cm.isQuestStarted(100200) || cm.isQuestCompleted(100200))) {   // thanks Vcoc for finding out a need of reapproval from the masters for Zakum expeditions
-            if (cm.getPlayer().getLevel() >= 50) {  // thanks Z1peR for noticing not-so-clear unmet requirements message here.
-                cm.sendOk("Beware, for the power of olde has not been forgotten... If you seek to defeat #rZakum#k someday, earn the #bChief's Residence Council#k approval foremost and then #bface the trials#k, only then you will become eligible to fight.");
+        if (!(cm.isQuestStarted(100200) || cm.isQuestCompleted(100200))) {
+            if (cm.getPlayer().getLevel() >= 50) {
+                cm.sendOk("You are high enough level to begin the Zakum pre-quests, but you still need approval from the #bChief's Residence Council#k in El Nath before Adobis can send you into the trials.");
             } else {
-                cm.sendOk("Beware, for the power of olde has not been forgotten...");
+                cm.sendOk("The Zakum campaign begins at #blevel 50#k. Your current level is #r" + cm.getPlayer().getLevel() + "#k.");
             }
 
             cm.dispose();
@@ -72,41 +72,41 @@ function action(mode, type, selection) {
 
         em = cm.getEventManager("ZakumPQ");
         if (em == null) {
-            cm.sendOk("The Zakum PQ has encountered an error.");
+            cm.sendOk("The Zakum trial service could not be loaded. Please report this in EverLeaf's bug-report channel and include that you were speaking to Adobis at the Door to Zakum.");
             cm.dispose();
             return;
         }
 
         if (status == 0) {
-            cm.sendSimple("#e#b<Party Quest: Zakum Campaign>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nBeware, for the power of olde has not been forgotten... #b\r\n#L0#Enter the Unknown Dead Mine (Stage 1)#l\r\n#L1#Face the Breath of Lava (Stage 2)#l\r\n#L2#Forging the Eyes of Fire (Stage 3)#l");
+            cm.sendSimple("#e#b<Party Quest: Zakum Campaign>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nChoose the Zakum trial you want to attempt:#b\r\n#L0#Stage 1: Enter the Unknown Dead Mine#l\r\n#L1#Stage 2: Face the Breath of Lava#l\r\n#L2#Stage 3: Forge the Eyes of Fire#l");
         } else if (status == 1) {
             if (selection == 0) {
                 if (cm.getParty() == null) {
-                    cm.sendOk("You can participate in the party quest only if you are in a party.");
+                    cm.sendOk("You need to be in a party to enter Stage 1 of the Zakum trials.");
                     cm.dispose();
                 } else if (!cm.isLeader()) {
-                    cm.sendOk("Your party leader must talk to me to start this party quest.");
+                    cm.sendOk("Your party leader must speak to me to start Stage 1 of the Zakum trials.");
                     cm.dispose();
                 } else {
                     var eli = em.getEligibleParty(cm.getParty());
                     if (eli.size() > 0) {
                         if (!em.startInstance(cm.getParty(), cm.getPlayer().getMap(), 1)) {
-                            cm.sendOk("Another party has already entered the #rParty Quest#k in this channel. Please try another channel, or wait for the current party to finish.");
+                            cm.sendOk("Another party is already running Stage 1 of the Zakum trials in this channel. Please try another channel or wait for them to finish.");
                         }
                     } else {
-                        cm.sendOk("You cannot start this party quest yet, because either your party is not in the range size, some of your party members are not eligible to attempt it or they are not in this map. If you're having trouble finding party members, try Party Search.");
+                        cm.sendOk("Your party cannot enter Stage 1 yet. Make sure every required party member is eligible and standing here at the Door to Zakum before the leader tries again.");
                     }
 
                     cm.dispose();
                 }
             } else if (selection == 1) {
                 if (cm.haveItem(4031061) && !cm.haveItem(4031062)) {
-                    cm.sendYesNo("Would you like to attempt the #bBreath of Lava#k?  If you fail, there is a very real chance you will die.");
+                    cm.sendYesNo("You have completed Stage 1. Would you like to attempt #bStage 2: Breath of Lava#k? If you fail, you may die.");
                 } else {
                     if (cm.haveItem(4031062)) {
-                        cm.sendNext("You've already got the #bBreath of Lava#k, you don't need to do this stage.");
+                        cm.sendNext("You already completed Stage 2 and have the #bBreath of Lava#k. You do not need to repeat it.");
                     } else {
-                        cm.sendNext("Please complete the earlier trials first.");
+                        cm.sendNext("Complete Stage 1 first and bring its proof before attempting the Breath of Lava.");
                     }
 
                     cm.dispose();
@@ -114,7 +114,7 @@ function action(mode, type, selection) {
             } else {
                 if (cm.haveItem(4031061) && cm.haveItem(4031062)) {
                     if (!cm.haveItem(4000082, 30)) {
-                        cm.sendOk("You have completed the trials, however there's still the need of #b30 #t4000082##k to forge 5 #t4001017#.");
+                        cm.sendOk("You have completed Stages 1 and 2. To finish Stage 3, bring #b30 #t4000082##k so I can forge #b5 #t4001017##k.");
                     } else {
                         cm.completeQuest(100201);
                         cm.gainItem(4031061, -1);
@@ -122,12 +122,12 @@ function action(mode, type, selection) {
                         cm.gainItem(4000082, -30);
 
                         cm.gainItem(4001017, 5);
-                        cm.sendNext("You #rhave completed the trials#k, from now on having my approval to challenge Zakum.");
+                        cm.sendNext("You have completed all three Zakum trials. You are now approved to challenge Zakum and have received #b5 #t4001017##k.");
                     }
 
                     cm.dispose();
                 } else {
-                    cm.sendOk("You lack some of the required items to forge the #b#t4001017##k.");
+                    cm.sendOk("You have not completed all required earlier trials yet. Finish Stages 1 and 2 before attempting to forge the Eyes of Fire.");
                     cm.dispose();
                 }
             }
