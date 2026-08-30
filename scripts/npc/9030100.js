@@ -7,8 +7,8 @@
  * - convenience/cosmetics/account-friendly utility only
  * - no direct boss gear, Chaos Scrolls, White Scrolls, EXP multipliers,
  *   damage/stat boosts, or other competitive power
- * - Pet Vac will join this exchange after its server-authoritative
- *   entitlement system is implemented and audited
+ * - Pet Vac is timed, account-wide, server-authoritative, and disabled in
+ *   event/PQ/boss instances
  *
  * PQ Point policy:
  * - earned from explicit successful PQ clears only
@@ -39,6 +39,8 @@ var VOTE_CHARM_QTY = 5;
 var VOTE_MERCHANT_COST = 3;
 var VOTE_MERCHANT_DAYS = 7;
 var VOTE_CHAIR_COST = 1;
+var VOTE_PET_VAC_7_COST = 5;
+var VOTE_PET_VAC_30_COST = 18;
 
 var PQ_LEAF_COST = 5;
 var PQ_LEAF_QTY = 25;
@@ -161,12 +163,14 @@ function showVoteExchange() {
     var vp = cm.getClient().getVotePoints();
     var msg = "#eEverLeaf Vote Point Exchange#n\r\n" +
         "You currently have #r" + vp + " Vote Point" + (vp == 1 ? "" : "s") + "#k.\r\n\r\n" +
-        "Voting should provide useful convenience and cosmetic choices without becoming mandatory for character power.\r\n" +
+        "Voting provides convenience and cosmetic choices without becoming mandatory for character power.\r\n" +
         "#b#L0#" + VOTE_LEAF_QTY + " Maple Leaves - " + VOTE_LEAF_COST + " VP#l" +
         "\r\n#L1#" + VOTE_CHARM_QTY + " Safety Charms - " + VOTE_CHARM_COST + " VP#l" +
         "\r\n#L2#" + VOTE_MERCHANT_DAYS + "-day Hired Merchant - " + VOTE_MERCHANT_COST + " VP#l" +
-        "\r\n#L3#Random cosmetic chair - " + VOTE_CHAIR_COST + " VP#l#k" +
-        "\r\n\r\n#dPet Vac will be added here after its server-side entitlement and anti-abuse checks are finished.#k";
+        "\r\n#L3#Random cosmetic chair - " + VOTE_CHAIR_COST + " VP#l" +
+        "\r\n#L4#7-day account Pet Vac - " + VOTE_PET_VAC_7_COST + " VP#l" +
+        "\r\n#L5#30-day account Pet Vac - " + VOTE_PET_VAC_30_COST + " VP#l#k" +
+        "\r\n\r\n#dPet Vac still requires a summoned pet and the normal Item Pouch/Meso Magnet. It is disabled inside active event, PQ, and boss instances.#k";
     cm.sendSimple(msg);
 }
 
@@ -179,6 +183,10 @@ function confirmVotePurchase(selection) {
         cm.sendYesNo("Exchange #r" + VOTE_MERCHANT_COST + " Vote Points#k for a #b" + VOTE_MERCHANT_DAYS + "-day #t" + HIRED_MERCHANT + "##k?");
     } else if (selection == 3) {
         cm.sendYesNo("Exchange #r" + VOTE_CHAIR_COST + " Vote Point#k for #bone random cosmetic chair#k?");
+    } else if (selection == 4) {
+        cm.sendYesNo("Exchange #r" + VOTE_PET_VAC_7_COST + " Vote Points#k for #b7 days of account-wide Pet Vac#k?\r\n\r\nExisting active time will be extended rather than overwritten.");
+    } else if (selection == 5) {
+        cm.sendYesNo("Exchange #r" + VOTE_PET_VAC_30_COST + " Vote Points#k for #b30 days of account-wide Pet Vac#k?\r\n\r\nExisting active time will be extended rather than overwritten.");
     } else {
         cm.dispose();
     }
@@ -245,6 +253,63 @@ function completeVotePurchase(selection) {
         return;
     }
 
+    if (selection == 4) {
+        purchasePetVac(7, VOTE_PET_VAC_7_COST);
+        return;
+    }
+
+    if (selection == 5) {
+        purchasePetVac(30, VOTE_PET_VAC_30_COST);
+        return;
+    }
+
+    cm.dispose();
+}
+
+function purchasePetVac(days, cost) {
+    if (!hasVotePoints(cost)) return;
+
+    const Runtime = Java.type('everleaf.progression.EverleafProgressionRuntime');
+    const Entitlements = Java.type('everleaf.progression.AccountEntitlementService');
+    const PetVacService = Java.type('everleaf.progression.PetVacService');
+    const Duration = Java.type('java.time.Duration');
+
+    var sourceKey = "petvac:" + days + ":" + cm.getPlayer().getId() + ":" + new Date().getTime();
+    cm.getClient().useVotePoints(cost);
+
+    var result;
+    try {
+        result = Runtime.accountEntitlementService().grantTimed(
+            cm.getClient().getAccID(),
+            cm.getPlayer().getId(),
+            Entitlements.PET_VAC,
+            Duration.ofDays(days),
+            "VOTE_SHOP",
+            sourceKey,
+            "days=" + days + ",cost=" + cost
+        );
+    } catch (err) {
+        // Compensate immediately if the entitlement transaction fails after
+        // the legacy Vote Point balance was charged.
+        cm.getClient().addVotePoints(cost);
+        cm.sendOk("Pet Vac could not be activated, so your Vote Points were refunded. Please try again later.");
+        cm.dispose();
+        return;
+    }
+
+    if (!result.granted()) {
+        cm.getClient().addVotePoints(cost);
+        if (result.permanent()) {
+            cm.sendOk("Your account already has permanent Pet Vac. Your Vote Points were refunded.");
+        } else {
+            cm.sendOk("That Pet Vac purchase was not applied, so your Vote Points were refunded.");
+        }
+        cm.dispose();
+        return;
+    }
+
+    PetVacService.getInstance().invalidateEntitlementCache(cm.getClient().getAccID());
+    cm.sendOk("Pet Vac activated for #b" + days + " days#k.\r\n\r\nThe entitlement is account-wide and extends existing active time.\r\nExpires: #e" + result.expiresAt() + "#n\r\nRemaining Vote Points: #e" + cm.getClient().getVotePoints() + "#n");
     cm.dispose();
 }
 
