@@ -38,6 +38,8 @@ import tools.PacketCreator;
  * @author Generic
  */
 public final class RemoteGachaponHandler extends AbstractPacketHandler {
+    private static final int MAX_REMOTE_GACHAPON_MODE = 9;
+
     @Override
     public final void handlePacket(InPacket p, Client c) {
         Character chr = c.getPlayer();
@@ -52,7 +54,7 @@ public final class RemoteGachaponHandler extends AbstractPacketHandler {
             AutobanFactory.GENERAL.alert(chr, " Tried to use RemoteGachaponHandler with item id: " + ticket);
             c.disconnect(false, false);
             return;
-        } else if (gacha < 0 || gacha > 11) {
+        } else if (gacha < 0 || gacha > MAX_REMOTE_GACHAPON_MODE) {
             AutobanFactory.GENERAL.alert(chr, " Tried to use RemoteGachaponHandler with mode: " + gacha);
             c.disconnect(false, false);
             return;
@@ -80,15 +82,12 @@ public final class RemoteGachaponHandler extends AbstractPacketHandler {
                 || FieldLimit.CANNOTMIGRATE.check(chr.getMap().getFieldLimit())) {
             return false;
         }
+        Client c = chr.getClient();
         return chr.getTrade() == null
                 && chr.getShop() == null
                 && chr.getPlayerShop() == null
                 && chr.getHiredMerchant() == null
-                && cConversationClear(chr);
-    }
-
-    private static boolean cConversationClear(Character chr) {
-        Client c = chr.getClient();
-        return c.getCM() == null && c.getQM() == null;
+                && c.getCM() == null
+                && c.getQM() == null;
     }
 }
