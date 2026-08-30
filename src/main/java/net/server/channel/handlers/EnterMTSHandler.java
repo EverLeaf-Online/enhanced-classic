@@ -48,6 +48,17 @@ public final class EnterMTSHandler extends AbstractPacketHandler {
             return;
         }
 
+        if (chr.isChangingMaps()) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
+        if (chr.getTrade() != null || chr.getShop() != null || chr.getPlayerShop() != null) {
+            chr.dropMessage(1, "Finish your current trade or shop interaction before entering the Free Market.");
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
         if (!chr.isAlive()) {
             chr.dropMessage(1, "You cannot enter the Free Market while dead.");
             c.sendPacket(PacketCreator.enableActions());
