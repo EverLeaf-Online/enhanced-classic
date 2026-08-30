@@ -129,8 +129,11 @@ public class Fishing {
     public static int getRandomItem() {
         int rand = (int) (100.0 * Math.random());
         int[] commons = {1002851, 2002020, 2002020, ItemId.MANA_ELIXIR, 2000018, 2002018, 2002024, 2002027, 2002027, 2000018, 2000018, 2000018, 2000018, 2002030, 2002018, 2000016}; // filler' up
-        int[] uncommons = {1000025, 1002662, 1002812, 1002850, 1002881, 1002880, 1012072, 4020009, 2043220, 2043022, 2040543, 2044420, 2040943, 2043713, 2044220, 2044120, 2040429, 2043220, 2040943}; // filler' uptoo 
-        int[] rares = {1002859, 1002553, 1002762, 1002763, 1002764, 1002765, 1002766, 1002663, 1002788, 1002949, 2049100, 2340000, 2040822, 2040822, 2040822, 2040822}; // filler' uplast 
+        int[] uncommons = {1000025, 1002662, 1002812, 1002850, 1002881, 1002880, 1012072, 4020009, 2043220, 2043022, 2040543, 2044420, 2040943, 2043713, 2044220, 2044120, 2040429, 2043220, 2040943}; // filler' uptoo
+        // EverLeaf keeps Chaos/White Scroll supply in controlled boss/PQ and
+        // Gachapon sources rather than passive fishing. Fishing can be enabled
+        // later without silently creating another rare-scroll faucet.
+        int[] rares = {1002859, 1002553, 1002762, 1002763, 1002764, 1002765, 1002766, 1002663, 1002788, 1002949, 2040822, 2040822, 2040822, 2040822}; // filler' uplast
 
         if (rand >= 25) {
             return commons[(int) (commons.length * Math.random())];
@@ -199,4 +202,4 @@ public class Fishing {
         log.debug("Diary10 min {} max {}", minhit10, maxhit10);
         log.debug("Hits: {}, Hits10: {}, Total: {} -- %1000 {}, +10 %1000: {}", hits, hits10, total, (hits * 1000 / total), (hits10 * 1000 / total));
     }
-} 
+}
