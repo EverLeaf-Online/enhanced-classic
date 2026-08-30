@@ -6,6 +6,8 @@
 #include <cctype>
 #include <string>
 
+#pragma comment(lib, "Shell32.lib")
+
 namespace {
     using ShellExecuteA_t = HINSTANCE(WINAPI*)(HWND, LPCSTR, LPCSTR, LPCSTR, LPCSTR, INT);
     using ShellExecuteW_t = HINSTANCE(WINAPI*)(HWND, LPCWSTR, LPCWSTR, LPCWSTR, LPCWSTR, INT);
