@@ -14,6 +14,11 @@ on:
       - ".github/workflows/build-everleaf-client.yml"
   workflow_dispatch:
     inputs:
+      publish_patch:
+        description: Publish the validated client patch to production
+        required: true
+        default: false
+        type: boolean
       publish_full_baseline:
         description: Rebuild production from the authorized complete client archive
         required: true
@@ -95,7 +100,7 @@ jobs:
           Get-ChildItem $package | Select-Object Name,Length
 
       - name: Configure SSH for production staging
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_patch
         shell: bash
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
@@ -114,7 +119,7 @@ jobs:
           chmod 600 "$ssh_dir/known_hosts"
 
       - name: Stage repository overlays on Oracle
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_patch
         shell: bash
         run: |
           set -euo pipefail
@@ -124,7 +129,7 @@ jobs:
 
   publish-patch:
     needs: build
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_patch
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -210,7 +215,7 @@ jobs:
           python3 client/scripts/test-managed-repair.py "$LAUNCHER_PATCH_ROOT" overlay-baseline.json
 
       - name: Assemble authorized complete baseline
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_full_baseline
+        if: inputs.publish_full_baseline
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -286,7 +291,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.publish_full_baseline }}" = "true" ]; then
+          if [ "${{ inputs.publish_full_baseline }}" = "true" ]; then
             cp full-client-payload.tar.gz managed-payload.tar.gz
             publish_mode=full
           else
