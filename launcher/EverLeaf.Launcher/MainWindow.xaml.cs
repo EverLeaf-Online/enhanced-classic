@@ -14,6 +14,7 @@ public partial class MainWindow : Window
     private bool _clientReady;
     private bool _installMode;
     private bool _serverOnline;
+    private bool _launcherReady;
 
     public MainWindow()
     {
@@ -25,6 +26,7 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        _launcherReady = false;
         try
         {
             PatchStatusText.Text = "Checking for launcher updates…";
@@ -35,10 +37,13 @@ public partial class MainWindow : Window
                 Application.Current.Shutdown();
                 return;
             }
+
+            _launcherReady = true;
         }
         catch (Exception ex)
         {
-            ErrorText.Text = $"Launcher update check failed: {FriendlyError(ex)}";
+            ErrorText.Text = $"Launcher update check failed: {FriendlyError(ex)} Repair is still available, but Play is disabled until the launcher update check succeeds.";
+            PatchStatusText.Text = "Launcher update check required";
         }
 
         var gameExists = File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable))
@@ -46,8 +51,9 @@ public partial class MainWindow : Window
         if (!gameExists)
         {
             _installMode = true;
-            PatchStatusText.Text = "Ready to install all 36 required EverLeaf files in this folder.";
-            PlayButton.Content = "INSTALL EVERLEAF";
+            PatchStatusText.Text = _launcherReady
+                ? "Ready to install all 36 required EverLeaf files in this folder."
+                : "Launcher update check required before Play. Repair remains available.";
         }
 
         try
@@ -81,7 +87,9 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             ErrorText.Text = FriendlyError(ex);
-            PatchStatusText.Text = "Automatic repair failed";
+            PatchStatusText.Text = _launcherReady
+                ? "Automatic repair failed"
+                : "Launcher update check required before Play";
         }
         finally
         {
@@ -94,6 +102,15 @@ public partial class MainWindow : Window
         if (_busy) return;
         ErrorText.Text = string.Empty;
 
+        if (!_launcherReady)
+        {
+            ErrorText.Text = "Launcher update check must succeed before Play is enabled. Restart EverLeaf Launcher and try again.";
+            PatchStatusText.Text = "Launcher update check required";
+            SetBusy(false);
+            return;
+        }
+
+        string? launchTicket = null;
         try
         {
             SetBusy(true);
@@ -109,11 +126,14 @@ public partial class MainWindow : Window
             }
 
             PatchStatusText.Text = "Launching EverLeaf…";
+            launchTicket = LaunchTicket.Create(_gameDirectory);
             GameLauncher.Start(_gameDirectory);
+            launchTicket = null; // EverLeaf.exe consumes and deletes the one-time ticket.
             Close();
         }
         catch (Exception ex)
         {
+            LaunchTicket.Delete(launchTicket);
             ErrorText.Text = FriendlyError(ex);
             PatchStatusText.Text = "Ready";
         }
@@ -155,7 +175,9 @@ public partial class MainWindow : Window
         using var patcher = new PatchService(_gameDirectory);
         await patcher.VerifyAndRepairAsync(progress, CancellationToken.None);
         PatchProgress.Value = 100;
-        PatchStatusText.Text = "All 36 required EverLeaf game files verified.";
+        PatchStatusText.Text = _launcherReady
+            ? "All 36 required EverLeaf game files verified."
+            : "All 36 required EverLeaf game files verified. Launcher update check is still required before Play.";
         _clientReady = true;
         _installMode = false;
     }
@@ -180,14 +202,16 @@ public partial class MainWindow : Window
     private void SetBusy(bool busy)
     {
         _busy = busy;
-        PlayButton.IsEnabled = !busy && (_installMode || _serverOnline);
+        PlayButton.IsEnabled = !busy && _launcherReady && (_installMode || _serverOnline);
         RepairButton.IsEnabled = !busy;
         PlayButton.Content = busy
             ? (_installMode ? "INSTALLING…" : "UPDATING…")
-            : _installMode
-                ? "INSTALL EVERLEAF"
-                : _serverOnline
-                    ? "PLAY EVERLEAF"
-                    : "SERVER OFFLINE";
+            : !_launcherReady
+                ? "LAUNCHER CHECK REQUIRED"
+                : _installMode
+                    ? "INSTALL EVERLEAF"
+                    : _serverOnline
+                        ? "PLAY EVERLEAF"
+                        : "SERVER OFFLINE";
     }
 }

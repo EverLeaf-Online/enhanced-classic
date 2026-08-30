@@ -62,7 +62,9 @@ jobs:
           if ($source -match "Server=.*;Password=") { throw "Database credential pattern found in launcher source" }
           if ($source.Contains("EVERLEAF_LAUNCH_TOKEN")) { throw "Deprecated fake launcher SSO token still present" }
           $window = Get-Content "launcher/EverLeaf.Launcher/MainWindow.xaml.cs" -Raw
-          if (-not $window.Contains('PlayButton.Content = "INSTALL EVERLEAF"')) { throw "Empty-folder install mode is missing" }
+          if (-not $window.Contains('"INSTALL EVERLEAF"')) { throw "Empty-folder install mode is missing" }
+          if (-not $window.Contains('_launcherReady')) { throw "Launcher readiness gate is missing" }
+          if (-not $window.Contains('PlayButton.IsEnabled = !busy && _launcherReady')) { throw "Play is not fail-closed on launcher readiness" }
           if ($window.Contains("Extract the full client first")) { throw "Legacy full-client prerequisite remains" }
           if (-not (Test-Path "launcher-publish/EverLeafLauncher.exe")) { throw "Launcher executable missing" }
 

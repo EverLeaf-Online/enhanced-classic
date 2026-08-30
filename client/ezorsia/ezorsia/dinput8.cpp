@@ -4,6 +4,47 @@
 FARPROC DirectInput8Create_Proc; //require reinterpreting the functions of the dll instead of just redirecting as is done here (to dinput8.dll)
 FARPROC GetdfDIJoystick_Proc;
 
+namespace {
+	volatile LONG g_launcherTicketAccepted = 0;
+	const char* kLauncherTicket = ".everleaf-launch";
+	const __int64 kTicketMaxAgeSeconds = 120;
+
+	bool ConsumeFreshLauncherTicket() {
+		if (InterlockedCompareExchange(&g_launcherTicketAccepted, 1, 1) == 1) return true;
+
+		HANDLE ticket = CreateFileA(kLauncherTicket, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_HIDDEN, NULL);
+		if (ticket == INVALID_HANDLE_VALUE) return false;
+
+		char buffer[64] = { 0 };
+		DWORD bytesRead = 0;
+		const BOOL readOk = ReadFile(ticket, buffer, sizeof(buffer) - 1, &bytesRead, NULL);
+		CloseHandle(ticket);
+		DeleteFileA(kLauncherTicket); // a launch ticket is single-use even when malformed
+
+		if (!readOk || bytesRead == 0) return false;
+		buffer[bytesRead] = '\0';
+		char* end = nullptr;
+		const __int64 issuedAt = _strtoi64(buffer, &end, 10);
+		if (issuedAt <= 0 || end == buffer) return false;
+
+		const __int64 now = static_cast<__int64>(time(NULL));
+		if (now < issuedAt - 5 || now - issuedAt > kTicketMaxAgeSeconds) return false;
+
+		InterlockedExchange(&g_launcherTicketAccepted, 1);
+		return true;
+	}
+
+	void RequireEverLeafLauncher() {
+		if (ConsumeFreshLauncherTicket()) return;
+
+		MessageBox(NULL,
+			L"Please start EverLeaf with EverLeafLauncher.exe instead of opening EverLeaf.exe directly. The launcher verifies and repairs your game files before Play.",
+			L"EverLeaf Launcher Required",
+			MB_OK | MB_ICONINFORMATION);
+		ExitProcess(0);
+	}
+}
+
 void dinput8::CreateHook() {
 	char szPath[MAX_PATH];
 	if (GetSystemDirectoryA(szPath, sizeof(szPath))) { strcat(szPath, "\\dinput8.dll"); }
@@ -17,7 +58,12 @@ void dinput8::CreateHook() {
 }
 extern "C" __declspec(dllexport) __declspec(naked) void DirectInput8Create()
 {
-	__asm	jmp dword ptr[DirectInput8Create_Proc]
+	__asm {
+		pushad
+		call RequireEverLeafLauncher
+		popad
+		jmp dword ptr[DirectInput8Create_Proc]
+	}
 }
 extern "C" __declspec(dllexport) __declspec(naked) void GetdfDIJoystick()
 {
