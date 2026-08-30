@@ -51,7 +51,7 @@ function action(mode, type, selection) {
             if (status == 0) {
                 em = cm.getEventManager("OrbisPQ");
                 if (em == null) {
-                    cm.sendOk("The Orbis PQ has encountered an error.");
+                    cm.sendOk("The Tower of Goddess Party Quest is temporarily unavailable because its event could not be loaded. Please report this in EverLeaf's bug-report channel.");
                     cm.dispose();
                     return;
                 } else if (cm.isUsingOldPqNpcStyle()) {
@@ -59,52 +59,53 @@ function action(mode, type, selection) {
                     return;
                 }
 
-                cm.sendSimple("#e#b<Party Quest: Tower of Goddess>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nWould you like to assemble or join a team to solve the puzzles of the #bTower of Goddess#k? Have your #bparty leader#k talk to me or make yourself a party.#b\r\n#L0#I want to participate in the party quest.\r\n#L1#I would like to " + (cm.getPlayer().isRecvPartySearchInviteEnabled() ? "disable" : "enable") + " Party Search.\r\n#L2#I would like to hear more details.\r\n#L3#I would like to reclaim a prize.");
+                cm.sendSimple("#e#b<Party Quest: Tower of Goddess>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nAssemble an eligible party to reclaim the Tower of Goddess. Keep everyone together at the entrance and have the #bparty leader#k speak with me when you're ready.#b\r\n#L0#Enter the Tower of Goddess Party Quest.\r\n#L1#" + (cm.getPlayer().isRecvPartySearchInviteEnabled() ? "Disable" : "Enable") + " Party Search invitations.\r\n#L2#Tell me about the Party Quest.\r\n#L3#Exchange Goddess Feathers for a Goddess Wristband.");
             } else if (status == 1) {
                 if (selection == 0) {
                     if (cm.getParty() == null) {
-                        cm.sendOk("You can participate in the party quest only if you are in a party.");
+                        cm.sendOk("You need to be in a party before you can enter the Tower of Goddess.");
                         cm.dispose();
                     } else if (!cm.isLeader()) {
-                        cm.sendOk("Your party leader must talk to me to start this party quest.");
+                        cm.sendOk("Only your party leader can start this Party Quest. Have the leader speak with me once everyone is ready.");
                         cm.dispose();
                     } else {
                         var eli = em.getEligibleParty(cm.getParty());
                         if (eli.size() > 0) {
                             if (!em.startInstance(cm.getParty(), cm.getPlayer().getMap(), 1)) {
-                                cm.sendOk("Another party has already entered the #rParty Quest#k in this channel. Please try another channel, or wait for the current party to finish.");
+                                cm.sendOk("Another party is already running the Tower of Goddess in this channel. Try another channel or wait for the current group to finish.");
                             }
                         } else {
-                            cm.sendOk("You cannot start this party quest yet, because either your party is not in the range size, some of your party members are not eligible to attempt it or they are not in this map. If you're having trouble finding party members, try Party Search.");
+                            cm.sendOk("Your party is not currently eligible to enter. Check the required party size and levels, and make sure every participating member is together at the entrance. Party Search can help if you still need members.");
                         }
 
                         cm.dispose();
                     }
                 } else if (selection == 1) {
                     var psState = cm.getPlayer().toggleRecvPartySearchInvite();
-                    cm.sendOk("Your Party Search status is now: #b" + (psState ? "enabled" : "disabled") + "#k. Talk to me whenever you want to change it back.");
+                    cm.sendOk("Party Search invitations are now #b" + (psState ? "enabled" : "disabled") + "#k. Talk to me whenever you want to change this setting.");
                     cm.dispose();
                 } else if (selection == 2) {
-                    cm.sendOk("#e#b<Party Quest: Tower of Goddess>#k#n\r\nOur goddess has been missing since some time ago, rumor has it She has been seen last time inside the Tower of Goddess. Furthermore, our sanctuary has been seized by the overwhelming forces of the pixies, those beings that are recently wandering at the outskirts of Orbis. Their leader, Papa Pixie, currently holds the throne and may know Her whereabouts, so we urge to find a composition of brave heroes to charge into and claim back our sanctuary and rescue Her. If your team is able to be a composite of every job niche available (Warrior, Magician, Bowman, Thief and Pirate), you guys will receive my blessings to aid you in battle. Will you aid us?\r\n");
+                    cm.sendOk("#e#b<Party Quest: Tower of Goddess>#k#n\r\nThe goddess has disappeared and Papa Pixie has taken over the sanctuary. Your party must solve the tower's cooperative stages, defeat Papa Pixie, and rescue the goddess. A party containing all five Explorer job archetypes can receive an additional blessing inside the challenge.");
                     cm.dispose();
                 } else {
-                    cm.sendSimple("So, what prize do you want to obtain?\r\n#b#L0#Give me Goddess Wristband.\r\n");
+                    cm.sendSimple("Exchange #b10 #t4001158##k for a Goddess Wristband.#b\r\n#L0#Exchange 10 #t4001158# for #t1082232#.");
                 }
             } else if (status == 2) {
                 if (selection == 0) {
-                    if (!cm.haveItem(1082232) && cm.haveItem(4001158, 10)) {
+                    if (cm.haveItem(1082232)) {
+                        cm.sendOk("You already have a Goddess Wristband.");
+                    } else if (!cm.haveItem(4001158, 10)) {
+                        cm.sendOk("You need #b10 #t4001158##k for this exchange.");
+                    } else {
                         cm.gainItem(1082232, 1);
                         cm.gainItem(4001158, -10);
-                        cm.dispose();
-                    } else {
-                        cm.sendOk("You either have Goddess Wristband already or you do not have 10 #t4001158#.");
-                        cm.dispose();
                     }
+                    cm.dispose();
                 }
             }
         } else {
             if (status == 0) {
-                cm.sendYesNo("Are you going to drop out from this rescue mission?");
+                cm.sendYesNo("Leave the Tower of Goddess Party Quest? Your current rescue-mission progress will be abandoned.");
             } else if (status == 1) {
                 cm.warp(920011200);
                 cm.dispose();
