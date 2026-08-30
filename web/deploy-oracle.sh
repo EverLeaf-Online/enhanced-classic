@@ -3,10 +3,12 @@ set -euo pipefail
 
 APP_SRC="${1:-$(pwd)}"
 APP_DIR="/opt/everleaf/web"
-SERVER_DIR="/opt/everleaf/server"
-PUBLIC_IP="132.145.141.79"
+PUBLIC_HOST="everleafms.online"
 
 echo "=== EverLeaf web deployment ==="
+
+echo "This helper never derives database credentials from the game-server config."
+echo "Provision $APP_DIR/.env separately with the least-privileged everleaf_web account before first use."
 
 sudo apt-get update -y
 sudo apt-get install -y curl ca-certificates gnupg unzip build-essential python3 make g++ rsync openssl
@@ -30,7 +32,7 @@ if [ -f "$APP_SRC/package.json" ]; then
 elif [ -f "$APP_SRC/EverLeaf-Web-CMS/package.json" ]; then
   SRC="$APP_SRC/EverLeaf-Web-CMS"
 else
-  echo "Could not find EverLeaf-Web-CMS/package.json under: $APP_SRC"
+  echo "Could not find EverLeaf Web CMS package.json under: $APP_SRC"
   exit 1
 fi
 
@@ -47,67 +49,43 @@ sudo rsync -a --delete \
 if [ -f /tmp/everleaf-web.env.keep ]; then sudo mv /tmp/everleaf-web.env.keep "$APP_DIR/.env"; fi
 if [ -d /tmp/everleaf-web-data.keep ]; then sudo rm -rf "$APP_DIR/data"; sudo mv /tmp/everleaf-web-data.keep "$APP_DIR/data"; fi
 
-DB_HOST="127.0.0.1"
-DB_USER="root"
-DB_PASS=""
-DB_NAME="cosmic"
-
-if [ -f "$SERVER_DIR/config.yaml" ]; then
-  val="$(sed -n 's/^[[:space:]]*DB_HOST:[[:space:]]*"\([^"]*\)".*/\1/p' "$SERVER_DIR/config.yaml" | head -1 || true)"; [ -n "$val" ] && DB_HOST="$val"
-  val="$(sed -n 's/^[[:space:]]*DB_USER:[[:space:]]*"\([^"]*\)".*/\1/p' "$SERVER_DIR/config.yaml" | head -1 || true)"; [ -n "$val" ] && DB_USER="$val"
-  val="$(sed -n 's/^[[:space:]]*DB_PASS:[[:space:]]*"\([^"]*\)".*/\1/p' "$SERVER_DIR/config.yaml" | head -1 || true)"; DB_PASS="${val:-$DB_PASS}"
-  val="$(sed -n 's#^[[:space:]]*DB_URL_FORMAT:[[:space:]]*"jdbc:mysql://[^/]*/\([^"?]*\).*#\1#p' "$SERVER_DIR/config.yaml" | head -1 || true)"; [ -n "$val" ] && DB_NAME="$val"
-fi
-
 if [ ! -f "$APP_DIR/.env" ]; then
-  SECRET="$(openssl rand -hex 48)"
-  sudo tee "$APP_DIR/.env" >/dev/null <<EOF
-NODE_ENV=production
-PORT=3000
-BASE_URL=http://${PUBLIC_IP}
-SESSION_SECRET=${SECRET}
-TRUST_PROXY=1
-COOKIE_SECURE=false
-
-SERVER_NAME=EverLeaf
-SERVER_TAGLINE=Enhanced Classic MapleStory
-SERVER_VERSION=v83
-DISCORD_URL=
-DONATION_URL=
-LAUNCHER_DOWNLOAD_URL=
-FULL_CLIENT_DOWNLOAD_URL=
-
-GAME_HOST=127.0.0.1
-LOGIN_PORT=8484
-CHANNEL_PORTS=7575,7576,7577
-
-GAME_DB_HOST=${DB_HOST}
-GAME_DB_PORT=3306
-GAME_DB_USER=${DB_USER}
-GAME_DB_PASSWORD=${DB_PASS}
-GAME_DB_NAME=${DB_NAME}
-
-GAME_ACCOUNTS_TABLE=accounts
-GAME_CHARACTERS_TABLE=characters
-GAME_ACCOUNT_ID_COLUMN=id
-GAME_ACCOUNT_NAME_COLUMN=name
-GAME_ACCOUNT_PASSWORD_COLUMN=password
-GAME_ACCOUNT_EMAIL_COLUMN=email
-GAME_ACCOUNT_BANNED_COLUMN=banned
-GAME_ACCOUNT_LOGGEDIN_COLUMN=loggedin
-GAME_CHARACTER_ACCOUNT_ID_COLUMN=accountid
-GAME_CHARACTER_NAME_COLUMN=name
-GAME_CHARACTER_LEVEL_COLUMN=level
-GAME_CHARACTER_JOB_COLUMN=job
-GAME_CHARACTER_FAME_COLUMN=fame
-GAME_CHARACTER_GM_COLUMN=gm
-GAME_CHARACTER_EXP_COLUMN=exp
-
-GAME_REGISTRATION_ENABLED=true
-GAME_PASSWORD_MODE=bcrypt
-CMS_DB_PATH=./data/everleaf-cms.sqlite
-EOF
+  echo "ERROR: $APP_DIR/.env is not provisioned." >&2
+  echo "Copy web/.env.example to that protected location and set SESSION_SECRET plus a dedicated GAME_DB_USER/GAME_DB_PASSWORD before deploying." >&2
+  exit 2
 fi
+
+# Refuse known unsafe production values instead of silently bootstrapping them.
+if grep -Eq '^GAME_DB_USER=(root|)$' "$APP_DIR/.env"; then
+  echo "ERROR: GAME_DB_USER must be a dedicated least-privilege web account, not root." >&2
+  exit 3
+fi
+if grep -Eq '^GAME_DB_PASSWORD=(|replace-me)$' "$APP_DIR/.env"; then
+  echo "ERROR: GAME_DB_PASSWORD is not configured." >&2
+  exit 4
+fi
+if grep -Eq '^SESSION_SECRET=(dev-only-change-me|replace-with-a-long-random-secret|)$' "$APP_DIR/.env"; then
+  echo "ERROR: SESSION_SECRET is not production-safe." >&2
+  exit 5
+fi
+
+set_env_var() {
+  local key="$1"
+  local value="$2"
+  if grep -q "^${key}=" "$APP_DIR/.env"; then
+    sudo sed -i "s|^${key}=.*|${key}=${value}|" "$APP_DIR/.env"
+  else
+    printf '%s=%s\n' "$key" "$value" | sudo tee -a "$APP_DIR/.env" >/dev/null
+  fi
+}
+
+set_env_var NODE_ENV production
+set_env_var BASE_URL "https://${PUBLIC_HOST}"
+set_env_var TRUST_PROXY 1
+set_env_var COOKIE_SECURE true
+set_env_var GAME_HOST 127.0.0.1
+set_env_var LOGIN_PORT 8484
+set_env_var CHANNEL_PORTS 7575,7576,7577,7578,7579,7580,7581,7582
 
 sudo chown -R ubuntu:ubuntu "$APP_DIR"
 sudo chmod 600 "$APP_DIR/.env"
@@ -125,7 +103,7 @@ initCms();
 const n=db.prepare("SELECT COUNT(*) n FROM admins").get().n;
 if(n===0){
   const username="everleafadmin";
-  const password=crypto.randomBytes(12).toString("base64url");
+  const password=crypto.randomBytes(18).toString("base64url");
   const hash=bcrypt.hashSync(password,12);
   db.prepare("INSERT INTO admins(username,password_hash) VALUES(?,?)").run(username,hash);
   console.log(`CREATED_ADMIN=${username}`);
@@ -150,8 +128,8 @@ sudo systemctl is-active everleaf-web
 echo "=== NODE TEST ==="
 curl -fsS -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:3000/
 echo "=== NGINX TEST ==="
-curl -fsS -H "Host: ${PUBLIC_IP}" -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1/
+curl -fsS -H "Host: ${PUBLIC_HOST}" -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1/
 echo "=== PUBLIC URL ==="
-echo "http://${PUBLIC_IP}"
+echo "https://${PUBLIC_HOST}"
 echo
 echo "$ADMIN_OUTPUT"
