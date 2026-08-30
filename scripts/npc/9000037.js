@@ -68,6 +68,18 @@ function detectTeamLobby(team) {
     return lobby;
 }
 
+function getActiveInstanceOrRecover() {
+    var eim = cm.getEventInstance();
+    if (eim != null) {
+        return eim;
+    }
+
+    cm.sendOk("Your Boss Rush instance is no longer active. I will return you to the Exclusive Training Center lobby.");
+    cm.warp(970030000);
+    cm.dispose();
+    return null;
+}
+
 function start() {
     status = -1;
     state = (cm.getMapId() >= 970030001 && cm.getMapId() <= 970042711) ? (!onRestingSpot() ? (isFinalBossDone() ? 3 : 1) : 2) : 0;
@@ -90,36 +102,44 @@ function action(mode, type, selection) {
 
         if (status == 0) {
             if (state == 3) {
-                if (cm.getEventInstance().getProperty("clear") == null) {
-                    cm.getEventInstance().clearPQ();
-                    cm.getEventInstance().setProperty("clear", "true");
+                var completionEim = getActiveInstanceOrRecover();
+                if (completionEim == null) {
+                    return;
+                }
+
+                if (completionEim.getProperty("clear") == null) {
+                    completionEim.clearPQ();
+                    completionEim.setProperty("clear", "true");
                 }
 
                 if (cm.isEventLeader()) {
-                    cm.sendOk("Your party completed such an astounding feat coming this far, #byou have defeated all the bosses#k, congratulations! Now I will be handing your reward as you are being transported out...");
+                    cm.sendOk("Your party has defeated every Boss Rush opponent. Congratulations! I will prepare your completion reward and return you to the lobby.");
                 } else {
-                    cm.sendOk("For #bdefeating all bosses#k in this instance, congratulations! You will now receive a prize that matches your performance here as I warp you out.");
+                    cm.sendOk("You defeated every Boss Rush opponent. Congratulations! I will prepare your completion reward and return you to the lobby.");
                 }
             } else if (state == 2) {
+                var restingEim = getActiveInstanceOrRecover();
+                if (restingEim == null) {
+                    return;
+                }
+
                 if (cm.isEventLeader()) {
-                    if (cm.getPlayer().getEventInstance().isEventTeamTogether()) {
-                        cm.sendYesNo("Is your party ready to proceed to the next stages? Walk through the portal if you think you're done, the time is now.. Now, do you guys REALLY want to proceed?");
+                    if (restingEim.isEventTeamTogether()) {
+                        cm.sendYesNo("Your party is together at the rest area. Are you ready to continue to the next Boss Rush stage?");
                     } else {
                         cm.sendOk("Please wait for your party to reassemble before proceeding.");
                         cm.dispose();
-
                     }
                 } else {
-                    cm.sendOk("Wait for your party leader to give me the signal to proceed. If you're not feeling too well and want to quit, walk through the portal and you will be transported out, and you will receive a prize for coming this far.");
+                    cm.sendOk("Wait for your party leader to continue. If you want to stop here, use the exit portal to leave and claim the reward for the progress you made.");
                     cm.dispose();
-
                 }
             } else if (state == 1) {
-                cm.sendYesNo("Do you wish to abandon this instance?");
+                cm.sendYesNo("Do you want to abandon this Boss Rush attempt and return to the lobby?");
             } else {
                 em = cm.getEventManager("BossRushPQ");
                 if (em == null) {
-                    cm.sendOk("The Boss Rush PQ has encountered an error.");
+                    cm.sendOk("Boss Rush is temporarily unavailable. Please report this in EverLeaf's bug-report channel if the problem continues.");
                     cm.dispose();
                     return;
                 } else if (cm.isUsingOldPqNpcStyle()) {
@@ -127,12 +147,17 @@ function action(mode, type, selection) {
                     return;
                 }
 
-                cm.sendSimple("#e#b<Party Quest: Boss Rush>\r\n#k#n" + em.getProperty("party") + "\r\n\r\nWould you like to collaborate with party members to complete the expedition, or are you brave enough to take it on all by yourself? Have your #bparty leader#k talk to me or make yourself a party.#b\r\n#L0#I want to participate in the party quest.\r\n#L1#I would like to " + (cm.getPlayer().isRecvPartySearchInviteEnabled() ? "disable" : "enable") + " Party Search.\r\n#L2#I would like to hear more details.");
+                cm.sendSimple("#e#b<Party Quest: Boss Rush>#k#n\r\n" + em.getProperty("party") + "\r\n\r\nChallenge a sequence of bosses with a party of up to six players. Your #bparty leader#k must start the run.#b\r\n#L0#Enter Boss Rush with my party.\r\n#L1#" + (cm.getPlayer().isRecvPartySearchInviteEnabled() ? "Disable" : "Enable") + " Party Search.\r\n#L2#Tell me more about Boss Rush.");
             }
         } else if (status == 1) {
             if (state == 3) {
-                if (!cm.getPlayer().getEventInstance().giveEventReward(cm.getPlayer(), 6)) {
-                    cm.sendOk("Please arrange a slot in all tabs of your inventory beforehand.");
+                var rewardEim = getActiveInstanceOrRecover();
+                if (rewardEim == null) {
+                    return;
+                }
+
+                if (!rewardEim.giveEventReward(cm.getPlayer(), 6)) {
+                    cm.sendOk("You need at least one free slot in your EQUIP, USE, SET-UP, and ETC inventories before I can give you the Boss Rush reward.");
                     cm.dispose();
                     return;
                 }
@@ -140,9 +165,14 @@ function action(mode, type, selection) {
                 cm.warp(970030000);
                 cm.dispose();
             } else if (state == 2) {
+                var continueEim = getActiveInstanceOrRecover();
+                if (continueEim == null) {
+                    return;
+                }
+
                 var restSpot = ((cm.getMapId() - 1) % 5) + 1;
-                cm.getPlayer().getEventInstance().restartEventTimer(restSpot * 4 * 60000);  // adds (restspot number * 4) minutes
-                cm.getPlayer().getEventInstance().warpEventTeam(970030100 + cm.getEventInstance().getIntProperty("lobby") + (500 * restSpot));
+                continueEim.restartEventTimer(restSpot * 4 * 60000);  // adds (restspot number * 4) minutes
+                continueEim.warpEventTeam(970030100 + continueEim.getIntProperty("lobby") + (500 * restSpot));
 
                 cm.dispose();
             } else if (state == 1) {
@@ -151,10 +181,10 @@ function action(mode, type, selection) {
             } else {
                 if (selection == 0) {
                     if (cm.getParty() == null) {
-                        cm.sendOk("You can participate in the party quest only if you are in a party.");
+                        cm.sendOk("Create or join a party before starting Boss Rush. A solo player can create a one-person party.");
                         cm.dispose();
                     } else if (!cm.isLeader()) {
-                        cm.sendOk("Your party leader must talk to me to start this party quest.");
+                        cm.sendOk("Your party leader must talk to me to start Boss Rush.");
                         cm.dispose();
                     } else {
                         var eli = em.getEligibleParty(cm.getParty());
@@ -167,20 +197,20 @@ function action(mode, type, selection) {
                             }
 
                             if (i == 8) {
-                                cm.sendOk("Another party has already entered the #rParty Quest#k in this channel. Please try another channel, or wait for the current party to finish.");
+                                cm.sendOk("All suitable Boss Rush lobbies in this channel are currently occupied. Try another channel or wait for a run to finish.");
                             }
                         } else {
-                            cm.sendOk("You cannot start this party quest yet, because either your party is not in the range size, some of your party members are not eligible to attempt it or they are not in this map. If you're having trouble finding party members, try Party Search.");
+                            cm.sendOk("Your party cannot start Boss Rush yet. Make sure every participating member is eligible and standing in this lobby with the party leader.");
                         }
 
                         cm.dispose();
                     }
                 } else if (selection == 1) {
                     var psState = cm.getPlayer().toggleRecvPartySearchInvite();
-                    cm.sendOk("Your Party Search status is now: #b" + (psState ? "enabled" : "disabled") + "#k. Talk to me whenever you want to change it back.");
+                    cm.sendOk("Party Search is now #b" + (psState ? "enabled" : "disabled") + "#k for your character.");
                     cm.dispose();
                 } else {
-                    cm.sendOk("#e#b<Party Quest: Boss Rush>#k#n\r\nBrave adventurers from all over the places travels here to test their skills and abilities in combat, as they face even more powerful bosses from MapleStory. Join forces with fellow adventurers or face all the burden by yourself and receive all the glory, it is up to you. REWARDS are given accordingly to how far the adventurers reach and extra prizes may are given to a random member of the party, all attributed at the end of an expedition.\r\n\r\nThis instance also supports #bmultiple lobbies for matchmaking several ranges of team levels#k at once: team up with players with lower level if you want better chances to swiftly set up a boss rush for your team.");
+                    cm.sendOk("#e#b<Party Quest: Boss Rush>#k#n\r\nFight through consecutive bosses, with rest areas between sections. Rewards improve with the progress your team reaches, and completing the full run awards the highest reward tier.\r\n\r\nBoss Rush supports multiple level-based lobbies in the same channel so several groups can run it independently.");
                     cm.dispose();
                 }
             }
