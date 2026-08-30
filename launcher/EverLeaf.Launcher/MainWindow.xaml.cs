@@ -13,6 +13,7 @@ public partial class MainWindow : Window
     private bool _busy;
     private bool _clientReady;
     private bool _installMode;
+    private bool _serverOnline;
 
     public MainWindow()
     {
@@ -52,6 +53,7 @@ public partial class MainWindow : Window
         try
         {
             var status = await _api.GetStatusAsync(CancellationToken.None);
+            _serverOnline = status.Online;
             ServerStatusText.Text = status.Online ? "EverLeaf is online" : "EverLeaf is offline";
             AnnouncementText.Text = status.Message;
             VersionText.Text = status.Version;
@@ -61,10 +63,13 @@ public partial class MainWindow : Window
         }
         catch
         {
+            _serverOnline = false;
             ServerStatusText.Text = "Status unavailable";
             AnnouncementText.Text = "The launcher service could not be reached.";
             ServerDot.Fill = new SolidColorBrush(Color.FromRgb(217, 164, 65));
         }
+
+        SetBusy(false);
 
         if (!gameExists) return;
 
@@ -94,6 +99,15 @@ public partial class MainWindow : Window
             SetBusy(true);
             if (!_clientReady)
                 await RepairInternalAsync();
+
+            // Allow a clean install/repair while the game is offline, but never
+            // launch a client into a maintenance/offline server state.
+            if (!_serverOnline)
+            {
+                PatchStatusText.Text = "EverLeaf files are ready. The server is currently offline.";
+                return;
+            }
+
             PatchStatusText.Text = "Launching EverLeaf…";
             GameLauncher.Start(_gameDirectory);
             Close();
@@ -166,10 +180,14 @@ public partial class MainWindow : Window
     private void SetBusy(bool busy)
     {
         _busy = busy;
-        PlayButton.IsEnabled = !busy;
+        PlayButton.IsEnabled = !busy && (_installMode || _serverOnline);
         RepairButton.IsEnabled = !busy;
         PlayButton.Content = busy
             ? (_installMode ? "INSTALLING…" : "UPDATING…")
-            : (_installMode ? "INSTALL EVERLEAF" : "PLAY EVERLEAF");
+            : _installMode
+                ? "INSTALL EVERLEAF"
+                : _serverOnline
+                    ? "PLAY EVERLEAF"
+                    : "SERVER OFFLINE";
     }
 }
