@@ -20,9 +20,12 @@ router.get("/robots.txt",(req,res)=>{
 });
 
 router.get("/sitemap.xml",(req,res)=>{
-  const staticPaths=["/","/news","/downloads","/rankings","/donate","/help","/terms","/login","/register"];
+  const staticPaths=["/","/news","/downloads","/rankings","/donate","/help","/login","/register"];
   const posts=db.prepare("SELECT slug,created_at FROM posts WHERE published=1 ORDER BY created_at DESC").all();
-  const entries=staticPaths.map(path=>({loc:`${siteUrl}${path}`,lastmod:null})).concat(posts.map(post=>({loc:`${siteUrl}/news/${encodeURIComponent(post.slug)}`,lastmod:post.created_at?String(post.created_at).slice(0,10):null})));
+  const pages=db.prepare("SELECT slug,updated_at FROM pages WHERE published=1 ORDER BY slug").all();
+  const entries=staticPaths.map(path=>({loc:`${siteUrl}${path}`,lastmod:null}))
+    .concat(posts.map(post=>({loc:`${siteUrl}/news/${encodeURIComponent(post.slug)}`,lastmod:post.created_at?String(post.created_at).slice(0,10):null})))
+    .concat(pages.map(page=>({loc:`${siteUrl}/${encodeURIComponent(page.slug)}`,lastmod:page.updated_at?String(page.updated_at).slice(0,10):null})));
   const body=entries.map(entry=>`<url><loc>${xmlEscape(entry.loc)}</loc>${entry.lastmod?`<lastmod>${xmlEscape(entry.lastmod)}</lastmod>`:""}</url>`).join("");
   res.type("application/xml").set("Cache-Control","public, max-age=900").send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${body}</urlset>`);
 });
@@ -112,7 +115,16 @@ router.get("/donate/paypal/return",async(req,res)=>{
 });
 router.get("/community", (req,res) => res.redirect(302,env.brand.discordUrl));
 router.get("/help", (req,res) => res.render("help",{settings:settings()}));
-router.get("/terms", (req,res) => res.render("terms",{settings:settings()}));
+
+function renderCmsPage(slug,req,res) {
+  const page=db.prepare("SELECT * FROM pages WHERE slug=? AND published=1").get(slug);
+  if(!page) return res.status(404).render("404",{settings:settings()});
+  return res.render("page",{page,settings:settings()});
+}
+router.get("/about",(req,res)=>renderCmsPage("about",req,res));
+router.get("/rules",(req,res)=>renderCmsPage("rules",req,res));
+router.get("/terms",(req,res)=>renderCmsPage("terms",req,res));
+router.get("/pages/:slug",(req,res)=>renderCmsPage(String(req.params.slug||""),req,res));
 
 router.get("/login", (req,res) => res.render("login",{error:"",settings:settings()}));
 router.post("/login", async (req,res) => {
