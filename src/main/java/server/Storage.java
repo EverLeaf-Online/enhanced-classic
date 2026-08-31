@@ -144,7 +144,6 @@ public class Storage {
             for (Item item : list) {
                 itemsWithType.add(new Pair<>(item, item.getInventoryType()));
             }
-
             ItemFactory.STORAGE.saveItems(itemsWithType, id, con);
         } catch (SQLException ex) {
             ex.printStackTrace();
@@ -231,12 +230,6 @@ public class Storage {
     }
 
     public void sendStorage(Client c, int npcId) {
-        if (c.getPlayer().getLevel() < 15) {
-            c.getPlayer().dropMessage(1, "You may only use the storage once you have reached level 15.");
-            c.sendPacket(PacketCreator.enableActions());
-            return;
-        }
-
         lock.lock();
         try {
             items.sort((o1, o2) -> {
@@ -261,12 +254,10 @@ public class Storage {
         }
     }
 
-    public boolean isOpenFor(Client c) {
+    public void sendTakenOut(Client c, InventoryType type) {
         lock.lock();
         try {
-            return currentNpcid > 0
-                    && currentMapId == c.getPlayer().getMapId()
-                    && !typeItems.isEmpty();
+            c.sendPacket(PacketCreator.takeOutStorage(slots, type, filterItems(type)));
         } finally {
             lock.unlock();
         }
@@ -275,16 +266,7 @@ public class Storage {
     public void sendStored(Client c, InventoryType type) {
         lock.lock();
         try {
-            c.sendPacket(PacketCreator.storeStorage(slots, type, typeItems.get(type)));
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    public void sendTakenOut(Client c, InventoryType type) {
-        lock.lock();
-        try {
-            c.sendPacket(PacketCreator.takeOutStorage(slots, type, typeItems.get(type)));
+            c.sendPacket(PacketCreator.storeStorage(slots, type, filterItems(type)));
         } finally {
             lock.unlock();
         }
@@ -293,18 +275,27 @@ public class Storage {
     public void arrangeItems(Client c) {
         lock.lock();
         try {
-            StorageInventory msi = new StorageInventory(c, items);
-            msi.mergeItems();
-            items = msi.sortItems();
+            items.sort((o1, o2) -> {
+                if (o1.getInventoryType().getType() < o2.getInventoryType().getType()) {
+                    return -1;
+                } else if (o1.getInventoryType() == o2.getInventoryType()) {
+                    return Integer.compare(o1.getItemId(), o2.getItemId());
+                }
+                return 1;
+            });
 
+            List<Item> storageItems = getItems();
             for (InventoryType type : InventoryType.values()) {
-                typeItems.put(type, new ArrayList<>(items));
+                typeItems.put(type, new ArrayList<>(storageItems));
             }
-
             c.sendPacket(PacketCreator.arrangeStorage(slots, items));
         } finally {
             lock.unlock();
         }
+    }
+
+    public void sendMeso(Client c) {
+        c.sendPacket(PacketCreator.mesoStorage(slots, meso));
     }
 
     public int getMeso() {
@@ -312,70 +303,51 @@ public class Storage {
     }
 
     public void setMeso(int meso) {
-        if (meso < 0) {
-            throw new RuntimeException();
-        }
         this.meso = meso;
     }
 
-    public void sendMeso(Client c) {
-        c.sendPacket(PacketCreator.mesoStorage(slots, meso));
-    }
-
-    public int getStoreFee() {  // thanks to GabrielSin
-        int npcId = currentNpcid;
-        Integer fee = trunkPutCache.get(npcId);
-        if (fee == null) {
-            fee = 100;
-
-            DataProvider npc = DataProviderFactory.getDataProvider(WZFiles.NPC);
-            Data npcData = npc.getData(npcId + ".img");
-            if (npcData != null) {
-                fee = DataTool.getIntConvert("info/trunkPut", npcData, 100);
-            }
-
-            trunkPutCache.put(npcId, fee);
-        }
-
-        return fee;
-    }
-
-    public int getTakeOutFee() {
-        int npcId = currentNpcid;
-        Integer fee = trunkGetCache.get(npcId);
-        if (fee == null) {
-            fee = 0;
-
-            DataProvider npc = DataProviderFactory.getDataProvider(WZFiles.NPC);
-            Data npcData = npc.getData(npcId + ".img");
-            if (npcData != null) {
-                fee = DataTool.getIntConvert("info/trunkGet", npcData, 0);
-            }
-
-            trunkGetCache.put(npcId, fee);
-        }
-
-        return fee;
-    }
-
     public boolean isFull() {
-        lock.lock();
-        try {
-            return items.size() >= slots;
-        } finally {
-            lock.unlock();
-        }
+        return items.size() >= slots;
     }
 
     public void close() {
-        lock.lock();
-        try {
-            currentNpcid = -1;
-            currentMapId = -1;
-            typeItems.clear();
-        } finally {
-            lock.unlock();
-        }
+        currentNpcid = -1;
+        currentMapId = -1;
     }
 
+    public boolean isStorageOpen() {
+        return currentNpcid != -1;
+    }
+
+    public int getCurrentNpcid() {
+        return currentNpcid;
+    }
+
+    public int getCurrentMapId() {
+        return currentMapId;
+    }
+
+    public int getStoreFee() {
+        Integer fee = trunkPutCache.get(currentNpcid);
+        return fee == null ? 0 : fee;
+    }
+
+    public int getTakeOutFee() {
+        Integer fee = trunkGetCache.get(currentNpcid);
+        return fee == null ? 0 : fee;
+    }
+
+    public static void loadStorageFee() {
+        DataProvider npcProvider = DataProviderFactory.getDataProvider(WZFiles.NPC);
+        Data trunkData = npcProvider.getData("Trunk.img");
+        if (trunkData == null) {
+            return;
+        }
+
+        for (Data npc : trunkData.getChildren()) {
+            int npcId = Integer.parseInt(npc.getName());
+            trunkGetCache.put(npcId, DataTool.getInt("get", npc, 0));
+            trunkPutCache.put(npcId, DataTool.getInt("put", npc, 0));
+        }
+    }
 }
