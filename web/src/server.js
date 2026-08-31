@@ -44,7 +44,7 @@ app.use(express.json({limit:"50kb"}));
 app.use(express.static(path.join(__dirname,"../public"),{maxAge:env.nodeEnv==="production"?"1h":0}));
 app.use(rateLimit({windowMs:60_000,max:120,standardHeaders:true,legacyHeaders:false}));
 
-// Authentication endpoints receive a much tighter POST-only limiter than the
+// Authentication and recovery endpoints receive a much tighter POST-only limiter than the
 // general site. Successful browsing never consumes this budget.
 const authLimiter=rateLimit({
   windowMs:15*60_000,
@@ -52,9 +52,9 @@ const authLimiter=rateLimit({
   standardHeaders:true,
   legacyHeaders:false,
   skip:req=>req.method!=="POST",
-  message:"Too many authentication attempts. Please wait a few minutes and try again."
+  message:"Too many authentication or recovery attempts. Please wait a few minutes and try again."
 });
-app.use(["/login","/register","/admin/login"],authLimiter);
+app.use(["/login","/register","/recover","/admin/login"],authLimiter);
 
 // Launcher endpoints are intentionally session-free. The manifest is signed and
 // patch payloads are SHA-256 verified by the launcher before replacement.
@@ -85,9 +85,9 @@ app.use(session({
   }
 }));
 
-// Never let account/admin/auth responses become shared browser/proxy cache entries.
+// Never let account/admin/auth/recovery responses become shared browser/proxy cache entries.
 app.use((req,res,next)=>{
-  const sensitive=req.path==="/login"||req.path==="/register"||req.path.startsWith("/account")||req.path.startsWith("/admin");
+  const sensitive=req.path==="/login"||req.path==="/register"||req.path==="/recover"||req.path.startsWith("/account")||req.path.startsWith("/admin");
   if(sensitive) res.set("Cache-Control","no-store");
   next();
 });
@@ -99,7 +99,9 @@ app.locals.year=new Date().getFullYear();
 app.use(require("./middleware/viewLocals"));
 
 app.use("/",require("./routes/vote"));
+app.use("/",require("./routes/recovery"));
 app.use("/",require("./routes/public"));
+app.use("/admin",require("./routes/admin-content"));
 app.use("/admin",require("./routes/admin"));
 
 app.use((req,res)=>res.status(404).render("404",{settings:settings()}));
