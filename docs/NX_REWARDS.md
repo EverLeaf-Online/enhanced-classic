@@ -25,7 +25,7 @@ Claims only the daily reward.
 
 `@points`
 
-Shows Reward Points, Vote Points, and the current NX Credit balance. Using `@points` also starts the current playtime tracking session. Until the login handler is wired to start tracking automatically, players should run `@points` or `@points nx` once after logging in if they want playtime rewards counted for that session.
+Shows Reward Points, Vote Points, and the current NX Credit balance. Playtime tracking starts automatically when the character enters the world and checkpoints remaining elapsed time during disconnect or channel-change cleanup.
 
 ## Vote integration
 

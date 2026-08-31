@@ -4,6 +4,7 @@ const { db, settings } = require("../db/cms");
 const game = require("../services/gameService");
 const env = require("../config/env");
 const jobName = require("../utils/jobs");
+const { GAME_PASSWORD_MIN_LENGTH, GAME_PASSWORD_MAX_LENGTH } = require("../utils/accountValidation");
 
 const router = express.Router();
 
@@ -79,13 +80,13 @@ router.get("/register",(req,res)=>res.render("register",{error:"",enabled:env.re
 router.post("/register",async(req,res)=>{
   const schema=z.object({
     username:z.string().regex(/^[A-Za-z0-9_]{4,13}$/),
-    password:z.string().min(8).max(64),
-    confirmPassword:z.string().min(8).max(64),
+    password:z.string().min(GAME_PASSWORD_MIN_LENGTH).max(GAME_PASSWORD_MAX_LENGTH),
+    confirmPassword:z.string().min(GAME_PASSWORD_MIN_LENGTH).max(GAME_PASSWORD_MAX_LENGTH),
     email:z.string().email().max(45),
     agree:z.literal("yes")
   }).refine(v=>v.password===v.confirmPassword,{message:"Passwords do not match",path:["confirmPassword"]});
   const parsed=schema.safeParse(req.body);
-  if(!parsed.success) return res.status(400).render("register",{error:"Please check the form fields and make sure the passwords match.",enabled:env.registration.enabled,settings:settings()});
+  if(!parsed.success) return res.status(400).render("register",{error:"Use an 8-12 character password and make sure both password fields match.",enabled:env.registration.enabled,settings:settings()});
   try {
     await game.register(parsed.data);
     res.redirect("/login");
@@ -96,26 +97,29 @@ router.post("/register",async(req,res)=>{
 
 router.get("/account",async(req,res)=>{
   if(!req.session.player) return res.redirect("/login");
-  let characters=[],error="",success=String(req.query.updated||"")==="1"?"Password updated successfully.":"";
-  try { characters=(await game.accountCharacters(req.session.player.id)).map(r=>({...r,jobName:jobName(r.job)})); }
+  let characters=[],rewards={nxCredit:0,pendingVoteNx:0},error="",success=String(req.query.updated||"")==="1"?"Password updated successfully.":"";
+  try {
+    const values=await Promise.all([game.accountCharacters(req.session.player.id),game.nxRewardStatus(req.session.player.id)]);
+    characters=values[0].map(r=>({...r,jobName:jobName(r.job)})); rewards=values[1];
+  }
   catch { error="Character data is temporarily unavailable."; }
-  res.render("account",{account:req.session.player,characters,error,success,settings:settings()});
+  res.render("account",{account:req.session.player,characters,rewards,error,success,settings:settings()});
 });
 
 router.post("/account/password",async(req,res)=>{
   if(!req.session.player) return res.redirect("/login");
-  const schema=z.object({currentPassword:z.string().min(1).max(100),newPassword:z.string().min(8).max(64),confirmPassword:z.string().min(8).max(64)})
+  const schema=z.object({currentPassword:z.string().min(1).max(100),newPassword:z.string().min(GAME_PASSWORD_MIN_LENGTH).max(GAME_PASSWORD_MAX_LENGTH),confirmPassword:z.string().min(GAME_PASSWORD_MIN_LENGTH).max(GAME_PASSWORD_MAX_LENGTH)})
     .refine(v=>v.newPassword===v.confirmPassword,{message:"Passwords do not match",path:["confirmPassword"]});
   const parsed=schema.safeParse(req.body);
   let characters=[];
   try { characters=(await game.accountCharacters(req.session.player.id)).map(r=>({...r,jobName:jobName(r.job)})); } catch {}
-  if(!parsed.success) return res.status(400).render("account",{account:req.session.player,characters,error:"Please check the password fields.",success:"",settings:settings()});
+  if(!parsed.success) return res.status(400).render("account",{account:req.session.player,characters,rewards:{nxCredit:0,pendingVoteNx:0},error:"New passwords must be 8-12 characters and match.",success:"",settings:settings()});
   try {
     const ok=await game.changePassword(req.session.player.id,parsed.data.currentPassword,parsed.data.newPassword);
-    if(!ok) return res.status(400).render("account",{account:req.session.player,characters,error:"Current password is incorrect.",success:"",settings:settings()});
+    if(!ok) return res.status(400).render("account",{account:req.session.player,characters,rewards:{nxCredit:0,pendingVoteNx:0},error:"Current password is incorrect.",success:"",settings:settings()});
     res.redirect("/account?updated=1");
   } catch {
-    res.status(500).render("account",{account:req.session.player,characters,error:"Password update is temporarily unavailable.",success:"",settings:settings()});
+    res.status(500).render("account",{account:req.session.player,characters,rewards:{nxCredit:0,pendingVoteNx:0},error:"Password update is temporarily unavailable.",success:"",settings:settings()});
   }
 });
 

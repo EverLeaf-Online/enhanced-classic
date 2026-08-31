@@ -59,7 +59,7 @@ module.exports = {
 
   vote: {
     provider: "gtop100",
-    rewardPoints: Math.max(1, Math.min(10, Number(process.env.VOTE_POINTS_REWARD || 1))),
+    rewardNx: Math.max(1, Math.min(100000, Number(process.env.VOTE_NX_REWARD || 1500))),
     gtopVoteUrl: process.env.GTOP100_VOTE_URL || "https://gtop100.com/MapleStory/server-106444?vote=1",
     gtopPingbackKey: process.env.GTOP100_PINGBACK_KEY || ""
   },

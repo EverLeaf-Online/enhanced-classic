@@ -66,8 +66,8 @@ router.get("/api/vote/pingback", (req,res) => {
   res.json({
     status: env.vote.gtopPingbackKey ? "configured" : "not_configured",
     provider: env.vote.provider,
-    reward: { votePoints: env.vote.rewardPoints },
-    nxReward: false
+    reward: { nxCredit: env.vote.rewardNx },
+    nxReward: true
   });
 });
 
@@ -94,18 +94,18 @@ router.post("/api/vote/pingback", async (req,res) => {
         results.push({ username:vote.username || null, status:"provider_rejected", rewarded:false });
         continue;
       }
-      const result = await game.rewardVerifiedVote({
+      const result = await game.queueVerifiedVoteNx({
         username: vote.username,
         provider: env.vote.provider,
         voterIp: vote.voterIp,
         reason: vote.reason,
-        rewardPoints: env.vote.rewardPoints,
+        nxAmount: env.vote.rewardNx,
         votedAt: new Date()
       });
       results.push({ username:vote.username || null, status:result.status, rewarded:result.rewarded, amount:result.amount || 0 });
     }
   } catch (error) {
-    console.error("GTop100 Vote Point reward error:", error.message);
+    console.error("GTop100 NX reward error:", error.message);
     return res.status(500).json({ ok:false, error:"vote_reward_failed" });
   }
 
