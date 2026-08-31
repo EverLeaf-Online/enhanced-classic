@@ -132,23 +132,17 @@ static wz::WzImageProperty* FindDirectProperty(wz::WzImage* image,
     return nullptr;
 }
 
-static wz::WzCanvasProperty* FindUniqueCanvasByDimensions(wz::WzImage* image,
-                                                          int width,
-                                                          int height) {
-    if (!image) return nullptr;
+static wz::WzCanvasProperty* FindUniqueCanvasInProperty(wz::WzImageProperty* root,
+                                                        int width,
+                                                        int height,
+                                                        const char* label) {
+    if (!root) return nullptr;
     std::vector<wz::WzCanvasProperty*> matches;
-    for (auto* property : *image->WzProperties()) {
-        CollectCanvasByDimensions(property, width, height, matches);
-    }
+    CollectCanvasByDimensions(root, width, height, matches);
     if (matches.size() != 1) {
         std::cerr << "Expected exactly one " << width << "x" << height
-                  << " canvas in " << image->Name() << ", found "
-                  << matches.size() << ". Top-level properties:";
-        for (auto* property : *image->WzProperties()) {
-            std::cerr << " [" << property->Name() << ":type="
-                      << static_cast<int>(property->PropertyType()) << "]";
-        }
-        std::cerr << "\n";
+                  << " canvas under " << label << ", found " << matches.size()
+                  << ".\n";
         return nullptr;
     }
     return matches.front();
@@ -157,12 +151,23 @@ static wz::WzCanvasProperty* FindUniqueCanvasByDimensions(wz::WzImage* image,
 static wz::WzImageProperty* FindBackgroundProperty(wz::WzImage* backLogin) {
     if (!backLogin) return nullptr;
 
+    // Some tooling exposes this as back/login.img/11, but libwz parses this
+    // v83 file with two top-level groups: `back` and `ani`. The static login
+    // background belongs to the `back` subtree; `ani` contains animation data.
     if (auto* direct = FindDirectProperty(backLogin, "11")) {
         return direct;
     }
 
-    return FindUniqueCanvasByDimensions(
-        backLogin, kLoginBackgroundWidth, kLoginBackgroundHeight);
+    auto* backGroup = FindDirectProperty(backLogin, "back");
+    if (!backGroup) {
+        std::cerr << "back/login.img is missing the parsed top-level `back` group.\n";
+        return nullptr;
+    }
+
+    return FindUniqueCanvasInProperty(backGroup,
+                                      kLoginBackgroundWidth,
+                                      kLoginBackgroundHeight,
+                                      "back/login.img/back");
 }
 
 static bool HasCanvas(wz::WzImageProperty* property, int depth = 0) {
