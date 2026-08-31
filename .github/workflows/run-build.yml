@@ -51,6 +51,8 @@ jobs:
         run: python3 tools/audit_rooted_content.py
       - name: Audit class and skill integrity
         run: python3 tools/audit_class_skills.py
+      - name: Audit items and equipment integrity
+        run: python3 tools/audit_items_equipment.py
       - name: Audit boss and PQ event-manager links
         run: python3 tools/audit_event_manager_links.py
       - name: Audit world data integrity
