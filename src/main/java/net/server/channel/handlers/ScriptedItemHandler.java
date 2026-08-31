@@ -29,6 +29,7 @@ import net.packet.InPacket;
 import scripting.item.ItemScriptManager;
 import server.ItemInformationProvider;
 import server.ItemInformationProvider.ScriptedItem;
+import tools.PacketCreator;
 
 /**
  * @author Jay Estrella
@@ -40,18 +41,27 @@ public final class ScriptedItemHandler extends AbstractPacketHandler {
         short itemSlot = p.readShort(); // item slot, thanks RMZero213
         int itemId = p.readInt();
 
-        ItemInformationProvider ii = ItemInformationProvider.getInstance();
-        ScriptedItem info = ii.getScriptedItemInfo(itemId);
-        if (info == null) {
+        if (!c.tryacquireClient()) {
+            c.sendPacket(PacketCreator.enableActions());
             return;
         }
 
-        Item item = c.getPlayer().getInventory(ItemConstants.getInventoryType(itemId)).getItem(itemSlot);
-        if (item == null || item.getItemId() != itemId || item.getQuantity() < 1) {
-            return;
-        }
+        try {
+            ItemInformationProvider ii = ItemInformationProvider.getInstance();
+            ScriptedItem info = ii.getScriptedItemInfo(itemId);
+            if (info == null) {
+                return;
+            }
 
-        ItemScriptManager ism = ItemScriptManager.getInstance();
-        ism.runItemScript(c, info);
+            Item item = c.getPlayer().getInventory(ItemConstants.getInventoryType(itemId)).getItem(itemSlot);
+            if (item == null || item.getItemId() != itemId || item.getQuantity() < 1) {
+                return;
+            }
+
+            ItemScriptManager ism = ItemScriptManager.getInstance();
+            ism.runItemScript(c, info);
+        } finally {
+            c.releaseClient();
+        }
     }
 }
