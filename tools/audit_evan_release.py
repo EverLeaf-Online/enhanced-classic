@@ -64,10 +64,7 @@ def main() -> int:
         "EVAN4(2212)", "EVAN5(2213)", "EVAN6(2214)", "EVAN7(2215)",
         "EVAN8(2216)", "EVAN9(2217)", "EVAN10(2218)",
     )
-    require(
-        "src/main/java/constants/game/GameConstants.java",
-        "return job - 2209;",
-    )
+    require("src/main/java/constants/game/GameConstants.java", "return job - 2209;")
     require(
         "src/main/java/client/processor/stat/AssignSPProcessor.java",
         "GameConstants.getSkillBook(skillid / 10000)",
@@ -81,17 +78,28 @@ def main() -> int:
         "src/main/java/client/Character.java",
         "GameConstants.hasSPTable(newJob.getId()) && newJob != Job.EVAN",
         "makeDragon()",
+        "private boolean isEvanGrowthJob()",
+        "advanceEvanGrowthStage();",
+        "level == 10 && job == Job.EVAN",
+        "level == 20 && job == Job.EVAN1",
+        "level == 30 && job == Job.EVAN2",
+        "level == 40 && job == Job.EVAN3",
+        "level == 50 && job == Job.EVAN4",
+        "level == 60 && job == Job.EVAN5",
+        "level == 80 && job == Job.EVAN6",
+        "level == 100 && job == Job.EVAN7",
+        "level == 120 && job == Job.EVAN8",
+        "level == 160 && job == Job.EVAN9",
+        "job.isA(Job.BLAZEWIZARD1) || isEvanGrowthJob()",
     )
 
     require(
         "src/main/java/net/server/channel/handlers/AbstractDealDamageHandler.java",
-        "Evan.ICE_BREATH",
-        "Evan.FIRE_BREATH",
+        "Evan.ICE_BREATH", "Evan.FIRE_BREATH",
     )
     require(
         "src/main/java/net/server/channel/handlers/CancelBuffHandler.java",
-        "Evan.ICE_BREATH",
-        "Evan.FIRE_BREATH",
+        "Evan.ICE_BREATH", "Evan.FIRE_BREATH",
     )
 
     require(
@@ -101,24 +109,33 @@ def main() -> int:
         "Evan Critical Magic damage-validation support",
     )
     require(
+        "tools/apply_evan_progression_fixes.py",
+        "Evan automatic mastery advancement",
+        "Evan magician-style level-up HP/MP",
+    )
+    require(
         ".github/workflows/run-build.yml",
         "python3 tools/apply_evan_skill_data.py",
         "python3 tools/apply_evan_behavior_fixes.py",
+        "python3 tools/apply_evan_progression_fixes.py",
     )
     require(
         ".github/workflows/deploy-game-production.yml",
         "python3 tools/apply_evan_skill_data.py",
         "python3 tools/apply_evan_behavior_fixes.py",
+        "python3 tools/apply_evan_progression_fixes.py",
     )
 
     audit_skill_data()
 
     print("EverLeaf Evan release audit: PASS")
     print("  fresh Evan creation: selector 3 -> job 2001, level 1, Utah's attic")
+    print("  automatic mastery growth: 10/20/30/40/50/60/80/100/120/160")
     print("  job growth chain: 2001, 2200, 2210-2218")
     print("  Evan Skill.wz: 43/43 declared server skills")
+    print("  Evan HP/MP: magician-style level-up growth")
     print("  extended SP, dragon object/movement, charged Breath: wired")
-    print("  Evan behavior transform: CI + production wired")
+    print("  Evan behavior + progression transforms: CI + production wired")
     return 0
 
 
