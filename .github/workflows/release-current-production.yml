@@ -1,0 +1,24 @@
+name: Trigger EverLeaf Production Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/release-current-production.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch-game-production:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch guarded game production deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run deploy-game-production.yml --repo "$GITHUB_REPOSITORY" --ref release-dev
+          echo "Dispatched guarded EverLeaf game production deployment for release-dev."
