@@ -48,9 +48,13 @@ jobs:
               | awk '{print $1}' \
               | grep -Ei 'everleaf|discord|status|monitor' || true
             echo 'alert_source_paths:'
-            sudo grep -RIl \
+            sudo timeout 25s grep -RIl \
               --exclude='*.env' \
               --exclude='discord-bot.env' \
+              --include='*.js' \
+              --include='*.cjs' \
+              --include='*.mjs' \
+              --include='*.service' \
               --exclude-dir='.git' \
               -e 'EverLeaf Status Alert' \
               -e 'Login Server recovered' \
