@@ -159,9 +159,10 @@ jobs:
           test "$new_hash" = "$EXPECTED_NEW_HASH"
           test "$new_hash" != "$old_hash"
 
-          # Candidate tree and backup stay under PATCH_ROOT so hard links never
-          # cross filesystems. No unvalidated file is installed live.
-          cp -al "$FILES" "$TEMP_PATCH/files"
+          # Build an ordinary candidate copy. Production payload files may be
+          # owned by another account/filesystem policy that forbids hard links.
+          # Nothing from this candidate is installed until manifest validation passes.
+          cp -R "$FILES" "$TEMP_PATCH/files"
           rm -f "$TEMP_PATCH/files/Map.wz"
           cp "$OUTPUT" "$TEMP_PATCH/files/Map.wz"
 
@@ -183,7 +184,9 @@ jobs:
           if(map.sha256 !== expected) throw new Error(`Map.wz manifest hash mismatch: ${map.sha256}`);
           NODE
 
-          ln "$FILES/Map.wz" "$BACKUP/Map.wz"
+          # Regular copies are intentional here as well; hard-link creation is
+          # not permitted for all production payload files on this host.
+          cp "$FILES/Map.wz" "$BACKUP/Map.wz"
           cp "$PATCH_ROOT/manifest.json" "$BACKUP/manifest.json"
 
           rollback() {
