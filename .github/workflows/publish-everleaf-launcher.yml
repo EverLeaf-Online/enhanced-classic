@@ -68,7 +68,6 @@ jobs:
           if ($files.Count -ne 1 -or $files[0].Name -ne 'EverLeafLauncher.exe') {
             throw 'Portable launcher ZIP must contain only EverLeafLauncher.exe.'
           }
-          Set-Content -NoNewline 'EverLeafLauncher-version.txt' '${{ github.sha }}'
           Get-FileHash 'EverLeafLauncher-portable.zip' -Algorithm SHA256
           Get-FileHash 'launcher-installer/EverLeafLauncherSetup.exe' -Algorithm SHA256
 
@@ -109,7 +108,6 @@ jobs:
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
           scp -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
             EverLeafLauncher-portable.zip \
-            EverLeafLauncher-version.txt \
             launcher-installer/EverLeafLauncherSetup.exe \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$REMOTE_STAGE/"
 
@@ -127,18 +125,20 @@ jobs:
           DOWNLOADS="$PATCH_ROOT/downloads"
           STAGE="/tmp/everleaf-launcher-$RELEASE_SHA"
           GENERATED="$STAGE/manifest.json"
+          VERSION_FILE="$STAGE/EverLeafLauncher-version.txt"
           PATCH_VERSION="$(node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('$PATCH_ROOT/manifest.json','utf8'));process.stdout.write(String(m.version));")"
 
           test -s "$STAGE/EverLeafLauncher-portable.zip"
           test -s "$STAGE/EverLeafLauncherSetup.exe"
-          test "$(cat "$STAGE/EverLeafLauncher-version.txt")" = "$RELEASE_SHA"
+          printf '%s' "$RELEASE_SHA" > "$VERSION_FILE"
+          test "$(cat "$VERSION_FILE")" = "$RELEASE_SHA"
 
           sudo env \
             LAUNCHER_PATCH_ROOT="$PATCH_ROOT" \
             LAUNCHER_BASELINE_PATH="$PATCH_ROOT/managed-client-baseline.json" \
             LAUNCHER_MANIFEST_PATH="$GENERATED" \
             LAUNCHER_PORTABLE_PATH="$STAGE/EverLeafLauncher-portable.zip" \
-            LAUNCHER_VERSION_PATH="$STAGE/EverLeafLauncher-version.txt" \
+            LAUNCHER_VERSION_PATH="$VERSION_FILE" \
             node /opt/everleaf/web/scripts/build-patch-manifest.js "$PATCH_VERSION"
 
           node - "$GENERATED" "$STAGE/EverLeafLauncher-portable.zip" "$RELEASE_SHA" <<'NODE'
@@ -156,7 +156,7 @@ jobs:
           sudo install -d -m 755 "$DOWNLOADS"
           sudo install -m 644 "$STAGE/EverLeafLauncher-portable.zip" "$DOWNLOADS/EverLeafLauncher-portable.zip.new"
           sudo install -m 644 "$STAGE/EverLeafLauncherSetup.exe" "$DOWNLOADS/EverLeafLauncherSetup.exe.new"
-          sudo install -m 644 "$STAGE/EverLeafLauncher-version.txt" "$DOWNLOADS/EverLeafLauncher-version.txt.new"
+          sudo install -m 644 "$VERSION_FILE" "$DOWNLOADS/EverLeafLauncher-version.txt.new"
           sudo install -m 644 "$GENERATED" "$PATCH_ROOT/manifest.json.new"
 
           sudo mv -f "$DOWNLOADS/EverLeafLauncher-portable.zip.new" "$DOWNLOADS/EverLeafLauncher-portable.zip"
