@@ -1,0 +1,102 @@
+name: Inspect EverLeaf Production Runtime
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/inspect-production-runtime.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY" || { echo 'EVERLEAF_SSH_PRIVATE_KEY is not configured.' >&2; exit 1; }
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inspect production runtime
+        shell: bash
+        run: |
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          echo '=== host ==='
+          hostname
+          whoami
+          uname -a
+          echo
+
+          echo '=== disk ==='
+          df -h / /opt 2>/dev/null || df -h /
+          echo
+
+          echo '=== /opt/everleaf layout ==='
+          if [ -d /opt/everleaf ]; then
+            find /opt/everleaf -maxdepth 2 -mindepth 1 -type d -printf '%p\n' 2>/dev/null | sort | head -100
+          else
+            echo '/opt/everleaf not present'
+          fi
+          echo
+
+          echo '=== likely server repositories ==='
+          for d in /opt/everleaf /opt/everleaf/server /opt/everleaf/game /opt/everleaf/enhanced-classic "$HOME/enhanced-classic"; do
+            if [ -d "$d/.git" ]; then
+              echo "repo=$d"
+              git -C "$d" branch --show-current || true
+              git -C "$d" rev-parse HEAD || true
+              git -C "$d" status --short || true
+            fi
+          done
+          echo
+
+          echo '=== docker ==='
+          if command -v docker >/dev/null 2>&1; then
+            docker --version || true
+            docker compose version || true
+            docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' || true
+          else
+            echo 'docker not installed'
+          fi
+          echo
+
+          echo '=== everleaf systemd units ==='
+          systemctl list-units --type=service --all 'everleaf*' --no-pager 2>/dev/null || true
+          echo
+
+          echo '=== game ports ==='
+          if command -v ss >/dev/null 2>&1; then
+            ss -ltnp | awk 'NR==1 || /:(8484|7575|7576|7577|7578|7579|7580|7581|7582)[[:space:]]/' || true
+          else
+            netstat -ltnp 2>/dev/null | grep -E ':(8484|7575|7576|7577|7578|7579|7580|7581|7582)[[:space:]]' || true
+          fi
+          echo
+
+          echo '=== compose files ==='
+          find /opt/everleaf "$HOME" -maxdepth 4 -type f \( -name 'docker-compose.yml' -o -name 'compose.yml' -o -name 'compose.yaml' \) -print 2>/dev/null | head -50 || true
+          echo
+
+          echo 'Production inspection complete. No state was changed.'
+          REMOTE
