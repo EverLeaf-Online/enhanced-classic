@@ -54,6 +54,38 @@ jobs:
           grep -nEi "933990|92fb41|936528|960027|953595|451b6a|451cda|movement|vec|ctrl" analysis/local-user-attacks.txt > analysis/shared-candidates.txt || true
           wc -l analysis/*.txt
 
+      - name: Print focused attack-move candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          exe="source/Localhost.exe"
+          echo '===== ATTACK ENTRY WINDOWS ====='
+          for spec in \
+            'melee 0x950921 0x950a60' \
+            'ranged 0x9537d5 0x953930' \
+            'next_attack 0x95571f 0x955880'; do
+            set -- $spec
+            echo "===== $1 $2 ====="
+            objdump -D -Mintel --start-address="$2" --stop-address="$3" "$exe" || true
+          done
+
+          echo '===== SHARED HELPER WINDOWS ====='
+          for spec in \
+            'helper_92fb41 0x92fac0 0x92fbc0' \
+            'helper_933990 0x933910 0x933a20' \
+            'helper_936528 0x9364a0 0x9365b0' \
+            'helper_953595 0x953510 0x953620' \
+            'helper_960027 0x95ffa0 0x9600b0' \
+            'helper_451b6a 0x451ae0 0x451bf0' \
+            'helper_451cda 0x451c50 0x451d60'; do
+            set -- $spec
+            echo "===== $1 $2 ====="
+            objdump -D -Mintel --start-address="$2" --stop-address="$3" "$exe" || true
+          done
+
+          echo '===== REFERENCES TO SHARED HELPERS FROM LOCAL ATTACK REGION ====='
+          grep -nEi 'call.*(92fb41|933990|936528|953595|960027|451b6a|451cda)' analysis/local-user-attacks.txt || true
+
       - name: Upload attack-move analysis
         uses: actions/upload-artifact@v4
         with:
