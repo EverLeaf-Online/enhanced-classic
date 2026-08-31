@@ -23,11 +23,17 @@ package net.server.channel.handlers;
 
 import client.Character;
 import client.Client;
+import client.inventory.Equip;
 import client.inventory.InventoryType;
+import client.inventory.Item;
 import client.inventory.manipulator.InventoryManipulator;
+import constants.inventory.EquipmentRequirements;
 import net.AbstractPacketHandler;
 import net.packet.InPacket;
+import server.ItemInformationProvider;
 import tools.PacketCreator;
+
+import java.util.Map;
 
 /**
  * @author Matze
@@ -73,6 +79,24 @@ public final class ItemMoveHandler extends AbstractPacketHandler {
             if (src < 0 && action > 0) {
                 InventoryManipulator.unequip(c, src, action);
             } else if (action < 0) {
+                // Equipping must originate from the EQUIP inventory and must respect
+                // the WZ reqJob mask server-side. The stock client normally enforces
+                // this, but packet-edited requests cannot be trusted to do so.
+                if (type != InventoryType.EQUIP) {
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+                Item candidate = chr.getInventory(InventoryType.EQUIP).getItem(src);
+                if (!(candidate instanceof Equip equip)) {
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+                Map<String, Integer> stats = ItemInformationProvider.getInstance().getEquipStats(equip.getItemId());
+                if (stats == null || !EquipmentRequirements.canEquipForJob(chr.getJob(), stats.getOrDefault("reqJob", 0))) {
+                    equip.wear(false);
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
                 InventoryManipulator.equip(c, src, action);
             } else if (action == 0) {
                 InventoryManipulator.drop(c, type, src, quantity);
