@@ -68,6 +68,10 @@ jobs:
           if (-not $window.Contains('_launcherReady')) { throw "Launcher readiness gate is missing" }
           if (-not $window.Contains('PlayButton.IsEnabled = !busy && _launcherReady')) { throw "Play is not fail-closed on launcher readiness" }
           if ($window.Contains("Extract the full client first")) { throw "Legacy full-client prerequisite remains" }
+          $installer = Get-Content "launcher/installer/EverLeafLauncher.iss" -Raw
+          if ($installer.Contains("NextButtonClick")) { throw "Installer still blocks clean installs with a legacy game-file prerequisite" }
+          if ($installer.Contains("MapleStory.exe must already be present")) { throw "Installer still requires a pre-existing MapleStory client" }
+          if (-not $installer.Contains("EverLeaf.exe")) { throw "Installer no longer recognizes an existing EverLeaf game folder" }
           if (-not (Test-Path "launcher-publish/EverLeafLauncher.exe")) { throw "Launcher executable missing" }
 
       - name: Package portable launcher
