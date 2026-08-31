@@ -34,6 +34,7 @@ jobs:
           python3 tools/apply_level_cap_250.py
           python3 tools/apply_pq_points.py
           python3 tools/apply_evan_skill_data.py
+          python3 tools/apply_evan_behavior_fixes.py
       - name: Audit economy and NX drops
         run: python3 tools/audit_economy_balance.py
       - name: Audit Gachapon and reward sources

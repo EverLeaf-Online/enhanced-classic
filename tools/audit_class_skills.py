@@ -3,15 +3,15 @@
 
 This intentionally checks invariants that should remain true regardless of balance:
 - release-supported numeric skill constants exist in Skill.wz;
+- Evan's full ten-stage job chain remains declared exactly as expected;
 - literal scripted job advancements only target jobs declared in client.Job;
 - duplicate job IDs are rejected;
 - SP assignment keeps defensive guards that prevent invalid skill packets from
   turning into null dereferences or invalid SP-book indexing.
 
-Evan and GM constants are review-only here. The v83 Skill.wz currently does not
-ship Evan skill data, and GM helper constants are server/admin conveniences rather
-than normal player progression. They are reported so they cannot be mistaken for
-fully validated player classes.
+Evan is release-supported and therefore fails this audit if any declared Evan
+skill disappears from Skill.wz. GM helper constants remain review-only because
+they are server/admin conveniences rather than normal player progression.
 
 Empress-development content is excluded from scripted advancement scanning.
 """
@@ -32,7 +32,20 @@ JOB_RE = re.compile(r"\b([A-Z][A-Z0-9_]*)\((\d+)\)")
 CONST_RE = re.compile(r"\b(?:public\s+)?static\s+final\s+int\s+[A-Z0-9_]+\s*=\s*(\d+)\s*;")
 WZ_SKILL_RE = re.compile(r'name="(\d{7,8})"')
 CHANGE_JOB_RE = re.compile(r"\b(?:changeJob|changeJobById)\s*\(\s*(\d+)\s*\)")
-REVIEW_ONLY_CONSTANT_FILES = {"Evan.java", "GM.java"}
+REVIEW_ONLY_CONSTANT_FILES = {"GM.java"}
+EVAN_JOB_CHAIN = (
+    ("EVAN", 2001),
+    ("EVAN1", 2200),
+    ("EVAN2", 2210),
+    ("EVAN3", 2211),
+    ("EVAN4", 2212),
+    ("EVAN5", 2213),
+    ("EVAN6", 2214),
+    ("EVAN7", 2215),
+    ("EVAN8", 2216),
+    ("EVAN9", 2217),
+    ("EVAN10", 2218),
+)
 
 
 def read(path: Path) -> str:
@@ -54,6 +67,26 @@ def collect_jobs() -> dict[int, str]:
             print(f"ERROR duplicate Job id {job_id}: {first} / {second}")
         raise SystemExit(1)
     return jobs
+
+
+def audit_evan_job_chain(jobs: dict[int, str]) -> None:
+    missing = []
+    mismatched = []
+    for expected_name, job_id in EVAN_JOB_CHAIN:
+        actual_name = jobs.get(job_id)
+        if actual_name is None:
+            missing.append((expected_name, job_id))
+        elif actual_name != expected_name:
+            mismatched.append((expected_name, job_id, actual_name))
+
+    if missing or mismatched:
+        for expected_name, job_id in missing:
+            print(f"ERROR missing Evan job stage {expected_name} ({job_id})")
+        for expected_name, job_id, actual_name in mismatched:
+            print(
+                f"ERROR Evan job id {job_id} expected {expected_name} but is declared as {actual_name}"
+            )
+        raise SystemExit(1)
 
 
 def collect_wz_skill_ids() -> set[int]:
@@ -154,16 +187,19 @@ def audit_sp_guards() -> None:
 
 def main() -> int:
     jobs = collect_jobs()
+    audit_evan_job_chain(jobs)
     declared_count, wz_count, review_count = audit_skill_constants()
     literal_changes = audit_literal_job_changes(jobs)
     audit_sp_guards()
 
     print("EverLeaf class/skill integrity audit: PASS")
     print(f"  Job enum IDs: {len(jobs)}")
+    print(f"  Evan job stages: {len(EVAN_JOB_CHAIN)}")
     print(f"  Declared skill constants: {declared_count}")
     print(f"  Skill.wz numeric skill nodes indexed: {wz_count}")
-    print(f"  Review-only missing constants (Evan/GM): {review_count}")
+    print(f"  Review-only missing constants (GM): {review_count}")
     print(f"  Literal scripted job advancements checked: {literal_changes}")
+    print("  Evan skill constants: hard release gate")
     print("  SP assignment invalid-skill / invalid-book guards: present")
     return 0
 
