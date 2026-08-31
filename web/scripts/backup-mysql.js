@@ -36,7 +36,10 @@ function completion(child, name) {
     `--host=${values.GAME_DB_HOST}`,
     `--port=${values.GAME_DB_PORT || "3306"}`,
     `--user=${values.GAME_DB_USER}`,
-    "--databases",
+    // Intentionally do not use --databases here. A schema-neutral dump can
+    // be restored safely into a temporary verification database without
+    // embedded CREATE DATABASE / USE directives redirecting the import back
+    // into the live cosmic schema.
     values.GAME_DB_NAME,
   ], {
     env: { ...process.env, MYSQL_PWD: values.GAME_DB_PASSWORD },
