@@ -88,44 +88,10 @@ jobs:
           command -v mysql >/dev/null || { echo 'mysql client is not installed on production.' >&2; exit 1; }
           test -d "$REMOTE_DIR"
 
-          ENV_FILE=/opt/everleaf/current/.env
-          if [ -f "$ENV_FILE" ]; then
-            set -a
-            # shellcheck disable=SC1090
-            . "$ENV_FILE"
-            set +a
-          fi
-
-          if [ -z "${EVERLEAF_DB_HOST:-}" ] || [ -z "${EVERLEAF_DB_USER:-}" ] || [ -z "${EVERLEAF_DB_PASS:-}" ]; then
-            PID="$(systemctl show everleaf.service --property=MainPID --value)"
-            if [ -n "$PID" ] && [ "$PID" != 0 ] && [ -r "/proc/$PID/environ" ]; then
-              while IFS='=' read -r key value; do
-                case "$key" in
-                  EVERLEAF_DB_HOST) EVERLEAF_DB_HOST="$value" ;;
-                  EVERLEAF_DB_USER) EVERLEAF_DB_USER="$value" ;;
-                  EVERLEAF_DB_PASS) EVERLEAF_DB_PASS="$value" ;;
-                esac
-              done < <(tr '\0' '\n' < "/proc/$PID/environ")
-            fi
-          fi
-
-          test -n "${EVERLEAF_DB_HOST:-}" || { echo 'EVERLEAF_DB_HOST is unavailable.' >&2; exit 1; }
-          test -n "${EVERLEAF_DB_USER:-}" || { echo 'EVERLEAF_DB_USER is unavailable.' >&2; exit 1; }
-          test -n "${EVERLEAF_DB_PASS:-}" || { echo 'EVERLEAF_DB_PASS is unavailable.' >&2; exit 1; }
-
-          MYSQL_CNF="$(mktemp)"
-          trap 'rm -f "$MYSQL_CNF"' EXIT
-          chmod 600 "$MYSQL_CNF"
-          cat > "$MYSQL_CNF" <<EOF
-          [client]
-          host=$EVERLEAF_DB_HOST
-          user=$EVERLEAF_DB_USER
-          password=$EVERLEAF_DB_PASS
-          protocol=TCP
-          EOF
-
-          mysql_cmd=(mysql --defaults-extra-file="$MYSQL_CNF" --batch --skip-column-names cosmic)
-          "${mysql_cmd[@]}" -e 'SELECT 1;' >/dev/null
+          # Production runtime credentials intentionally use a least-privilege
+          # account. Schema migrations run through local sudo/mysql socket auth.
+          sudo mysql --batch --skip-column-names cosmic -e 'SELECT 1;' >/dev/null
+          mysql_cmd=(sudo mysql --batch --skip-column-names cosmic)
 
           "${mysql_cmd[@]}" <<'SQL'
           CREATE TABLE IF NOT EXISTS everleaf_schema_migration_log (
@@ -180,6 +146,7 @@ jobs:
           test "$nx250" = 1 || { echo "250 NX global drop balance is not exact (matching rows=$nx250)." >&2; exit 1; }
 
           migration_count="$("${mysql_cmd[@]}" -e 'SELECT COUNT(*) FROM everleaf_schema_migration_log;')"
+          test "$migration_count" -ge 13 || { echo "Expected at least 13 logged EverLeaf migrations, found $migration_count" >&2; exit 1; }
           echo "EverLeaf production migration verification passed: tables=$table_count forge_column=$forge_column boss_scroll_rows=$boss_scroll_rows migration_log_rows=$migration_count"
           REMOTE
 
