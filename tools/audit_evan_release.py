@@ -45,9 +45,6 @@ def audit_skill_data() -> None:
 
 
 def main() -> int:
-    # Fresh-character creation: the client selector value immediately after Aran
-    # is reserved for the Evan backport. Start as Evan beginner in Utah's attic
-    # so the original quest chain is not skipped.
     require(
         "src/main/java/net/server/handlers/login/CreateCharHandler.java",
         "import client.creator.novice.EvanCreator;",
@@ -61,7 +58,6 @@ def main() -> int:
         "new CharacterFactoryRecipe(Job.EVAN, 1, EVAN_START_MAP",
     )
 
-    # Ten-growth job chain and extended-SP infrastructure.
     require(
         "src/main/java/client/Job.java",
         "EVAN(2001)", "EVAN1(2200)", "EVAN2(2210)", "EVAN3(2211)",
@@ -74,11 +70,10 @@ def main() -> int:
     )
     require(
         "src/main/java/client/processor/stat/AssignSPProcessor.java",
-        "GameConstants.getSkillBook(skillid)",
+        "GameConstants.getSkillBook(skillid / 10000)",
         "skillBook < 0 || skillBook >= remainingSps.length",
     )
 
-    # Dragon map object + movement packet wiring.
     require("src/main/java/server/maps/Dragon.java", "class Dragon")
     require("src/main/java/net/server/channel/handlers/MoveDragonHandler.java", "class MoveDragonHandler")
     require("src/main/java/net/PacketProcessor.java", "MoveDragonHandler")
@@ -88,7 +83,6 @@ def main() -> int:
         "makeDragon()",
     )
 
-    # Charged dragon-breath attacks must parse and cancel correctly.
     require(
         "src/main/java/net/server/channel/handlers/AbstractDealDamageHandler.java",
         "Evan.ICE_BREATH",
@@ -100,7 +94,6 @@ def main() -> int:
         "Evan.FIRE_BREATH",
     )
 
-    # The deterministic behavior transform is part of both CI and production.
     require(
         "tools/apply_evan_behavior_fixes.py",
         "Evan Soul Stone death interception",
