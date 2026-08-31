@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Hard structural release gate for EverLeaf's v83 Evan backport.
+
+This does not replace live-client playtesting. It ensures every server-side
+piece required for a fresh Evan to exist and progress remains wired together.
+"""
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def text(path: str) -> str:
+    p = ROOT / path
+    if not p.is_file():
+        raise SystemExit(f"ERROR missing Evan release file: {path}")
+    return p.read_text(encoding="utf-8", errors="replace")
+
+
+def require(path: str, *fragments: str) -> None:
+    data = text(path)
+    for fragment in fragments:
+        if fragment not in data:
+            raise SystemExit(f"ERROR {path} missing Evan invariant: {fragment}")
+
+
+def audit_skill_data() -> None:
+    expected_files = ["2001", "2200", *[str(i) for i in range(2210, 2219)]]
+    ids: set[int] = set()
+    for stem in expected_files:
+        path = ROOT / "wz" / "Skill.wz" / f"{stem}.img.xml"
+        if not path.is_file():
+            raise SystemExit(f"ERROR missing Evan Skill.wz file: {path.relative_to(ROOT)}")
+        ids.update(int(v) for v in re.findall(r'name="(\d{7,8})"', path.read_text(encoding="utf-8", errors="replace")))
+
+    evan_constants = text("src/main/java/constants/skills/Evan.java")
+    declared = {int(v) for v in re.findall(r'=\s*(\d{7,8})\s*;', evan_constants)}
+    missing = sorted(declared - ids)
+    if missing:
+        raise SystemExit(f"ERROR Evan Skill.wz is missing declared skills: {missing}")
+    if len(declared) != 43:
+        raise SystemExit(f"ERROR expected 43 Evan skill constants, found {len(declared)}")
+
+
+def main() -> int:
+    # Fresh-character creation: the client selector value immediately after Aran
+    # is reserved for the Evan backport. Start as Evan beginner in Utah's attic
+    # so the original quest chain is not skipped.
+    require(
+        "src/main/java/net/server/handlers/login/CreateCharHandler.java",
+        "import client.creator.novice.EvanCreator;",
+        "case 3: // Evan",
+        "EvanCreator.createCharacter",
+    )
+    require(
+        "src/main/java/client/creator/novice/EvanCreator.java",
+        "Job.EVAN",
+        "EVAN_START_MAP = 100030100",
+        "new CharacterFactoryRecipe(Job.EVAN, 1, EVAN_START_MAP",
+    )
+
+    # Ten-growth job chain and extended-SP infrastructure.
+    require(
+        "src/main/java/client/Job.java",
+        "EVAN(2001)", "EVAN1(2200)", "EVAN2(2210)", "EVAN3(2211)",
+        "EVAN4(2212)", "EVAN5(2213)", "EVAN6(2214)", "EVAN7(2215)",
+        "EVAN8(2216)", "EVAN9(2217)", "EVAN10(2218)",
+    )
+    require(
+        "src/main/java/constants/game/GameConstants.java",
+        "return job - 2209;",
+    )
+    require(
+        "src/main/java/client/processor/stat/AssignSPProcessor.java",
+        "GameConstants.getSkillBook(skillid)",
+        "skillBook < 0 || skillBook >= remainingSps.length",
+    )
+
+    # Dragon map object + movement packet wiring.
+    require("src/main/java/server/maps/Dragon.java", "class Dragon")
+    require("src/main/java/net/server/channel/handlers/MoveDragonHandler.java", "class MoveDragonHandler")
+    require("src/main/java/net/PacketProcessor.java", "MoveDragonHandler")
+    require(
+        "src/main/java/client/Character.java",
+        "GameConstants.hasSPTable(newJob.getId()) && newJob != Job.EVAN",
+        "makeDragon()",
+    )
+
+    # Charged dragon-breath attacks must parse and cancel correctly.
+    require(
+        "src/main/java/net/server/channel/handlers/AbstractDealDamageHandler.java",
+        "Evan.ICE_BREATH",
+        "Evan.FIRE_BREATH",
+    )
+    require(
+        "src/main/java/net/server/channel/handlers/CancelBuffHandler.java",
+        "Evan.ICE_BREATH",
+        "Evan.FIRE_BREATH",
+    )
+
+    # The deterministic behavior transform is part of both CI and production.
+    require(
+        "tools/apply_evan_behavior_fixes.py",
+        "Evan Soul Stone death interception",
+        "Evan Killer Wings target lock",
+        "Evan Critical Magic damage-validation support",
+    )
+    require(
+        ".github/workflows/run-build.yml",
+        "python3 tools/apply_evan_skill_data.py",
+        "python3 tools/apply_evan_behavior_fixes.py",
+    )
+    require(
+        ".github/workflows/deploy-game-production.yml",
+        "python3 tools/apply_evan_skill_data.py",
+        "python3 tools/apply_evan_behavior_fixes.py",
+    )
+
+    audit_skill_data()
+
+    print("EverLeaf Evan release audit: PASS")
+    print("  fresh Evan creation: selector 3 -> job 2001, level 1, Utah's attic")
+    print("  job growth chain: 2001, 2200, 2210-2218")
+    print("  Evan Skill.wz: 43/43 declared server skills")
+    print("  extended SP, dragon object/movement, charged Breath: wired")
+    print("  Evan behavior transform: CI + production wired")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
