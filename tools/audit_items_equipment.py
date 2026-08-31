@@ -2,9 +2,9 @@
 """Static EverLeaf audit for item/equipment safety and data integrity.
 
 This is intentionally release-facing and conservative. It validates the item-family
-boundaries and scrolling safety guards used by packet handlers, then inventories the
-v83 equipment data shipped in Character.wz and rejects duplicate or mismatched item
-files. Empress-development content is outside this audit.
+boundaries and inventory/scrolling safety guards used by packet handlers, then
+inventories the v83 equipment data shipped in Character.wz and rejects duplicate or
+mismatched item files. Empress-development content is outside this audit.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ITEM_CONSTANTS = ROOT / "src/main/java/constants/inventory/ItemConstants.java"
 SCROLL_HANDLER = ROOT / "src/main/java/net/server/channel/handlers/ScrollHandler.java"
+ITEM_MOVE_HANDLER = ROOT / "src/main/java/net/server/channel/handlers/ItemMoveHandler.java"
 CHARACTER_WZ = ROOT / "wz/Character.wz"
 
 EQUIP_FILE_RE = re.compile(r"^(01\d{6})\.img\.xml$")
@@ -70,6 +71,31 @@ def audit_scroll_packet_guards() -> None:
         raise SystemExit(1)
 
 
+def audit_inventory_move_guards() -> None:
+    text = read(ITEM_MOVE_HANDLER)
+    required = (
+        "type == null",
+        "type == InventoryType.UNDEFINED",
+        "type == InventoryType.CANHOLD",
+        "type == InventoryType.EQUIPPED",
+        "if (action == 0 && quantity <= 0)",
+        "c.sendPacket(PacketCreator.enableActions());",
+    )
+    for fragment in required:
+        require_fragment(text, fragment, "ItemMoveHandler")
+
+    type_guard = text.index("if (type == null")
+    first_manipulator = min(
+        text.index("InventoryManipulator.unequip"),
+        text.index("InventoryManipulator.equip"),
+        text.index("InventoryManipulator.drop"),
+        text.index("InventoryManipulator.move"),
+    )
+    if type_guard > first_manipulator:
+        print("ERROR ItemMoveHandler inventory-type validation occurs after mutation")
+        raise SystemExit(1)
+
+
 def audit_equipment_wz() -> tuple[int, int]:
     if not CHARACTER_WZ.is_dir():
         print("ERROR Character.wz equipment data directory is missing")
@@ -121,12 +147,14 @@ def audit_equipment_wz() -> tuple[int, int]:
 def main() -> int:
     audit_item_family_guards()
     audit_scroll_packet_guards()
+    audit_inventory_move_guards()
     equipment_count, category_count = audit_equipment_wz()
 
     print("EverLeaf items/equipment integrity audit: PASS")
     print("  town-scroll family: bounded to 203xxxx")
     print("  scroll target/item/White Scroll validation: present")
     print("  scroll/equipment compatibility gate: present")
+    print("  inventory type/drop quantity packet guards: present")
     print(f"  Character.wz equipment files indexed: {equipment_count}")
     print(f"  Character.wz equipment categories indexed: {category_count}")
     print("  duplicate/mismatched equipment WZ IDs: none")
