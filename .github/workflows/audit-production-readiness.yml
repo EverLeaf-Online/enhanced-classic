@@ -58,7 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "AUDIT_RUN_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE'
+            "AUDIT_RUN_ID='$GITHUB_RUN_ID' TLS_HOST='$EVERLEAF_TLS_HOST' bash -s" <<'REMOTE'
             set -euo pipefail
             case "$AUDIT_RUN_ID" in (*[!0-9]*|'') exit 2;; esac
 
@@ -113,10 +113,17 @@ jobs:
             echo "memory_available_kb=$avail_kb"
 
             echo '### TLS'
-            certificate_path="$(sudo find /etc/letsencrypt/live -name fullchain.pem -print -quit)"
+            certificate_path=''
+            while IFS= read -r candidate; do
+              check="$(sudo openssl x509 -checkhost "$TLS_HOST" -noout -in "$candidate" 2>/dev/null || true)"
+              if printf '%s\n' "$check" | grep -q 'does match certificate'; then
+                certificate_path="$candidate"
+                break
+              fi
+            done < <(sudo find /etc/letsencrypt/live -name fullchain.pem -print)
             test -n "$certificate_path"
             sudo openssl x509 -checkend 604800 -noout -in "$certificate_path"
-            sudo openssl x509 -checkhost everleafms.online -noout -in "$certificate_path"
+            echo "tls_certificate=$certificate_path"
             echo 'tls_certificate_next_7_days=ready'
 
             echo '### Backup integrity'
@@ -171,17 +178,25 @@ jobs:
             restore_db="everleaf_restore_${AUDIT_RUN_ID}"
             cleanup_restore() { sudo mysql -e "DROP DATABASE IF EXISTS \`$restore_db\`;" >/dev/null 2>&1 || true; }
             trap cleanup_restore EXIT
-            sudo mysql -e "CREATE DATABASE \`$restore_db\`;"
+            sudo mysql -e "DROP DATABASE IF EXISTS \`$restore_db\`; CREATE DATABASE \`$restore_db\`;"
             sudo sh -c "gzip -dc '$latest_backup/game-mysql.sql.gz' | mysql '$restore_db'"
-            core_tables="$(sudo mysql --batch --skip-column-names "$restore_db" -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$restore_db' AND TABLE_NAME IN ('accounts','characters','inventoryitems','inventoryequipment','skills','queststatus','storages')")"
+            live_tables="$(sudo mysql --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='cosmic'")"
+            restored_tables="$(sudo mysql --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$restore_db'")"
+            echo "live_table_count=$live_tables"
+            echo "restore_table_count=$restored_tables"
+            missing_tables="$(sudo mysql --batch --skip-column-names -e "SELECT l.TABLE_NAME FROM information_schema.TABLES l LEFT JOIN information_schema.TABLES r ON r.TABLE_SCHEMA='$restore_db' AND r.TABLE_NAME=l.TABLE_NAME WHERE l.TABLE_SCHEMA='cosmic' AND r.TABLE_NAME IS NULL ORDER BY l.TABLE_NAME")"
+            if [ -n "$missing_tables" ]; then
+              echo 'Restore is missing live tables:' >&2
+              printf '%s\n' "$missing_tables" >&2
+              exit 1
+            fi
+            test "$restored_tables" = "$live_tables"
+            core_tables="$(sudo mysql --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$restore_db' AND TABLE_NAME IN ('accounts','characters','inventoryitems','inventoryequipment','skills','queststatus','storages')")"
+            echo "restore_core_table_count=$core_tables"
             test "$core_tables" = '7'
             sudo mysqlcheck --check --silent "$restore_db"
-            live_tables="$(sudo mysql --batch --skip-column-names cosmic -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='cosmic'")"
-            restored_tables="$(sudo mysql --batch --skip-column-names "$restore_db" -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$restore_db'")"
-            test "$restored_tables" = "$live_tables"
             cleanup_restore
             trap - EXIT
-            echo "restore_table_count=$restored_tables"
             echo 'full_restore_drill=ready'
           REMOTE
 
