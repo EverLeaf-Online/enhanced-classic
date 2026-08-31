@@ -80,6 +80,13 @@ jobs:
           done
           echo
 
+          echo '=== production git diff summary ==='
+          if [ -d /opt/everleaf/server/.git ]; then
+            git -C /opt/everleaf/server diff --stat || true
+            git -C /opt/everleaf/server diff --name-status || true
+          fi
+          echo
+
           echo '=== docker ==='
           if command -v docker >/dev/null 2>&1; then
             docker --version || true
@@ -92,6 +99,42 @@ jobs:
 
           echo '=== everleaf systemd units ==='
           systemctl list-units --type=service --all 'everleaf*' --no-pager 2>/dev/null || true
+          echo
+
+          echo '=== everleaf service execution ==='
+          systemctl show everleaf.service \
+            --property=FragmentPath \
+            --property=WorkingDirectory \
+            --property=ExecStart \
+            --property=MainPID \
+            --no-pager 2>/dev/null || true
+          EVERLEAF_PID="$(systemctl show everleaf.service --property=MainPID --value 2>/dev/null || true)"
+          if [ -n "$EVERLEAF_PID" ] && [ "$EVERLEAF_PID" != '0' ] && [ -d "/proc/$EVERLEAF_PID" ]; then
+            printf 'process cwd: '
+            readlink -f "/proc/$EVERLEAF_PID/cwd" || true
+            printf 'process exe: '
+            readlink -f "/proc/$EVERLEAF_PID/exe" || true
+          fi
+          echo
+
+          echo '=== release pointers ==='
+          for p in /opt/everleaf/current /opt/everleaf/live /opt/everleaf/server-current /opt/everleaf/server; do
+            if [ -e "$p" ] || [ -L "$p" ]; then
+              ls -ld "$p" || true
+              printf '%s -> ' "$p"
+              readlink -f "$p" || true
+            fi
+          done
+          echo
+
+          echo '=== mysql runtime ==='
+          printf 'mysql.service: '
+          systemctl is-active mysql 2>/dev/null || true
+          printf 'mariadb.service: '
+          systemctl is-active mariadb 2>/dev/null || true
+          if command -v ss >/dev/null 2>&1; then
+            ss -ltnp | awk 'NR==1 || /:(3306|3307|13307)[[:space:]]/' || true
+          fi
           echo
 
           echo '=== game ports ==='
