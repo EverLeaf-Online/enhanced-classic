@@ -34,14 +34,24 @@ jobs:
           exe="source/Localhost.exe"
           sha256sum "$exe" > analysis/source-sha256.txt
           objdump -x "$exe" > analysis/pe-headers.txt
-          # Confirmed v83 entry points from community/Cosmic reverse-engineering.
+
+          # Confirmed v83 attack entry points and the surrounding local-user code.
           objdump -D -Mintel --start-address=0x950800 --stop-address=0x953780 "$exe" > analysis/melee-region.txt || true
-          objdump -D -Mintel --start-address=0x953700 --stop-address=0x957000 "$exe" > analysis/ranged-region.txt || true
-          # Wider local-user region for locating magic attack and shared movement/vector-control calls.
+          objdump -D -Mintel --start-address=0x953700 --stop-address=0x955720 "$exe" > analysis/ranged-region.txt || true
+          objdump -D -Mintel --start-address=0x955700 --stop-address=0x957200 "$exe" > analysis/magic-and-following-region.txt || true
           objdump -D -Mintel --start-address=0x950000 --stop-address=0x960000 "$exe" > analysis/local-user-attacks.txt || true
+
+          # Shared CUserLocal helpers invoked by the attack paths. These are the
+          # highest-value candidates for action/movement state transitions.
+          objdump -D -Mintel --start-address=0x92e000 --stop-address=0x937000 "$exe" > analysis/user-helpers-92e-937.txt || true
+          objdump -D -Mintel --start-address=0x95f000 --stop-address=0x961400 "$exe" > analysis/user-helpers-95f-961.txt || true
+          objdump -D -Mintel --start-address=0x450f00 --stop-address=0x452200 "$exe" > analysis/helper-45xx.txt || true
+          objdump -D -Mintel --start-address=0x472f00 --stop-address=0x474500 "$exe" > analysis/helper-47xx.txt || true
+
           grep -nEi "call|jmp|mov|push|test|cmp" analysis/melee-region.txt > analysis/melee-control-flow.txt || true
           grep -nEi "call|jmp|mov|push|test|cmp" analysis/ranged-region.txt > analysis/ranged-control-flow.txt || true
-          grep -nEi "95(09|37)|vec|move|ctrl|packet" analysis/local-user-attacks.txt > analysis/candidates.txt || true
+          grep -nEi "call|jmp|mov|push|test|cmp" analysis/magic-and-following-region.txt > analysis/magic-control-flow.txt || true
+          grep -nEi "933990|92fb41|936528|960027|953595|451b6a|451cda|movement|vec|ctrl" analysis/local-user-attacks.txt > analysis/shared-candidates.txt || true
           wc -l analysis/*.txt
 
       - name: Upload attack-move analysis
