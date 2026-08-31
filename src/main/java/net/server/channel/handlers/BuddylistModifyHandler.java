@@ -66,7 +66,7 @@ public class BuddylistModifyHandler extends AbstractPacketHandler {
         CharacterIdNameBuddyCapacity ret = null;
 
         try (Connection con = DatabaseConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT id, name, buddyCapacity FROM characters WHERE name LIKE ?")) {
+             PreparedStatement ps = con.prepareStatement("SELECT id, name, buddyCapacity FROM characters WHERE name = ?")) {
             ps.setString(1, name);
 
             try (ResultSet rs = ps.executeQuery()) {
@@ -89,6 +89,10 @@ public class BuddylistModifyHandler extends AbstractPacketHandler {
             String group = p.readString();
             if (group.length() > 16 || addName.length() < 4 || addName.length() > 13) {
                 return; //hax.
+            }
+            if (addName.equalsIgnoreCase(player.getName())) {
+                c.sendPacket(PacketCreator.serverNotice(1, "You cannot add yourself to your Buddylist"));
+                return;
             }
             BuddylistEntry ble = buddylist.get(addName);
             if (ble != null && !ble.isVisible() && group.equals(ble.getGroup())) {

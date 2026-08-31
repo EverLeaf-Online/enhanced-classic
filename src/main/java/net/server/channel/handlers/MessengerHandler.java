@@ -23,6 +23,7 @@ package net.server.channel.handlers;
 
 import client.Character;
 import client.Client;
+import client.autoban.AutobanFactory;
 import net.AbstractPacketHandler;
 import net.packet.InPacket;
 import net.server.coordinator.world.InviteCoordinator;
@@ -32,9 +33,14 @@ import net.server.coordinator.world.InviteCoordinator.InviteType;
 import net.server.world.Messenger;
 import net.server.world.MessengerCharacter;
 import net.server.world.World;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import server.ChatLogger;
 import tools.PacketCreator;
 
 public final class MessengerHandler extends AbstractPacketHandler {
+    private static final Logger log = LoggerFactory.getLogger(MessengerHandler.class);
+
     @Override
     public final void handlePacket(InPacket p, Client c) {
         if (c.tryacquireClient()) {
@@ -85,6 +91,10 @@ public final class MessengerHandler extends AbstractPacketHandler {
                             c.sendPacket(PacketCreator.messengerChat(player.getName() + " : This Maple Messenger is currently unavailable. Please quit this chat."));
                         } else if (messenger.getMembers().size() < 3) {
                             input = p.readString();
+                            if (input.equalsIgnoreCase(player.getName())) {
+                                c.sendPacket(PacketCreator.messengerChat(player.getName() + " : You cannot invite yourself to Maple Messenger"));
+                                break;
+                            }
                             Character target = c.getChannelServer().getPlayerStorage().getCharacterByName(input);
                             if (target != null) {
                                 if (target.getMessenger() == null) {
@@ -114,9 +124,20 @@ public final class MessengerHandler extends AbstractPacketHandler {
                         break;
                     case 0x06:
                         if (messenger != null) {
+                            if (player.getAutobanManager().getLastSpam(7) + 200 > currentServerTime()) {
+                                break;
+                            }
                             MessengerCharacter messengerplayer = new MessengerCharacter(player, player.getMessengerPosition());
                             input = p.readString();
+                            if (input.length() > Byte.MAX_VALUE && !player.isGM()) {
+                                AutobanFactory.PACKET_EDIT.alert(player, player.getName() + " tried to packet edit Maple Messenger chat.");
+                                log.warn("Chr {} tried to send messenger text with length of {}", player.getName(), input.length());
+                                c.disconnect(true, false);
+                                return;
+                            }
+                            player.getAutobanManager().spam(7);
                             world.messengerChat(messenger, input, messengerplayer.getName());
+                            ChatLogger.log(c, "Messenger", input);
                         }
                         break;
                 }

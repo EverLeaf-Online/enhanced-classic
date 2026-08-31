@@ -35,6 +35,7 @@ import tools.PacketCreator;
 
 public final class MultiChatHandler extends AbstractPacketHandler {
     private static final Logger log = LoggerFactory.getLogger(MultiChatHandler.class);
+    private static final int MAX_MULTI_CHAT_RECIPIENTS = 100;
 
     @Override
     public void handlePacket(InPacket p, Client c) {
@@ -43,21 +44,32 @@ public final class MultiChatHandler extends AbstractPacketHandler {
             return;
         }
 
-        int type = p.readByte(); // 0 for buddys, 1 for partys
-        int numRecipients = p.readByte();
+        int type = p.readByte(); // 0 for buddies, 1 for parties, 2 for guilds, 3 for alliances
+        int numRecipients = p.readByte() & 0xFF;
+        if (numRecipients > MAX_MULTI_CHAT_RECIPIENTS || (type == 0 && numRecipients > player.getBuddylist().getCapacity())) {
+            AutobanFactory.PACKET_EDIT.alert(player, player.getName() + " sent an invalid multi-chat recipient count: " + numRecipients);
+            return;
+        }
+
         int[] recipients = new int[numRecipients];
         for (int i = 0; i < numRecipients; i++) {
             recipients[i] = p.readInt();
         }
         String chattext = p.readString();
         if (chattext.length() > Byte.MAX_VALUE && !player.isGM()) {
-            AutobanFactory.PACKET_EDIT.alert(c.getPlayer(), c.getPlayer().getName() + " tried to packet edit chats.");
-            log.warn("Chr {} tried to send text with length of {}", c.getPlayer().getName(), chattext.length());
+            AutobanFactory.PACKET_EDIT.alert(player, player.getName() + " tried to packet edit chats.");
+            log.warn("Chr {} tried to send text with length of {}", player.getName(), chattext.length());
             c.disconnect(true, false);
             return;
         }
         World world = c.getWorldServer();
         if (type == 0) {
+            for (int recipient : recipients) {
+                if (!player.getBuddylist().containsVisible(recipient)) {
+                    AutobanFactory.PACKET_EDIT.alert(player, player.getName() + " tried to buddy-chat a non-buddy character id " + recipient);
+                    return;
+                }
+            }
             world.buddyChat(recipients, player.getId(), player.getName(), chattext);
             ChatLogger.log(c, "Buddy", chattext);
         } else if (type == 1 && player.getParty() != null) {
@@ -72,6 +84,9 @@ public final class MultiChatHandler extends AbstractPacketHandler {
                 Server.getInstance().allianceMessage(allianceId, PacketCreator.multiChat(player.getName(), chattext, 3), player.getId(), -1);
                 ChatLogger.log(c, "Ally", chattext);
             }
+        } else if (type < 0 || type > 3) {
+            AutobanFactory.PACKET_EDIT.alert(player, player.getName() + " sent invalid multi-chat type " + type);
+            return;
         }
         player.getAutobanManager().spam(7);
     }
