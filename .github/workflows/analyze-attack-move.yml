@@ -35,14 +35,11 @@ jobs:
           sha256sum "$exe" > analysis/source-sha256.txt
           objdump -x "$exe" > analysis/pe-headers.txt
 
-          # Confirmed v83 attack entry points and the surrounding local-user code.
           objdump -D -Mintel --start-address=0x950800 --stop-address=0x953780 "$exe" > analysis/melee-region.txt || true
           objdump -D -Mintel --start-address=0x953700 --stop-address=0x955720 "$exe" > analysis/ranged-region.txt || true
           objdump -D -Mintel --start-address=0x955700 --stop-address=0x957200 "$exe" > analysis/magic-and-following-region.txt || true
           objdump -D -Mintel --start-address=0x950000 --stop-address=0x960000 "$exe" > analysis/local-user-attacks.txt || true
 
-          # Shared CUserLocal helpers invoked by the attack paths. These are the
-          # highest-value candidates for action/movement state transitions.
           objdump -D -Mintel --start-address=0x92e000 --stop-address=0x937000 "$exe" > analysis/user-helpers-92e-937.txt || true
           objdump -D -Mintel --start-address=0x95f000 --stop-address=0x961400 "$exe" > analysis/user-helpers-95f-961.txt || true
           objdump -D -Mintel --start-address=0x450f00 --stop-address=0x452200 "$exe" > analysis/helper-45xx.txt || true
@@ -54,37 +51,62 @@ jobs:
           grep -nEi "933990|92fb41|936528|960027|953595|451b6a|451cda|movement|vec|ctrl" analysis/local-user-attacks.txt > analysis/shared-candidates.txt || true
           wc -l analysis/*.txt
 
-      - name: Print focused attack-move candidates
+      - name: Correlate attack helper calls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path('analysis/local-user-attacks.txt').read_text(errors='replace').splitlines()
+          ins = []
+          rx = re.compile(r'^\s*([0-9a-fA-F]+):.*\bcall\s+0x([0-9a-fA-F]+)')
+          for line in text:
+              m = rx.search(line)
+              if m:
+                  ins.append((int(m.group(1),16), int(m.group(2),16), line.strip()))
+          ranges = {
+              'melee': (0x950921, 0x9513b0),
+              'ranged': (0x9537d5, 0x954237),
+              'magic_candidate': (0x95571f, 0x955af0),
+          }
+          sets = {}
+          for name,(lo,hi) in ranges.items():
+              calls=[(a,t,l) for a,t,l in ins if lo <= a < hi]
+              sets[name]={t for _,t,_ in calls}
+              print(f'===== {name} direct calls ({len(calls)}) =====')
+              for a,t,l in calls:
+                  print(f'{a:08x} -> {t:08x}  {l}')
+          common = set.intersection(*sets.values())
+          print('===== COMMON DIRECT TARGETS: melee+ranged+magic_candidate =====')
+          for t in sorted(common):
+              print(f'0x{t:08x}')
+          print('===== COMMON DIRECT TARGETS: melee+ranged =====')
+          for t in sorted(sets['melee'] & sets['ranged']):
+              print(f'0x{t:08x}')
+          Path('analysis/common-direct-targets.txt').write_text(
+              '\n'.join(f'0x{t:08x}' for t in sorted(common)) + '\n'
+          )
+          PY
+
+      - name: Print focused candidate helpers
         shell: bash
         run: |
           set -euo pipefail
           exe="source/Localhost.exe"
-          echo '===== ATTACK ENTRY WINDOWS ====='
+          echo '===== KNOWN SHARED/STATE HELPER WINDOWS ====='
           for spec in \
-            'melee 0x950921 0x950a60' \
-            'ranged 0x9537d5 0x953930' \
-            'next_attack 0x95571f 0x955880'; do
+            'helper_92fb41 0x92fac0 0x92fd20' \
+            'helper_933990 0x933990 0x933c40' \
+            'helper_936528 0x936528 0x936790' \
+            'helper_953595 0x953595 0x9535b0' \
+            'helper_960027 0x960027 0x96004b' \
+            'helper_451b6a 0x451b6a 0x451cda' \
+            'helper_451cda 0x451cda 0x451cf6'; do
             set -- $spec
             echo "===== $1 $2 ====="
             objdump -D -Mintel --start-address="$2" --stop-address="$3" "$exe" || true
           done
-
-          echo '===== SHARED HELPER WINDOWS ====='
-          for spec in \
-            'helper_92fb41 0x92fac0 0x92fbc0' \
-            'helper_933990 0x933910 0x933a20' \
-            'helper_936528 0x9364a0 0x9365b0' \
-            'helper_953595 0x953510 0x953620' \
-            'helper_960027 0x95ffa0 0x9600b0' \
-            'helper_451b6a 0x451ae0 0x451bf0' \
-            'helper_451cda 0x451c50 0x451d60'; do
-            set -- $spec
-            echo "===== $1 $2 ====="
-            objdump -D -Mintel --start-address="$2" --stop-address="$3" "$exe" || true
-          done
-
-          echo '===== REFERENCES TO SHARED HELPERS FROM LOCAL ATTACK REGION ====='
-          grep -nEi 'call.*(92fb41|933990|936528|953595|960027|451b6a|451cda)' analysis/local-user-attacks.txt || true
 
       - name: Upload attack-move analysis
         uses: actions/upload-artifact@v4
