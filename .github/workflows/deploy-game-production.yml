@@ -1,4 +1,4 @@
-# Manual production deployment trigger: 2026-08-31T11:03Z
+# Manual production deployment trigger: 2026-08-31T11:11Z
 name: Deploy EverLeaf Game Production
 
 on:
@@ -46,10 +46,10 @@ jobs:
           python3 tools/apply_pq_points.py
 
       - name: Configure SSH
-        shell: bash
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        shell: bash
         run: |
           set -euo pipefail
           test -n "$SSH_PRIVATE_KEY" || { echo 'EVERLEAF_SSH_PRIVATE_KEY is not configured.' >&2; exit 1; }
@@ -111,9 +111,8 @@ jobs:
             cp -p /opt/everleaf/current/.env "$RELEASE_DIR/.env"
           fi
           cd "$RELEASE_DIR"
-          # Reapply the deterministic EverLeaf config after preserving the
-          # production file so operational settings such as the 20-channel
-          # count cannot be reverted by an older deployed config.
+          # Reapply deterministic EverLeaf config after preserving the production
+          # file so the primary world is always forced to 20 channels.
           python3 tools/apply_everleaf_config.py
           chmod +x mvnw || true
           ./mvnw -B -DskipTests clean package
@@ -220,5 +219,4 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "printf '%s %s\n' '$RELEASE_SHA' \"\$(date -u +%Y-%m-%dT%H:%M:%SZ)\" > /opt/everleaf/LAST_DEPLOYED_RELEASE"
-          echo "EverLeaf game production deployed: $RELEASE_SHA"
+            "printf '%s %s\n' '$RELEASE_SHA' '$(date -u +%FT%TZ)' > /opt/everleaf/.deployed-release"
