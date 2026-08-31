@@ -131,16 +131,29 @@ router.post("/settings",requireAdmin,(req,res)=>{
   res.redirect("/admin");
 });
 
+router.get("/announcements",requireAdmin,(req,res)=>{
+  const announcements=db.prepare("SELECT * FROM announcements ORDER BY created_at DESC").all();
+  res.render("admin-announcements",{announcements,settings:settings()});
+});
 router.post("/announcements",requireAdmin,(req,res)=>{
-  db.prepare("INSERT INTO announcements(title,body,active) VALUES(?,?,?)").run(String(req.body.title||""),String(req.body.body||""),req.body.active?1:0);
-  logAdmin(req,"announcement.create",String(req.body.title||""));
-  res.redirect("/admin");
+  const title=String(req.body.title||"").trim();
+  if(!title) return res.status(400).send("Announcement title is required.");
+  db.prepare("INSERT INTO announcements(title,body,active) VALUES(?,?,?)").run(title,String(req.body.body||""),req.body.active?1:0);
+  logAdmin(req,"announcement.create",title);
+  res.redirect(req.get("referer")?.includes("/admin/announcements")?"/admin/announcements":"/admin#announcements");
+});
+router.post("/announcements/:id/toggle",requireAdmin,(req,res)=>{
+  const item=db.prepare("SELECT id,title,active FROM announcements WHERE id=?").get(Number(req.params.id));
+  if(!item) return res.redirect("/admin/announcements");
+  db.prepare("UPDATE announcements SET active=? WHERE id=?").run(item.active?0:1,item.id);
+  logAdmin(req,"announcement.toggle",`${item.title}:${item.active?"inactive":"active"}`);
+  res.redirect("/admin/announcements");
 });
 router.post("/announcements/:id/delete",requireAdmin,(req,res)=>{
   const item=db.prepare("SELECT title FROM announcements WHERE id=?").get(Number(req.params.id));
   db.prepare("DELETE FROM announcements WHERE id=?").run(Number(req.params.id));
   logAdmin(req,"announcement.delete",item?.title||req.params.id);
-  res.redirect("/admin");
+  res.redirect(req.get("referer")?.includes("/admin/announcements")?"/admin/announcements":"/admin#announcements");
 });
 
 router.get("/pages",requireAdmin,(req,res)=>{
