@@ -27,14 +27,6 @@ namespace {
         // actual status effects are still enforced by the normal client/server
         // state machinery.
         Memory::WriteByte(0x00452316, 0x7C);
-
-        // Attack / skill use while moving. These are the v83 movement-state
-        // branches that normally force the player to stop before eligible skill
-        // actions. Do not touch skill-specific charge/channel restrictions.
-        Memory::WriteByte(0x0095F97A, 0xEB);
-        Memory::WriteByte(0x0095F97A + 1, 0x59);
-        Memory::WriteByte(0x009CBFB0, 0xEB);
-        Memory::FillBytes(0x0094C3BB, 0x90, 6);
     }
 }
 
