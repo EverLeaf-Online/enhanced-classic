@@ -47,16 +47,26 @@ public final class UseSummonBagHandler extends AbstractPacketHandler {
         p.readInt();
         short slot = p.readShort();
         int itemId = p.readInt();
-        Item toUse = c.getPlayer().getInventory(InventoryType.USE).getItem(slot);
-        if (toUse != null && toUse.getQuantity() > 0 && toUse.getItemId() == itemId) {
-            InventoryManipulator.removeFromSlot(c, InventoryType.USE, slot, (short) 1, false);
-            int[][] toSpawn = ItemInformationProvider.getInstance().getSummonMobs(itemId);
-            for (int[] toSpawnChild : toSpawn) {
-                if (Randomizer.nextInt(100) < toSpawnChild[1]) {
-                    c.getPlayer().getMap().spawnMonsterOnGroundBelow(LifeFactory.getMonster(toSpawnChild[0]), c.getPlayer().getPosition());
+
+        if (!c.tryacquireClient()) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
+        try {
+            Item toUse = c.getPlayer().getInventory(InventoryType.USE).getItem(slot);
+            if (toUse != null && toUse.getQuantity() > 0 && toUse.getItemId() == itemId) {
+                InventoryManipulator.removeFromSlot(c, InventoryType.USE, slot, (short) 1, false);
+                int[][] toSpawn = ItemInformationProvider.getInstance().getSummonMobs(itemId);
+                for (int[] toSpawnChild : toSpawn) {
+                    if (Randomizer.nextInt(100) < toSpawnChild[1]) {
+                        c.getPlayer().getMap().spawnMonsterOnGroundBelow(LifeFactory.getMonster(toSpawnChild[0]), c.getPlayer().getPosition());
+                    }
                 }
             }
+            c.sendPacket(PacketCreator.enableActions());
+        } finally {
+            c.releaseClient();
         }
-        c.sendPacket(PacketCreator.enableActions());
     }
 }
