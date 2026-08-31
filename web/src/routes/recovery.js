@@ -8,6 +8,7 @@ const recoverySchema=z.object({
   email:z.string().trim().max(254).optional().default("")
 }).refine(value=>value.username.length>=3||z.string().email().safeParse(value.email).success,{message:"Enter your username or account email."});
 
+router.use("/recover",(req,res,next)=>{res.set("X-Robots-Tag","noindex, nofollow");next();});
 router.get("/recover",(req,res)=>res.render("recover",{error:"",submitted:false,settings:settings()}));
 router.post("/recover",(req,res)=>{
   const parsed=recoverySchema.safeParse(req.body);
