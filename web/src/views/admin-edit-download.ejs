@@ -1,18 +1,1 @@
-<%- include("partials/header",{title:"Edit Download"}) %>
-<main class="lightPage">
-  <div class="lightTitle"><div class="wrap"><h1>Edit Download</h1><p>Update launcher, client, patch, or tool download metadata.</p></div></div>
-  <div class="wrap" style="max-width:900px">
-    <div class="paperCard">
-      <form method="post" action="/admin/downloads/<%=item.id%>/edit">
-        <label>Name</label><input name="name" value="<%=item.name%>" required>
-        <label>Description</label><textarea name="description"><%=item.description%></textarea>
-        <label>Download URL</label><input name="url" value="<%=item.url%>" required>
-        <label>Kind</label><select name="kind"><% ['launcher','client','patch','tool'].forEach(kind=>{ %><option value="<%=kind%>" <%=item.kind===kind?'selected':''%>><%=kind%></option><% }) %></select>
-        <label>Version</label><input name="version" value="<%=item.version%>">
-        <label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="published" value="1" <%=item.published?'checked':''%>> Published</label>
-        <div style="display:flex;gap:10px"><button class="btn primary">Save Download</button><a class="btn" href="/admin/downloads">Cancel</a></div>
-      </form>
-    </div>
-  </div>
-</main>
-<%- include("partials/footer") %>
+<%- include("partials/header",{title:"Edit Download"}) %><main class="lightPage"><section class="lightTitle"><div class="wrap"><div class="pageEyebrow">CMS Editor</div><h1>Edit Download</h1><p><%=item.name%></p></div></section><%- include("partials/admin-manager-nav") %><div class="cmsWorkspaceSingle"><section class="cmsPanel" style="max-width:900px;margin:auto"><div class="cmsManagerTitle"><h2>Download Metadata</h2><p>Update player-facing download information and publication state.</p></div><form method="post" action="/admin/downloads/<%=item.id%>/edit"><label>Name</label><input name="name" value="<%=item.name%>" required><label>Description</label><textarea name="description"><%=item.description%></textarea><label>Download URL</label><input name="url" value="<%=item.url%>" required><label>Kind</label><select name="kind"><% ['launcher','client','patch','tool'].forEach(kind=>{ %><option value="<%=kind%>" <%=item.kind===kind?'selected':''%>><%=kind%></option><% }) %></select><label>Version</label><input name="version" value="<%=item.version%>"><label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="published" value="1" <%=item.published?'checked':''%>> Published</label><div class="editActions"><a class="btn" href="/admin/downloads">Cancel</a><button class="btn primary">Save Download</button></div></form></section></div></main><%- include("partials/footer") %>
