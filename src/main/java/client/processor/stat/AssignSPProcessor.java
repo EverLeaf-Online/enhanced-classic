@@ -47,6 +47,14 @@ public class AssignSPProcessor {
         }
 
         Character player = c.getPlayer();
+        Skill skill = SkillFactory.getSkill(skillid);
+        if (skill == null) {
+            AutobanFactory.PACKET_EDIT.alert(player, "tried to assign SP to an unknown skill.");
+            log.warn("Chr {} tried to assign SP to unknown skill {}.", player.getName(), skillid);
+            c.sendPacket(PacketCreator.enableActions());
+            return false;
+        }
+
         if ((!GameConstants.isPqSkillMap(player.getMapId()) && GameConstants.isPqSkill(skillid)) || (!player.isGM() && GameConstants.isGMSkills(skillid)) || (!GameConstants.isInJobTree(skillid, player.getJob().getId()) && !player.isGM())) {
             AutobanFactory.PACKET_EDIT.alert(player, "tried to packet edit in distributing sp.");
             log.warn("Chr {} tried to use skill {} without it being in their job.", c.getPlayer().getName(), skillid);
@@ -66,36 +74,68 @@ public class AssignSPProcessor {
             }
 
             Character player = c.getPlayer();
-            int remainingSp = player.getRemainingSps()[GameConstants.getSkillBook(skillid / 10000)];
+            Skill skill = SkillFactory.getSkill(skillid);
+            if (skill == null) {
+                c.sendPacket(PacketCreator.enableActions());
+                return;
+            }
+
+            int skillBook = GameConstants.getSkillBook(skillid / 10000);
+            int[] remainingSps = player.getRemainingSps();
+            if (skillBook < 0 || skillBook >= remainingSps.length) {
+                AutobanFactory.PACKET_EDIT.alert(player, "tried to assign SP with an invalid skill-book index.");
+                log.warn("Chr {} produced invalid skill-book index {} for skill {}.", player.getName(), skillBook, skillid);
+                c.sendPacket(PacketCreator.enableActions());
+                return;
+            }
+
+            int remainingSp = remainingSps[skillBook];
             boolean isBeginnerSkill = false;
 
             if (skillid % 10000000 > 999 && skillid % 10000000 < 1003) {
                 int total = 0;
                 for (int i = 0; i < 3; i++) {
-                    total += player.getSkillLevel(SkillFactory.getSkill(player.getJobType() * 10000000 + 1000 + i));
+                    Skill beginnerSkill = SkillFactory.getSkill(player.getJobType() * 10000000 + 1000 + i);
+                    if (beginnerSkill != null) {
+                        total += player.getSkillLevel(beginnerSkill);
+                    }
                 }
                 remainingSp = Math.min((player.getLevel() - 1), 6) - total;
                 isBeginnerSkill = true;
             }
-            Skill skill = SkillFactory.getSkill(skillid);
+
             int curLevel = player.getSkillLevel(skill);
             if ((remainingSp > 0 && curLevel + 1 <= (skill.isFourthJob() ? player.getMasterLevel(skill) : skill.getMaxLevel()))) {
                 if (!isBeginnerSkill) {
-                    player.gainSp(-1, GameConstants.getSkillBook(skillid / 10000), false);
+                    player.gainSp(-1, skillBook, false);
                 } else {
                     player.sendPacket(PacketCreator.enableActions());
                 }
                 if (skill.getId() == Aran.FULL_SWING) {
                     player.changeSkillLevel(skill, (byte) (curLevel + 1), player.getMasterLevel(skill), player.getSkillExpiration(skill));
-                    player.changeSkillLevel(SkillFactory.getSkill(Aran.HIDDEN_FULL_DOUBLE), player.getSkillLevel(skill), player.getMasterLevel(skill), player.getSkillExpiration(skill));
-                    player.changeSkillLevel(SkillFactory.getSkill(Aran.HIDDEN_FULL_TRIPLE), player.getSkillLevel(skill), player.getMasterLevel(skill), player.getSkillExpiration(skill));
+                    Skill hiddenDouble = SkillFactory.getSkill(Aran.HIDDEN_FULL_DOUBLE);
+                    Skill hiddenTriple = SkillFactory.getSkill(Aran.HIDDEN_FULL_TRIPLE);
+                    if (hiddenDouble != null) {
+                        player.changeSkillLevel(hiddenDouble, player.getSkillLevel(skill), player.getMasterLevel(skill), player.getSkillExpiration(skill));
+                    }
+                    if (hiddenTriple != null) {
+                        player.changeSkillLevel(hiddenTriple, player.getSkillLevel(skill), player.getMasterLevel(skill), player.getSkillExpiration(skill));
+                    }
                 } else if (skill.getId() == Aran.OVER_SWING) {
                     player.changeSkillLevel(skill, (byte) (curLevel + 1), player.getMasterLevel(skill), player.getSkillExpiration(skill));
-                    player.changeSkillLevel(SkillFactory.getSkill(Aran.HIDDEN_OVER_DOUBLE), player.getSkillLevel(skill), player.getMasterLevel(skill), player.getSkillExpiration(skill));
-                    player.changeSkillLevel(SkillFactory.getSkill(Aran.HIDDEN_OVER_TRIPLE), player.getSkillLevel(skill), player.getMasterLevel(skill), player.getSkillExpiration(skill));
+                    Skill hiddenDouble = SkillFactory.getSkill(Aran.HIDDEN_OVER_DOUBLE);
+                    Skill hiddenTriple = SkillFactory.getSkill(Aran.HIDDEN_OVER_TRIPLE);
+                    if (hiddenDouble != null) {
+                        player.changeSkillLevel(hiddenDouble, player.getSkillLevel(skill), player.getMasterLevel(skill), player.getSkillExpiration(skill));
+                    }
+                    if (hiddenTriple != null) {
+                        player.changeSkillLevel(hiddenTriple, player.getSkillLevel(skill), player.getMasterLevel(skill), player.getSkillExpiration(skill));
+                    }
                 } else {
                     player.changeSkillLevel(skill, (byte) (curLevel + 1), player.getMasterLevel(skill), player.getSkillExpiration(skill));
                 }
+            } else {
+                c.sendPacket(PacketCreator.enableActions());
             }
         } finally {
             c.unlockClient();
