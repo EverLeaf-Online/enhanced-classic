@@ -23,6 +23,12 @@ test("database credentials stay out of mysqldump command arguments", () => {
   assert.match(script, /--single-transaction/);
 });
 
+test("MySQL backup stays schema-neutral for isolated restore drills", () => {
+  const script = read("scripts/backup-mysql.js");
+  assert.doesNotMatch(script, /["']--databases["']/);
+  assert.match(script, /values\.GAME_DB_NAME/);
+});
+
 test("daily backup timer is persistent", () => {
   const timer = read("ops/everleaf-backup.timer");
   assert.match(timer, /OnCalendar=\*-\*-\* 06:15:00 UTC/);
