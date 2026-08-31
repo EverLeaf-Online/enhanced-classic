@@ -54,12 +54,6 @@ public class StorageProcessor {
 
         byte mode = p.readByte();
 
-        if (chr.getLevel() < 15) {
-            chr.dropMessage(1, "You may only use the storage once you have reached level 15.");
-            c.sendPacket(PacketCreator.enableActions());
-            return;
-        }
-
         if (c.tryacquireClient()) {
             try {
                 switch (mode) {
