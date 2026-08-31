@@ -129,14 +129,16 @@ router.post("/register",async(req,res)=>{
 
 router.get("/account",async(req,res)=>{
   if(!req.session.player) return res.redirect("/login");
-  let characters=[],error="",success=String(req.query.updated||"")==="1"?"Password updated successfully.":"";
+  let characters=[],rewards={nxCredit:0,pendingVoteNx:0},error="",success=String(req.query.updated||"")==="1"?"Password updated successfully.":"";
   const discordMessages={linked:"Discord account linked successfully.",invalid:"Discord authorization expired or was invalid.",failed:"Discord account linking failed. Please try again.",unavailable:"Discord account linking is not available yet."};
   if(req.query.discord&&discordMessages[req.query.discord]) success=req.query.discord==="linked"?discordMessages[req.query.discord]:"";
   if(req.query.discord&&req.query.discord!=="linked"&&discordMessages[req.query.discord]) error=discordMessages[req.query.discord];
   try { characters=(await game.accountCharacters(req.session.player.id)).map(r=>({...r,jobName:jobName(r.job)})); }
   catch { error="Character data is temporarily unavailable."; }
+  try { rewards=await game.nxRewardStatus(req.session.player.id); }
+  catch { if(!error) error="NX reward data is temporarily unavailable."; }
   const discordProfile=supporter.accountSummary(req.session.player.id).profile;
-  res.render("account",{account:req.session.player,characters,error,success,discordProfile,discordReady:discord.oauthReady(),settings:settings()});
+  res.render("account",{account:req.session.player,characters,rewards,error,success,discordProfile,discordReady:discord.oauthReady(),settings:settings()});
 });
 
 router.get("/account/discord/connect",(req,res)=>{

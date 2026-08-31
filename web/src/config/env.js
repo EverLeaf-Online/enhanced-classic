@@ -57,6 +57,13 @@ module.exports = {
     mode: String(process.env.GAME_PASSWORD_MODE || "bcrypt").toLowerCase()
   },
 
+  vote: {
+    provider: "gtop100",
+    rewardNx: Math.max(1, Math.min(100000, Number(process.env.VOTE_NX_REWARD || 1500))),
+    gtopVoteUrl: process.env.GTOP100_VOTE_URL || "https://gtop100.com/MapleStory/server-106444?vote=1",
+    gtopPingbackKey: process.env.GTOP100_PINGBACK_KEY || ""
+  },
+
   discord: {
     enabled: bool(process.env.DISCORD_ENABLED, false),
     clientId: process.env.DISCORD_CLIENT_ID || "",
