@@ -1,0 +1,68 @@
+name: Test EverLeaf login WZ tooling
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [release-dev]
+    paths:
+      - "client/branding/login/**"
+      - "client/tools/login-wz-patcher/**"
+      - ".github/workflows/test-everleaf-login-wz.yml"
+      - ".github/workflows/publish-everleaf-login-wz.yml"
+
+permissions:
+  contents: read
+
+env:
+  LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Generate and validate artwork
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user --disable-pip-version-check pillow
+          python3 client/branding/login/generate_art.py --output "$RUNNER_TEMP/art"
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          import os
+          root=Path(os.environ['RUNNER_TEMP'])/'art'
+          bg=Image.open(root/'background.png')
+          logo=Image.open(root/'logo.png')
+          assert bg.size == (800,600)
+          assert bg.mode == 'RGB'
+          assert logo.mode == 'RGBA'
+          assert logo.getbbox() is not None
+          print('artwork ok', bg.size, logo.size)
+          PY
+
+      - name: Build pinned libwz patcher
+        run: |
+          set -euo pipefail
+          git clone --recurse-submodules https://github.com/toyobayashi/libwz.git "$RUNNER_TEMP/libwz"
+          git -C "$RUNNER_TEMP/libwz" checkout "$LIBWZ_COMMIT"
+          git -C "$RUNNER_TEMP/libwz" submodule update --init --recursive
+          cmake -S client/tools/login-wz-patcher \
+            -B "$RUNNER_TEMP/build" \
+            -DLIBWZ_SOURCE="$RUNNER_TEMP/libwz" \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/build" --config Release -j2
+          test -x "$RUNNER_TEMP/build/everleaf-login-wz-patcher"
+
+      - name: Check patcher fail-closed behavior
+        run: |
+          set -euo pipefail
+          PATCHER="$RUNNER_TEMP/build/everleaf-login-wz-patcher"
+          set +e
+          "$PATCHER" >"$RUNNER_TEMP/usage.log" 2>&1
+          code=$?
+          set -e
+          test "$code" -eq 2
+          grep -q 'Usage:' "$RUNNER_TEMP/usage.log"
+          echo 'login WZ patcher build and fail-closed CLI verified'
