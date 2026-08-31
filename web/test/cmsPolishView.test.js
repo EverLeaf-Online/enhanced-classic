@@ -17,14 +17,15 @@ test("logged-in account navigation remains a mobile-visible button",()=>{
 test("account dashboard exposes the main player actions",()=>{
   assert.match(account,/PLAY \/ DOWNLOAD/);
   assert.match(account,/VOTE FOR NX/);
-  assert.match(account,/SUPPORT CENTER/);
+  assert.match(account,/href="\/help">SUPPORT/);
   assert.match(account,/Pending Vote NX/);
 });
 
 test("cms dashboard exposes direct management shortcuts",()=>{
-  assert.match(admin,/Content Overview/);
+  assert.match(admin,/Content Library/);
   assert.match(admin,/href="\/admin\/announcements"/);
   assert.match(admin,/href="\/admin\/downloads"/);
   assert.match(admin,/href="\/admin\/pages"/);
   assert.match(admin,/href="\/admin\/supporters"/);
+  assert.match(admin,/href="\/admin\/recoveries"/);
 });
