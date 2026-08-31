@@ -7,7 +7,6 @@ on:
     paths:
       - "client/branding/login/**"
       - "client/tools/login-wz-patcher/**"
-      - ".github/workflows/publish-everleaf-login-wz.yml"
 
 concurrency:
   group: everleaf-client-production
@@ -229,17 +228,31 @@ jobs:
           test "$remote_hash" = "$expected_hash"
           test "$remote_size" = "$expected_size"
 
-          curl --fail --silent --show-error --max-time 20 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" -o public-manifest.json
+          curl --fail --silent --show-error --max-time 20 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" -o public-envelope.json
           node - "$expected_hash" "$expected_size" <<'NODE'
-          const fs=require('fs'); const m=JSON.parse(fs.readFileSync('public-manifest.json','utf8'));
-          const map=m.files.find(f => f.path === 'Map.wz');
+          const fs=require('fs');
+          const expectedHash=process.argv[2];
+          const expectedSize=process.argv[3];
+          const envelope=JSON.parse(fs.readFileSync('public-envelope.json','utf8'));
+          if(typeof envelope.payload !== 'string' || !envelope.payload) throw new Error('public manifest payload missing');
+          if(typeof envelope.signature !== 'string' || !envelope.signature) throw new Error('public manifest signature missing');
+          const manifest=JSON.parse(Buffer.from(envelope.payload,'base64').toString('utf8'));
+          if(!Array.isArray(manifest.files)) throw new Error('decoded public manifest files array missing');
+          const map=manifest.files.find(f => f.path === 'Map.wz');
           if(!map) throw new Error('public manifest does not contain Map.wz');
-          if(map.sha256 !== process.argv[2]) throw new Error(`public Map.wz hash mismatch: ${map.sha256}`);
-          if(String(map.size) !== process.argv[3]) throw new Error(`public Map.wz size mismatch: ${map.size}`);
-          console.log(`Public manifest exposes Map.wz ${map.sha256} (${map.size} bytes)`);
+          if(map.sha256 !== expectedHash) throw new Error(`public Map.wz hash mismatch: ${map.sha256}`);
+          if(String(map.size) !== expectedSize) throw new Error(`public Map.wz size mismatch: ${map.size}`);
+          console.log(`Signed public manifest exposes Map.wz ${map.sha256} (${map.size} bytes)`);
           NODE
+
           headers="$(curl --fail --silent --show-error --location --head --max-time 30 "https://$EVERLEAF_PUBLIC_HOST/patches/Map.wz")"
-          printf '%s\n' "$headers" | grep -qiE "^content-length: *$expected_size\r?$"
+          actual_size="$(
+            printf '%s\n' "$headers" |
+              tr -d '\r' |
+              awk -F': *' 'tolower($1)=="content-length" {print $2; exit}'
+          )"
+          test -n "$actual_size"
+          test "$actual_size" = "$expected_size"
           ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$REMOTE_STAGE'"
           echo "EverLeaf public Map.wz endpoint verified for $GITHUB_SHA"
