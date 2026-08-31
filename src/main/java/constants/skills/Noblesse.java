@@ -8,8 +8,7 @@
     it under the terms of the GNU Affero General Public License as
     published by the Free Software Foundation version 3 as published by
     the Free Software Foundation. You may not use, modify or distribute
-    this program under any other version of the GNU Affero General Public
-    License.
+    this program under any other version of the GNU Affero General Public License.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -36,8 +35,8 @@ public class Noblesse {
     public static final int BAMBOO_RAIN = 10001009;
     public static final int INVINCIBLE_BARRIER = 10001010;
     public static final int POWER_EXPLOSION = 10001011;
-    public static final int SPACESHIP = 1001014;
-    public static final int SPACE_DASH = 1001015;
+    public static final int SPACESHIP = 10001014;
+    public static final int SPACE_DASH = 10001015;
     public static final int YETI_MOUNT1 = 10001019;
     public static final int YETI_MOUNT2 = 10001022;
     public static final int WITCH_BROOMSTICK = 10001023;

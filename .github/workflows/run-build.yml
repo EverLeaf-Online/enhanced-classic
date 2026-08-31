@@ -49,6 +49,10 @@ jobs:
         run: python3 tools/audit_leaf_shop.py
       - name: Audit Rooted content
         run: python3 tools/audit_rooted_content.py
+      - name: Audit class and skill integrity
+        run: python3 tools/audit_class_skills.py
+      - name: Audit boss and PQ event-manager links
+        run: python3 tools/audit_event_manager_links.py
       - name: Audit world data integrity
         run: python3 tools/audit_world_integrity.py
       - name: Audit release-facing NPC and portal integrity
