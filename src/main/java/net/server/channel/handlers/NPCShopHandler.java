@@ -51,37 +51,46 @@ public final class NPCShopHandler extends AbstractPacketHandler {
             return;
         }
 
-        byte bmode = p.readByte();
-        switch (bmode) {
-        case 0: { // mode 0 = buy :)
-            short slot = p.readShort();// slot
-            int itemId = p.readInt();
-            short quantity = p.readShort();
-            if (quantity < 1) {
-                AutobanFactory.PACKET_EDIT.alert(chr,
-                        chr.getName() + " tried to packet edit a npc shop.");
-                log.warn("Chr {} tried to buy quantity {} of itemid {}", chr.getName(), quantity, itemId);
-                c.disconnect(true, false);
-                return;
+        if (!c.tryacquireClient()) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
+        try {
+            byte bmode = p.readByte();
+            switch (bmode) {
+            case 0: { // mode 0 = buy :)
+                short slot = p.readShort();// slot
+                int itemId = p.readInt();
+                short quantity = p.readShort();
+                if (quantity < 1) {
+                    AutobanFactory.PACKET_EDIT.alert(chr,
+                            chr.getName() + " tried to packet edit a npc shop.");
+                    log.warn("Chr {} tried to buy quantity {} of itemid {}", chr.getName(), quantity, itemId);
+                    c.disconnect(true, false);
+                    return;
+                }
+                shop.buy(c, slot, itemId, quantity);
+                break;
             }
-            shop.buy(c, slot, itemId, quantity);
-            break;
-        }
-        case 1: { // sell ;)
-            short slot = p.readShort();
-            int itemId = p.readInt();
-            short quantity = p.readShort();
-            shop.sell(c, ItemConstants.getInventoryType(itemId), slot, quantity);
-            break;
-        }
-        case 2: { // recharge ;)
-            byte slot = (byte) p.readShort();
-            shop.recharge(c, slot);
-            break;
-        }
-        case 3: // leaving :(
-            chr.setShop(null);
-            break;
+            case 1: { // sell ;)
+                short slot = p.readShort();
+                int itemId = p.readInt();
+                short quantity = p.readShort();
+                shop.sell(c, ItemConstants.getInventoryType(itemId), slot, quantity);
+                break;
+            }
+            case 2: { // recharge ;)
+                byte slot = (byte) p.readShort();
+                shop.recharge(c, slot);
+                break;
+            }
+            case 3: // leaving :(
+                chr.setShop(null);
+                break;
+            }
+        } finally {
+            c.releaseClient();
         }
     }
 
