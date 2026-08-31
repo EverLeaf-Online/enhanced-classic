@@ -8,8 +8,7 @@
  it under the terms of the GNU Affero General Public License as
  published by the Free Software Foundation version 3 as published by
  the Free Software Foundation. You may not use, modify or distribute
- this program under any other version of the GNU Affero General Public
- License.
+ this program under any other version of the GNU Affero General Public License.
 
  This program is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -23,6 +22,7 @@ package net.server.handlers.login;
 
 import client.Client;
 import client.creator.novice.BeginnerCreator;
+import client.creator.novice.EvanCreator;
 import client.creator.novice.LegendCreator;
 import client.creator.novice.NoblesseCreator;
 import net.AbstractPacketHandler;
@@ -57,6 +57,9 @@ public final class CreateCharHandler extends AbstractPacketHandler {
             break;
         case 2: // Aran
             status = LegendCreator.createCharacter(c, name, face, hair + haircolor, skincolor, top, bottom, shoes, weapon, gender);
+            break;
+        case 3: // Evan (v84 selector backported to v83 client)
+            status = EvanCreator.createCharacter(c, name, face, hair + haircolor, skincolor, top, bottom, shoes, weapon, gender);
             break;
         default:
             c.sendPacket(PacketCreator.deleteCharResponse(0, 9));
