@@ -137,6 +137,13 @@ function initCms() {
 
   const stmt = db.prepare("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)");
   Object.entries(defaults).forEach(([k,v]) => stmt.run(k,v));
+
+  const pageStmt = db.prepare("INSERT OR IGNORE INTO pages (slug,title,body,published) VALUES (?,?,?,1)");
+  [
+    ["about","About EverLeaf","EverLeaf is an Enhanced Classic MapleStory v83 server focused on nostalgic gameplay, thoughtful progression, quality-of-life improvements, and a community-first experience."],
+    ["rules","Server Rules","Play fair, respect other players, protect your account, and do not exploit, bot, scam, harass, or disrupt the service. Staff may act to protect the server and community when abuse is confirmed."],
+    ["terms","Terms of Service","By creating an account or using EverLeaf, you agree to follow the server rules and community standards. Keep your credentials private, do not cheat or exploit the service, and understand that EverLeaf may be updated, restarted, changed, or discontinued. Donations support server operation and do not grant ownership of the service. EverLeaf is a fan-made private server and is not affiliated with or endorsed by Nexon."]
+  ].forEach(row => pageStmt.run(...row));
 }
 
 function settings() {

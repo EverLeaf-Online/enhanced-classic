@@ -8,14 +8,34 @@ const fs=require("fs");
 const env=require("./config/env");
 const {initCms,settings}=require("./db/cms");
 
+if(env.nodeEnv==="production"&&env.sessionSecret==="dev-only-change-me") {
+  throw new Error("SESSION_SECRET must be configured in production.");
+}
+
 initCms();
 
 const app=express();
+app.disable("x-powered-by");
 if(env.trustProxy) app.set("trust proxy",env.trustProxy);
 app.set("view engine","ejs");
 app.set("views",path.join(__dirname,"views"));
 
-app.use(helmet({contentSecurityPolicy:false}));
+app.use(helmet({
+  contentSecurityPolicy:{
+    directives:{
+      defaultSrc:["'self'"],
+      baseUri:["'self'"],
+      formAction:["'self'"],
+      frameAncestors:["'none'"],
+      objectSrc:["'none'"],
+      scriptSrc:["'self'","'unsafe-inline'"],
+      styleSrc:["'self'","'unsafe-inline'"],
+      imgSrc:["'self'","data:"],
+      connectSrc:["'self'"]
+    }
+  },
+  referrerPolicy:{policy:"strict-origin-when-cross-origin"}
+}));
 app.use(compression());
 // Provider signatures must be verified against the exact request bytes.
 app.use("/webhooks",require("./routes/webhooks"));
@@ -54,6 +74,8 @@ app.use(session({
 }));
 
 app.locals.brand=env.brand;
+app.locals.siteUrl=env.payments.publicBaseUrl;
+app.locals.siteDescription="EverLeaf is an Enhanced Classic MapleStory v83 server focused on nostalgia, thoughtful quality-of-life improvements, long-term progression, and no pay-to-win.";
 app.locals.year=new Date().getFullYear();
 app.use(require("./middleware/viewLocals"));
 
@@ -62,5 +84,10 @@ app.use("/",require("./routes/public"));
 app.use("/admin",require("./routes/admin"));
 
 app.use((req,res)=>res.status(404).render("404",{settings:settings()}));
+app.use((error,req,res,next)=>{
+  console.error("Unhandled web request error:",error);
+  if(res.headersSent) return next(error);
+  res.status(500).render("500",{settings:settings()});
+});
 
 app.listen(env.port,()=>console.log(`EverLeaf web running on port ${env.port}`));

@@ -1,0 +1,27 @@
+<%- include("partials/header",{title:"CMS Pages"}) %>
+<main class="lightPage">
+  <div class="lightTitle"><div class="wrap"><h1>CMS Pages</h1><p>Create, publish, edit, and retire public website pages.</p></div></div>
+  <div class="wrap" style="max-width:1000px;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(300px,.8fr);gap:18px;align-items:start">
+    <div class="paperCard">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><h2 style="margin:0">Existing Pages</h2><a class="btn small" href="/admin">Back to Dashboard</a></div>
+      <% pages.forEach(page=>{ const publicUrl=['about','rules','terms'].includes(page.slug)?`/${page.slug}`:`/pages/${page.slug}`; %>
+        <div class="adminRow" style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+          <div><strong><%=page.title%></strong><div class="muted"><%=publicUrl%> · <%=page.published?'Published':'Draft'%> · updated <%=page.updated_at%></div></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn small" href="/admin/pages/<%=page.id%>/edit">Edit</a><a class="btn small" href="<%=publicUrl%>" target="_blank" rel="noopener noreferrer">View</a><% if(!['about','rules','terms'].includes(page.slug)){ %><form method="post" action="/admin/pages/<%=page.id%>/delete" onsubmit="return confirm('Delete this page?')"><button class="btn small">Delete</button></form><% } %></div>
+        </div>
+      <% }) %>
+      <% if(!pages.length){ %><p class="muted">No CMS pages exist yet.</p><% } %>
+    </div>
+    <div class="paperCard">
+      <h2>Create Page</h2>
+      <form method="post" action="/admin/pages">
+        <label>Title</label><input name="title" required>
+        <label>Slug</label><input name="slug" placeholder="example-page">
+        <label>Body</label><textarea name="body" style="min-height:220px"></textarea>
+        <label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="published" checked> Published</label>
+        <button class="btn primary">Create Page</button>
+      </form>
+    </div>
+  </div>
+</main>
+<%- include("partials/footer") %>
