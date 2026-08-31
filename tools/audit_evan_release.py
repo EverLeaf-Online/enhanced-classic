@@ -76,7 +76,7 @@ def main() -> int:
     require("src/main/java/net/PacketProcessor.java", "MoveDragonHandler")
     require(
         "src/main/java/client/Character.java",
-        "GameConstants.hasSPTable(newJob.getId()) && newJob != Job.EVAN",
+        "GameConstants.hasSPTable(newJob) && newJob.getId() != 2001",
         "makeDragon()",
         "private boolean isEvanGrowthJob()",
         "advanceEvanGrowthStage();",
