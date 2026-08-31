@@ -51,43 +51,53 @@ public final class UseItemHandler extends AbstractPacketHandler {
         p.readInt();
         short slot = p.readShort();
         int itemId = p.readInt();
-        Item toUse = chr.getInventory(InventoryType.USE).getItem(slot);
-        if (toUse != null && toUse.getQuantity() > 0 && toUse.getItemId() == itemId) {
-            if (itemId == ItemId.ALL_CURE_POTION) {
-                chr.dispelDebuffs();
-                remove(c, slot);
-                return;
-            } else if (itemId == ItemId.EYEDROP) {
-                chr.dispelDebuff(Disease.DARKNESS);
-                remove(c, slot);
-                return;
-            } else if (itemId == ItemId.TONIC) {
-                chr.dispelDebuff(Disease.WEAKEN);
-                chr.dispelDebuff(Disease.SLOW);
-                remove(c, slot);
-                return;
-            } else if (itemId == ItemId.HOLY_WATER) {
-                chr.dispelDebuff(Disease.SEAL);
-                chr.dispelDebuff(Disease.CURSE);
-                remove(c, slot);
-                return;
-            } else if (ItemConstants.isTownScroll(itemId)) {
-                if (ii.getItemEffect(toUse.getItemId()).applyTo(chr)) {
+
+        if (!c.tryacquireClient()) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
+        try {
+            Item toUse = chr.getInventory(InventoryType.USE).getItem(slot);
+            if (toUse != null && toUse.getQuantity() > 0 && toUse.getItemId() == itemId) {
+                if (itemId == ItemId.ALL_CURE_POTION) {
+                    chr.dispelDebuffs();
                     remove(c, slot);
+                    return;
+                } else if (itemId == ItemId.EYEDROP) {
+                    chr.dispelDebuff(Disease.DARKNESS);
+                    remove(c, slot);
+                    return;
+                } else if (itemId == ItemId.TONIC) {
+                    chr.dispelDebuff(Disease.WEAKEN);
+                    chr.dispelDebuff(Disease.SLOW);
+                    remove(c, slot);
+                    return;
+                } else if (itemId == ItemId.HOLY_WATER) {
+                    chr.dispelDebuff(Disease.SEAL);
+                    chr.dispelDebuff(Disease.CURSE);
+                    remove(c, slot);
+                    return;
+                } else if (ItemConstants.isTownScroll(itemId)) {
+                    if (ii.getItemEffect(toUse.getItemId()).applyTo(chr)) {
+                        remove(c, slot);
+                    }
+                    return;
                 }
-                return;
-            }
 
-            remove(c, slot);
+                remove(c, slot);
 
-            if (toUse.getItemId() != ItemId.HAPPY_BIRTHDAY) {
-                ii.getItemEffect(toUse.getItemId()).applyTo(chr);
-            } else {
-                StatEffect mse = ii.getItemEffect(toUse.getItemId());
-                for (Character player : chr.getMap().getCharacters()) {
-                    mse.applyTo(player);
+                if (toUse.getItemId() != ItemId.HAPPY_BIRTHDAY) {
+                    ii.getItemEffect(toUse.getItemId()).applyTo(chr);
+                } else {
+                    StatEffect mse = ii.getItemEffect(toUse.getItemId());
+                    for (Character player : chr.getMap().getCharacters()) {
+                        mse.applyTo(player);
+                    }
                 }
             }
+        } finally {
+            c.releaseClient();
         }
     }
 
