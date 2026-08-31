@@ -57,6 +57,7 @@ app.locals.brand=env.brand;
 app.locals.year=new Date().getFullYear();
 app.use(require("./middleware/viewLocals"));
 
+app.use("/",require("./routes/vote"));
 app.use("/",require("./routes/public"));
 app.use("/admin",require("./routes/admin"));
 
