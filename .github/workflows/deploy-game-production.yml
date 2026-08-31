@@ -93,8 +93,8 @@ jobs:
             --exclude='target/' \
             --exclude='database/docker-db-data/' \
             --exclude='web/node_modules/' \
-            --exclude='client/' \
-            --exclude='launcher/' \
+            --exclude='/client/' \
+            --exclude='/launcher/' \
             -e 'ssh -i ~/.ssh/id_everleaf' \
             ./ "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$RELEASE_DIR/"
 
