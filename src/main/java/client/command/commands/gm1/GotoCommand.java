@@ -77,6 +77,15 @@ public class GotoCommand extends Command {
         listEntries.sort((e1, e2) -> e1.getValue().compareTo(e2.getValue()));
     }
 
+    /**
+     * EverLeaf temporarily exposes @goto to all players. The command itself
+     * still restricts non-GMs to the safe town list and blocks restricted maps.
+     */
+    @Override
+    public int getRank() {
+        return 0;
+    }
+
     @Override
     public void execute(Client c, String[] params) {
         Character player = c.getPlayer();
