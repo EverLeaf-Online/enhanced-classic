@@ -35,6 +35,7 @@ import tools.PacketCreator;
 
 public final class MultiChatHandler extends AbstractPacketHandler {
     private static final Logger log = LoggerFactory.getLogger(MultiChatHandler.class);
+    private static final int MAX_MULTI_CHAT_RECIPIENTS = 100;
 
     @Override
     public void handlePacket(InPacket p, Client c) {
@@ -45,7 +46,7 @@ public final class MultiChatHandler extends AbstractPacketHandler {
 
         int type = p.readByte(); // 0 for buddies, 1 for parties, 2 for guilds, 3 for alliances
         int numRecipients = p.readByte() & 0xFF;
-        if (numRecipients > player.getBuddylist().getCapacity()) {
+        if (numRecipients > MAX_MULTI_CHAT_RECIPIENTS || (type == 0 && numRecipients > player.getBuddylist().getCapacity())) {
             AutobanFactory.PACKET_EDIT.alert(player, player.getName() + " sent an invalid multi-chat recipient count: " + numRecipients);
             return;
         }
