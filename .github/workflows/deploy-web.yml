@@ -139,7 +139,11 @@ jobs:
             curl -fsS --resolve "$EVERLEAF_LEGACY_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_LEGACY_TLS_HOST/v1/launcher/status" >/dev/null
             STATUS_JSON="$(curl -fsS http://127.0.0.1:3000/api/status)"
             node -e 'const s=JSON.parse(process.argv[1]); if(s.totalChannels!==20) process.exit(1);' "$STATUS_JSON"
-            node scripts/sync-discord-status.js .env http://127.0.0.1:3000/api/status
+            # The bot token is deliberately kept out of the website .env.
+            # Read the root-only credential installed for the Discord service
+            # and fail the deployment if the live status message cannot sync.
+            sudo test -s /etc/everleaf/discord-bot.env
+            sudo node scripts/sync-discord-status.js /etc/everleaf/discord-bot.env http://127.0.0.1:3000/api/status
             sudo bash /opt/everleaf/web/scripts/backup-production.sh
             sudo systemctl is-enabled --quiet everleaf-backup.timer
             sudo systemctl is-active --quiet everleaf-backup.timer
