@@ -81,16 +81,20 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$SSH_PRIVATE_KEY" || { echo 'EVERLEAF_SSH_PRIVATE_KEY is not configured.' >&2; exit 1; }
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
-          chmod 600 ~/.ssh/id_everleaf
+          SSH_DIR="$GITHUB_WORKSPACE/.everleaf-ssh"
+          mkdir -p "$SSH_DIR"
+          chmod 700 "$SSH_DIR"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id_everleaf"
+          chmod 600 "$SSH_DIR/id_everleaf"
           if [ -n "$SSH_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
           else
-            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$SSH_DIR/known_hosts"
           fi
-          chmod 600 ~/.ssh/known_hosts
-          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
+          chmod 600 "$SSH_DIR/known_hosts"
+          ssh -o BatchMode=yes -o ConnectTimeout=10 \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
+            -i "$SSH_DIR/id_everleaf" \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
             'test -d /opt/everleaf/patches && test -f /opt/everleaf/patches/managed-client-baseline.json && test -f /opt/everleaf/patches/manifest.json && test -f /opt/everleaf/web/scripts/build-patch-manifest.js'
 
@@ -99,9 +103,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          SSH_DIR="$GITHUB_WORKSPACE/.everleaf-ssh"
           REMOTE_STAGE="/tmp/everleaf-launcher-$GITHUB_SHA"
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
-          scp -i ~/.ssh/id_everleaf \
+          ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
             EverLeafLauncher-portable.zip \
             EverLeafLauncher-version.txt \
             launcher-installer/EverLeafLauncherSetup.exe \
@@ -112,7 +118,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+          SSH_DIR="$GITHUB_WORKSPACE/.everleaf-ssh"
+          ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
             "RELEASE_SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
           set -euo pipefail
           PATCH_ROOT=/opt/everleaf/patches
