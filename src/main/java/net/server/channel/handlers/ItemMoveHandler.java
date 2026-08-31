@@ -41,27 +41,36 @@ public final class ItemMoveHandler extends AbstractPacketHandler {
             return;
         }
 
-        p.skip(4);
-        if (chr.getAutobanManager().getLastSpam(6) + 300 > currentServerTime()) {
+        if (!c.tryacquireClient()) {
             c.sendPacket(PacketCreator.enableActions());
             return;
         }
 
-        InventoryType type = InventoryType.getByType(p.readByte());
-        short src = p.readShort();     //is there any reason to use byte instead of short in src and action?
-        short action = p.readShort();
-        short quantity = p.readShort();
+        try {
+            p.skip(4);
+            if (chr.getAutobanManager().getLastSpam(6) + 300 > currentServerTime()) {
+                c.sendPacket(PacketCreator.enableActions());
+                return;
+            }
 
-        if (src < 0 && action > 0) {
-            InventoryManipulator.unequip(c, src, action);
-        } else if (action < 0) {
-            InventoryManipulator.equip(c, src, action);
-        } else if (action == 0) {
-            InventoryManipulator.drop(c, type, src, quantity);
-        } else {
-            InventoryManipulator.move(c, type, src, action);
+            InventoryType type = InventoryType.getByType(p.readByte());
+            short src = p.readShort();     //is there any reason to use byte instead of short in src and action?
+            short action = p.readShort();
+            short quantity = p.readShort();
+
+            if (src < 0 && action > 0) {
+                InventoryManipulator.unequip(c, src, action);
+            } else if (action < 0) {
+                InventoryManipulator.equip(c, src, action);
+            } else if (action == 0) {
+                InventoryManipulator.drop(c, type, src, quantity);
+            } else {
+                InventoryManipulator.move(c, type, src, action);
+            }
+
+            chr.getAutobanManager().spam(6);
+        } finally {
+            c.releaseClient();
         }
-
-        chr.getAutobanManager().spam(6);
     }
 }
