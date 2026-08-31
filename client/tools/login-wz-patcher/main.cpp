@@ -124,6 +124,36 @@ static void CollectCanvasByDimensions(wz::WzImageProperty* property,
     }
 }
 
+static void CollectPropertiesByName(wz::WzImageProperty* property,
+                                    const std::string& name,
+                                    std::vector<wz::WzImageProperty*>& matches,
+                                    int depth = 0) {
+    if (!property || depth > kMaxPropertyDepth) return;
+    if (property->Name() == name) {
+        matches.push_back(property);
+    }
+
+    switch (property->PropertyType()) {
+        case wz::WzPropertyType::SubProperty: {
+            auto* sub = static_cast<wz::WzSubProperty*>(property);
+            for (auto* child : *sub->WzProperties()) {
+                CollectPropertiesByName(child, name, matches, depth + 1);
+            }
+            return;
+        }
+        case wz::WzPropertyType::UOL: {
+            auto* target = ResolveUolProperty(
+                static_cast<wz::WzUOLProperty*>(property));
+            if (target && target != property) {
+                CollectPropertiesByName(target, name, matches, depth + 1);
+            }
+            return;
+        }
+        default:
+            return;
+    }
+}
+
 static wz::WzImageProperty* FindDirectProperty(wz::WzImage* image,
                                                const std::string& name) {
     if (!image) return nullptr;
@@ -132,28 +162,9 @@ static wz::WzImageProperty* FindDirectProperty(wz::WzImage* image,
     return nullptr;
 }
 
-static wz::WzCanvasProperty* FindUniqueCanvasInProperty(wz::WzImageProperty* root,
-                                                        int width,
-                                                        int height,
-                                                        const char* label) {
-    if (!root) return nullptr;
-    std::vector<wz::WzCanvasProperty*> matches;
-    CollectCanvasByDimensions(root, width, height, matches);
-    if (matches.size() != 1) {
-        std::cerr << "Expected exactly one " << width << "x" << height
-                  << " canvas under " << label << ", found " << matches.size()
-                  << ".\n";
-        return nullptr;
-    }
-    return matches.front();
-}
-
 static wz::WzImageProperty* FindBackgroundProperty(wz::WzImage* backLogin) {
     if (!backLogin) return nullptr;
 
-    // Some tooling exposes this as back/login.img/11, but libwz parses this
-    // v83 file with two top-level groups: `back` and `ani`. The static login
-    // background belongs to the `back` subtree; `ani` contains animation data.
     if (auto* direct = FindDirectProperty(backLogin, "11")) {
         return direct;
     }
@@ -164,10 +175,33 @@ static wz::WzImageProperty* FindBackgroundProperty(wz::WzImage* backLogin) {
         return nullptr;
     }
 
-    return FindUniqueCanvasInProperty(backGroup,
-                                      kLoginBackgroundWidth,
-                                      kLoginBackgroundHeight,
-                                      "back/login.img/back");
+    std::vector<wz::WzImageProperty*> named11;
+    CollectPropertiesByName(backGroup, "11", named11);
+    if (named11.size() == 1) {
+        return named11.front();
+    }
+    if (!named11.empty()) {
+        std::cerr << "Expected exactly one property named 11 under back/login.img/back, found "
+                  << named11.size() << ":";
+        for (auto* property : named11) {
+            std::cerr << " [" << property->FullPath() << ":type="
+                      << static_cast<int>(property->PropertyType()) << "]";
+        }
+        std::cerr << "\n";
+        return nullptr;
+    }
+
+    std::vector<wz::WzCanvasProperty*> canvases;
+    CollectCanvasByDimensions(backGroup,
+                              kLoginBackgroundWidth,
+                              kLoginBackgroundHeight,
+                              canvases);
+    std::cerr << "No property named 11 under back/login.img/back. 800x600 candidates:";
+    for (auto* canvas : canvases) {
+        std::cerr << " [" << canvas->FullPath() << "]";
+    }
+    std::cerr << "\n";
+    return nullptr;
 }
 
 static bool HasCanvas(wz::WzImageProperty* property, int depth = 0) {
@@ -258,7 +292,7 @@ int main(int argc, char** argv) {
 
     auto* background = FindBackgroundProperty(backLogin);
     if (!background) {
-        std::cerr << "Could not resolve the v83 800x600 login background safely.\n";
+        std::cerr << "Could not resolve the v83 login background node 11 safely.\n";
         return 7;
     }
     const int backgroundFrames = PatchCanvasTree(background, backgroundPath);
