@@ -8,8 +8,7 @@
  it under the terms of the GNU Affero General Public License as
  published by the Free Software Foundation version 3 as published by
  the Free Software Foundation. You may not use, modify or distribute
- this program under any other version of the GNU Affero General Public
- License.
+ this program under any other version of the GNU Affero General Public License.
 
  This program is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -48,6 +47,9 @@ import java.util.Calendar;
 
 public final class LoginPasswordHandler implements PacketHandler {
 
+    private static final int MAX_LOGIN_LENGTH = 32;
+    private static final int MAX_PASSWORD_LENGTH = 128;
+
     @Override
     public boolean validateState(Client c) {
         return !c.isLoggedIn();
@@ -69,13 +71,20 @@ public final class LoginPasswordHandler implements PacketHandler {
 
         String login = p.readString();
         String pwd = p.readString();
+        if (login == null || pwd == null || login.isBlank() || login.length() > MAX_LOGIN_LENGTH || pwd.length() > MAX_PASSWORD_LENGTH) {
+            c.sendPacket(PacketCreator.getLoginFailed(4));
+            return;
+        }
+        if (!LoginAttemptLimiter.allowAttempt(remoteHost, login)) {
+            c.sendPacket(PacketCreator.getLoginFailed(4));
+            return;
+        }
         c.setAccountName(login);
 
         p.skip(6);   // localhost masked the initial part with zeroes...
         byte[] hwidNibbles = p.readBytes(4);
         Hwid hwid = new Hwid(HexTool.toCompactHexString(hwidNibbles));
         int loginok = c.login(login, pwd, hwid);
-
 
         if (YamlConfig.config.server.AUTOMATIC_REGISTER && loginok == 5) {
             try (Connection con = DatabaseConnection.getConnection();
@@ -126,9 +135,12 @@ public final class LoginPasswordHandler implements PacketHandler {
             c.sendPacket(PacketCreator.getPermBan(c.getGReason()));//crashes but idc :D
             return;
         } else if (loginok != 0) {
+            LoginAttemptLimiter.recordFailure(remoteHost, login);
             c.sendPacket(PacketCreator.getLoginFailed(loginok));
             return;
         }
+
+        LoginAttemptLimiter.recordSuccess(remoteHost, login);
         if (c.finishLogin() == 0) {
             c.checkChar(c.getAccID());
             login(c);
