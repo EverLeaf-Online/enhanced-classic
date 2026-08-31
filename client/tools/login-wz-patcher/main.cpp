@@ -18,6 +18,8 @@
 namespace fs = std::filesystem;
 
 static constexpr int kMaxPropertyDepth = 24;
+static constexpr int kLoginBackgroundWidth = 800;
+static constexpr int kLoginBackgroundHeight = 600;
 
 static wz::WzDirectory* FindDirectory(wz::WzDirectory* root,
                                       const std::string& lower,
@@ -31,10 +33,6 @@ static wz::WzImage* FindLoginImage(wz::WzDirectory* dir) {
     if (!dir) return nullptr;
     if (auto* image = dir->GetImageByName("login.img")) return image;
     return dir->GetImageByName("Login.img");
-}
-
-static bool IsType(wz::WzImageProperty* property, wz::WzPropertyType type) {
-    return property && property->PropertyType() == type;
 }
 
 static bool SetCanvasPng(wz::WzCanvasProperty* canvas, const fs::path& pngPath) {
@@ -90,28 +88,102 @@ static int PatchCanvasTree(wz::WzImageProperty* property,
     }
 }
 
-static int CountCanvasTree(wz::WzImageProperty* property, int depth = 0) {
-    if (!property || depth > kMaxPropertyDepth) return 0;
+static void CollectCanvasByDimensions(wz::WzImageProperty* property,
+                                      int width,
+                                      int height,
+                                      std::vector<wz::WzCanvasProperty*>& matches,
+                                      int depth = 0) {
+    if (!property || depth > kMaxPropertyDepth) return;
 
     switch (property->PropertyType()) {
-        case wz::WzPropertyType::Canvas:
-            return 1;
+        case wz::WzPropertyType::Canvas: {
+            auto* canvas = static_cast<wz::WzCanvasProperty*>(property);
+            auto* png = canvas->PngProperty();
+            if (png && png->Width() == width && png->Height() == height) {
+                matches.push_back(canvas);
+            }
+            return;
+        }
         case wz::WzPropertyType::SubProperty: {
             auto* sub = static_cast<wz::WzSubProperty*>(property);
-            int count = 0;
             for (auto* child : *sub->WzProperties()) {
-                count += CountCanvasTree(child, depth + 1);
+                CollectCanvasByDimensions(child, width, height, matches, depth + 1);
             }
-            return count;
+            return;
         }
         case wz::WzPropertyType::UOL: {
             auto* target = ResolveUolProperty(
                 static_cast<wz::WzUOLProperty*>(property));
-            if (!target || target == property) return 0;
-            return CountCanvasTree(target, depth + 1);
+            if (target && target != property) {
+                CollectCanvasByDimensions(target, width, height, matches, depth + 1);
+            }
+            return;
         }
         default:
-            return 0;
+            return;
+    }
+}
+
+static wz::WzImageProperty* FindDirectProperty(wz::WzImage* image,
+                                               const std::string& name) {
+    if (!image) return nullptr;
+    auto result = image->GetPropertyByName(name);
+    if (result && result.value()) return result.value();
+    return nullptr;
+}
+
+static wz::WzCanvasProperty* FindUniqueCanvasByDimensions(wz::WzImage* image,
+                                                          int width,
+                                                          int height) {
+    if (!image) return nullptr;
+    std::vector<wz::WzCanvasProperty*> matches;
+    for (auto* property : *image->WzProperties()) {
+        CollectCanvasByDimensions(property, width, height, matches);
+    }
+    if (matches.size() != 1) {
+        std::cerr << "Expected exactly one " << width << "x" << height
+                  << " canvas in " << image->Name() << ", found "
+                  << matches.size() << ". Top-level properties:";
+        for (auto* property : *image->WzProperties()) {
+            std::cerr << " [" << property->Name() << ":type="
+                      << static_cast<int>(property->PropertyType()) << "]";
+        }
+        std::cerr << "\n";
+        return nullptr;
+    }
+    return matches.front();
+}
+
+static wz::WzImageProperty* FindBackgroundProperty(wz::WzImage* backLogin) {
+    if (!backLogin) return nullptr;
+
+    if (auto* direct = FindDirectProperty(backLogin, "11")) {
+        return direct;
+    }
+
+    return FindUniqueCanvasByDimensions(
+        backLogin, kLoginBackgroundWidth, kLoginBackgroundHeight);
+}
+
+static bool HasCanvas(wz::WzImageProperty* property, int depth = 0) {
+    if (!property || depth > kMaxPropertyDepth) return false;
+    switch (property->PropertyType()) {
+        case wz::WzPropertyType::Canvas:
+            return true;
+        case wz::WzPropertyType::SubProperty: {
+            auto* sub = static_cast<wz::WzSubProperty*>(property);
+            for (auto* child : *sub->WzProperties()) {
+                if (HasCanvas(child, depth + 1)) return true;
+            }
+            return false;
+        }
+        case wz::WzPropertyType::UOL: {
+            auto* target = ResolveUolProperty(
+                static_cast<wz::WzUOLProperty*>(property));
+            return target && target != property && HasCanvas(target, depth + 1);
+        }
+        default:
+            return false;
     }
 }
 
@@ -131,9 +203,9 @@ static bool VerifyPatchedMap(const fs::path& outputPath) {
         return false;
     }
 
-    auto* background = backLogin->GetFromPath("11");
+    auto* background = FindBackgroundProperty(backLogin);
     auto* logo = objLogin->GetFromPath("Title/logo");
-    return CountCanvasTree(background) > 0 && CountCanvasTree(logo) > 0;
+    return HasCanvas(background) && HasCanvas(logo);
 }
 
 int main(int argc, char** argv) {
@@ -179,14 +251,14 @@ int main(int argc, char** argv) {
         return 6;
     }
 
-    auto* background = backLogin->GetFromPath("11");
+    auto* background = FindBackgroundProperty(backLogin);
     if (!background) {
-        std::cerr << "back/login.img/11 was not found.\n";
+        std::cerr << "Could not resolve the v83 800x600 login background safely.\n";
         return 7;
     }
     const int backgroundFrames = PatchCanvasTree(background, backgroundPath);
     if (backgroundFrames <= 0) {
-        std::cerr << "back/login.img/11 contained no patchable canvas; property type="
+        std::cerr << "Resolved login background contained no patchable canvas; property type="
                   << static_cast<int>(background->PropertyType()) << "\n";
         return 8;
     }
