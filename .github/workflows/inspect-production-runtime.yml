@@ -8,7 +8,7 @@ on:
       - '.github/workflows/inspect-production-runtime.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
@@ -19,6 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release-dev
+
       - name: Configure SSH
         shell: bash
         env:
@@ -40,7 +45,9 @@ jobs:
       - name: Inspect production runtime
         shell: bash
         run: |
-          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
+          set -euo pipefail
+          mkdir -p docs
+          REPORT_BODY="$(ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
           echo '=== host ==='
@@ -100,3 +107,26 @@ jobs:
 
           echo 'Production inspection complete. No state was changed.'
           REMOTE
+          )"
+          {
+            echo '# EverLeaf Production Runtime Snapshot'
+            echo
+            echo "Generated: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "Source release commit: $GITHUB_SHA"
+            echo
+            echo '```text'
+            printf '%s\n' "$REPORT_BODY"
+            echo '```'
+          } > docs/PRODUCTION_RUNTIME_SNAPSHOT.md
+          cat docs/PRODUCTION_RUNTIME_SNAPSHOT.md
+
+      - name: Publish sanitized inspection snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/PRODUCTION_RUNTIME_SNAPSHOT.md
+          git diff --cached --quiet && exit 0
+          git commit -m 'ops: refresh production runtime snapshot'
+          git push origin HEAD:release-dev
