@@ -72,8 +72,19 @@ def main() -> None:
     for candidates, new in message_replacements:
         text = replace_first_of(text, candidates, new)
 
+    # EverLeaf uses Cosmic's full v83 channel list: 20 channels on ports
+    # 7575-7594. Accept the prior 8-channel value and the upstream 3-channel
+    # baseline so production config preservation cannot silently revert it.
+    text = replace_first_of(
+        text,
+        (
+            "    channels: 3",
+            "    channels: 8",
+        ),
+        "    channels: 20",
+    )
+
     replacements = [
-        ("    channels: 3", "    channels: 8"),
         ("    exp_rate: 10", "    exp_rate: 5"),
         ("    meso_rate: 10", "    meso_rate: 3"),
         ("    drop_rate: 10", "    drop_rate: 2"),
@@ -86,17 +97,11 @@ def main() -> None:
         ("    USE_ANNOUNCE_NX_COUPON_LOOT: false", "    USE_ANNOUNCE_NX_COUPON_LOOT: true"),
     ]
 
-    # The primary EverLeaf world is intentionally eight channels. The source
-    # currently already carries this value; accepting either 8 or upstream 3
-    # keeps the transform deterministic if the baseline changes later.
-    if "    channels: 8" not in text:
-        text = replace_once(text, "    channels: 3", "    channels: 8")
-
-    for old, new in replacements[1:]:
+    for old, new in replacements:
         text = replace_once(text, old, new)
 
     CONFIG.write_text(text, encoding="utf-8")
-    print("EverLeaf development configuration applied (8 channels; website registration required).")
+    print("EverLeaf development configuration applied (20 channels; website registration required).")
 
 
 if __name__ == "__main__":
