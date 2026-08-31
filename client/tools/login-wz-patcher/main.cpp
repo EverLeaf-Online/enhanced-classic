@@ -29,6 +29,10 @@ static wz::WzImage* FindLoginImage(wz::WzDirectory* dir) {
     return dir->GetImageByName("Login.img");
 }
 
+static bool IsType(wz::WzImageProperty* property, wz::WzPropertyType type) {
+    return property && property->PropertyType() == type;
+}
+
 static bool SetCanvasPng(wz::WzCanvasProperty* canvas, const fs::path& pngPath) {
     if (!canvas) return false;
     auto pngResult = wz::WzPngProperty::FromPngFile(
@@ -44,10 +48,12 @@ static bool SetCanvasPng(wz::WzCanvasProperty* canvas, const fs::path& pngPath) 
 
 static int PatchCanvasTree(wz::WzImageProperty* property, const fs::path& pngPath) {
     if (!property) return 0;
-    if (auto* canvas = dynamic_cast<wz::WzCanvasProperty*>(property)) {
+    if (IsType(property, wz::WzPropertyType::Canvas)) {
+        auto* canvas = static_cast<wz::WzCanvasProperty*>(property);
         return SetCanvasPng(canvas, pngPath) ? 1 : -1;
     }
-    if (auto* sub = dynamic_cast<wz::WzSubProperty*>(property)) {
+    if (IsType(property, wz::WzPropertyType::SubProperty)) {
+        auto* sub = static_cast<wz::WzSubProperty*>(property);
         int patched = 0;
         for (auto* child : *sub->WzProperties()) {
             const int result = PatchCanvasTree(child, pngPath);
@@ -75,7 +81,8 @@ static bool VerifyPatchedMap(const fs::path& outputPath) {
         return false;
     }
 
-    return dynamic_cast<wz::WzCanvasProperty*>(backLogin->GetFromPath("11")) != nullptr &&
+    auto* background = backLogin->GetFromPath("11");
+    return IsType(background, wz::WzPropertyType::Canvas) &&
            objLogin->GetFromPath("Title/logo") != nullptr;
 }
 
@@ -122,12 +129,12 @@ int main(int argc, char** argv) {
         return 6;
     }
 
-    auto* background = dynamic_cast<wz::WzCanvasProperty*>(
-        backLogin->GetFromPath("11"));
-    if (!background) {
+    auto* backgroundProperty = backLogin->GetFromPath("11");
+    if (!IsType(backgroundProperty, wz::WzPropertyType::Canvas)) {
         std::cerr << "back/login.img/11 is not a canvas property.\n";
         return 7;
     }
+    auto* background = static_cast<wz::WzCanvasProperty*>(backgroundProperty);
     if (!SetCanvasPng(background, backgroundPath)) return 8;
     backLogin->SetChanged(true);
 
