@@ -47,6 +47,7 @@ jobs:
           python3 tools/apply_pq_points.py
           python3 tools/apply_evan_skill_data.py
           python3 tools/apply_evan_behavior_fixes.py
+          python3 tools/apply_evan_progression_fixes.py
 
       - name: Configure SSH
         env:
@@ -122,6 +123,7 @@ jobs:
           python3 tools/apply_everleaf_config.py
           python3 tools/apply_evan_skill_data.py
           python3 tools/apply_evan_behavior_fixes.py
+          python3 tools/apply_evan_progression_fixes.py
           chmod +x mvnw || true
           ./mvnw -B -DskipTests clean package
           test -s target/everleaf-server-1.0-SNAPSHOT.jar
