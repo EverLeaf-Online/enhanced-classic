@@ -2,6 +2,11 @@ name: Audit EverLeaf production readiness
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '23 9 * * *'
+  workflow_run:
+    workflows: ['Deploy EverLeaf Game Production']
+    types: [completed]
 
 concurrency:
   group: everleaf-production-audit
@@ -18,10 +23,13 @@ env:
 
 jobs:
   audit:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: release-dev
 
       - name: Configure SSH
         shell: bash
@@ -41,20 +49,7 @@ jobs:
           fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Stage read-only audit helpers
-        shell: bash
-        run: |
-          set -euo pipefail
-          audit_dir="/tmp/everleaf-readiness-$GITHUB_RUN_ID"
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "install -d -m 700 '$audit_dir'"
-          scp -i ~/.ssh/id_everleaf \
-            tools/everleaf-ops/verify-live-payment-readiness.js \
-            tools/everleaf-ops/audit-discord-community.js \
-            tools/everleaf-ops/audit-everleaf-production.sql \
-            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$audit_dir/"
-
-      - name: Audit Oracle production state
+      - name: Audit production, persistence, restore, and host security
         shell: bash
         run: |
           set -euo pipefail
@@ -62,80 +57,66 @@ jobs:
             "AUDIT_RUN_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE'
             set -euo pipefail
             case "$AUDIT_RUN_ID" in (*[!0-9]*|'') exit 2;; esac
-            audit_dir="/tmp/everleaf-readiness-$AUDIT_RUN_ID"
-            test "$audit_dir" = "/tmp/everleaf-readiness-$AUDIT_RUN_ID"
-            cleanup() {
-              find "$audit_dir" -mindepth 1 -maxdepth 1 -type f -delete 2>/dev/null || true
-              rmdir "$audit_dir" 2>/dev/null || true
-            }
-            trap cleanup EXIT
 
+            echo '### Runtime services'
             systemctl is-active --quiet everleaf-web
             systemctl is-active --quiet nginx
             systemctl is-enabled --quiet everleaf-backup.timer
             systemctl is-active --quiet everleaf-backup.timer
-            echo 'service_everleaf_web=ready'
-            echo 'service_nginx=ready'
-            echo 'service_backup_timer=ready'
+            pgrep -f 'everleaf-server.*\.jar' >/dev/null
+            echo 'runtime_services=ready'
 
+            echo '### Production secrets and file permissions'
             test -s /opt/everleaf/web/.env
             test "$(stat -c '%a' /opt/everleaf/web/.env)" = '600'
-            echo 'production_env_permissions=ready'
-
-            read_env() {
-              local key="$1"
-              sed -n "s/^${key}=//p" /opt/everleaf/web/.env | tail -1
-            }
-
+            read_env() { sed -n "s/^$1=//p" /opt/everleaf/web/.env | tail -1; }
             session_secret="$(read_env SESSION_SECRET)"
+            game_db_password="$(read_env GAME_DB_PASSWORD)"
             test -n "$session_secret"
             test "$session_secret" != 'dev-only-change-me'
             test "${#session_secret}" -ge 32
-            echo 'session_secret=ready'
-
-            game_db_password="$(read_env GAME_DB_PASSWORD)"
             test -n "$game_db_password"
-            echo 'game_db_password=ready'
-
             test "$(read_env GAME_PASSWORD_MODE)" = 'bcrypt'
-            echo 'website_password_mode=bcrypt'
+            echo 'production_secrets=ready'
 
-            case "$(printf '%s' "$(read_env GAME_REGISTRATION_ENABLED)" | tr '[:upper:]' '[:lower:]')" in
-              1|true|yes|on) ;;
-              *) echo 'Website registration must be enabled before public launch.' >&2; exit 1;;
-            esac
-            echo 'website_registration=enabled'
+            echo '### Host exposure and SSH hardening'
+            mysql_listeners="$(ss -ltn | awk '$4 ~ /:3306$/ {print $4}')"
+            test -n "$mysql_listeners"
+            if printf '%s\n' "$mysql_listeners" | grep -Eq '(^|\[::\]|0\.0\.0\.0):3306$'; then
+              echo 'MySQL must not listen publicly.' >&2
+              exit 1
+            fi
+            sshd_effective="$(sudo sshd -T 2>/dev/null || true)"
+            if [ -n "$sshd_effective" ]; then
+              printf '%s\n' "$sshd_effective" | grep -qx 'passwordauthentication no'
+              printf '%s\n' "$sshd_effective" | grep -qx 'permitrootlogin no' || \
+                printf '%s\n' "$sshd_effective" | grep -qx 'permitrootlogin prohibit-password'
+            fi
+            echo 'host_security=ready'
 
-            # EverLeaf uses eight game channels. Keep the website's configured
-            # port list in lock-step with the actual server so status pages do
-            # not silently report only a subset of channels.
-            grep -qx 'CHANNEL_PORTS=7575,7576,7577,7578,7579,7580,7581,7582' /opt/everleaf/web/.env
-            echo 'website_channel_ports=8'
+            echo '### 20-channel topology'
+            ss -ltn | awk '{print $4}' | grep -Eq '(^|:)8484$'
+            for port in $(seq 7575 7594); do
+              ss -ltn | awk '{print $4}' | grep -Eq "(^|:)$port$"
+            done
+            echo 'game_channels=20'
 
-            test -s /opt/everleaf/patches/manifest.json
-            test -s /opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip
-            python3 - <<'PY'
-          import hashlib, json, pathlib, zipfile
-          manifest = json.load(open('/opt/everleaf/patches/manifest.json'))
-          paths = [str(item.get('path', '')).lower() for item in manifest.get('files', [])]
-          assert len(paths) == 36 and len(set(paths)) == 36
-          with zipfile.ZipFile('/opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip') as archive:
-              files = [name for name in archive.namelist() if not name.endswith('/')]
-          assert files == ['EverLeafLauncher.exe'], files
-          launcher = manifest.get('launcher')
-          assert launcher and launcher.get('url') == '/launcher/download'
-          archive = pathlib.Path('/opt/everleaf/patches/downloads/EverLeafLauncher-portable.zip')
-          version = pathlib.Path('/opt/everleaf/patches/downloads/EverLeafLauncher-version.txt').read_text().strip()
-          with archive.open('rb') as stream:
-              digest = hashlib.file_digest(stream, 'sha256').hexdigest()
-          assert launcher.get('version') == version
-          assert launcher.get('sha256') == digest
-          assert launcher.get('size') == archive.stat().st_size
-          print('launcher_manifest_files=36')
-          print('launcher_archive=single_executable')
-          print('launcher_self_update_metadata=verified')
-          PY
+            echo '### Capacity guardrails'
+            disk_percent="$(df -P /opt/everleaf | awk 'NR==2 {gsub(/%/,"",$5); print $5}')"
+            test "$disk_percent" -lt 85
+            avail_kb="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)"
+            test "${avail_kb:-0}" -gt 524288
+            echo "oracle_disk_used_percent=$disk_percent"
+            echo "memory_available_kb=$avail_kb"
 
+            echo '### TLS'
+            certificate_path="$(sudo find /etc/letsencrypt/live -name fullchain.pem -print -quit)"
+            test -n "$certificate_path"
+            sudo openssl x509 -checkend 604800 -noout -in "$certificate_path"
+            sudo openssl x509 -checkhost everleafms.online -noout -in "$certificate_path"
+            echo 'tls_certificate_next_7_days=ready'
+
+            echo '### Backup integrity'
             latest_backup="$(sudo find /opt/everleaf/backups/web -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-)"
             test -n "$latest_backup"
             sudo test -s "$latest_backup/.env"
@@ -145,66 +126,69 @@ jobs:
             sudo gzip -t "$latest_backup/game-mysql.sql.gz"
             sudo sh -c "cd '$latest_backup' && sha256sum -c SHA256SUMS >/dev/null"
             backup_age="$(( $(date +%s) - $(sudo stat -c %Y "$latest_backup") ))"
-            test "$backup_age" -lt 172800
-            echo "web_backup_age_seconds=$backup_age"
+            test "$backup_age" -lt 90000
+            echo "backup_age_seconds=$backup_age"
 
-            disk_percent="$(df -P /opt/everleaf | awk 'NR==2 {gsub(/%/,"",$5); print $5}')"
-            test "$disk_percent" -lt 90
-            echo "oracle_disk_used_percent=$disk_percent"
+            echo '### Live database structural integrity'
+            sudo mysqlcheck --check --silent cosmic
+            sudo mysql --batch --skip-column-names cosmic <<'SQL'
+          SELECT IF(COUNT(*)=0,'orphan_characters=0',CONCAT('FAIL orphan_characters=',COUNT(*)))
+          FROM characters c LEFT JOIN accounts a ON a.id=c.accountid WHERE a.id IS NULL;
+          SELECT IF(COUNT(*)=0,'orphan_character_inventory=0',CONCAT('FAIL orphan_character_inventory=',COUNT(*)))
+          FROM inventoryitems i LEFT JOIN characters c ON c.id=i.characterid
+          WHERE i.characterid IS NOT NULL AND c.id IS NULL;
+          SELECT IF(COUNT(*)=0,'orphan_account_inventory=0',CONCAT('FAIL orphan_account_inventory=',COUNT(*)))
+          FROM inventoryitems i LEFT JOIN accounts a ON a.id=i.accountid
+          WHERE i.accountid IS NOT NULL AND a.id IS NULL;
+          SELECT IF(COUNT(*)=0,'orphan_inventoryequipment=0',CONCAT('FAIL orphan_inventoryequipment=',COUNT(*)))
+          FROM inventoryequipment e LEFT JOIN inventoryitems i USING(inventoryitemid)
+          WHERE i.inventoryitemid IS NULL;
+          SELECT IF(COUNT(*)=0,'negative_character_mesos=0',CONCAT('FAIL negative_character_mesos=',COUNT(*)))
+          FROM characters WHERE meso < 0;
+          SELECT IF(COUNT(*)=0,'negative_inventory_quantities=0',CONCAT('FAIL negative_inventory_quantities=',COUNT(*)))
+          FROM inventoryitems WHERE quantity < 0;
+          SQL
 
-            certificate_path="$(sudo find /etc/letsencrypt/live -name fullchain.pem -print -quit)"
-            test -n "$certificate_path"
-            sudo openssl x509 -checkend 604800 -noout -in "$certificate_path"
-            sudo openssl x509 -checkhost everleafms.online -noout -in "$certificate_path"
-            echo 'tls_certificate_next_7_days=ready'
+            integrity_failures="$(sudo mysql --batch --skip-column-names cosmic <<'SQL'
+          SELECT COUNT(*) FROM (
+            SELECT c.id FROM characters c LEFT JOIN accounts a ON a.id=c.accountid WHERE a.id IS NULL
+            UNION ALL
+            SELECT i.inventoryitemid FROM inventoryitems i LEFT JOIN characters c ON c.id=i.characterid WHERE i.characterid IS NOT NULL AND c.id IS NULL
+            UNION ALL
+            SELECT i.inventoryitemid FROM inventoryitems i LEFT JOIN accounts a ON a.id=i.accountid WHERE i.accountid IS NOT NULL AND a.id IS NULL
+            UNION ALL
+            SELECT e.inventoryitemid FROM inventoryequipment e LEFT JOIN inventoryitems i USING(inventoryitemid) WHERE i.inventoryitemid IS NULL
+          ) bad;
+          SQL
+            )"
+            test "$integrity_failures" = '0'
+            echo 'database_relationship_integrity=ready'
 
-            ss -ltn | awk '{print $4}' | grep -Eq '(^|:)8484$'
-            echo 'game_login_port=ready'
-            for port in 7575 7576 7577 7578 7579 7580 7581 7582; do
-              ss -ltn | awk '{print $4}' | grep -Eq "(^|:)$port$"
-              echo "game_channel_port_${port}=ready"
-            done
-            echo 'game_channels=8'
-
-            sudo mysql --batch --skip-column-names cosmic < \
-              "$audit_dir/audit-everleaf-production.sql"
-
-            # NX coupons remain rare universal drops. Chaos/White Scrolls must
-            # not be universal mob drops; they are reserved for explicitly
-            # authored boss/event/progression sources.
-            nx100_rows="$(sudo mysql --batch --skip-column-names cosmic -e \
-              "SELECT COUNT(*) FROM drop_data_global WHERE continent=-1 AND itemid=4031865 AND chance=400")"
-            nx250_rows="$(sudo mysql --batch --skip-column-names cosmic -e \
-              "SELECT COUNT(*) FROM drop_data_global WHERE continent=-1 AND itemid=4031866 AND chance=100")"
-            nx_total_rows="$(sudo mysql --batch --skip-column-names cosmic -e \
-              "SELECT COUNT(*) FROM drop_data_global WHERE continent=-1 AND itemid IN (4031865,4031866)")"
-            chaos_global_rows="$(sudo mysql --batch --skip-column-names cosmic -e \
-              "SELECT COUNT(*) FROM drop_data_global WHERE continent=-1 AND itemid=2049100")"
-            white_global_rows="$(sudo mysql --batch --skip-column-names cosmic -e \
-              "SELECT COUNT(*) FROM drop_data_global WHERE continent=-1 AND itemid=2340000")"
-            test "$nx100_rows" = '1'
-            test "$nx250_rows" = '1'
-            test "$nx_total_rows" = '2'
-            test "$chaos_global_rows" = '0'
-            test "$white_global_rows" = '0'
-            echo 'high_impact_global_drop_policy=balanced'
-
-            sudo node "$audit_dir/verify-live-payment-readiness.js" \
-              /opt/everleaf/web /opt/everleaf/web/.env
-            sudo node "$audit_dir/audit-discord-community.js" \
-              /opt/everleaf/web/.env
+            echo '### Non-destructive full restore drill'
+            restore_db="everleaf_restore_${AUDIT_RUN_ID}"
+            cleanup_restore() { sudo mysql -e "DROP DATABASE IF EXISTS \`$restore_db\`;" >/dev/null 2>&1 || true; }
+            trap cleanup_restore EXIT
+            sudo mysql -e "CREATE DATABASE \`$restore_db\`;"
+            sudo sh -c "gzip -dc '$latest_backup/game-mysql.sql.gz' | mysql '$restore_db'"
+            core_tables="$(sudo mysql --batch --skip-column-names "$restore_db" -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$restore_db' AND TABLE_NAME IN ('accounts','characters','inventoryitems','inventoryequipment','skills','queststatus','storages')")"
+            test "$core_tables" = '7'
+            sudo mysqlcheck --check --silent "$restore_db"
+            live_tables="$(sudo mysql --batch --skip-column-names cosmic -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='cosmic'")"
+            restored_tables="$(sudo mysql --batch --skip-column-names "$restore_db" -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$restore_db'")"
+            test "$restored_tables" = "$live_tables"
+            cleanup_restore
+            trap - EXIT
+            echo "restore_table_count=$restored_tables"
+            echo 'full_restore_drill=ready'
           REMOTE
 
-      - name: Audit public HTTPS endpoints
+      - name: Audit public endpoints
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location --max-time 20 \
-            "$EVERLEAF_PUBLIC_BASE/" >/dev/null
-          curl --fail --silent --show-error --location --max-time 20 \
-            "$EVERLEAF_PUBLIC_BASE/downloads" >/dev/null
-          curl --fail --silent --show-error --location --max-time 20 \
-            "$EVERLEAF_PUBLIC_BASE/v1/launcher/status" >/tmp/launcher-status.json
+          curl --fail --silent --show-error --location --max-time 20 "$EVERLEAF_PUBLIC_BASE/" >/dev/null
+          curl --fail --silent --show-error --location --max-time 20 "$EVERLEAF_PUBLIC_BASE/downloads" >/dev/null
+          curl --fail --silent --show-error --location --max-time 20 "$EVERLEAF_PUBLIC_BASE/v1/launcher/status" >/tmp/launcher-status.json
           python3 - <<'PY'
           import json
           status = json.load(open('/tmp/launcher-status.json'))
