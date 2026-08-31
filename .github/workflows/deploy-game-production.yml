@@ -1,0 +1,210 @@
+name: Deploy EverLeaf Game Production
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/deploy-game-production.yml'
+
+concurrency:
+  group: everleaf-game-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout release-dev
+        uses: actions/checkout@v4
+        with:
+          ref: release-dev
+          fetch-depth: 1
+
+      - name: Resolve release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "RELEASE_SHORT=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_ENV"
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY" || { echo 'EVERLEAF_SSH_PRIVATE_KEY is not configured.' >&2; exit 1; }
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'echo EverLeaf production SSH OK'
+
+      - name: Preflight production runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          test -L /opt/everleaf/current
+          test -f /opt/everleaf/current/config.yaml
+          systemctl is-active --quiet everleaf.service
+          command -v java >/dev/null
+          java -version
+          command -v python3 >/dev/null
+          test "$(df --output=avail -k /opt | tail -1 | tr -d ' ')" -gt 5242880
+          echo "Current release: $(readlink -f /opt/everleaf/current)"
+          REMOTE
+
+      - name: Stage release source
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_DIR="/opt/everleaf/releases/$RELEASE_SHA"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "mkdir -p '$RELEASE_DIR'"
+          rsync -az --delete \
+            --exclude='.git/' \
+            --exclude='target/' \
+            --exclude='database/docker-db-data/' \
+            --exclude='web/node_modules/' \
+            --exclude='client/' \
+            --exclude='launcher/' \
+            -e 'ssh -i ~/.ssh/id_everleaf' \
+            ./ "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$RELEASE_DIR/"
+
+      - name: Preserve production configuration and build release
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "RELEASE_DIR='/opt/everleaf/releases/$RELEASE_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cp -p /opt/everleaf/current/config.yaml "$RELEASE_DIR/config.yaml"
+          if [ -f /opt/everleaf/current/.env ]; then
+            cp -p /opt/everleaf/current/.env "$RELEASE_DIR/.env"
+          fi
+          cd "$RELEASE_DIR"
+          chmod +x mvnw || true
+          ./mvnw -B -DskipTests clean package
+          test -s target/everleaf-server-1.0-SNAPSHOT.jar
+          python3 tools/verify_channel_runtime.py --help >/dev/null
+          printf '%s\n' "$RELEASE_DIR" > /opt/everleaf/.candidate-release
+          echo "Built candidate $RELEASE_DIR"
+          REMOTE
+
+      - name: Back up production
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          BEFORE="$(find /opt/everleaf/backups -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 || true)"
+          sudo systemctl start everleaf-backup.service
+          RESULT="$(systemctl show everleaf-backup.service --property=Result --value)"
+          test "$RESULT" = success
+          AFTER="$(find /opt/everleaf/backups -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 || true)"
+          echo "Backup before: $BEFORE"
+          echo "Backup after:  $AFTER"
+          test -n "$AFTER"
+          echo 'Production backup service completed successfully.'
+          REMOTE
+
+      - name: Switch release and restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "RELEASE_DIR='/opt/everleaf/releases/$RELEASE_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          OLD_RELEASE="$(readlink -f /opt/everleaf/current)"
+          printf '%s\n' "$OLD_RELEASE" > /opt/everleaf/.previous-release
+          ln -sfn "$RELEASE_DIR" /opt/everleaf/current.next
+          mv -Tf /opt/everleaf/current.next /opt/everleaf/current
+          sudo systemctl restart everleaf.service
+          echo "Switched EverLeaf from $OLD_RELEASE to $RELEASE_DIR"
+          REMOTE
+
+      - name: Validate production or roll back
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -u
+          NEW_RELEASE="$(readlink -f /opt/everleaf/current)"
+          OLD_RELEASE="$(cat /opt/everleaf/.previous-release 2>/dev/null || true)"
+          HEALTHY=1
+
+          for attempt in $(seq 1 30); do
+            if systemctl is-active --quiet everleaf.service && \
+               python3 "$NEW_RELEASE/tools/verify_channel_runtime.py" --config "$NEW_RELEASE/config.yaml" --host 127.0.0.1 >/tmp/everleaf-channel-health.json 2>&1; then
+              HEALTHY=0
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$HEALTHY" -eq 0 ]; then
+            cat /tmp/everleaf-channel-health.json
+            echo "EverLeaf production deployment healthy: $NEW_RELEASE"
+            exit 0
+          fi
+
+          echo 'New release failed health validation.' >&2
+          cat /tmp/everleaf-channel-health.json >&2 2>/dev/null || true
+          sudo journalctl -u everleaf.service -n 120 --no-pager >&2 || true
+
+          if [ -n "$OLD_RELEASE" ] && [ -d "$OLD_RELEASE" ]; then
+            echo "Rolling back to $OLD_RELEASE" >&2
+            ln -sfn "$OLD_RELEASE" /opt/everleaf/current.rollback
+            mv -Tf /opt/everleaf/current.rollback /opt/everleaf/current
+            sudo systemctl restart everleaf.service
+            sleep 8
+            python3 "$OLD_RELEASE/tools/verify_channel_runtime.py" --config "$OLD_RELEASE/config.yaml" --host 127.0.0.1 >&2 || true
+          fi
+          exit 1
+          REMOTE
+
+      - name: Verify public game ports
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import socket
+          host = '132.145.141.79'
+          ports = [8484, *range(7575, 7583)]
+          missing = []
+          for port in ports:
+              try:
+                  with socket.create_connection((host, port), timeout=5):
+                      print(f'OK {host}:{port}')
+              except OSError as exc:
+                  print(f'FAIL {host}:{port}: {exc}')
+                  missing.append(port)
+          if missing:
+              raise SystemExit(f'Public game ports unavailable: {missing}')
+          PY
+
+      - name: Record deployed release
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "printf '%s %s\n' '$RELEASE_SHA' \"\$(date -u +%Y-%m-%dT%H:%M:%SZ)\" > /opt/everleaf/LAST_DEPLOYED_RELEASE"
+          echo "EverLeaf game production deployed: $RELEASE_SHA"
