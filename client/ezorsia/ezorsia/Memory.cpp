@@ -5,26 +5,36 @@
 bool Memory::UseVirtuProtect = true;
 
 namespace {
-    // The stock v83 client decides locally whether a ranged attack should fall
-    // back to the close-range "whack" animation. The server can reject that
-    // packet, but doing so alone still leaves the client-side animation and
-    // fake damage numbers visible. Apply the known v83 client redirects once
-    // the packed client has been unpacked and EverLeaf startup edits begin.
-    void ApplyEverLeafNoWhackPatch() {
+    // Apply EverLeaf client-side combat QoL only after the packed v83 client has
+    // unpacked and Client::UpdateGameStartup begins writing stable addresses.
+    // Server-side combat/status validation remains authoritative.
+    void ApplyEverLeafCombatQolPatches() {
         static bool applied = false;
         if (applied) {
             return;
         }
         applied = true;
 
-        // General ranged-weapon no-whack branch.
+        // No Whack: stop ranged weapons from falling back to the close-range
+        // swing animation / fake local damage when a monster is nearby.
         Memory::WriteByte(0x009698BC, 0xE9);
         Memory::WriteInt(0x009698BC + 1, 0x00969A39 - (0x009698BC + 5));
-
-        // Prevent the secondary close-range attack fallback path from winning
-        // over the requested ranged skill (notably claws / Night Lord).
         Memory::WriteByte(0x009516C2, 0xE9);
         Memory::WriteInt(0x009516C2 + 1, 0x0095138F - (0x009516C2 + 5));
+
+        // No Breath: remove the legacy post-hit breath gate. This changes only
+        // the client's generic breath comparison; stun/seal/knockback and other
+        // actual status effects are still enforced by the normal client/server
+        // state machinery.
+        Memory::WriteByte(0x00452316, 0x7C);
+
+        // Attack / skill use while moving. These are the v83 movement-state
+        // branches that normally force the player to stop before eligible skill
+        // actions. Do not touch skill-specific charge/channel restrictions.
+        Memory::WriteByte(0x0095F97A, 0xEB);
+        Memory::WriteByte(0x0095F97A + 1, 0x59);
+        Memory::WriteByte(0x009CBFB0, 0xEB);
+        Memory::FillBytes(0x0094C3BB, 0x90, 6);
     }
 }
 
@@ -114,11 +124,10 @@ void Memory::WriteDouble(const DWORD dwOriginAddress, const double dwValue) {
     }
     else { *(double*)dwOriginAddress = dwValue; }
 
-    // Client::UpdateGameStartup writes the damage cap only after the original
-    // executable is unpacked. Use that stable startup point to apply the client
-    // side combat redirect; applying this from DLL_PROCESS_ATTACH is too early.
+    // Client::UpdateGameStartup writes the damage cap after unpacking, giving us
+    // a stable one-time point to install the EverLeaf combat QoL patches.
     if (dwOriginAddress == 0x00AFE8A0) {
-        ApplyEverLeafNoWhackPatch();
+        ApplyEverLeafCombatQolPatches();
     }
 }
 
