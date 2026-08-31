@@ -1,0 +1,58 @@
+name: Audit EverLeaf Discord status monitor
+
+on:
+  push:
+    branches:
+      - fix-discord-monitor-spam
+    paths:
+      - .github/workflows/audit-discord-status-monitor.yml
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Locate the legacy alert monitor without reading credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+            set -euo pipefail
+            echo 'candidate_units:'
+            systemctl list-unit-files --type=service --no-legend 2>/dev/null \
+              | awk '{print $1}' \
+              | grep -Ei 'everleaf|discord|status|monitor' || true
+            echo 'alert_source_paths:'
+            sudo grep -RIl \
+              --exclude='*.env' \
+              --exclude='discord-bot.env' \
+              --exclude-dir='.git' \
+              -e 'EverLeaf Status Alert' \
+              -e 'Login Server recovered' \
+              /opt/everleaf /usr/local/lib/everleaf /etc/systemd/system 2>/dev/null || true
+          REMOTE
