@@ -106,6 +106,12 @@ jobs:
           expected_size="$(cat "$RUNNER_TEMP/live-map.size")"
           headers="$(curl --fail --silent --show-error --location --head --max-time 30 "https://$EVERLEAF_PUBLIC_HOST/patches/Map.wz")"
           printf '%s\n' "$headers"
-          printf '%s\n' "$headers" | grep -qiE "^content-length: *$expected_size\r?$"
-          printf '%s\n' "$headers" | grep -qiE '^content-type: *(application/octet-stream|application/x-msdownload|binary/octet-stream|application/zip|application/x-gzip|application/vnd\.ms-cab-compressed|application/x-7z-compressed|application/x-rar-compressed|application/x-wz|application/octetstream)' || true
+          actual_size="$(
+            printf '%s\n' "$headers" |
+              tr -d '\r' |
+              awk -F': *' 'tolower($1)=="content-length" {print $2; exit}'
+          )"
+          test -n "$actual_size"
+          test "$actual_size" = "$expected_size"
+          printf '%s\n' "$headers" | tr -d '\r' | grep -qiE '^content-type: *(application/octet-stream|application/x-msdownload|binary/octet-stream|application/zip|application/x-gzip|application/vnd\.ms-cab-compressed|application/x-7z-compressed|application/x-rar-compressed|application/x-wz|application/octetstream)' || true
           echo "EverLeaf public Map.wz endpoint size verified: $expected_size bytes"
