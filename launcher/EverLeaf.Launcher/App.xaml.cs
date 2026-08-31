@@ -13,6 +13,7 @@ public partial class App : System.Windows.Application
         }
 
         LauncherUpdateApplier.ScheduleCleanup(e.Args);
+        LauncherFileSwap.DeleteBackup(Environment.ProcessPath);
         new MainWindow().Show();
     }
 }
