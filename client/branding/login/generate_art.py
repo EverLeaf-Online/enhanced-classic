@@ -2,162 +2,148 @@
 from __future__ import annotations
 
 import argparse
-import math
-import os
-import random
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
 WIDTH = 800
 HEIGHT = 600
+SOURCE = Path(__file__).resolve().parent / "source"
 
 
-def load_font(size: int, bold: bool = False):
-    candidates = []
-    if os.name == "nt":
-        candidates += [
-            rf"C:\Windows\Fonts\{'georgiab.ttf' if bold else 'georgia.ttf'}",
-            rf"C:\Windows\Fonts\{'segoeuib.ttf' if bold else 'segoeui.ttf'}",
-        ]
-    else:
-        candidates += [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        ]
-    for path in candidates:
-        if Path(path).is_file():
-            return ImageFont.truetype(path, size=size)
+def font(size: int, bold: bool = False):
+    names = [
+        "C:/Windows/Fonts/arialbd.ttf" if bold else "C:/Windows/Fonts/arial.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    for name in names:
+        if Path(name).is_file():
+            return ImageFont.truetype(name, size)
     return ImageFont.load_default()
 
 
-def vertical_gradient(top, bottom):
-    image = Image.new("RGB", (WIDTH, HEIGHT))
-    px = image.load()
-    for y in range(HEIGHT):
-        t = y / (HEIGHT - 1)
-        # slightly brighten the middle for a misty clearing
-        mist = math.sin(t * math.pi) * 0.10
-        for x in range(WIDTH):
-            vignette = abs(x - WIDTH / 2) / (WIDTH / 2)
-            k = max(0.0, min(1.0, t + vignette * 0.06 - mist))
-            px[x, y] = tuple(int(top[i] * (1 - k) + bottom[i] * k) for i in range(3))
+def centered_text(draw, box, text, text_font, fill=(246, 244, 224, 255),
+                  stroke_fill=(25, 20, 10, 255), stroke_width=1):
+    left, top, right, bottom = box
+    bounds = draw.textbbox((0, 0), text, font=text_font, stroke_width=stroke_width)
+    x = left + (right - left - (bounds[2] - bounds[0])) // 2
+    y = top + (bottom - top - (bounds[3] - bounds[1])) // 2 - bounds[1]
+    draw.text((x, y), text, font=text_font, fill=fill,
+              stroke_fill=stroke_fill, stroke_width=stroke_width)
+
+
+def wood_texture(size, seed=0):
+    width, height = size
+    image = Image.new("RGBA", size, (54, 34, 17, 255))
+    draw = ImageDraw.Draw(image)
+    for y in range(height):
+        wave = ((y * 17 + seed * 11) % 31) / 31
+        shade = int(39 + wave * 14)
+        draw.line((0, y, width, y), fill=(shade + 18, shade + 3, max(12, shade - 17), 255))
+    for y in range(8, height, 17):
+        draw.line((4, y, width - 5, y + (seed + y) % 3 - 1), fill=(104, 70, 34, 75), width=1)
     return image
 
 
-def draw_leaf(draw: ImageDraw.ImageDraw, cx: float, cy: float, radius: float, angle: float, fill):
-    points = []
-    for i in range(24):
-        a = (i / 24) * math.tau
-        # tapered ellipse/leaf profile
-        x = math.cos(a) * radius
-        y = math.sin(a) * radius * 0.52
-        ca, sa = math.cos(angle), math.sin(angle)
-        points.append((cx + x * ca - y * sa, cy + x * sa + y * ca))
-    draw.polygon(points, fill=fill)
+def build_background(path):
+    source = Image.open(SOURCE / "hero-forest.webp").convert("RGB")
+    image = ImageOps.fit(source, (WIDTH, HEIGHT), method=Image.Resampling.LANCZOS,
+                         centering=(0.50, 0.50))
+    image = ImageEnhance.Color(image).enhance(0.94)
+    image = ImageEnhance.Contrast(image).enhance(0.96)
+    overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    for y in range(235):
+        alpha = int(44 * (1 - y / 235) ** 1.7)
+        draw.line((0, y, WIDTH, y), fill=(4, 28, 13, alpha))
+    Image.alpha_composite(image.convert("RGBA"), overlay).convert("RGB").save(path, "PNG", optimize=True)
 
 
-def build_background(path: Path):
-    random.seed(830250)
-    image = vertical_gradient((76, 142, 112), (20, 55, 43))
-
-    # Soft distant glow/mist.
-    mist = Image.new("RGBA", image.size, (0, 0, 0, 0))
-    md = ImageDraw.Draw(mist)
-    for _ in range(16):
-        x = random.randint(120, 720)
-        y = random.randint(90, 420)
-        rx = random.randint(90, 220)
-        ry = random.randint(30, 90)
-        md.ellipse((x-rx, y-ry, x+rx, y+ry), fill=(220, 244, 226, random.randint(8, 18)))
-    mist = mist.filter(ImageFilter.GaussianBlur(24))
-    image = Image.alpha_composite(image.convert("RGBA"), mist)
-
-    # Distant forest silhouettes.
-    layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
-    d = ImageDraw.Draw(layer)
-    for x in range(-30, 850, 55):
-        h = random.randint(185, 315)
-        base = 510
-        trunk_w = random.randint(18, 30)
-        d.rounded_rectangle((x, base-h, x+trunk_w, base+35), radius=8, fill=(24, 67, 50, 165))
-        for j in range(7):
-            cy = base-h+35+j*32
-            spread = 65-j*4
-            d.polygon([(x+trunk_w/2, cy-48), (x-spread, cy+38), (x+trunk_w+spread, cy+38)], fill=(26, 83, 58, 100))
-    image = Image.alpha_composite(image, layer.filter(ImageFilter.GaussianBlur(2.2)))
-
-    # Foreground giant tree, rooted on the left, with a clean clearing on the right for the stock signboard.
-    fg = Image.new("RGBA", image.size, (0, 0, 0, 0))
-    d = ImageDraw.Draw(fg)
-    d.polygon([(0, 600), (0, 0), (86, 0), (112, 94), (99, 205), (142, 326), (119, 600)], fill=(57, 64, 35, 255))
-    d.polygon([(26, 600), (58, 0), (125, 0), (145, 112), (129, 218), (175, 362), (151, 600)], fill=(87, 83, 42, 235))
-    d.polygon([(72, 600), (100, 0), (145, 0), (162, 130), (148, 260), (187, 410), (170, 600)], fill=(113, 96, 52, 180))
-    # bark highlights
-    for _ in range(18):
-        x = random.randint(30, 155)
-        y = random.randint(-30, 590)
-        d.line((x, y, x+random.randint(-8, 12), y+random.randint(55, 130)), fill=(169, 145, 81, 80), width=random.randint(2, 5))
-
-    # Grass bank and stones.
-    d.polygon([(0, 515), (205, 485), (390, 500), (590, 478), (800, 500), (800, 600), (0, 600)], fill=(44, 91, 54, 255))
-    d.polygon([(0, 541), (230, 505), (440, 525), (620, 500), (800, 518), (800, 600), (0, 600)], fill=(37, 75, 48, 210))
-    for _ in range(26):
-        x = random.randint(120, 760)
-        y = random.randint(490, 585)
-        r = random.randint(6, 17)
-        d.ellipse((x-r, y-r//2, x+r, y+r//2), fill=(95, 112, 88, random.randint(70, 150)))
-
-    # Foreground leaves around the corners, but not over the central login panel.
-    leaf_palette = [(63, 137, 78, 220), (89, 158, 88, 210), (45, 111, 69, 230), (118, 170, 88, 185)]
-    for _ in range(62):
-        if random.random() < 0.68:
-            cx = random.choice([random.randint(-10, 210), random.randint(700, 825)])
-        else:
-            cx = random.randint(0, 800)
-        cy = random.choice([random.randint(-15, 115), random.randint(470, 625)])
-        draw_leaf(d, cx, cy, random.randint(7, 18), random.random()*math.pi, random.choice(leaf_palette))
-
-    image = Image.alpha_composite(image, fg)
-
-    # Subtle EverLeaf signature in the lower-left, separate from the main logo node.
-    d = ImageDraw.Draw(image)
-    font = load_font(17, bold=True)
-    d.text((32, 552), "EVERLEAF", font=font, fill=(232, 244, 222, 185), stroke_width=1, stroke_fill=(20, 49, 35, 150))
-    d.text((33, 574), "ENHANCED CLASSIC", font=load_font(9, bold=True), fill=(199, 221, 188, 150))
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    image.convert("RGB").save(path, format="PNG", optimize=True)
+def build_logo(path):
+    source = Image.open(SOURCE / "everleaf-logo.webp").convert("RGBA")
+    source.thumbnail((385, 150), Image.Resampling.LANCZOS)
+    canvas = Image.new("RGBA", (397, 219), (0, 0, 0, 0))
+    shadow = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    alpha = source.getchannel("A").filter(ImageFilter.GaussianBlur(4))
+    shadow.paste((0, 12, 2, 185), (8, 19), alpha)
+    canvas = Image.alpha_composite(canvas, shadow)
+    canvas.alpha_composite(source, ((397 - source.width) // 2, 8))
+    draw = ImageDraw.Draw(canvas)
+    centered_text(draw, (0, 157, 397, 183), "YOUR ADVENTURE, YOUR STORY",
+                  font(13, True), fill=(250, 248, 224, 245), stroke_width=2,
+                  stroke_fill=(19, 45, 16, 230))
+    canvas.save(path, "PNG", optimize=True)
 
 
-def build_logo(path: Path):
-    canvas = Image.new("RGBA", (430, 132), (0, 0, 0, 0))
-    d = ImageDraw.Draw(canvas)
+def build_frame(path):
+    image = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 558, WIDTH, HEIGHT), fill=(4, 18, 8, 178))
+    draw.line((0, 558, WIDTH, 558), fill=(148, 184, 49, 145), width=1)
+    draw.text((17, 17), "Version 0.83", font=font(12, True), fill=(255, 255, 255, 235),
+              stroke_width=1, stroke_fill=(15, 27, 11, 210))
+    centered_text(draw, (0, 563, WIDTH, 580),
+                  "Never share your account information. Stay safe, adventurer!",
+                  font(11), fill=(241, 244, 227, 235), stroke_width=0)
+    centered_text(draw, (0, 580, WIDTH, 597),
+                  "Need help? Visit everleafms.online or join our Discord.",
+                  font(10), fill=(201, 221, 148, 235), stroke_width=0)
+    image.save(path, "PNG", optimize=True)
 
-    # Soft shadow plate behind the wordmark improves readability on old v83 blending.
-    d.rounded_rectangle((19, 23, 410, 110), radius=38, fill=(9, 35, 24, 95), outline=(222, 236, 192, 55), width=2)
 
-    title = "EverLeaf"
-    title_font = load_font(62, bold=True)
-    bbox = d.textbbox((0, 0), title, font=title_font, stroke_width=1)
-    tw = bbox[2] - bbox[0]
-    x = (430 - tw) // 2 + 7
-    y = 26
-    d.text((x+3, y+4), title, font=title_font, fill=(7, 25, 17, 175), stroke_width=3, stroke_fill=(7, 25, 17, 120))
-    d.text((x, y), title, font=title_font, fill=(235, 245, 208, 255), stroke_width=2, stroke_fill=(44, 98, 56, 255))
+def build_signboard(path):
+    image = wood_texture((368, 236), 3)
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((2, 2, 365, 233), radius=12, outline=(35, 25, 9, 255), width=4)
+    draw.rounded_rectangle((7, 7, 360, 228), radius=9, outline=(144, 105, 49, 255), width=2)
+    draw.text((12, 18), "Login ID", font=font(10, True), fill=(244, 239, 211, 255),
+              stroke_width=1, stroke_fill=(25, 16, 7, 255))
+    draw.text((12, 53), "Password", font=font(10, True), fill=(244, 239, 211, 255),
+              stroke_width=1, stroke_fill=(25, 16, 7, 255))
+    for top in (10, 45):
+        draw.rounded_rectangle((58, top, 208, top + 31), radius=4,
+                               fill=(25, 22, 14, 255), outline=(126, 94, 43, 255), width=2)
+    draw.line((12, 82, 356, 82), fill=(141, 103, 45, 170), width=1)
+    draw.line((12, 122, 356, 122), fill=(36, 22, 8, 180), width=1)
+    centered_text(draw, (10, 186, 358, 213), "WELCOME TO EVERLEAF",
+                  font(11, True), fill=(195, 218, 109, 215), stroke_width=1)
+    image.save(path, "PNG", optimize=True)
 
-    # Leaf accent over the final word.
-    draw_leaf(d, 357, 27, 22, -0.52, (108, 177, 92, 255))
-    d.line((346, 39, 369, 15), fill=(229, 244, 205, 220), width=2)
 
-    sub = "ENHANCED CLASSIC"
-    sf = load_font(12, bold=True)
-    sb = d.textbbox((0, 0), sub, font=sf)
-    sw = sb[2] - sb[0]
-    d.text(((430-sw)//2, 102), sub, font=sf, fill=(206, 227, 188, 235))
+def button(path, size, text, state, green=False, text_size=None):
+    width, height = size
+    palettes = ({
+        "normal": ((103, 132, 15), (151, 180, 36)),
+        "mouseOver": ((128, 158, 21), (183, 208, 52)),
+        "pressed": ((73, 96, 10), (121, 148, 27)),
+        "disabled": ((72, 75, 58), (105, 108, 82)),
+    } if green else {
+        "normal": ((67, 42, 20), (126, 83, 38)),
+        "mouseOver": ((86, 54, 24), (158, 107, 49)),
+        "pressed": ((47, 30, 15), (102, 66, 31)),
+        "disabled": ((66, 59, 49), (103, 91, 74)),
+    })
+    fill, edge = palettes[state]
+    image = Image.new("RGB", size, fill)
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((1, 1, width - 2, height - 2), radius=max(3, height // 7),
+                           fill=fill, outline=(28, 20, 9), width=2)
+    draw.rounded_rectangle((4, 4, width - 5, height - 5), radius=max(2, height // 9),
+                           outline=edge, width=1)
+    centered_text(draw, (2, 1, width - 2, height - 2), text,
+                  font(text_size or max(9, min(15, height // 3)), True),
+                  fill=(246, 244, 224), stroke_width=1)
+    image.save(path, "PNG", optimize=True)
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    canvas.save(path, format="PNG", optimize=True)
+
+def build_check(path, checked):
+    image = Image.new("RGB", (18, 23), (58, 40, 20))
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((1, 3, 16, 18), radius=3, fill=(31, 47, 13),
+                           outline=(137, 168, 35), width=2)
+    if checked:
+        draw.line((4, 10, 8, 15, 15, 6), fill=(201, 229, 72), width=3, joint="curve")
+    image.save(path, "PNG", optimize=True)
 
 
 def main():
@@ -165,9 +151,32 @@ def main():
     parser.add_argument("--output", default="client/branding/login/generated")
     args = parser.parse_args()
     output = Path(args.output)
+    output.mkdir(parents=True, exist_ok=True)
+
+    required = [SOURCE / "hero-forest.webp", SOURCE / "everleaf-logo.webp"]
+    missing = [str(item) for item in required if not item.is_file()]
+    if missing:
+        raise SystemExit("Missing EverLeaf source artwork: " + ", ".join(missing))
+
     build_background(output / "background.png")
     build_logo(output / "logo.png")
-    print(f"Generated {output / 'background.png'} and {output / 'logo.png'}")
+    build_frame(output / "frame.png")
+    build_signboard(output / "signboard.png")
+    specs = {
+        "login": ((89, 42), "LOG IN", True, 14),
+        "save-id": ((76, 23), "SAVE ID", False, 9),
+        "find-id": ((82, 23), "FIND ID", False, 9),
+        "reset-password": ((66, 23), "RESET", False, 9),
+        "register": ((92, 38), "REGISTER", False, 11),
+        "homepage": ((93, 38), "HOMEPAGE", False, 10),
+        "quit": ((84, 38), "QUIT", False, 11),
+    }
+    for name, (size, label, green, text_size) in specs.items():
+        for state in ("normal", "mouseOver", "pressed", "disabled"):
+            button(output / f"{name}-{state}.png", size, label, state, green, text_size)
+    build_check(output / "check-0.png", False)
+    build_check(output / "check-1.png", True)
+    print(f"Generated complete EverLeaf login theme in {output}")
 
 
 if __name__ == "__main__":

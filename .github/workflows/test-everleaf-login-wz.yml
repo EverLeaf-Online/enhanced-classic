@@ -35,11 +35,28 @@ jobs:
           root=Path(os.environ['RUNNER_TEMP'])/'art'
           bg=Image.open(root/'background.png')
           logo=Image.open(root/'logo.png')
+          frame=Image.open(root/'frame.png')
+          signboard=Image.open(root/'signboard.png')
           assert bg.size == (800,600)
           assert bg.mode == 'RGB'
+          assert logo.size == (397,219)
           assert logo.mode == 'RGBA'
           assert logo.getbbox() is not None
-          print('artwork ok', bg.size, logo.size)
+          assert frame.size == (800,600) and frame.mode == 'RGBA'
+          assert signboard.size == (368,236)
+          expected={
+            'login':(89,42), 'save-id':(76,23), 'find-id':(82,23),
+            'reset-password':(66,23), 'register':(92,38),
+            'homepage':(93,38), 'quit':(84,38)
+          }
+          for name,size in expected.items():
+            for state in ('normal','mouseOver','pressed','disabled'):
+              image=Image.open(root/f'{name}-{state}.png')
+              assert image.size == size, (name,state,image.size)
+              assert image.mode == 'RGB', (name,state,image.mode)
+          for index in (0,1):
+            assert Image.open(root/f'check-{index}.png').size == (18,23)
+          print('complete Map.wz + UI.wz artwork ok')
           PY
 
       - name: Build pinned libwz patcher
