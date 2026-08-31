@@ -91,9 +91,36 @@ jobs:
           chmod 600 "$SSH_DIR/known_hosts"
           ssh -o BatchMode=yes -o ConnectTimeout=10 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            'test -s /opt/everleaf/patches/files/Map.wz && test -s /opt/everleaf/patches/manifest.json && test -f /opt/everleaf/web/scripts/build-patch-manifest.js && command -v node >/dev/null && command -v sha256sum >/dev/null'
+            'test -s /opt/everleaf/patches/files/Map.wz && test -s /opt/everleaf/patches/manifest.json && test -f /opt/everleaf/web/scripts/build-patch-manifest.js && command -v node >/dev/null && command -v sha256sum >/dev/null; printf "Oracle architecture: "; uname -m'
 
-      - name: Stage WZ patcher and artwork
+      - name: Fetch and patch production Map.wz on runner
+        run: |
+          set -euo pipefail
+          SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          LIVE_MAP="$RUNNER_TEMP/Map.wz.live"
+          PATCHED_MAP="$RUNNER_TEMP/Map.wz.new"
+          PATCHER="$RUNNER_TEMP/everleaf-login-wz-build/everleaf-login-wz-patcher"
+
+          scp -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/Map.wz" \
+            "$LIVE_MAP"
+          test -s "$LIVE_MAP"
+
+          old_hash="$(sha256sum "$LIVE_MAP" | awk '{print $1}')"
+          "$PATCHER" \
+            "$LIVE_MAP" \
+            "$RUNNER_TEMP/everleaf-login-art/background.png" \
+            "$RUNNER_TEMP/everleaf-login-art/logo.png" \
+            "$PATCHED_MAP"
+          test -s "$PATCHED_MAP"
+          new_hash="$(sha256sum "$PATCHED_MAP" | awk '{print $1}')"
+          test "$new_hash" != "$old_hash"
+          printf '%s\n' "$old_hash" > "$RUNNER_TEMP/map.old.sha256"
+          printf '%s\n' "$new_hash" > "$RUNNER_TEMP/map.new.sha256"
+          stat -c '%s' "$PATCHED_MAP" > "$RUNNER_TEMP/map.new.size"
+          echo "Validated live Map.wz patch on runner: $old_hash -> $new_hash"
+
+      - name: Stage validated Map.wz
         run: |
           set -euo pipefail
           SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
@@ -101,37 +128,39 @@ jobs:
           ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
           scp -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
-            "$RUNNER_TEMP/everleaf-login-wz-build/everleaf-login-wz-patcher" \
-            "$RUNNER_TEMP/everleaf-login-art/background.png" \
-            "$RUNNER_TEMP/everleaf-login-art/logo.png" \
-            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$REMOTE_STAGE/"
+            "$RUNNER_TEMP/Map.wz.new" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$REMOTE_STAGE/Map.wz.new"
 
-      - name: Patch production Map.wz and regenerate manifest
+      - name: Publish validated Map.wz and regenerate manifest
         run: |
           set -euo pipefail
           SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          expected_old_hash="$(cat "$RUNNER_TEMP/map.old.sha256")"
+          expected_new_hash="$(cat "$RUNNER_TEMP/map.new.sha256")"
           ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
-            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "RELEASE_SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "RELEASE_SHA='$GITHUB_SHA' EXPECTED_OLD_HASH='$expected_old_hash' EXPECTED_NEW_HASH='$expected_new_hash' bash -s" <<'REMOTE'
           set -euo pipefail
           PATCH_ROOT=/opt/everleaf/patches
           FILES="$PATCH_ROOT/files"
           STAGE="/tmp/everleaf-login-wz-$RELEASE_SHA"
           TEMP_PATCH="$PATCH_ROOT/.login-temp-$RELEASE_SHA"
           BACKUP="$PATCH_ROOT/.login-backup-$RELEASE_SHA"
-          PATCHER="$STAGE/everleaf-login-wz-patcher"
           OUTPUT="$STAGE/Map.wz.new"
           GENERATED="$STAGE/manifest.json"
 
           rm -rf "$TEMP_PATCH" "$BACKUP"
           mkdir -p "$TEMP_PATCH" "$BACKUP"
-          chmod +x "$PATCHER"
+          test -s "$OUTPUT"
 
           old_hash="$(sha256sum "$FILES/Map.wz" | awk '{print $1}')"
-          "$PATCHER" "$FILES/Map.wz" "$STAGE/background.png" "$STAGE/logo.png" "$OUTPUT"
-          test -s "$OUTPUT"
           new_hash="$(sha256sum "$OUTPUT" | awk '{print $1}')"
+          test "$old_hash" = "$EXPECTED_OLD_HASH"
+          test "$new_hash" = "$EXPECTED_NEW_HASH"
           test "$new_hash" != "$old_hash"
 
+          # Candidate tree and backup stay under PATCH_ROOT so hard links never
+          # cross filesystems. No unvalidated file is installed live.
           cp -al "$FILES" "$TEMP_PATCH/files"
           rm -f "$TEMP_PATCH/files/Map.wz"
           cp "$OUTPUT" "$TEMP_PATCH/files/Map.wz"
@@ -190,13 +219,20 @@ jobs:
           set -euo pipefail
           SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
           REMOTE_STAGE="/tmp/everleaf-login-wz-$GITHUB_SHA"
-          expected_size="$(ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "cat '$REMOTE_STAGE/map.size'")"
+          expected_hash="$(cat "$RUNNER_TEMP/map.new.sha256")"
+          expected_size="$(cat "$RUNNER_TEMP/map.new.size")"
+          remote_hash="$(ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "cat '$REMOTE_STAGE/map.sha256'")"
+          remote_size="$(ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "cat '$REMOTE_STAGE/map.size'")"
+          test "$remote_hash" = "$expected_hash"
+          test "$remote_size" = "$expected_size"
+
           curl --fail --silent --show-error --max-time 20 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" -o public-manifest.json
-          node - "$expected_size" <<'NODE'
+          node - "$expected_hash" "$expected_size" <<'NODE'
           const fs=require('fs'); const m=JSON.parse(fs.readFileSync('public-manifest.json','utf8'));
           const map=m.files.find(f => f.path === 'Map.wz');
           if(!map) throw new Error('public manifest does not contain Map.wz');
-          if(String(map.size) !== process.argv[2]) throw new Error(`public Map.wz size mismatch: ${map.size}`);
+          if(map.sha256 !== process.argv[2]) throw new Error(`public Map.wz hash mismatch: ${map.sha256}`);
+          if(String(map.size) !== process.argv[3]) throw new Error(`public Map.wz size mismatch: ${map.size}`);
           console.log(`Public manifest exposes Map.wz ${map.sha256} (${map.size} bytes)`);
           NODE
           headers="$(curl --fail --silent --show-error --location --head --max-time 30 "https://$EVERLEAF_PUBLIC_HOST/patches/Map.wz")"
