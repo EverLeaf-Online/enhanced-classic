@@ -36,6 +36,14 @@ jobs:
           echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           echo "RELEASE_SHORT=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_ENV"
 
+      - name: Apply EverLeaf release transforms
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/apply_everleaf_config.py
+          python3 tools/apply_level_cap_250.py
+          python3 tools/apply_pq_points.py
+
       - name: Configure SSH
         shell: bash
         env:
@@ -68,6 +76,7 @@ jobs:
           command -v java >/dev/null
           java -version
           command -v python3 >/dev/null
+          command -v rsync >/dev/null
           test "$(df --output=avail -k /opt | tail -1 | tr -d ' ')" -gt 5242880
           echo "Current release: $(readlink -f /opt/everleaf/current)"
           REMOTE
