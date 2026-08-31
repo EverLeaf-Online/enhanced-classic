@@ -156,15 +156,29 @@ public static class LauncherUpdateApplier
             // The previous process already exited.
         }
 
-        var staged = target + ".everleaf-new";
-        File.Copy(source, staged, true);
-        File.Move(staged, target, true);
+        LauncherFileSwap.Replace(source, target);
 
-        var restart = new ProcessStartInfo { FileName = target, WorkingDirectory = Path.GetDirectoryName(target)!, UseShellExecute = true };
-        restart.ArgumentList.Add(CleanupArgument);
-        restart.ArgumentList.Add(updateDirectory);
-        restart.ArgumentList.Add(Environment.ProcessId.ToString());
-        Process.Start(restart)?.Dispose();
+        try
+        {
+            var restart = new ProcessStartInfo
+            {
+                FileName = target,
+                WorkingDirectory = Path.GetDirectoryName(target)!,
+                UseShellExecute = true
+            };
+            restart.ArgumentList.Add(CleanupArgument);
+            restart.ArgumentList.Add(updateDirectory);
+            restart.ArgumentList.Add(Environment.ProcessId.ToString());
+            using var restarted = Process.Start(restart);
+            if (restarted is null)
+                throw new InvalidOperationException("EverLeaf could not restart the updated launcher.");
+        }
+        catch
+        {
+            LauncherFileSwap.Restore(target);
+            throw;
+        }
+
         return true;
     }
 

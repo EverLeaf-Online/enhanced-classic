@@ -31,13 +31,13 @@ jobs:
         run: dotnet restore launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj
 
       - name: Build
-        run: dotnet build launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj --configuration Release --no-restore
+        run: dotnet build launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj --configuration Release --no-restore -p:EverLeafRevision=${{ github.sha }}
 
       - name: Test signed manifest, repair, and self-update behavior
         run: dotnet test launcher/EverLeaf.Launcher.Tests/EverLeaf.Launcher.Tests.csproj --configuration Release
 
       - name: Publish self-contained launcher
-        run: dotnet publish launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj --configuration Release --runtime win-x64 --self-contained true --output launcher-publish
+        run: dotnet publish launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj --configuration Release --runtime win-x64 --self-contained true --output launcher-publish -p:EverLeafRevision=${{ github.sha }}
 
       - name: Verify launcher security invariants
         shell: pwsh
@@ -61,6 +61,8 @@ jobs:
           if ($source.Contains("EverLeafProductionKeyPending")) { throw "Placeholder manifest public key still present" }
           if ($source -match "Server=.*;Password=") { throw "Database credential pattern found in launcher source" }
           if ($source.Contains("EVERLEAF_LAUNCH_TOKEN")) { throw "Deprecated fake launcher SSO token still present" }
+          $project = Get-Content "launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj" -Raw
+          if (-not $project.Contains('$(EverLeafRevision)')) { throw "Launcher source revision version stamping is missing" }
           $window = Get-Content "launcher/EverLeaf.Launcher/MainWindow.xaml.cs" -Raw
           if (-not $window.Contains('"INSTALL EVERLEAF"')) { throw "Empty-folder install mode is missing" }
           if (-not $window.Contains('_launcherReady')) { throw "Launcher readiness gate is missing" }
