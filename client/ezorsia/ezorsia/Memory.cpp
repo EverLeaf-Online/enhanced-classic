@@ -27,6 +27,20 @@ namespace {
         // actual status effects are still enforced by the normal client/server
         // state machinery.
         Memory::WriteByte(0x00452316, 0x7C);
+
+        // Move while using skills: relax the three v83 action-state gates that
+        // stop eligible attacks/skills while the local character is moving.
+        // These exact instruction boundaries were verified against EverLeaf's
+        // pinned v83 Localhost.exe before enabling the edits.
+        Memory::WriteByte(0x0095F97A, 0xEB);
+        Memory::WriteByte(0x0095F97B, 0x59);
+        Memory::WriteByte(0x009CBFB0, 0xEB);
+        Memory::FillBytes(0x0094C3BB, 0x90, 6);
+
+        // Jump attack support for ranged and magic attacks. These retain the
+        // existing destination blocks and only bypass the legacy airborne gate.
+        Memory::WriteByte(0x009539FA, 0xEB);
+        Memory::WriteByte(0x009559E5, 0xEB);
     }
 }
 
