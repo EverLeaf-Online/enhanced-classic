@@ -110,7 +110,7 @@ jobs:
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do test -s "$PAYLOAD/$f"; done
           test "$(find "$PAYLOAD" -type f | wc -l)" -eq 4
 
-          cp -al "$FILES" "$TEMP_PATCH/files"
+          cp -a "$FILES" "$TEMP_PATCH/files"
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do
             rm -f "$TEMP_PATCH/files/$f"
             cp "$PAYLOAD/$f" "$TEMP_PATCH/files/$f"
