@@ -7,9 +7,9 @@
   <div class="wrap heroInner assetHeroInner">
     <div class="welcome">WELCOME TO</div>
     <img class="heroLogoImage" src="/assets/everleaf-logo.webp" alt="EverLeaf">
-    <div class="subhead">v83 MAPLESTORY PRIVATE SERVER</div>
-    <div class="heroText">The adventure begins again.<br>Relive the nostalgia. Build your legacy.</div>
-    <div class="heroActions"><a class="btn primary" href="/register">PLAY NOW</a><a class="btn" href="/downloads">DOWNLOAD</a></div>
+    <div class="subhead">v83 MAPLESTORY • ENHANCED CLASSIC</div>
+    <div class="heroText">Classic MapleStory rebuilt for long-term progression, smoother quality-of-life, and a community-first adventure.</div>
+    <div class="heroActions"><a class="btn primary" href="<%=sessionPlayer?'/downloads':'/register'%>"><%=sessionPlayer?'PLAY / DOWNLOAD':'START PLAYING'%></a><a class="btn" href="/news">LATEST UPDATES</a></div>
     <div class="statusStrip">
       <div class="statusCell"><div class="statusIcon statusDot">●</div><div><div class="statusLabel">Server Status</div><div id="live-status" class="statusValue <%=status.online?'online':''%>"><%=status.online?'ONLINE':'OFFLINE'%></div></div></div>
       <div class="statusCell"><div class="statusIcon">👥</div><div><div class="statusLabel">Players Online</div><div id="live-players" class="statusValue"><%=players===null?'—':players%></div></div></div>
@@ -18,14 +18,18 @@
     </div>
   </div>
 </section>
-<section class="homeBody"><div class="wrap"><div class="homeGrid"><div>
-  <div class="sectionHead"><h2>Latest News</h2><a href="/news">VIEW ALL</a></div><div class="newsGrid">
+<section class="homeBody"><div class="wrap">
+  <div class="homeFeatureGrid" aria-label="EverLeaf highlights"><a class="homeFeature" href="/about"><span>🍃</span><div><strong>Enhanced Classic</strong><small>Familiar v83 gameplay refined for a longer-lasting journey.</small></div></a><a class="homeFeature" href="/downloads"><span>⚡</span><div><strong>Easy to Start</strong><small>Launcher-managed updates keep your EverLeaf client synchronized.</small></div></a><a class="homeFeature" href="/rules"><span>🤝</span><div><strong>Community First</strong><small>Clear rules, fair progression, and no pay-to-win advantage.</small></div></a></div>
+  <div class="homeGrid"><div>
+  <div class="sectionHead"><h2>Latest News</h2><a href="/news">VIEW ALL NEWS →</a></div><div class="newsGrid">
   <% const newsImages=['/assets/news-welcome.webp','/assets/news-event.webp','/assets/news-patch.webp']; %>
   <% posts.slice(0,3).forEach((p,i)=>{ %><a class="newsCard" href="/news/<%=p.slug%>"><div class="newsArtImage"><img src="<%=newsImages[i%newsImages.length]%>" alt=""><span class="badge"><%=p.type.toUpperCase()%></span></div><div class="newsBody"><div class="newsTitle"><%=p.title%></div><div class="newsExcerpt"><%=p.excerpt%></div><div class="date"><%=String(p.created_at).slice(0,10)%></div></div></a><% }) %>
   <% if(!posts.length){ %><div class="newsCard"><div class="newsArtImage"><img src="/assets/news-welcome.webp" alt=""><span class="badge">UPDATE</span></div><div class="newsBody"><div class="newsTitle">Welcome to EverLeaf!</div><div class="newsExcerpt">EverLeaf news and patch notes will appear here.</div></div></div><% } %>
-  </div></div><div><div class="sectionHead"><h2>Top Characters</h2><a href="/rankings">VIEW ALL</a></div><div class="rankPanel"><div class="rankHeader"><span>Rank</span><span>Level</span></div>
-  <% (topCharacters||[]).slice(0,5).forEach((r,i)=>{ %><div class="rankRow"><span class="rankNo"><%=i+1%></span><span><%=r.name%></span><span class="rankLv"><%=r.level%></span></div><% }) %>
+  </div></div><div><div class="sectionHead"><h2>Top Characters</h2><a href="/rankings">FULL RANKINGS →</a></div><div class="rankPanel"><div class="rankHeader"><span>Rank</span><span>Level</span></div>
+  <% (topCharacters||[]).slice(0,5).forEach((r,i)=>{ %><div class="rankRow"><span class="rankNo"><%=i+1%></span><span><strong><%=r.name%></strong><% if(r.jobName){ %><small class="rankJob"><%=r.jobName%></small><% } %></span><span class="rankLv"><%=r.level%></span></div><% }) %>
   <% if(!(topCharacters||[]).length){ %><div class="rankRow"><span class="rankNo">1</span><span>Rankings coming soon</span><span class="rankLv">—</span></div><% } %>
-  </div></div></div></div></section>
+  </div></div></div>
+  <div class="homeCta"><div><span class="kicker">READY TO BEGIN?</span><h2>Return to Maple World with EverLeaf.</h2><p>Download the launcher, create your account, and let automatic updates keep your client ready to play.</p></div><div class="homeCtaActions"><a class="btn primary" href="<%=sessionPlayer?'/downloads':'/register'%>"><%=sessionPlayer?'DOWNLOAD LAUNCHER':'CREATE ACCOUNT'%></a><a class="btn" href="/downloads">DOWNLOADS</a></div></div>
+</div></section>
 <script src="/js/home-status.js" defer></script>
 <%- include("partials/footer") %>
