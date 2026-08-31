@@ -58,6 +58,18 @@ public final class ItemMoveHandler extends AbstractPacketHandler {
             short action = p.readShort();
             short quantity = p.readShort();
 
+            // Client inventory-move packets should only address real inventory tabs.
+            // Internal/sentinel inventory types must never reach the manipulators from
+            // an untrusted packet.
+            if (type == null || type == InventoryType.UNDEFINED || type == InventoryType.CANHOLD || type == InventoryType.EQUIPPED) {
+                c.sendPacket(PacketCreator.enableActions());
+                return;
+            }
+            if (action == 0 && quantity <= 0) {
+                c.sendPacket(PacketCreator.enableActions());
+                return;
+            }
+
             if (src < 0 && action > 0) {
                 InventoryManipulator.unequip(c, src, action);
             } else if (action < 0) {
