@@ -27,6 +27,46 @@ def replace_first_of(text: str, candidates: tuple[str, ...], new: str) -> str:
     raise SystemExit(f"Expected one of these config patterns: {candidates!r}")
 
 
+def force_primary_world_channels(text: str, channels: int) -> str:
+    """Set only world 0's channel count, regardless of later world values.
+
+    Production preserves the previous config before applying this transform, so
+    global idempotency checks are unsafe: a later world could already contain the
+    target value while world 0 is still stale. Restrict the edit to the first
+    world block instead.
+    """
+    worlds_pos = text.find("worlds:")
+    server_pos = text.find("\nserver:")
+    if worlds_pos == -1 or server_pos == -1 or server_pos <= worlds_pos:
+        raise SystemExit("Could not locate worlds section in config.yaml")
+
+    world_section = text[worlds_pos:server_pos]
+    first_world_start = world_section.find("  - flag:")
+    second_world_start = world_section.find("\n  - flag:", first_world_start + 1)
+    if first_world_start == -1:
+        raise SystemExit("Could not locate primary world block in config.yaml")
+    if second_world_start == -1:
+        second_world_start = len(world_section)
+
+    first_world = world_section[first_world_start:second_world_start]
+    lines = first_world.splitlines(keepends=True)
+    channel_indices = [i for i, line in enumerate(lines) if line.lstrip().startswith("channels:")]
+    if len(channel_indices) != 1:
+        raise SystemExit(f"Expected exactly one primary-world channels line, found {len(channel_indices)}")
+
+    index = channel_indices[0]
+    newline = "\n" if lines[index].endswith("\n") else ""
+    indent = lines[index][: len(lines[index]) - len(lines[index].lstrip())]
+    lines[index] = f"{indent}channels: {channels}{newline}"
+    updated_first_world = "".join(lines)
+    updated_world_section = (
+        world_section[:first_world_start]
+        + updated_first_world
+        + world_section[second_world_start:]
+    )
+    return text[:worlds_pos] + updated_world_section + text[server_pos:]
+
+
 def main() -> None:
     text = CONFIG.read_text(encoding="utf-8-sig")
 
@@ -73,16 +113,9 @@ def main() -> None:
         text = replace_first_of(text, candidates, new)
 
     # EverLeaf uses Cosmic's full v83 channel list: 20 channels on ports
-    # 7575-7594. Accept the prior 8-channel value and the upstream 3-channel
-    # baseline so production config preservation cannot silently revert it.
-    text = replace_first_of(
-        text,
-        (
-            "    channels: 3",
-            "    channels: 8",
-        ),
-        "    channels: 20",
-    )
+    # 7575-7594. Always force the primary world block rather than relying on a
+    # global search so preserved production config cannot silently stay at 8.
+    text = force_primary_world_channels(text, 20)
 
     replacements = [
         ("    exp_rate: 10", "    exp_rate: 5"),
