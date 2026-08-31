@@ -2,6 +2,10 @@ name: Inspect EverLeaf Production Runtime
 
 on:
   workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/inspect-production-runtime.yml'
 
 permissions:
   contents: read
