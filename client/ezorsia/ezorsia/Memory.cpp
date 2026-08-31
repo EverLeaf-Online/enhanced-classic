@@ -4,6 +4,30 @@
 //#pragma optimize("", off) //non-optimized function for testing purposes
 bool Memory::UseVirtuProtect = true;
 
+namespace {
+    // The stock v83 client decides locally whether a ranged attack should fall
+    // back to the close-range "whack" animation. The server can reject that
+    // packet, but doing so alone still leaves the client-side animation and
+    // fake damage numbers visible. Apply the known v83 client redirects once
+    // the packed client has been unpacked and EverLeaf startup edits begin.
+    void ApplyEverLeafNoWhackPatch() {
+        static bool applied = false;
+        if (applied) {
+            return;
+        }
+        applied = true;
+
+        // General ranged-weapon no-whack branch.
+        Memory::WriteByte(0x009698BC, 0xE9);
+        Memory::WriteInt(0x009698BC + 1, 0x00969A39 - (0x009698BC + 5));
+
+        // Prevent the secondary close-range attack fallback path from winning
+        // over the requested ranged skill (notably claws / Night Lord).
+        Memory::WriteByte(0x009516C2, 0xE9);
+        Memory::WriteInt(0x009516C2 + 1, 0x0095138F - (0x009516C2 + 5));
+    }
+}
+
 bool Memory::SetHook(bool attach, void** ptrTarget, void* ptrDetour)
 {
     if (DetourTransactionBegin() != NO_ERROR)
@@ -89,6 +113,13 @@ void Memory::WriteDouble(const DWORD dwOriginAddress, const double dwValue) {
         VirtualProtect((LPVOID)dwOriginAddress, sizeof(double), dwOldProtect, &dwOldProtect);
     }
     else { *(double*)dwOriginAddress = dwValue; }
+
+    // Client::UpdateGameStartup writes the damage cap only after the original
+    // executable is unpacked. Use that stable startup point to apply the client
+    // side combat redirect; applying this from DLL_PROCESS_ATTACH is too early.
+    if (dwOriginAddress == 0x00AFE8A0) {
+        ApplyEverLeafNoWhackPatch();
+    }
 }
 
 void Memory::WriteByteArray(const DWORD dwOriginAddress, unsigned char* ucValue, const int ucValueSize) {
