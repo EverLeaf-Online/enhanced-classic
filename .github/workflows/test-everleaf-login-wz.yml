@@ -51,9 +51,11 @@ jobs:
           cmake -S client/tools/login-wz-patcher \
             -B "$RUNNER_TEMP/build" \
             -DLIBWZ_SOURCE="$RUNNER_TEMP/libwz" \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXE_LINKER_FLAGS="-static -static-libstdc++ -static-libgcc"
           cmake --build "$RUNNER_TEMP/build" --config Release -j2
           test -x "$RUNNER_TEMP/build/everleaf-login-wz-patcher"
+          file "$RUNNER_TEMP/build/everleaf-login-wz-patcher"
 
       - name: Check patcher fail-closed behavior
         run: |
@@ -65,4 +67,4 @@ jobs:
           set -e
           test "$code" -eq 2
           grep -q 'Usage:' "$RUNNER_TEMP/usage.log"
-          echo 'login WZ patcher build and fail-closed CLI verified'
+          echo 'login WZ patcher static build and fail-closed CLI verified'
