@@ -92,8 +92,9 @@ public sealed class PatchService : IDisposable
     {
         progress.Report((0, "Getting EverLeaf update manifest…"));
         var manifest = await GetVerifiedManifestAsync(cancellationToken);
-        progress.Report((0, "Checking available disk space…"));
-        EnsureInstallSpace(manifest);
+        progress.Report((0, "Checking files and available disk space…"));
+        var repairPlan = await BuildRepairPlanAsync(manifest, cancellationToken);
+        EnsureInstallSpace(repairPlan.Sum(file => file.Size));
 
         long totalBytes = Math.Max(1, manifest.Files.Sum(file => Math.Max(1, file.Size)));
         long completedBytes = 0;
@@ -107,9 +108,7 @@ public sealed class PatchService : IDisposable
             var basePercent = completedBytes * 100d / totalBytes;
             progress.Report((basePercent, $"Checking {index + 1} of {totalFiles}: {file.Path}"));
 
-            if (File.Exists(destination)
-                && new FileInfo(destination).Length == file.Size
-                && await HashMatchesAsync(destination, file.Sha256, cancellationToken))
+            if (!repairPlan.Contains(file))
             {
                 completedBytes += Math.Max(1, file.Size);
                 continue;
@@ -159,28 +158,42 @@ public sealed class PatchService : IDisposable
             File.Delete(legacy);
     }
 
-    internal long CalculateMissingFileBytes(PatchManifest manifest)
+    internal async Task<IReadOnlySet<PatchEntry>> BuildRepairPlanAsync(
+        PatchManifest manifest,
+        CancellationToken cancellationToken)
     {
-        long missingBytes = 0;
+        var repairPlan = new HashSet<PatchEntry>();
         foreach (var file in manifest.Files)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var destination = ResolveSafePath(file.Path);
-            if (!File.Exists(destination))
-                missingBytes = checked(missingBytes + file.Size);
+            if (!File.Exists(destination)
+                || new FileInfo(destination).Length != file.Size
+                || !await HashMatchesAsync(destination, file.Sha256, cancellationToken))
+            {
+                repairPlan.Add(file);
+            }
         }
-        return missingBytes;
+        return repairPlan;
     }
 
-    internal void EnsureInstallSpace(PatchManifest manifest)
+    internal async Task<long> CalculateRepairFileBytesAsync(
+        PatchManifest manifest,
+        CancellationToken cancellationToken)
     {
-        var missingBytes = CalculateMissingFileBytes(manifest);
-        if (missingBytes == 0)
+        var repairPlan = await BuildRepairPlanAsync(manifest, cancellationToken);
+        return repairPlan.Aggregate(0L, (total, file) => checked(total + file.Size));
+    }
+
+    internal void EnsureInstallSpace(long repairBytes)
+    {
+        if (repairBytes == 0)
             return;
 
         var root = Path.GetPathRoot(_gameDirectory)
                    ?? throw new IOException("EverLeaf could not determine the game folder drive.");
         var reserveBytes = 512L * 1024 * 1024;
-        var requiredBytes = checked(missingBytes + reserveBytes);
+        var requiredBytes = checked(repairBytes + reserveBytes);
         var availableBytes = new DriveInfo(root).AvailableFreeSpace;
         if (availableBytes < requiredBytes)
         {
