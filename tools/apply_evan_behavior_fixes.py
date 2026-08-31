@@ -8,6 +8,7 @@ Covers legacy Evan defects that otherwise compile cleanly:
   colliding with Elemental Reset or Wind Walk.
 - Soul Stone must register a temporary stat and revive the protected character
   once on death.
+- Killer Wings must reuse the existing Homing Beacon target-lock machinery.
 
 The transform is strict and idempotent: it only accepts the known legacy or
 known-fixed forms and fails closed if upstream source drifts.
@@ -20,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 STAT_EFFECT = ROOT / "src/main/java/server/StatEffect.java"
 BUFF_STAT = ROOT / "src/main/java/client/BuffStat.java"
 CHARACTER = ROOT / "src/main/java/client/Character.java"
+ATTACK_HANDLER = ROOT / "src/main/java/net/server/channel/handlers/AbstractDealDamageHandler.java"
 
 
 def replace_known(text: str, broken: str, fixed: str, label: str) -> tuple[str, bool]:
@@ -51,6 +53,11 @@ def patch_stat_effect() -> None:
             """                case Evan.MAGIC_RESISTANCE:\n                    statups.add(new Pair<>(BuffStat.MAGIC_RESISTANCE, x));\n                    break;\n                case Evan.SLOW:\n""",
             """                case Evan.MAGIC_RESISTANCE:\n                    statups.add(new Pair<>(BuffStat.MAGIC_RESISTANCE, x));\n                    break;\n                case Evan.SOUL_STONE:\n                    statups.add(new Pair<>(BuffStat.SOUL_STONE, x));\n                    break;\n                case Evan.SLOW:\n""",
             "Evan Soul Stone temporary-stat registration",
+        ),
+        (
+            """                case Outlaw.HOMING_BEACON:\n                case Corsair.BULLSEYE:\n                    statups.add(new Pair<>(BuffStat.HOMING_BEACON, x));\n""",
+            """                case Outlaw.HOMING_BEACON:\n                case Corsair.BULLSEYE:\n                case Evan.KILLER_WINGS:\n                    statups.add(new Pair<>(BuffStat.HOMING_BEACON, x));\n""",
+            "Evan Killer Wings homing temporary-stat registration",
         ),
     )
 
@@ -86,7 +93,6 @@ def patch_buff_stat() -> None:
         if f"{name}({value}, true)" not in text:
             raise SystemExit(f"ERROR Evan buff mask missing/wrong: {name}")
 
-    # These historical collisions would make Evan buffs corrupt unrelated states.
     forbidden = (
         "SLOW(0x200000000L, true)",
         "MAGIC_SHIELD(0x400000000L, true)",
@@ -108,10 +114,22 @@ def patch_character_death() -> None:
         raise SystemExit("ERROR Soul Stone death interception did not apply")
 
 
+def patch_killer_wings_attack() -> None:
+    text = ATTACK_HANDLER.read_text(encoding="utf-8")
+    broken = """                    } else if (attack.skill == Outlaw.HOMING_BEACON || attack.skill == Corsair.BULLSEYE) {\n                        StatEffect beacon = SkillFactory.getSkill(attack.skill).getEffect(player.getSkillLevel(attack.skill));\n                        beacon.applyBeaconBuff(player, monster.getObjectId());\n"""
+    fixed = """                    } else if (attack.skill == Outlaw.HOMING_BEACON || attack.skill == Corsair.BULLSEYE || attack.skill == Evan.KILLER_WINGS) {\n                        StatEffect beacon = SkillFactory.getSkill(attack.skill).getEffect(player.getSkillLevel(attack.skill));\n                        beacon.applyBeaconBuff(player, monster.getObjectId());\n"""
+    text, changed = replace_known(text, broken, fixed, "Evan Killer Wings target lock")
+    if changed:
+        ATTACK_HANDLER.write_text(text, encoding="utf-8")
+    if fixed not in text:
+        raise SystemExit("ERROR Killer Wings attack target-lock fix did not apply")
+
+
 def main() -> int:
     patch_stat_effect()
     patch_buff_stat()
     patch_character_death()
+    patch_killer_wings_attack()
     print("EverLeaf Evan behavior fixes: PASS")
     return 0
 
