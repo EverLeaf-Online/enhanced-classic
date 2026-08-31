@@ -7,13 +7,17 @@
 #include "wz/Properties/WzCanvasProperty.h"
 #include "wz/Properties/WzPngProperty.h"
 #include "wz/Properties/WzSubProperty.h"
+#include "wz/Properties/WzUOLProperty.h"
 #include "wz/WzDirectory.h"
 #include "wz/WzEnums.h"
 #include "wz/WzFile.h"
 #include "wz/WzImage.h"
 #include "wz/WzImageProperty.h"
+#include "wz/WzObject.h"
 
 namespace fs = std::filesystem;
+
+static constexpr int kMaxPropertyDepth = 24;
 
 static wz::WzDirectory* FindDirectory(wz::WzDirectory* root,
                                       const std::string& lower,
@@ -46,23 +50,69 @@ static bool SetCanvasPng(wz::WzCanvasProperty* canvas, const fs::path& pngPath) 
     return true;
 }
 
-static int PatchCanvasTree(wz::WzImageProperty* property, const fs::path& pngPath) {
-    if (!property) return 0;
-    if (IsType(property, wz::WzPropertyType::Canvas)) {
-        auto* canvas = static_cast<wz::WzCanvasProperty*>(property);
-        return SetCanvasPng(canvas, pngPath) ? 1 : -1;
+static wz::WzImageProperty* ResolveUolProperty(wz::WzUOLProperty* uol) {
+    if (!uol) return nullptr;
+    auto* linked = uol->LinkValue();
+    if (!linked || linked->ObjectType() != wz::WzObjectType::Property) {
+        return nullptr;
     }
-    if (IsType(property, wz::WzPropertyType::SubProperty)) {
-        auto* sub = static_cast<wz::WzSubProperty*>(property);
-        int patched = 0;
-        for (auto* child : *sub->WzProperties()) {
-            const int result = PatchCanvasTree(child, pngPath);
-            if (result < 0) return -1;
-            patched += result;
+    return static_cast<wz::WzImageProperty*>(linked);
+}
+
+static int PatchCanvasTree(wz::WzImageProperty* property,
+                           const fs::path& pngPath,
+                           int depth = 0) {
+    if (!property || depth > kMaxPropertyDepth) return 0;
+
+    switch (property->PropertyType()) {
+        case wz::WzPropertyType::Canvas: {
+            auto* canvas = static_cast<wz::WzCanvasProperty*>(property);
+            return SetCanvasPng(canvas, pngPath) ? 1 : -1;
         }
-        return patched;
+        case wz::WzPropertyType::SubProperty: {
+            auto* sub = static_cast<wz::WzSubProperty*>(property);
+            int patched = 0;
+            for (auto* child : *sub->WzProperties()) {
+                const int result = PatchCanvasTree(child, pngPath, depth + 1);
+                if (result < 0) return -1;
+                patched += result;
+            }
+            return patched;
+        }
+        case wz::WzPropertyType::UOL: {
+            auto* target = ResolveUolProperty(
+                static_cast<wz::WzUOLProperty*>(property));
+            if (!target || target == property) return 0;
+            return PatchCanvasTree(target, pngPath, depth + 1);
+        }
+        default:
+            return 0;
     }
-    return 0;
+}
+
+static int CountCanvasTree(wz::WzImageProperty* property, int depth = 0) {
+    if (!property || depth > kMaxPropertyDepth) return 0;
+
+    switch (property->PropertyType()) {
+        case wz::WzPropertyType::Canvas:
+            return 1;
+        case wz::WzPropertyType::SubProperty: {
+            auto* sub = static_cast<wz::WzSubProperty*>(property);
+            int count = 0;
+            for (auto* child : *sub->WzProperties()) {
+                count += CountCanvasTree(child, depth + 1);
+            }
+            return count;
+        }
+        case wz::WzPropertyType::UOL: {
+            auto* target = ResolveUolProperty(
+                static_cast<wz::WzUOLProperty*>(property));
+            if (!target || target == property) return 0;
+            return CountCanvasTree(target, depth + 1);
+        }
+        default:
+            return 0;
+    }
 }
 
 static bool VerifyPatchedMap(const fs::path& outputPath) {
@@ -82,8 +132,8 @@ static bool VerifyPatchedMap(const fs::path& outputPath) {
     }
 
     auto* background = backLogin->GetFromPath("11");
-    return IsType(background, wz::WzPropertyType::Canvas) &&
-           objLogin->GetFromPath("Title/logo") != nullptr;
+    auto* logo = objLogin->GetFromPath("Title/logo");
+    return CountCanvasTree(background) > 0 && CountCanvasTree(logo) > 0;
 }
 
 int main(int argc, char** argv) {
@@ -129,13 +179,17 @@ int main(int argc, char** argv) {
         return 6;
     }
 
-    auto* backgroundProperty = backLogin->GetFromPath("11");
-    if (!IsType(backgroundProperty, wz::WzPropertyType::Canvas)) {
-        std::cerr << "back/login.img/11 is not a canvas property.\n";
+    auto* background = backLogin->GetFromPath("11");
+    if (!background) {
+        std::cerr << "back/login.img/11 was not found.\n";
         return 7;
     }
-    auto* background = static_cast<wz::WzCanvasProperty*>(backgroundProperty);
-    if (!SetCanvasPng(background, backgroundPath)) return 8;
+    const int backgroundFrames = PatchCanvasTree(background, backgroundPath);
+    if (backgroundFrames <= 0) {
+        std::cerr << "back/login.img/11 contained no patchable canvas; property type="
+                  << static_cast<int>(background->PropertyType()) << "\n";
+        return 8;
+    }
     backLogin->SetChanged(true);
 
     auto* logo = objLogin->GetFromPath("Title/logo");
@@ -145,7 +199,8 @@ int main(int argc, char** argv) {
     }
     const int logoFrames = PatchCanvasTree(logo, logoPath);
     if (logoFrames <= 0) {
-        std::cerr << "Title/logo did not contain a patchable canvas.\n";
+        std::cerr << "Title/logo did not contain a patchable canvas; property type="
+                  << static_cast<int>(logo->PropertyType()) << "\n";
         return 10;
     }
     objLogin->SetChanged(true);
@@ -163,7 +218,8 @@ int main(int argc, char** argv) {
         return 12;
     }
 
-    std::cout << "Patched EverLeaf login background and " << logoFrames
-              << " logo canvas frame(s); saved validated Map.wz.\n";
+    std::cout << "Patched EverLeaf login background canvas frame(s): "
+              << backgroundFrames << "; logo canvas frame(s): " << logoFrames
+              << "; saved validated Map.wz.\n";
     return 0;
 }
