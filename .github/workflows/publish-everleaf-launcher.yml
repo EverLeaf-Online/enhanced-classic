@@ -72,43 +72,8 @@ jobs:
           Get-FileHash 'EverLeafLauncher-portable.zip' -Algorithm SHA256
           Get-FileHash 'launcher-installer/EverLeafLauncherSetup.exe' -Algorithm SHA256
 
-      - name: Upload verified launcher release
-        uses: actions/upload-artifact@v4
-        with:
-          name: everleaf-launcher-release-${{ github.sha }}
-          path: |
-            EverLeafLauncher-portable.zip
-            EverLeafLauncher-version.txt
-            launcher-installer/EverLeafLauncherSetup.exe
-          if-no-files-found: error
-          retention-days: 14
-
-  publish:
-    if: github.event_name != 'pull_request'
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: release-dev
-
-      - name: Download verified launcher release
-        uses: actions/download-artifact@v4
-        with:
-          name: everleaf-launcher-release-${{ github.sha }}
-          path: launcher-release
-
-      - name: Verify local release inputs
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s launcher-release/EverLeafLauncher-portable.zip
-          test -s launcher-release/EverLeafLauncher-version.txt
-          test -s launcher-release/EverLeafLauncherSetup.exe
-          test "$(cat launcher-release/EverLeafLauncher-version.txt)" = "$GITHUB_SHA"
-          sha256sum launcher-release/EverLeafLauncher-portable.zip launcher-release/EverLeafLauncherSetup.exe
-
-      - name: Configure SSH
+      - name: Configure production SSH
+        if: github.event_name != 'pull_request'
         shell: bash
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
@@ -126,21 +91,24 @@ jobs:
           fi
           chmod 600 ~/.ssh/known_hosts
           ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
-            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'test -d /opt/everleaf/patches && test -f /opt/everleaf/patches/managed-client-baseline.json && test -f /opt/everleaf/patches/manifest.json && test -f /opt/everleaf/web/scripts/build-patch-manifest.js'
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'test -d /opt/everleaf/patches && test -f /opt/everleaf/patches/managed-client-baseline.json && test -f /opt/everleaf/patches/manifest.json && test -f /opt/everleaf/web/scripts/build-patch-manifest.js'
 
-      - name: Stage launcher release on production
+      - name: Stage verified launcher on production
+        if: github.event_name != 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
           REMOTE_STAGE="/tmp/everleaf-launcher-$GITHUB_SHA"
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
           scp -i ~/.ssh/id_everleaf \
-            launcher-release/EverLeafLauncher-portable.zip \
-            launcher-release/EverLeafLauncher-version.txt \
-            launcher-release/EverLeafLauncherSetup.exe \
+            EverLeafLauncher-portable.zip \
+            EverLeafLauncher-version.txt \
+            launcher-installer/EverLeafLauncherSetup.exe \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$REMOTE_STAGE/"
 
-      - name: Generate and atomically publish launcher metadata
+      - name: Publish launcher and regenerate signed-manifest payload
+        if: github.event_name != 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
@@ -189,26 +157,20 @@ jobs:
           sudo mv -f "$PATCH_ROOT/manifest.json.new" "$PATCH_ROOT/manifest.json"
 
           EXPECTED="$(sha256sum "$DOWNLOADS/EverLeafLauncher-portable.zip" | awk '{print $1}')"
-          for attempt in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:3000/launcher/download -o "$STAGE/live.zip"; then
-              ACTUAL="$(sha256sum "$STAGE/live.zip" | awk '{print $1}')"
-              if [ "$ACTUAL" = "$EXPECTED" ]; then
-                echo "Local launcher endpoint verified: $ACTUAL"
-                rm -rf "$STAGE"
-                exit 0
-              fi
-            fi
-            sleep 2
-          done
-          echo 'Local launcher endpoint did not serve the newly published ZIP.' >&2
-          exit 1
+          curl -fsS http://127.0.0.1:3000/launcher/download -o "$STAGE/live.zip"
+          ACTUAL="$(sha256sum "$STAGE/live.zip" | awk '{print $1}')"
+          test "$ACTUAL" = "$EXPECTED"
+          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
+          echo "Local launcher endpoint verified: $ACTUAL"
+          rm -rf "$STAGE"
           REMOTE
 
       - name: Verify public launcher download
+        if: github.event_name != 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
-          EXPECTED="$(sha256sum launcher-release/EverLeafLauncher-portable.zip | awk '{print $1}')"
+          EXPECTED="$(sha256sum EverLeafLauncher-portable.zip | awk '{print $1}')"
           curl --fail --silent --show-error --location --max-time 60 \
             "https://$EVERLEAF_PUBLIC_HOST/launcher/download" -o public-launcher.zip
           ACTUAL="$(sha256sum public-launcher.zip | awk '{print $1}')"
