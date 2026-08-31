@@ -1,0 +1,19 @@
+<%- include("partials/header",{title:"Edit Page"}) %>
+<main class="lightPage">
+  <div class="lightTitle"><div class="wrap"><h1>Edit Page</h1><p>Update public website content from the CMS.</p></div></div>
+  <div class="wrap" style="max-width:900px">
+    <div class="paperCard">
+      <form method="post" action="/admin/pages/<%=page.id%>/edit">
+        <label>Title</label>
+        <input name="title" value="<%=page.title%>" required>
+        <label>Slug</label>
+        <input name="slug" value="<%=page.slug%>" required>
+        <label>Body</label>
+        <textarea name="body" style="min-height:320px"><%=page.body%></textarea>
+        <label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="published" value="1" <%=page.published?'checked':''%>> Published</label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary">Save Page</button><a class="btn" href="/admin#pages">Cancel</a><a class="btn" href="<%=['about','rules','terms'].includes(page.slug)?%>/<%=page.slug%><%:%>/pages/<%=page.slug%><%}%>" target="_blank" rel="noopener noreferrer">Preview</a></div>
+      </form>
+    </div>
+  </div>
+</main>
+<%- include("partials/footer") %>
