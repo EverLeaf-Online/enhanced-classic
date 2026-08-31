@@ -162,6 +162,7 @@ public class CommandsExecutor {
         addCommand("gacha", GachaCommand.class);
         addCommand("dispose", DisposeCommand.class);
         addCommand("unstuck", UnstuckCommand.class);
+        addCommand("everleaf", EverLeafCommand.class);
         addCommand("changel", ChangeLanguageCommand.class);
         addCommand("equiplv", EquipLvCommand.class);
         addCommand("showrates", ShowRatesCommand.class);
