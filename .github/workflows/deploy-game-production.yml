@@ -1,4 +1,4 @@
-# Manual production deployment trigger: items-equipment-job-requirements
+# Manual production deployment trigger: infra-db-security-hardening-112
 name: Deploy EverLeaf Game Production
 
 on:
