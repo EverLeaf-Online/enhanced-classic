@@ -13,6 +13,7 @@
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <InformationalVersion Condition="'$(EverLeafRevision)' != ''">$(EverLeafRevision)</InformationalVersion>
   </PropertyGroup>
 </Project>
