@@ -89,16 +89,37 @@ router.post("/posts/:id/delete",requireAdmin,(req,res)=>{
   res.redirect("/admin");
 });
 
+router.get("/downloads",requireAdmin,(req,res)=>{
+  const downloads=db.prepare("SELECT * FROM downloads ORDER BY created_at DESC").all();
+  res.render("admin-downloads",{downloads,settings:settings()});
+});
 router.post("/downloads",requireAdmin,(req,res)=>{
-  db.prepare(`INSERT INTO downloads(name,description,url,kind,version,published) VALUES(?,?,?,?,?,?)`).run(String(req.body.name||""),String(req.body.description||""),String(req.body.url||""),String(req.body.kind||"client"),String(req.body.version||""),req.body.published?1:0);
-  logAdmin(req,"download.create",String(req.body.name||""));
-  res.redirect("/admin");
+  const name=String(req.body.name||"").trim();
+  const url=String(req.body.url||"").trim();
+  if(!name||!url) return res.status(400).send("Download name and URL are required.");
+  db.prepare(`INSERT INTO downloads(name,description,url,kind,version,published) VALUES(?,?,?,?,?,?)`).run(name,String(req.body.description||""),url,String(req.body.kind||"client"),String(req.body.version||""),req.body.published?1:0);
+  logAdmin(req,"download.create",name);
+  res.redirect(req.get("referer")?.includes("/admin/downloads")?"/admin/downloads":"/admin#downloads");
+});
+router.get("/downloads/:id/edit",requireAdmin,(req,res)=>{
+  const item=db.prepare("SELECT * FROM downloads WHERE id=?").get(Number(req.params.id));
+  if(!item) return res.redirect("/admin/downloads");
+  res.render("admin-edit-download",{item,settings:settings()});
+});
+router.post("/downloads/:id/edit",requireAdmin,(req,res)=>{
+  const name=String(req.body.name||"").trim();
+  const url=String(req.body.url||"").trim();
+  if(!name||!url) return res.status(400).send("Download name and URL are required.");
+  db.prepare("UPDATE downloads SET name=?,description=?,url=?,kind=?,version=?,published=? WHERE id=?")
+    .run(name,String(req.body.description||""),url,String(req.body.kind||"client"),String(req.body.version||""),req.body.published==="1"?1:0,Number(req.params.id));
+  logAdmin(req,"download.update",name);
+  res.redirect("/admin/downloads");
 });
 router.post("/downloads/:id/delete",requireAdmin,(req,res)=>{
   const item=db.prepare("SELECT name FROM downloads WHERE id=?").get(Number(req.params.id));
   db.prepare("DELETE FROM downloads WHERE id=?").run(Number(req.params.id));
   logAdmin(req,"download.delete",item?.name||req.params.id);
-  res.redirect("/admin");
+  res.redirect(req.get("referer")?.includes("/admin/downloads")?"/admin/downloads":"/admin#downloads");
 });
 
 router.post("/settings",requireAdmin,(req,res)=>{
