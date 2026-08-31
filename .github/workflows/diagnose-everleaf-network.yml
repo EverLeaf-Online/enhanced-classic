@@ -1,0 +1,70 @@
+name: Diagnose EverLeaf Network
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/diagnose-everleaf-network.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inspect production networking
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          echo "CURRENT=$CURRENT"
+          echo '--- effective channel config ---'
+          grep -E '^[[:space:]]*(HOST|LANHOST|LOCALHOST|CHANNEL_SIZE|WORLDS):|^[[:space:]]*channels:' "$CURRENT/config.yaml" | head -30
+          echo '--- listeners ---'
+          ss -lntp | grep -E ':(8484|75(7[5-9]|8[0-9]|9[0-4]))\b' || true
+          echo '--- firewall ---'
+          sudo ufw status || true
+          echo '--- recent server journal ---'
+          sudo journalctl -u everleaf.service --since '20 minutes ago' --no-pager | tail -300
+          REMOTE
+
+      - name: Probe public ports
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import socket
+          host='132.145.141.79'
+          for port in [8484,*range(7575,7595)]:
+              try:
+                  with socket.create_connection((host,port),timeout=3):
+                      print(f'OK {port}')
+              except OSError as exc:
+                  print(f'FAIL {port}: {exc}')
+          PY
