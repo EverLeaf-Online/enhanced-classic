@@ -77,7 +77,7 @@ def main() -> int:
     require(
         "src/main/java/client/Character.java",
         "GameConstants.hasSPTable(newJob) && newJob.getId() != 2001",
-        "makeDragon()",
+        "createDragon();",
         "private boolean isEvanGrowthJob()",
         "advanceEvanGrowthStage();",
         "level == 10 && job == Job.EVAN",
