@@ -96,7 +96,6 @@ jobs:
             set +a
           fi
 
-          # Fall back to the running Java process environment without printing secrets.
           if [ -z "${EVERLEAF_DB_HOST:-}" ] || [ -z "${EVERLEAF_DB_USER:-}" ] || [ -z "${EVERLEAF_DB_PASS:-}" ]; then
             PID="$(systemctl show everleaf.service --property=MainPID --value)"
             if [ -n "$PID" ] && [ "$PID" != 0 ] && [ -r "/proc/$PID/environ" ]; then
@@ -118,26 +117,24 @@ jobs:
           trap 'rm -f "$MYSQL_CNF"' EXIT
           chmod 600 "$MYSQL_CNF"
           cat > "$MYSQL_CNF" <<EOF
-[client]
-host=$EVERLEAF_DB_HOST
-user=$EVERLEAF_DB_USER
-password=$EVERLEAF_DB_PASS
-protocol=TCP
-EOF
+          [client]
+          host=$EVERLEAF_DB_HOST
+          user=$EVERLEAF_DB_USER
+          password=$EVERLEAF_DB_PASS
+          protocol=TCP
+          EOF
 
           mysql_cmd=(mysql --defaults-extra-file="$MYSQL_CNF" --batch --skip-column-names cosmic)
           "${mysql_cmd[@]}" -e 'SELECT 1;' >/dev/null
 
-          # Track production application state. Existing EverLeaf migrations are
-          # retry-safe; the log gives us an authoritative production inventory.
           "${mysql_cmd[@]}" <<'SQL'
-CREATE TABLE IF NOT EXISTS everleaf_schema_migration_log (
-    migration_name VARCHAR(128) NOT NULL PRIMARY KEY,
-    migration_sha256 CHAR(64) NOT NULL,
-    release_sha CHAR(40) NOT NULL,
-    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
-SQL
+          CREATE TABLE IF NOT EXISTS everleaf_schema_migration_log (
+              migration_name VARCHAR(128) NOT NULL PRIMARY KEY,
+              migration_sha256 CHAR(64) NOT NULL,
+              release_sha CHAR(40) NOT NULL,
+              applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB;
+          SQL
 
           migrations=(
             everleaf_weekly_progression.sql
@@ -161,9 +158,8 @@ SQL
             checksum="$(sha256sum "$path" | awk '{print $1}')"
             echo "Applying $migration"
             "${mysql_cmd[@]}" < "$path"
-            safe_name="${migration//\'/\'\'}"
             "${mysql_cmd[@]}" -e \
-              "INSERT INTO everleaf_schema_migration_log (migration_name,migration_sha256,release_sha) VALUES ('$safe_name','$checksum','$RELEASE_SHA') ON DUPLICATE KEY UPDATE migration_sha256=VALUES(migration_sha256), release_sha=VALUES(release_sha), applied_at=CURRENT_TIMESTAMP;"
+              "INSERT INTO everleaf_schema_migration_log (migration_name,migration_sha256,release_sha) VALUES ('$migration','$checksum','$RELEASE_SHA') ON DUPLICATE KEY UPDATE migration_sha256=VALUES(migration_sha256), release_sha=VALUES(release_sha), applied_at=CURRENT_TIMESTAMP;"
           done
 
           table_count="$("${mysql_cmd[@]}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='cosmic' AND table_name IN ('everleaf_weekly_account_state','everleaf_weekly_character_objective','everleaf_verdant_mark_balance','everleaf_pq_point_balance','everleaf_pq_point_ledger','everleaf_account_entitlement','everleaf_account_entitlement_ledger','everleaf_vote_reward_ledger','everleaf_encounter_attempt','everleaf_encounter_weekly_reward','everleaf_rooted_material_balance','everleaf_rooted_forge_order');")"
