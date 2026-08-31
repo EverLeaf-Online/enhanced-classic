@@ -1,7 +1,7 @@
 # EverLeaf Production Runtime Snapshot
 
-Generated: 2026-08-31T03:40:11Z
-Source release commit: 005956a00410dc332218f7759a0cb0195f84a9a5
+Generated: 2026-08-31T03:41:52Z
+Source release commit: b57a0461c99743407978b0201afdd755e430832a
 Remote inspection exit status: 0
 
 ```text
@@ -113,6 +113,29 @@ ddc579c1124eabf5b2a72a303281fd7e1b6c3fa4
 ?? src/main/java/client/command/commands/gm0/VoteCommand.java
 ?? src/main/java/service/NxRewardService.java
 
+=== production git diff summary ===
+ database/sql/1-db_database.sql                     | 18187 ++++++++++++++++++-
+ database/sql/migration/everleaf_rooted_forge.sql   |    17 +-
+ mvnw                                               |     0
+ src/main/java/client/Character.java                |    14 +-
+ src/main/java/client/Client.java                   |     2 +
+ src/main/java/client/command/CommandsExecutor.java |    12 +-
+ .../command/commands/gm0/ReadPointsCommand.java    |    75 +-
+ src/main/java/constants/game/ExpTable.java         |     9 +-
+ src/main/java/net/server/Server.java               |     6 +-
+ .../channel/handlers/PlayerLoggedinHandler.java    |     2 +
+ 10 files changed, 18295 insertions(+), 29 deletions(-)
+M	database/sql/1-db_database.sql
+M	database/sql/migration/everleaf_rooted_forge.sql
+M	mvnw
+M	src/main/java/client/Character.java
+M	src/main/java/client/Client.java
+M	src/main/java/client/command/CommandsExecutor.java
+M	src/main/java/client/command/commands/gm0/ReadPointsCommand.java
+M	src/main/java/constants/game/ExpTable.java
+M	src/main/java/net/server/Server.java
+M	src/main/java/net/server/channel/handlers/PlayerLoggedinHandler.java
+
 === docker ===
 Docker version 29.1.3, build 29.1.3-0ubuntu3~24.04.2
 Docker Compose version 2.40.3+ds1-0ubuntu1~24.04.1
@@ -134,6 +157,27 @@ Legend: LOAD   → Reflects whether the unit definition was properly loaded.
 
 5 loaded units listed.
 To show all installed unit files use 'systemctl list-unit-files'.
+
+=== everleaf service execution ===
+MainPID=480195
+ExecStart={ path=/usr/bin/java ; argv[]=/usr/bin/java -Xms1g -Xmx6g -jar /opt/everleaf/current/target/everleaf-server-1.0-SNAPSHOT.jar ; ignore_errors=no ; start_time=[Sun 2026-08-30 18:50:10 UTC] ; stop_time=[n/a] ; pid=480195 ; code=(null) ; status=0/0 }
+WorkingDirectory=/opt/everleaf/current
+FragmentPath=/etc/systemd/system/everleaf.service
+process cwd: /opt/everleaf/releases/6fecd6fcb1810df6d92e5d787e838030ece6acba
+process exe: /usr/lib/jvm/java-21-openjdk-arm64/bin/java
+
+=== release pointers ===
+lrwxrwxrwx 1 ubuntu ubuntu 63 Aug 30 18:50 /opt/everleaf/current -> /opt/everleaf/releases/6fecd6fcb1810df6d92e5d787e838030ece6acba
+/opt/everleaf/current -> /opt/everleaf/releases/6fecd6fcb1810df6d92e5d787e838030ece6acba
+drwxrwxr-x 15 ubuntu ubuntu 4096 Aug 30 03:04 /opt/everleaf/server
+/opt/everleaf/server -> /opt/everleaf/server
+
+=== mysql runtime ===
+mysql.service: active
+mariadb.service: inactive
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                            
+LISTEN 0      4096       127.0.0.1:13307      0.0.0.0:*                                      
+LISTEN 0      151        127.0.0.1:3306       0.0.0.0:*                                      
 
 === game ports ===
 State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                            
