@@ -108,4 +108,95 @@ async function changePassword(accountId, currentPassword, newPassword) {
   return true;
 }
 
-module.exports = { serverStatus, onlineCount, rankings, login, register, accountCharacters, changePassword };
+async function nxRewardStatus(accountId) {
+  const db = getPool(), g = env.gameDb;
+  const [rows] = await db.query(
+    `SELECT COALESCE(${I("nxCredit")},0) nxCredit,
+            (SELECT COALESCE(SUM(nx_amount),0)
+               FROM everleaf_vote_rewards
+              WHERE account_id=${I(g.accountsTable)}.${I(g.accountId)} AND claimed_at IS NULL) pendingVoteNx
+       FROM ${I(g.accountsTable)}
+      WHERE ${I(g.accountId)}=? LIMIT 1`,
+    [Number(accountId)]
+  );
+  return {
+    nxCredit: Number(rows[0]?.nxCredit || 0),
+    pendingVoteNx: Number(rows[0]?.pendingVoteNx || 0)
+  };
+}
+
+function utcDateString(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+async function queueVerifiedVoteNx({ username, provider, nxAmount=1500, votedAt=new Date() }) {
+  const g = env.gameDb;
+  const amount = Number(nxAmount);
+  if (!/^[A-Za-z0-9_]{4,13}$/.test(String(username || ""))) {
+    return { status: "invalid_username", rewarded: false };
+  }
+  if (!/^[a-z0-9_-]{2,32}$/.test(String(provider || ""))) {
+    throw new Error("Invalid vote provider");
+  }
+  if (!Number.isInteger(amount) || amount < 1 || amount > 100000) {
+    throw new Error("Invalid vote NX reward amount");
+  }
+
+  const db = getPool();
+  const con = await db.getConnection();
+  try {
+    await con.beginTransaction();
+    const [accounts] = await con.query(
+      `SELECT ${I(g.accountId)} id, ${I(g.accountName)} name
+       FROM ${I(g.accountsTable)}
+       WHERE ${I(g.accountName)}=?
+       LIMIT 1 FOR UPDATE`,
+      [username]
+    );
+    const account = accounts[0];
+    if (!account) {
+      await con.rollback();
+      return { status: "account_not_found", rewarded: false };
+    }
+
+    const voteDate = utcDateString(votedAt instanceof Date && !Number.isNaN(votedAt.valueOf()) ? votedAt : new Date());
+    const externalVoteId = `${provider}:${account.id}:${voteDate}`;
+    const [insert] = await con.query(
+      `INSERT IGNORE INTO everleaf_vote_rewards
+         (account_id, provider, external_vote_id, nx_amount)
+       VALUES (?, ?, ?, ?)`,
+      [account.id, provider, externalVoteId, amount]
+    );
+
+    if (insert.affectedRows !== 1) {
+      await con.commit();
+      return { status: "already_rewarded", rewarded: false, accountId: account.id };
+    }
+
+    await con.commit();
+    return {
+      status: "rewarded",
+      rewarded: true,
+      accountId: account.id,
+      amount,
+      voteDateUtc: voteDate
+    };
+  } catch (error) {
+    try { await con.rollback(); } catch {}
+    throw error;
+  } finally {
+    con.release();
+  }
+}
+
+module.exports = {
+  serverStatus,
+  onlineCount,
+  rankings,
+  login,
+  register,
+  accountCharacters,
+  changePassword,
+  nxRewardStatus,
+  queueVerifiedVoteNx
+};
