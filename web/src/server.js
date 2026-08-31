@@ -8,14 +8,34 @@ const fs=require("fs");
 const env=require("./config/env");
 const {initCms,settings}=require("./db/cms");
 
+if(env.nodeEnv==="production"&&env.sessionSecret==="dev-only-change-me") {
+  throw new Error("SESSION_SECRET must be configured in production.");
+}
+
 initCms();
 
 const app=express();
+app.disable("x-powered-by");
 if(env.trustProxy) app.set("trust proxy",env.trustProxy);
 app.set("view engine","ejs");
 app.set("views",path.join(__dirname,"views"));
 
-app.use(helmet({contentSecurityPolicy:false}));
+app.use(helmet({
+  contentSecurityPolicy:{
+    directives:{
+      defaultSrc:["'self'"],
+      baseUri:["'self'"],
+      formAction:["'self'"],
+      frameAncestors:["'none'"],
+      objectSrc:["'none'"],
+      scriptSrc:["'self'","'unsafe-inline'"],
+      styleSrc:["'self'","'unsafe-inline'"],
+      imgSrc:["'self'","data:"],
+      connectSrc:["'self'"]
+    }
+  },
+  referrerPolicy:{policy:"strict-origin-when-cross-origin"}
+}));
 app.use(compression());
 // Provider signatures must be verified against the exact request bytes.
 app.use("/webhooks",require("./routes/webhooks"));
