@@ -44,6 +44,18 @@ app.use(express.json({limit:"50kb"}));
 app.use(express.static(path.join(__dirname,"../public"),{maxAge:env.nodeEnv==="production"?"1h":0}));
 app.use(rateLimit({windowMs:60_000,max:120,standardHeaders:true,legacyHeaders:false}));
 
+// Authentication endpoints receive a much tighter POST-only limiter than the
+// general site. Successful browsing never consumes this budget.
+const authLimiter=rateLimit({
+  windowMs:15*60_000,
+  max:12,
+  standardHeaders:true,
+  legacyHeaders:false,
+  skip:req=>req.method!=="POST",
+  message:"Too many authentication attempts. Please wait a few minutes and try again."
+});
+app.use(["/login","/register","/admin/login"],authLimiter);
+
 // Launcher endpoints are intentionally session-free. The manifest is signed and
 // patch payloads are SHA-256 verified by the launcher before replacement.
 app.use("/v1/launcher",require("./routes/launcher"));
@@ -72,6 +84,13 @@ app.use(session({
     maxAge:1000*60*60*12
   }
 }));
+
+// Never let account/admin/auth responses become shared browser/proxy cache entries.
+app.use((req,res,next)=>{
+  const sensitive=req.path==="/login"||req.path==="/register"||req.path.startsWith("/account")||req.path.startsWith("/admin");
+  if(sensitive) res.set("Cache-Control","no-store");
+  next();
+});
 
 app.locals.brand=env.brand;
 app.locals.siteUrl=env.payments.publicBaseUrl;
