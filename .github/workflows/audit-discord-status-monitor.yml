@@ -66,4 +66,15 @@ jobs:
               | sudo xargs -0 -r grep -Il \
                   -e 'EverLeaf Status Alert' \
                   -e 'Login Server recovered' || true
+            echo 'redacted_status_bot_source:'
+            sudo awk '
+              {
+                lowered = tolower($0)
+                if (lowered ~ /(token|password|secret|authorization|private[_-]?key)/) {
+                  print "[credential-related line redacted]"
+                } else {
+                  print
+                }
+              }
+            ' "$work_dir/status-bot.js"
           REMOTE
