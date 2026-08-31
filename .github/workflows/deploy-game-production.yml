@@ -1,4 +1,4 @@
-# Manual production deployment trigger: 2026-08-31T11:11Z
+# Manual production deployment trigger: 2026-08-31T11:19Z
 name: Deploy EverLeaf Game Production
 
 on:
@@ -36,6 +36,7 @@ jobs:
           set -euo pipefail
           echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           echo "RELEASE_SHORT=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_ENV"
+          echo "RELEASE_SLOT=$(git rev-parse HEAD)-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
       - name: Apply EverLeaf release transforms
         shell: bash
@@ -86,7 +87,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RELEASE_DIR="/opt/everleaf/releases/$RELEASE_SHA"
+          RELEASE_DIR="/opt/everleaf/releases/$RELEASE_SLOT"
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
             "mkdir -p '$RELEASE_DIR'"
           rsync -az --delete \
@@ -104,11 +105,16 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "RELEASE_DIR='/opt/everleaf/releases/$RELEASE_SHA' bash -s" <<'REMOTE'
+            "RELEASE_DIR='/opt/everleaf/releases/$RELEASE_SLOT' bash -s" <<'REMOTE'
           set -euo pipefail
-          cp -p /opt/everleaf/current/config.yaml "$RELEASE_DIR/config.yaml"
-          if [ -f /opt/everleaf/current/.env ]; then
-            cp -p /opt/everleaf/current/.env "$RELEASE_DIR/.env"
+          CURRENT_RELEASE="$(readlink -f /opt/everleaf/current)"
+          if [ "$CURRENT_RELEASE" != "$RELEASE_DIR" ]; then
+            cp -p "$CURRENT_RELEASE/config.yaml" "$RELEASE_DIR/config.yaml"
+            if [ -f "$CURRENT_RELEASE/.env" ]; then
+              cp -p "$CURRENT_RELEASE/.env" "$RELEASE_DIR/.env"
+            fi
+          else
+            echo 'Candidate is already current; preserving configuration in place.'
           fi
           cd "$RELEASE_DIR"
           # Reapply deterministic EverLeaf config after preserving the production
@@ -144,7 +150,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "RELEASE_DIR='/opt/everleaf/releases/$RELEASE_SHA' bash -s" <<'REMOTE'
+            "RELEASE_DIR='/opt/everleaf/releases/$RELEASE_SLOT' bash -s" <<'REMOTE'
           set -euo pipefail
           OLD_RELEASE="$(readlink -f /opt/everleaf/current)"
           printf '%s\n' "$OLD_RELEASE" > /opt/everleaf/.previous-release
