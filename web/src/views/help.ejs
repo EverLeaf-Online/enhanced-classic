@@ -1,20 +1,7 @@
 <%- include("partials/header",{title:"Support Center"}) %>
-<main class="lightPage"><div class="lightTitle"><div class="wrap"><h1>Support Center</h1><p>Answers to common questions and ways to reach the team.</p></div></div><div class="wrap" style="max-width:820px">
-<div class="paperCard" style="margin-bottom:14px">
-  <h3>Installation trouble?</h3>
-  <p class="muted">Download the launcher from the <a href="/downloads" style="color:#2f9b43;font-weight:800">Downloads</a> page and extract it into an empty folder. Most install or launch issues are solved with <strong>Install / Repair Files</strong>. Always start EverLeaf through the launcher rather than opening the game EXE directly.</p>
-</div>
-<div class="paperCard" style="margin-bottom:14px">
-  <h3>Can't log in?</h3>
-  <p class="muted">Your EverLeaf website account is also your game account. If you can still sign in to the website, use the <a href="/account" style="color:#2f9b43;font-weight:800">Account</a> page to change your password.</p>
-</div>
-<div class="paperCard" style="margin-bottom:14px">
-  <h3>Forgot your username or password?</h3>
-  <p class="muted">Use the <a href="/recover" style="color:#2f9b43;font-weight:800">Account Recovery</a> form. It creates a private staff review request without revealing whether a username or email exists. Staff will verify ownership before making any account change.</p>
-</div>
-<div class="paperCard">
-  <h3>Still need help?</h3>
-  <p class="muted">Join the community Discord for the fastest response from staff and other players. Never post your password or other sensitive credentials.</p>
-  <% if(brand.discordUrl){ %><a class="btn primary" href="<%=brand.discordUrl%>">JOIN DISCORD</a><% } else { %><a class="btn primary" href="/community">VISIT COMMUNITY</a><% } %>
-</div>
+<main class="lightPage"><section class="lightTitle"><div class="wrap pageHeroGrid"><div><div class="pageEyebrow">Player Support</div><h1>Support Center</h1><p>Installation help, account recovery, and direct paths to the EverLeaf team.</p></div><div class="pageHeroAside"><strong>Fastest help</strong><span>Use the guides below first. If you still need help, Discord is the fastest route to staff.</span></div></div></section><div class="wrap helpGrid">
+<section class="helpCard"><div class="helpIcon">🚀</div><h3>Installation & Updates</h3><p>Download the launcher, extract it into an empty folder, and use <strong>Install / Repair Files</strong> for missing or interrupted files. Always launch through EverLeafLauncher.exe.</p><a class="btn" href="/downloads">DOWNLOADS</a></section>
+<section class="helpCard"><div class="helpIcon">🔐</div><h3>Login Problems</h3><p>Your website and game use the same account. If you can sign in here, change your password from the Account page.</p><a class="btn" href="/account">ACCOUNT</a></section>
+<section class="helpCard"><div class="helpIcon">🔑</div><h3>Forgot Account Details</h3><p>Submit a private recovery request using your username or account email. Staff verifies ownership before making changes.</p><a class="btn" href="/recover">ACCOUNT RECOVERY</a></section>
+<section class="helpCard"><div class="helpIcon">💬</div><h3>Talk to the Community</h3><p>Get help from staff and other players on Discord. Keep your account details private.</p><% if(brand.discordUrl){ %><a class="btn primary" href="<%=brand.discordUrl%>" target="_blank" rel="noopener noreferrer">JOIN DISCORD</a><% } else { %><a class="btn primary" href="/community">COMMUNITY</a><% } %></section>
 </div></main><%- include("partials/footer") %>
