@@ -108,19 +108,42 @@ public sealed class PatchServiceTests
     }
 
     [Fact]
-    public void EmptyFolderRequiresTheEntireManagedClientDownload()
+    public async Task RepairPlanCountsMissingAndCorruptManagedFiles()
     {
         using var temp = new TemporaryDirectory();
         using var service = new PatchService(temp.Path);
         var files = LauncherConfiguration.RequiredGameFiles
-            .Select((path, index) => new PatchEntry(path, "/patches/" + path, new string('a', 64), index + 1L))
+            .Select((path, index) =>
+            {
+                var bytes = Enumerable.Repeat((byte)(index + 1), index + 1).ToArray();
+                var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+                return new PatchEntry(path, "/patches/" + path, hash, bytes.LongLength);
+            })
             .ToArray();
         var manifest = new PatchManifest("bootstrap", files);
 
-        Assert.Equal(files.Sum(file => file.Size), service.CalculateMissingFileBytes(manifest));
+        Assert.Equal(
+            files.Sum(file => file.Size),
+            await service.CalculateRepairFileBytesAsync(manifest, CancellationToken.None));
 
-        File.WriteAllText(System.IO.Path.Combine(temp.Path, files[0].Path), "present");
-        Assert.Equal(files.Skip(1).Sum(file => file.Size), service.CalculateMissingFileBytes(manifest));
+        var valid = files[0];
+        await File.WriteAllBytesAsync(
+            System.IO.Path.Combine(temp.Path, valid.Path),
+            Enumerable.Repeat((byte)1, checked((int)valid.Size)).ToArray());
+
+        var sameSizeCorrupt = files[1];
+        await File.WriteAllBytesAsync(
+            System.IO.Path.Combine(temp.Path, sameSizeCorrupt.Path),
+            Enumerable.Repeat((byte)255, checked((int)sameSizeCorrupt.Size)).ToArray());
+
+        var wrongSize = files[2];
+        await File.WriteAllBytesAsync(
+            System.IO.Path.Combine(temp.Path, wrongSize.Path),
+            new byte[checked((int)wrongSize.Size + 1)]);
+
+        Assert.Equal(
+            files.Skip(1).Sum(file => file.Size),
+            await service.CalculateRepairFileBytesAsync(manifest, CancellationToken.None));
     }
 
     [Fact]
