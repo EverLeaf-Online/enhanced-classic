@@ -34,79 +34,64 @@ jobs:
           exe="source/Localhost.exe"
           sha256sum "$exe" > analysis/source-sha256.txt
           objdump -x "$exe" > analysis/pe-headers.txt
-
           objdump -D -Mintel --start-address=0x950800 --stop-address=0x953780 "$exe" > analysis/melee-region.txt || true
           objdump -D -Mintel --start-address=0x953700 --stop-address=0x955720 "$exe" > analysis/ranged-region.txt || true
           objdump -D -Mintel --start-address=0x955700 --stop-address=0x957200 "$exe" > analysis/magic-and-following-region.txt || true
           objdump -D -Mintel --start-address=0x950000 --stop-address=0x960000 "$exe" > analysis/local-user-attacks.txt || true
 
-          objdump -D -Mintel --start-address=0x92e000 --stop-address=0x937000 "$exe" > analysis/user-helpers-92e-937.txt || true
-          objdump -D -Mintel --start-address=0x95f000 --stop-address=0x961400 "$exe" > analysis/user-helpers-95f-961.txt || true
-          objdump -D -Mintel --start-address=0x450f00 --stop-address=0x452200 "$exe" > analysis/helper-45xx.txt || true
-          objdump -D -Mintel --start-address=0x472f00 --stop-address=0x474500 "$exe" > analysis/helper-47xx.txt || true
+      - name: Print high-value movement candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          exe="source/Localhost.exe"
+          echo '===== CALL-SITE CONTEXT: PRE/POST ATTACK FINALIZATION ====='
+          for spec in \
+            'melee_tail 0x951340 0x9513c0' \
+            'ranged_tail 0x9541b0 0x954250' \
+            'magic_tail 0x955a60 0x955b10' \
+            'common_95369a 0x953650 0x953730'; do
+            set -- $spec
+            echo "===== $1 ====="
+            objdump -D -Mintel --start-address="$2" --stop-address="$3" "$exe" || true
+          done
 
-          grep -nEi "call|jmp|mov|push|test|cmp" analysis/melee-region.txt > analysis/melee-control-flow.txt || true
-          grep -nEi "call|jmp|mov|push|test|cmp" analysis/ranged-region.txt > analysis/ranged-control-flow.txt || true
-          grep -nEi "call|jmp|mov|push|test|cmp" analysis/magic-and-following-region.txt > analysis/magic-control-flow.txt || true
-          grep -nEi "933990|92fb41|936528|960027|953595|451b6a|451cda|movement|vec|ctrl" analysis/local-user-attacks.txt > analysis/shared-candidates.txt || true
-          wc -l analysis/*.txt
+          echo '===== CALL-SITE CONTEXT: SHARED ATTACK STATE HELPERS ====='
+          for spec in \
+            'melee_mid 0x9510c0 0x951210' \
+            'ranged_mid 0x9540c0 0x9541b0' \
+            'magic_mid 0x955980 0x955a80' \
+            'helper_760f23 0x760ee0 0x760f90' \
+            'helper_766157 0x766100 0x7661d0' \
+            'helper_4144d4 0x414480 0x414530' \
+            'helper_460aa0 0x460a40 0x460b20' \
+            'helper_987257 0x987200 0x9872d0'; do
+            set -- $spec
+            echo "===== $1 ====="
+            objdump -D -Mintel --start-address="$2" --stop-address="$3" "$exe" || true
+          done
 
-      - name: Correlate attack helper calls
+      - name: Find likely LocalUser field writes near attacks
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import re
           from pathlib import Path
-          text = Path('analysis/local-user-attacks.txt').read_text(errors='replace').splitlines()
-          ins = []
-          rx = re.compile(r'^\s*([0-9a-fA-F]+):.*\bcall\s+0x([0-9a-fA-F]+)')
-          for line in text:
-              m = rx.search(line)
-              if m:
-                  ins.append((int(m.group(1),16), int(m.group(2),16), line.strip()))
-          ranges = {
-              'melee': (0x950921, 0x9513b0),
-              'ranged': (0x9537d5, 0x954237),
-              'magic_candidate': (0x95571f, 0x955af0),
-          }
-          sets = {}
-          for name,(lo,hi) in ranges.items():
-              calls=[(a,t,l) for a,t,l in ins if lo <= a < hi]
-              sets[name]={t for _,t,_ in calls}
-              print(f'===== {name} direct calls ({len(calls)}) =====')
-              for a,t,l in calls:
-                  print(f'{a:08x} -> {t:08x}  {l}')
-          common = set.intersection(*sets.values())
-          print('===== COMMON DIRECT TARGETS: melee+ranged+magic_candidate =====')
-          for t in sorted(common):
-              print(f'0x{t:08x}')
-          print('===== COMMON DIRECT TARGETS: melee+ranged =====')
-          for t in sorted(sets['melee'] & sets['ranged']):
-              print(f'0x{t:08x}')
-          Path('analysis/common-direct-targets.txt').write_text(
-              '\n'.join(f'0x{t:08x}' for t in sorted(common)) + '\n'
-          )
+          lines=Path('analysis/local-user-attacks.txt').read_text(errors='replace').splitlines()
+          ranges=[('melee',0x950921,0x9513b0),('ranged',0x9537d5,0x954237),('magic',0x95571f,0x955af0)]
+          # Heuristic: writes through esi/edi/ebx plus immediate offsets are the best
+          # candidates for changing local user/action/controller state.
+          rx_addr=re.compile(r'^\s*([0-9a-fA-F]+):')
+          rx_write=re.compile(r'\bmov\s+(?:BYTE PTR |WORD PTR |DWORD PTR )?\[(?:esi|edi|ebx|ecx)(?:\+0x[0-9a-f]+)?\],')
+          for name,lo,hi in ranges:
+              print(f'===== {name} object-field writes =====')
+              for i,line in enumerate(lines):
+                  m=rx_addr.match(line)
+                  if not m: continue
+                  a=int(m.group(1),16)
+                  if lo <= a < hi and rx_write.search(line):
+                      print(line.strip())
           PY
-
-      - name: Print focused candidate helpers
-        shell: bash
-        run: |
-          set -euo pipefail
-          exe="source/Localhost.exe"
-          echo '===== KNOWN SHARED/STATE HELPER WINDOWS ====='
-          for spec in \
-            'helper_92fb41 0x92fac0 0x92fd20' \
-            'helper_933990 0x933990 0x933c40' \
-            'helper_936528 0x936528 0x936790' \
-            'helper_953595 0x953595 0x9535b0' \
-            'helper_960027 0x960027 0x96004b' \
-            'helper_451b6a 0x451b6a 0x451cda' \
-            'helper_451cda 0x451cda 0x451cf6'; do
-            set -- $spec
-            echo "===== $1 $2 ====="
-            objdump -D -Mintel --start-address="$2" --stop-address="$3" "$exe" || true
-          done
 
       - name: Upload attack-move analysis
         uses: actions/upload-artifact@v4
