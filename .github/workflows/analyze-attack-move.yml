@@ -1,0 +1,53 @@
+name: Analyze v83 attack-move client paths
+
+on:
+  push:
+    paths:
+      - ".github/workflows/analyze-attack-move.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve verified legacy client
+        uses: actions/checkout@v5
+        with:
+          ref: 335d4fbb74e713a01f63163c39c941865401d24a
+          sparse-checkout: Localhosts.zip
+          sparse-checkout-cone-mode: false
+
+      - name: Verify source archive
+        shell: bash
+        run: |
+          echo "096e21e155ca1a06a3132a6ad6f7feda5cd986928f415bab15a3b67fee412527  Localhosts.zip" | sha256sum --check
+
+      - name: Disassemble attack routines
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source analysis
+          unzip -q Localhosts.zip -d source
+          exe="source/Localhost.exe"
+          sha256sum "$exe" > analysis/source-sha256.txt
+          objdump -x "$exe" > analysis/pe-headers.txt
+          # Confirmed v83 entry points from community/Cosmic reverse-engineering.
+          objdump -D -Mintel --start-address=0x950800 --stop-address=0x953780 "$exe" > analysis/melee-region.txt || true
+          objdump -D -Mintel --start-address=0x953700 --stop-address=0x957000 "$exe" > analysis/ranged-region.txt || true
+          # Wider local-user region for locating magic attack and shared movement/vector-control calls.
+          objdump -D -Mintel --start-address=0x950000 --stop-address=0x960000 "$exe" > analysis/local-user-attacks.txt || true
+          grep -nEi "call|jmp|mov|push|test|cmp" analysis/melee-region.txt > analysis/melee-control-flow.txt || true
+          grep -nEi "call|jmp|mov|push|test|cmp" analysis/ranged-region.txt > analysis/ranged-control-flow.txt || true
+          grep -nEi "95(09|37)|vec|move|ctrl|packet" analysis/local-user-attacks.txt > analysis/candidates.txt || true
+          wc -l analysis/*.txt
+
+      - name: Upload attack-move analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-v83-attack-move-analysis
+          path: analysis/
+          retention-days: 7
+          if-no-files-found: error
