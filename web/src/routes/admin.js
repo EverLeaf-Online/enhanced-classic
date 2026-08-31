@@ -8,6 +8,7 @@ const env=require("../config/env");
 const adminSupporter=require("../services/adminSupporterService");
 const router=express.Router();
 
+const CORE_PAGES=new Set(["about","rules","terms"]);
 const cleanSlug=value=>String(value||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,80);
 const logAdmin=(req,action,details="")=>db.prepare("INSERT INTO audit_log(admin_id,action,details) VALUES(?,?,?)").run(req.session.admin?.id||null,action,String(details).slice(0,500));
 
@@ -165,11 +166,15 @@ router.get("/pages/:id/edit",requireAdmin,(req,res)=>{
   res.render("admin-edit-page",{page,settings:settings()});
 });
 router.post("/pages/:id/edit",requireAdmin,(req,res)=>{
+  const id=Number(req.params.id);
+  const existing=db.prepare("SELECT slug FROM pages WHERE id=?").get(id);
+  if(!existing) return res.redirect("/admin/pages");
   const title=String(req.body.title||"").trim();
   const slug=cleanSlug(req.body.slug||title);
   if(!title||!slug) return res.status(400).send("Page title and slug are required.");
+  if(CORE_PAGES.has(existing.slug)&&slug!==existing.slug) return res.status(400).send("Core page slugs cannot be renamed.");
   try {
-    db.prepare("UPDATE pages SET slug=?,title=?,body=?,published=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(slug,title,String(req.body.body||""),req.body.published==="1"?1:0,Number(req.params.id));
+    db.prepare("UPDATE pages SET slug=?,title=?,body=?,published=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(slug,title,String(req.body.body||""),req.body.published==="1"?1:0,id);
     logAdmin(req,"page.update",slug);
     res.redirect("/admin/pages");
   } catch(error) {
@@ -179,7 +184,7 @@ router.post("/pages/:id/edit",requireAdmin,(req,res)=>{
 });
 router.post("/pages/:id/delete",requireAdmin,(req,res)=>{
   const page=db.prepare("SELECT slug FROM pages WHERE id=?").get(Number(req.params.id));
-  if(page&&["about","rules","terms"].includes(page.slug)) return res.status(400).send("Core pages cannot be deleted; unpublish them instead.");
+  if(page&&CORE_PAGES.has(page.slug)) return res.status(400).send("Core pages cannot be deleted; unpublish them instead.");
   db.prepare("DELETE FROM pages WHERE id=?").run(Number(req.params.id));
   logAdmin(req,"page.delete",page?.slug||req.params.id);
   res.redirect("/admin/pages");
