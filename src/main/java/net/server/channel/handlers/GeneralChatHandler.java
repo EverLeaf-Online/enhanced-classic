@@ -34,12 +34,18 @@ import tools.PacketCreator;
 
 public final class GeneralChatHandler extends AbstractPacketHandler {
     private static final Logger log = LoggerFactory.getLogger(GeneralChatHandler.class);
+    private static final long GENERAL_CHAT_MIN_INTERVAL_MS = 100L;
 
     @Override
     public void handlePacket(InPacket p, Client c) {
         String s = p.readString();
         Character chr = c.getPlayer();
-        if (chr.getAutobanManager().getLastSpam(7) + 200 > currentServerTime()) {
+
+        // EverLeaf keeps a small server-authoritative flood guard, but the old
+        // 200 ms gate was aggressive enough to eat legitimate fast chat. A
+        // 100 ms interval still caps accepted general-chat packets at roughly
+        // 10/s per character while making normal conversation feel immediate.
+        if (chr.getAutobanManager().getLastSpam(7) + GENERAL_CHAT_MIN_INTERVAL_MS > currentServerTime()) {
             c.sendPacket(PacketCreator.enableActions());
             return;
         }
