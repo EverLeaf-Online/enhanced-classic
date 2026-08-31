@@ -47,59 +47,68 @@ public final class NPCTalkHandler extends AbstractPacketHandler {
             return;
         }
 
-        if (currentServerTime() - c.getPlayer().getNpcCooldown() < YamlConfig.config.server.BLOCK_NPC_RACE_CONDT) {
+        if (!c.tryacquireClient()) {
             c.sendPacket(PacketCreator.enableActions());
             return;
         }
 
-        int oid = p.readInt();
-        MapObject obj = c.getPlayer().getMap().getMapObject(oid);
-        if (obj == null || !isNearby(c, obj)) {
-            c.sendPacket(PacketCreator.enableActions());
-            return;
-        }
-
-        if (obj instanceof NPC npc) {
-            if (YamlConfig.config.server.USE_DEBUG) {
-                c.getPlayer().dropMessage(5, "Talking to NPC " + npc.getId());
+        try {
+            if (currentServerTime() - c.getPlayer().getNpcCooldown() < YamlConfig.config.server.BLOCK_NPC_RACE_CONDT) {
+                c.sendPacket(PacketCreator.enableActions());
+                return;
             }
 
-            if (npc.getId() == NpcId.DUEY) {
-                DueyProcessor.dueySendTalk(c, false);
-            } else {
-                if (c.getCM() != null || c.getQM() != null) {
-                    c.sendPacket(PacketCreator.enableActions());
-                    return;
+            int oid = p.readInt();
+            MapObject obj = c.getPlayer().getMap().getMapObject(oid);
+            if (obj == null || !isNearby(c, obj)) {
+                c.sendPacket(PacketCreator.enableActions());
+                return;
+            }
+
+            if (obj instanceof NPC npc) {
+                if (YamlConfig.config.server.USE_DEBUG) {
+                    c.getPlayer().dropMessage(5, "Talking to NPC " + npc.getId());
                 }
 
-                // Custom handling to reduce the amount of scripts needed.
-                if (npc.getId() >= NpcId.GACHAPON_MIN && npc.getId() <= NpcId.GACHAPON_MAX) {
-                    NPCScriptManager.getInstance().start(c, npc.getId(), "gachapon", null);
-                } else if (npc.getName().endsWith("Maple TV")) {
-                    NPCScriptManager.getInstance().start(c, npc.getId(), "mapleTV", null);
+                if (npc.getId() == NpcId.DUEY) {
+                    DueyProcessor.dueySendTalk(c, false);
                 } else {
-                    boolean hasNpcScript = NPCScriptManager.getInstance().start(c, npc.getId(), oid, null);
-                    if (!hasNpcScript) {
-                        if (!npc.hasShop()) {
-                            log.warn("NPC {} ({}) is not coded", npc.getName(), npc.getId());
-                            return;
-                        } else if (c.getPlayer().getShop() != null) {
-                            c.sendPacket(PacketCreator.enableActions());
-                            return;
-                        }
+                    if (c.getCM() != null || c.getQM() != null) {
+                        c.sendPacket(PacketCreator.enableActions());
+                        return;
+                    }
 
-                        npc.sendShop(c);
+                    // Custom handling to reduce the amount of scripts needed.
+                    if (npc.getId() >= NpcId.GACHAPON_MIN && npc.getId() <= NpcId.GACHAPON_MAX) {
+                        NPCScriptManager.getInstance().start(c, npc.getId(), "gachapon", null);
+                    } else if (npc.getName().endsWith("Maple TV")) {
+                        NPCScriptManager.getInstance().start(c, npc.getId(), "mapleTV", null);
+                    } else {
+                        boolean hasNpcScript = NPCScriptManager.getInstance().start(c, npc.getId(), oid, null);
+                        if (!hasNpcScript) {
+                            if (!npc.hasShop()) {
+                                log.warn("NPC {} ({}) is not coded", npc.getName(), npc.getId());
+                                return;
+                            } else if (c.getPlayer().getShop() != null) {
+                                c.sendPacket(PacketCreator.enableActions());
+                                return;
+                            }
+
+                            npc.sendShop(c);
+                        }
                     }
                 }
-            }
-        } else if (obj instanceof PlayerNPC pnpc) {
-            NPCScriptManager nsm = NPCScriptManager.getInstance();
+            } else if (obj instanceof PlayerNPC pnpc) {
+                NPCScriptManager nsm = NPCScriptManager.getInstance();
 
-            if (pnpc.getScriptId() < NpcId.CUSTOM_DEV && !nsm.isNpcScriptAvailable(c, "" + pnpc.getScriptId())) {
-                nsm.start(c, pnpc.getScriptId(), "rank_user", null);
-            } else {
-                nsm.start(c, pnpc.getScriptId(), null);
+                if (pnpc.getScriptId() < NpcId.CUSTOM_DEV && !nsm.isNpcScriptAvailable(c, "" + pnpc.getScriptId())) {
+                    nsm.start(c, pnpc.getScriptId(), "rank_user", null);
+                } else {
+                    nsm.start(c, pnpc.getScriptId(), null);
+                }
             }
+        } finally {
+            c.releaseClient();
         }
     }
 
