@@ -37,6 +37,8 @@ import tools.PacketCreator.WhisperFlag;
  */
 public final class WhisperHandler extends AbstractPacketHandler {
     private static final Logger log = LoggerFactory.getLogger(WhisperHandler.class);
+    private static final int MIN_CHARACTER_NAME_LENGTH = 4;
+    private static final int MAX_CHARACTER_NAME_LENGTH = 13;
 
     // result types, not sure if there are proper names for these
     public static final byte RT_ITC = 0x00;
@@ -46,10 +48,20 @@ public final class WhisperHandler extends AbstractPacketHandler {
 
     @Override
     public void handlePacket(InPacket p, Client c) {
+        Character user = c.getPlayer();
         byte request = p.readByte();
         String name = p.readString();
-        Character target = c.getWorldServer().getPlayerStorage().getCharacterByName(name);
 
+        if (!isSupportedRequest(request)) {
+            log.warn("Unknown request {} triggered by {}", request, user.getName());
+            return;
+        }
+        if (name.length() < MIN_CHARACTER_NAME_LENGTH || name.length() > MAX_CHARACTER_NAME_LENGTH) {
+            AutobanFactory.PACKET_EDIT.alert(user, user.getName() + " sent an invalid whisper target name length: " + name.length());
+            return;
+        }
+
+        Character target = c.getWorldServer().getPlayerStorage().getCharacterByName(name);
         if (target == null) {
             c.sendPacket(PacketCreator.getWhisperResult(name, false));
             return;
@@ -57,19 +69,29 @@ public final class WhisperHandler extends AbstractPacketHandler {
 
         switch (request) {
             case WhisperFlag.LOCATION | WhisperFlag.REQUEST:
-                handleFind(c.getPlayer(), target, WhisperFlag.LOCATION);
+                handleFind(user, target, WhisperFlag.LOCATION);
                 break;
             case WhisperFlag.WHISPER | WhisperFlag.REQUEST:
                 String message = p.readString();
-                handleWhisper(message, c.getPlayer(), target);
+                handleWhisper(message, user, target);
                 break;
             case WhisperFlag.LOCATION_FRIEND | WhisperFlag.REQUEST:
-                handleFind(c.getPlayer(), target, WhisperFlag.LOCATION_FRIEND);
+                if (!user.getBuddylist().containsVisible(target.getId())) {
+                    user.sendPacket(PacketCreator.getWhisperResult(target.getName(), false));
+                    return;
+                }
+                handleFind(user, target, WhisperFlag.LOCATION_FRIEND);
                 break;
             default:
-                log.warn("Unknown request {} triggered by {}", request, c.getPlayer().getName());
+                // Guarded by isSupportedRequest.
                 break;
         }
+    }
+
+    private boolean isSupportedRequest(byte request) {
+        return request == (WhisperFlag.LOCATION | WhisperFlag.REQUEST)
+                || request == (WhisperFlag.WHISPER | WhisperFlag.REQUEST)
+                || request == (WhisperFlag.LOCATION_FRIEND | WhisperFlag.REQUEST);
     }
 
     private void handleFind(Character user, Character target, byte flag) {
@@ -100,11 +122,14 @@ public final class WhisperHandler extends AbstractPacketHandler {
             return;
         }
 
-        ChatLogger.log(user.getClient(), "Whisper To " + target.getName(), message);
-
-        target.sendPacket(PacketCreator.getWhisperReceive(user.getName(), user.getClient().getChannel() - 1, user.isGM(), message));
-
         boolean hidden = target.isHidden() && target.gmLevel() > user.gmLevel();
-        user.sendPacket(PacketCreator.getWhisperResult(target.getName(), !hidden));
+        if (hidden) {
+            user.sendPacket(PacketCreator.getWhisperResult(target.getName(), false));
+            return;
+        }
+
+        ChatLogger.log(user.getClient(), "Whisper To " + target.getName(), message);
+        target.sendPacket(PacketCreator.getWhisperReceive(user.getName(), user.getClient().getChannel() - 1, user.isGM(), message));
+        user.sendPacket(PacketCreator.getWhisperResult(target.getName(), true));
     }
 }
