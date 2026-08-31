@@ -9,6 +9,9 @@ Covers legacy Evan defects that otherwise compile cleanly:
 - Soul Stone must register a temporary stat and revive the protected character
   once on death.
 - Killer Wings must reuse the existing Homing Beacon target-lock machinery.
+- Critical Magic must be recognized by damage validation so legitimate Evan
+  critical casts are not treated as impossible damage.
+- Blessing of the Onyx and Soul Stone are explicitly classified as buffs.
 
 The transform is strict and idempotent: it only accepts the known legacy or
 known-fixed forms and fails closed if upstream source drifts.
@@ -22,6 +25,7 @@ STAT_EFFECT = ROOT / "src/main/java/server/StatEffect.java"
 BUFF_STAT = ROOT / "src/main/java/client/BuffStat.java"
 CHARACTER = ROOT / "src/main/java/client/Character.java"
 ATTACK_HANDLER = ROOT / "src/main/java/net/server/channel/handlers/AbstractDealDamageHandler.java"
+SKILL_FACTORY = ROOT / "src/main/java/client/SkillFactory.java"
 
 
 def replace_known(text: str, broken: str, fixed: str, label: str) -> tuple[str, bool]:
@@ -114,22 +118,52 @@ def patch_character_death() -> None:
         raise SystemExit("ERROR Soul Stone death interception did not apply")
 
 
-def patch_killer_wings_attack() -> None:
+def patch_attack_handler() -> None:
     text = ATTACK_HANDLER.read_text(encoding="utf-8")
-    broken = """                    } else if (attack.skill == Outlaw.HOMING_BEACON || attack.skill == Corsair.BULLSEYE) {\n                        StatEffect beacon = SkillFactory.getSkill(attack.skill).getEffect(player.getSkillLevel(attack.skill));\n                        beacon.applyBeaconBuff(player, monster.getObjectId());\n"""
-    fixed = """                    } else if (attack.skill == Outlaw.HOMING_BEACON || attack.skill == Corsair.BULLSEYE || attack.skill == Evan.KILLER_WINGS) {\n                        StatEffect beacon = SkillFactory.getSkill(attack.skill).getEffect(player.getSkillLevel(attack.skill));\n                        beacon.applyBeaconBuff(player, monster.getObjectId());\n"""
-    text, changed = replace_known(text, broken, fixed, "Evan Killer Wings target lock")
+    changed = False
+
+    fixes = (
+        (
+            """                    } else if (attack.skill == Outlaw.HOMING_BEACON || attack.skill == Corsair.BULLSEYE) {\n                        StatEffect beacon = SkillFactory.getSkill(attack.skill).getEffect(player.getSkillLevel(attack.skill));\n                        beacon.applyBeaconBuff(player, monster.getObjectId());\n""",
+            """                    } else if (attack.skill == Outlaw.HOMING_BEACON || attack.skill == Corsair.BULLSEYE || attack.skill == Evan.KILLER_WINGS) {\n                        StatEffect beacon = SkillFactory.getSkill(attack.skill).getEffect(player.getSkillLevel(attack.skill));\n                        beacon.applyBeaconBuff(player, monster.getObjectId());\n""",
+            "Evan Killer Wings target lock",
+        ),
+        (
+            """        boolean canCrit = chr.getJob().isA((Job.BOWMAN)) || chr.getJob().isA(Job.THIEF) || chr.getJob().isA(Job.NIGHTWALKER1) || chr.getJob().isA(Job.WINDARCHER1) || chr.getJob() == Job.ARAN3 || chr.getJob() == Job.ARAN4 || chr.getJob() == Job.MARAUDER || chr.getJob() == Job.BUCCANEER;\n\n        if (chr.getBuffEffect(BuffStat.SHARP_EYES) != null) {\n""",
+            """        boolean canCrit = chr.getJob().isA((Job.BOWMAN)) || chr.getJob().isA(Job.THIEF) || chr.getJob().isA(Job.NIGHTWALKER1) || chr.getJob().isA(Job.WINDARCHER1) || chr.getJob() == Job.ARAN3 || chr.getJob() == Job.ARAN4 || chr.getJob() == Job.MARAUDER || chr.getJob() == Job.BUCCANEER;\n        if (chr.isEvan() && chr.getSkillLevel(Evan.CRITICAL_MAGIC) > 0) {\n            canCrit = true;\n        }\n\n        if (chr.getBuffEffect(BuffStat.SHARP_EYES) != null) {\n""",
+            "Evan Critical Magic damage-validation support",
+        ),
+    )
+
+    for broken, fixed, label in fixes:
+        text, did_change = replace_known(text, broken, fixed, label)
+        changed |= did_change
+
     if changed:
         ATTACK_HANDLER.write_text(text, encoding="utf-8")
+
+    for _broken, fixed, label in fixes:
+        if fixed not in text:
+            raise SystemExit(f"ERROR Evan attack-handler fix did not apply: {label}")
+
+
+def patch_skill_factory() -> None:
+    text = SKILL_FACTORY.read_text(encoding="utf-8")
+    broken = """                case Evan.MAGIC_RESISTANCE:\n                case Evan.MAGIC_SHIELD:\n                case Evan.SLOW:\n                    isBuff = true;\n"""
+    fixed = """                case Evan.MAGIC_RESISTANCE:\n                case Evan.MAGIC_SHIELD:\n                case Evan.SLOW:\n                case Evan.BLESSING_OF_THE_ONYX:\n                case Evan.SOUL_STONE:\n                    isBuff = true;\n"""
+    text, changed = replace_known(text, broken, fixed, "Evan Onyx Blessing/Soul Stone buff classification")
+    if changed:
+        SKILL_FACTORY.write_text(text, encoding="utf-8")
     if fixed not in text:
-        raise SystemExit("ERROR Killer Wings attack target-lock fix did not apply")
+        raise SystemExit("ERROR Evan high-tier buff classification did not apply")
 
 
 def main() -> int:
     patch_stat_effect()
     patch_buff_stat()
     patch_character_death()
-    patch_killer_wings_attack()
+    patch_attack_handler()
+    patch_skill_factory()
     print("EverLeaf Evan behavior fixes: PASS")
     return 0
 
