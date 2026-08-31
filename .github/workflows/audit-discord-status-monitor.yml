@@ -47,16 +47,23 @@ jobs:
             systemctl list-unit-files --type=service --no-legend 2>/dev/null \
               | awk '{print $1}' \
               | grep -Ei 'everleaf|discord|status|monitor' || true
+            unit_path="$(systemctl show everleaf-discord.service -p FragmentPath --value)"
+            echo "unit_path=$unit_path"
+            sudo awk -F= '
+              /^WorkingDirectory=/ { print "working_directory=" $2 }
+              /^EnvironmentFile=/ { print "environment_file=" $2 }
+              /^ExecStart=/ {
+                split($2, fields, /[[:space:]]+/)
+                print "exec_start_program=" fields[1]
+              }
+            ' "$unit_path"
+            work_dir="$(sudo awk -F= '/^WorkingDirectory=/ { print $2; exit }' "$unit_path")"
+            test -n "$work_dir"
             echo 'alert_source_paths:'
-            sudo timeout 25s grep -RIl \
-              --exclude='*.env' \
-              --exclude='discord-bot.env' \
-              --include='*.js' \
-              --include='*.cjs' \
-              --include='*.mjs' \
-              --include='*.service' \
-              --exclude-dir='.git' \
-              -e 'EverLeaf Status Alert' \
-              -e 'Login Server recovered' \
-              /opt/everleaf /usr/local/lib/everleaf /etc/systemd/system 2>/dev/null || true
+            sudo find "$work_dir" -maxdepth 4 -type f \
+              \( -name '*.js' -o -name '*.cjs' -o -name '*.mjs' -o -name '*.py' -o -name '*.sh' \) \
+              -print0 \
+              | sudo xargs -0 -r grep -Il \
+                  -e 'EverLeaf Status Alert' \
+                  -e 'Login Server recovered' || true
           REMOTE
