@@ -1,0 +1,13 @@
+<%- include("partials/header",{title:page.title}) %>
+<main class="lightPage">
+  <div class="lightTitle"><div class="wrap"><h1><%=page.title%></h1></div></div>
+  <div class="wrap" style="max-width:900px">
+    <article class="paperCard termsCard">
+      <% String(page.body||"").split(/\r?\n\r?\n/).filter(Boolean).forEach(paragraph=>{ %>
+        <p><%=paragraph%></p>
+      <% }) %>
+      <% if(!String(page.body||"").trim()){ %><p class="muted">This page is being prepared.</p><% } %>
+    </article>
+  </div>
+</main>
+<%- include("partials/footer") %>
