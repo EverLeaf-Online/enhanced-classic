@@ -12,6 +12,20 @@ const discord = require("../services/discordService");
 const paypal = require("../services/paypalService");
 
 const router = express.Router();
+const siteUrl = env.payments.publicBaseUrl;
+const xmlEscape = (value) => String(value).replace(/[<>&'\"]/g, ch => ({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'\"':"&quot;"}[ch]));
+
+router.get("/robots.txt",(req,res)=>{
+  res.type("text/plain").set("Cache-Control","public, max-age=3600").send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /account\nSitemap: ${siteUrl}/sitemap.xml\n`);
+});
+
+router.get("/sitemap.xml",(req,res)=>{
+  const staticPaths=["/","/news","/downloads","/rankings","/donate","/help","/terms","/login","/register"];
+  const posts=db.prepare("SELECT slug,created_at FROM posts WHERE published=1 ORDER BY created_at DESC").all();
+  const entries=staticPaths.map(path=>({loc:`${siteUrl}${path}`,lastmod:null})).concat(posts.map(post=>({loc:`${siteUrl}/news/${encodeURIComponent(post.slug)}`,lastmod:post.created_at?String(post.created_at).slice(0,10):null})));
+  const body=entries.map(entry=>`<url><loc>${xmlEscape(entry.loc)}</loc>${entry.lastmod?`<lastmod>${xmlEscape(entry.lastmod)}</lastmod>`:""}</url>`).join("");
+  res.type("application/xml").set("Cache-Control","public, max-age=900").send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${body}</urlset>`);
+});
 
 router.get("/", async (req,res) => {
   const posts = db.prepare("SELECT * FROM posts WHERE published=1 ORDER BY created_at DESC LIMIT 5").all();
