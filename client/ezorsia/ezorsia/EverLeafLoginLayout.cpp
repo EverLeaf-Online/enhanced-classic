@@ -2,14 +2,12 @@
 #include "MainMain.h"
 
 namespace {
-    // EverLeaf always ships its branded HD UI overlay in the managed client
-    // package. Force the client onto the custom full-size login-frame path from
-    // process startup so it does not fall back to the stock v83 presentation.
-    // MainMain later re-detects EverLeaf_UI.wz and enables CustomLoginFrame; the
-    // persistent own/big flags below select the correct rendering branch.
+    // EverLeaf currently ships the existing UI overlay but not a complete
+    // full-size replacement login-frame asset set. Keep only the historical
+    // large-frame positioning hint; forcing ownLoginFrame without matching WZ
+    // assets causes duplicated/clipped login layers at HD resolutions.
     struct EverLeafLoginLayoutDefaults {
         EverLeafLoginLayoutDefaults() {
-            MainMain::ownLoginFrame = true;
             MainMain::bigLoginFrame = true;
         }
     } gEverLeafLoginLayoutDefaults;
