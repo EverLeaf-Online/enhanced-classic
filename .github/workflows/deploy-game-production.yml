@@ -45,6 +45,7 @@ jobs:
           python3 tools/apply_everleaf_config.py
           python3 tools/apply_level_cap_250.py
           python3 tools/apply_pq_points.py
+          python3 tools/apply_evan_skill_data.py
 
       - name: Configure SSH
         env:
@@ -117,9 +118,8 @@ jobs:
             echo 'Candidate is already current; preserving configuration in place.'
           fi
           cd "$RELEASE_DIR"
-          # Reapply deterministic EverLeaf config after preserving the production
-          # file so the primary world is always forced to 20 channels.
           python3 tools/apply_everleaf_config.py
+          python3 tools/apply_evan_skill_data.py
           chmod +x mvnw || true
           ./mvnw -B -DskipTests clean package
           test -s target/everleaf-server-1.0-SNAPSHOT.jar
