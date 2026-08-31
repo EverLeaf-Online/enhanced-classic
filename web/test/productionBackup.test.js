@@ -23,6 +23,14 @@ test("database credentials stay out of mysqldump command arguments", () => {
   assert.match(script, /--single-transaction/);
 });
 
+test("production backup uses local admin socket without widening web DB privileges", () => {
+  const script = read("scripts/backup-mysql.js");
+  assert.match(script, /process\.getuid/);
+  assert.match(script, /--protocol=socket/);
+  assert.match(script, /--user=root/);
+  assert.match(script, /local-root-socket/);
+});
+
 test("MySQL backup stays schema-neutral for isolated restore drills", () => {
   const script = read("scripts/backup-mysql.js");
   assert.doesNotMatch(script, /["']--databases["']/);
