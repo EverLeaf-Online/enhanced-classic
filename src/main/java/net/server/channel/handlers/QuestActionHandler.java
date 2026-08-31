@@ -28,6 +28,7 @@ import net.packet.InPacket;
 import scripting.quest.QuestScriptManager;
 import server.life.NPC;
 import server.quest.Quest;
+import tools.PacketCreator;
 
 import java.awt.*;
 
@@ -73,60 +74,69 @@ public final class QuestActionHandler extends AbstractPacketHandler {
         Character player = c.getPlayer();
         Quest quest = Quest.getInstance(questid);
 
-        switch (action) {
-        case 0: // Restore lost item, Credits Darter ( Rajan )
-            p.readInt();
-            int itemid = p.readInt();
-            quest.restoreLostItem(player, itemid);
-            break;
-        case 1: { // Start Quest
-            int npc = p.readInt();
-            if (!isNpcNearby(p, player, quest, npc)) {
-                return;
-            }
-            if (quest.canStart(player, npc)) {
-                quest.start(player, npc);
-            }
-            break;
+        if (!c.tryacquireClient()) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
         }
-        case 2: { // Complete Quest
-            int npc = p.readInt();
-            if (!isNpcNearby(p, player, quest, npc)) {
-                return;
-            }
-            if (quest.canComplete(player, npc)) {
-                if (p.available() >= 2) {
-                    int selection = p.readShort();
-                    quest.complete(player, npc, selection);
-                } else {
-                    quest.complete(player, npc);
+
+        try {
+            switch (action) {
+            case 0: // Restore lost item, Credits Darter ( Rajan )
+                p.readInt();
+                int itemid = p.readInt();
+                quest.restoreLostItem(player, itemid);
+                break;
+            case 1: { // Start Quest
+                int npc = p.readInt();
+                if (!isNpcNearby(p, player, quest, npc)) {
+                    return;
                 }
+                if (quest.canStart(player, npc)) {
+                    quest.start(player, npc);
+                }
+                break;
             }
-            break;
-        }
-        case 3: // forfeit quest
-            quest.forfeit(player);
-            break;
-        case 4: { // scripted start quest
-            int npc = p.readInt();
-            if (!isNpcNearby(p, player, quest, npc)) {
-                return;
+            case 2: { // Complete Quest
+                int npc = p.readInt();
+                if (!isNpcNearby(p, player, quest, npc)) {
+                    return;
+                }
+                if (quest.canComplete(player, npc)) {
+                    if (p.available() >= 2) {
+                        int selection = p.readShort();
+                        quest.complete(player, npc, selection);
+                    } else {
+                        quest.complete(player, npc);
+                    }
+                }
+                break;
             }
-            if (quest.canStart(player, npc)) {
-                QuestScriptManager.getInstance().start(c, questid, npc);
+            case 3: // forfeit quest
+                quest.forfeit(player);
+                break;
+            case 4: { // scripted start quest
+                int npc = p.readInt();
+                if (!isNpcNearby(p, player, quest, npc)) {
+                    return;
+                }
+                if (quest.canStart(player, npc)) {
+                    QuestScriptManager.getInstance().start(c, questid, npc);
+                }
+                break;
             }
-            break;
-        }
-        case 5: { // scripted end quests
-            int npc = p.readInt();
-            if (!isNpcNearby(p, player, quest, npc)) {
-                return;
+            case 5: { // scripted end quests
+                int npc = p.readInt();
+                if (!isNpcNearby(p, player, quest, npc)) {
+                    return;
+                }
+                if (quest.canComplete(player, npc)) {
+                    QuestScriptManager.getInstance().end(c, questid, npc);
+                }
+                break;
             }
-            if (quest.canComplete(player, npc)) {
-                QuestScriptManager.getInstance().end(c, questid, npc);
             }
-            break;
-        }
+        } finally {
+            c.releaseClient();
         }
     }
 }
