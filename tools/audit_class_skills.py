@@ -2,11 +2,16 @@
 """Static release audit for EverLeaf job/skill integrity.
 
 This intentionally checks invariants that should remain true regardless of balance:
-- every numeric skill constant declared by the server exists in Skill.wz;
+- release-supported numeric skill constants exist in Skill.wz;
 - literal scripted job advancements only target jobs declared in client.Job;
 - duplicate job IDs are rejected;
-- SP assignment keeps the defensive guards that prevent invalid skill packets from
+- SP assignment keeps defensive guards that prevent invalid skill packets from
   turning into null dereferences or invalid SP-book indexing.
+
+Evan and GM constants are review-only here. The v83 Skill.wz currently does not
+ship Evan skill data, and GM helper constants are server/admin conveniences rather
+than normal player progression. They are reported so they cannot be mistaken for
+fully validated player classes.
 
 Empress-development content is excluded from scripted advancement scanning.
 """
@@ -27,6 +32,7 @@ JOB_RE = re.compile(r"\b([A-Z][A-Z0-9_]*)\((\d+)\)")
 CONST_RE = re.compile(r"\b(?:public\s+)?static\s+final\s+int\s+[A-Z0-9_]+\s*=\s*(\d+)\s*;")
 WZ_SKILL_RE = re.compile(r'name="(\d{7,8})"')
 CHANGE_JOB_RE = re.compile(r"\b(?:changeJob|changeJobById)\s*\(\s*(\d+)\s*\)")
+REVIEW_ONLY_CONSTANT_FILES = {"Evan.java", "GM.java"}
 
 
 def read(path: Path) -> str:
@@ -54,11 +60,7 @@ def collect_wz_skill_ids() -> set[int]:
     ids: set[int] = set()
     for xml in SKILL_WZ.rglob("*.xml"):
         for value in WZ_SKILL_RE.findall(read(xml)):
-            skill_id = int(value)
-            # Skill IDs are seven/eight digit numbers. Other numeric WZ node names
-            # can appear in these files, but accepting them only makes this audit
-            # conservative; a missing declared skill still cannot pass.
-            ids.add(skill_id)
+            ids.add(int(value))
     return ids
 
 
@@ -73,16 +75,35 @@ def collect_declared_skill_ids() -> dict[int, list[str]]:
     return declared
 
 
-def audit_skill_constants() -> tuple[int, int]:
+def audit_skill_constants() -> tuple[int, int, int]:
     declared = collect_declared_skill_ids()
     wz_ids = collect_wz_skill_ids()
-    missing = {skill_id: files for skill_id, files in declared.items() if skill_id not in wz_ids}
-    if missing:
-        print("ERROR skill constants missing from Skill.wz:")
-        for skill_id, files in sorted(missing.items()):
+    hard_missing: dict[int, list[str]] = {}
+    review_missing: dict[int, list[str]] = {}
+
+    for skill_id, files in declared.items():
+        if skill_id in wz_ids:
+            continue
+        if all(name in REVIEW_ONLY_CONSTANT_FILES for name in files):
+            review_missing[skill_id] = files
+        else:
+            hard_missing[skill_id] = files
+
+    if review_missing:
+        by_file: dict[str, list[int]] = {}
+        for skill_id, files in review_missing.items():
+            for name in files:
+                by_file.setdefault(name, []).append(skill_id)
+        for name, ids in sorted(by_file.items()):
+            print(f"REVIEW {name}: {len(ids)} declared skill constants are absent from v83 Skill.wz")
+
+    if hard_missing:
+        print("ERROR release-supported skill constants missing from Skill.wz:")
+        for skill_id, files in sorted(hard_missing.items()):
             print(f"  {skill_id}: {', '.join(files)}")
         raise SystemExit(1)
-    return len(declared), len(wz_ids)
+
+    return len(declared), len(wz_ids), len(review_missing)
 
 
 def iter_script_files():
@@ -92,8 +113,7 @@ def iter_script_files():
         for path in base.rglob("*"):
             if not path.is_file() or path.suffix.lower() not in {".js", ".java"}:
                 continue
-            lowered = str(path).lower()
-            if "empress" in lowered:
+            if "empress" in str(path).lower():
                 continue
             yield path
 
@@ -134,7 +154,7 @@ def audit_sp_guards() -> None:
 
 def main() -> int:
     jobs = collect_jobs()
-    declared_count, wz_count = audit_skill_constants()
+    declared_count, wz_count, review_count = audit_skill_constants()
     literal_changes = audit_literal_job_changes(jobs)
     audit_sp_guards()
 
@@ -142,6 +162,7 @@ def main() -> int:
     print(f"  Job enum IDs: {len(jobs)}")
     print(f"  Declared skill constants: {declared_count}")
     print(f"  Skill.wz numeric skill nodes indexed: {wz_count}")
+    print(f"  Review-only missing constants (Evan/GM): {review_count}")
     print(f"  Literal scripted job advancements checked: {literal_changes}")
     print("  SP assignment invalid-skill / invalid-book guards: present")
     return 0
