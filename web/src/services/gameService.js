@@ -117,26 +117,43 @@ async function voteBalance(accountId) {
   return Number(rows[0]?.votePoints || 0);
 }
 
+async function nxRewardStatus(accountId) {
+  const db = getPool(), g = env.gameDb;
+  const [rows] = await db.query(
+    `SELECT COALESCE(${I("nxCredit")},0) nxCredit,
+            (SELECT COALESCE(SUM(nx_amount),0)
+               FROM everleaf_vote_rewards
+              WHERE account_id=${I(g.accountsTable)}.${I(g.accountId)} AND claimed_at IS NULL) pendingVoteNx
+       FROM ${I(g.accountsTable)}
+      WHERE ${I(g.accountId)}=? LIMIT 1`,
+    [Number(accountId)]
+  );
+  return {
+    nxCredit: Number(rows[0]?.nxCredit || 0),
+    pendingVoteNx: Number(rows[0]?.pendingVoteNx || 0)
+  };
+}
+
 function utcDateString(date = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
 /**
- * Credit a provider-verified vote exactly once per account/provider/UTC day.
- * The vote ledger insert and account balance mutation share one transaction,
- * so callback retries cannot mint duplicate Vote Points.
+ * Queue a provider-verified NX reward exactly once per account/provider/UTC day.
+ * The game claims queued NX so its in-memory Cash Shop balance stays synchronized
+ * with accounts.nxCredit.
  */
-async function rewardVerifiedVote({ username, provider, voterIp=null, reason=null, rewardPoints=1, votedAt=new Date() }) {
+async function queueVerifiedVoteNx({ username, provider, nxAmount=1500, votedAt=new Date() }) {
   const g = env.gameDb;
-  const points = Number(rewardPoints);
+  const amount = Number(nxAmount);
   if (!/^[A-Za-z0-9_]{4,13}$/.test(String(username || ""))) {
     return { status: "invalid_username", rewarded: false };
   }
   if (!/^[a-z0-9_-]{2,32}$/.test(String(provider || ""))) {
     throw new Error("Invalid vote provider");
   }
-  if (!Number.isInteger(points) || points < 1 || points > 10) {
-    throw new Error("Invalid Vote Point reward amount");
+  if (!Number.isInteger(amount) || amount < 1 || amount > 100000) {
+    throw new Error("Invalid vote NX reward amount");
   }
 
   const db = getPool();
@@ -144,7 +161,7 @@ async function rewardVerifiedVote({ username, provider, voterIp=null, reason=nul
   try {
     await con.beginTransaction();
     const [accounts] = await con.query(
-      `SELECT ${I(g.accountId)} id, ${I(g.accountName)} name, COALESCE(${I(g.accountVotePoints)},0) votePoints
+      `SELECT ${I(g.accountId)} id, ${I(g.accountName)} name
        FROM ${I(g.accountsTable)}
        WHERE ${I(g.accountName)}=?
        LIMIT 1 FOR UPDATE`,
@@ -157,29 +174,25 @@ async function rewardVerifiedVote({ username, provider, voterIp=null, reason=nul
     }
 
     const voteDate = utcDateString(votedAt instanceof Date && !Number.isNaN(votedAt.valueOf()) ? votedAt : new Date());
+    const externalVoteId = `${provider}:${account.id}:${voteDate}`;
     const [insert] = await con.query(
-      `INSERT IGNORE INTO everleaf_vote_reward_ledger
-         (account_id, provider, vote_date_utc, source_username, voter_ip, vote_points, provider_reason)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [account.id, provider, voteDate, account.name, voterIp ? String(voterIp).slice(0,45) : null, points, reason ? String(reason).slice(0,255) : null]
+      `INSERT IGNORE INTO everleaf_vote_rewards
+         (account_id, provider, external_vote_id, nx_amount)
+       VALUES (?, ?, ?, ?)`,
+      [account.id, provider, externalVoteId, amount]
     );
 
     if (insert.affectedRows !== 1) {
       await con.commit();
-      return { status: "already_rewarded", rewarded: false, accountId: account.id, votePoints: Number(account.votePoints) };
+      return { status: "already_rewarded", rewarded: false, accountId: account.id };
     }
 
-    await con.query(
-      `UPDATE ${I(g.accountsTable)} SET ${I(g.accountVotePoints)}=${I(g.accountVotePoints)}+? WHERE ${I(g.accountId)}=?`,
-      [points, account.id]
-    );
     await con.commit();
     return {
       status: "rewarded",
       rewarded: true,
       accountId: account.id,
-      amount: points,
-      votePoints: Number(account.votePoints) + points,
+      amount,
       voteDateUtc: voteDate
     };
   } catch (error) {
@@ -199,5 +212,6 @@ module.exports = {
   accountCharacters,
   changePassword,
   voteBalance,
-  rewardVerifiedVote
+  nxRewardStatus,
+  queueVerifiedVoteNx
 };

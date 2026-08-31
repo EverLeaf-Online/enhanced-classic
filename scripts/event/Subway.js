@@ -13,7 +13,7 @@ var rideTime = 4 * 60 * 1000; //The time that require move to destination
 function init() {
     closeTime = em.getTransportationTime(closeTime);
     beginTime = em.getTransportationTime(beginTime);
-    rideTime = em.getTransportationTime(rideTime);
+    rideTime = em.getTransportationRideTime(rideTime);
 
     KC_Waiting = em.getChannelServer().getMapFactory().getMap(600010004);
     NLC_Waiting = em.getChannelServer().getMapFactory().getMap(600010002);

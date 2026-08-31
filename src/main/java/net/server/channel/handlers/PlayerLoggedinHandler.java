@@ -43,6 +43,7 @@ import net.AbstractPacketHandler;
 import net.packet.InPacket;
 import net.server.PlayerBuffValueHolder;
 import net.server.Server;
+import service.NxRewardService;
 import net.server.channel.Channel;
 import net.server.channel.CharacterIdChannelPair;
 import net.server.coordinator.session.Hwid;
@@ -228,6 +229,7 @@ public final class PlayerLoggedinHandler extends AbstractPacketHandler {
             cserv.addPlayer(player);
             wserv.addPlayer(player);
             player.setEnteredChannelWorld();
+            NxRewardService.getInstance().startSession(player);
 
             List<PlayerBuffValueHolder> buffs = server.getPlayerBuffStorage().getBuffsFromStorage(cid);
             if (buffs != null) {

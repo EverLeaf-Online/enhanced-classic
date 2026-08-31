@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Fail CI if EverLeaf's verified vote flow drifts into P2W/NX rewards.
+"""Fail CI if EverLeaf's verified vote flow drifts from queued NX rewards.
 
-Voting is account-level convenience currency only. The web callback must use a
-secret, reward only successful provider callbacks, and rely on the idempotent
-account/provider/day ledger before mutating Vote Points.
+The web callback must use a secret, reward only successful provider callbacks,
+and enqueue an idempotent account/provider/day reward for the game to claim.
 """
 from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-MIGRATION = ROOT / "database/sql/migration/everleaf_vote_rewards.sql"
+MIGRATION = ROOT / "database/sql/migration/everleaf_nx_rewards.sql"
 WEB_ROUTE = ROOT / "web/src/routes/vote.js"
 WEB_SERVICE = ROOT / "web/src/services/gameService.js"
 WEB_ENV = ROOT / "web/src/config/env.js"
@@ -36,12 +35,13 @@ def main() -> None:
     transform = read(BUILD_TRANSFORM)
 
     required_migration = [
-        "everleaf_vote_reward_ledger",
+        "everleaf_vote_rewards",
         "account_id",
         "provider",
-        "vote_date_utc",
-        "UNIQUE KEY `uq_everleaf_vote_reward_window`",
-        "FOREIGN KEY (`account_id`) REFERENCES `accounts` (`id`) ON DELETE CASCADE",
+        "external_vote_id",
+        "nx_amount",
+        "UNIQUE KEY uq_everleaf_vote_provider_external",
+        "FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE",
     ]
     for marker in required_migration:
         if marker not in migration:
@@ -51,9 +51,9 @@ def main() -> None:
         "GTOP100_PINGBACK_KEY",
         "secretEqual(parsed.key, env.vote.gtopPingbackKey)",
         "vote.success !== 0",
-        "game.rewardVerifiedVote({",
+        "game.queueVerifiedVoteNx({",
         'provider: env.vote.provider',
-        'nxReward: false',
+        'nxReward: true',
     ]
     for marker in route_markers:
         if marker not in route:
@@ -62,9 +62,10 @@ def main() -> None:
     service_markers = [
         "beginTransaction()",
         "FOR UPDATE",
-        "INSERT IGNORE INTO everleaf_vote_reward_ledger",
+        "INSERT IGNORE INTO everleaf_vote_rewards",
         "affectedRows !== 1",
-        "accountVotePoints",
+        "const externalVoteId = `${provider}:${account.id}:${voteDate}`;",
+        "nx_amount",
         "await con.commit()",
     ]
     for marker in service_markers:
@@ -72,17 +73,16 @@ def main() -> None:
             fail(f"Verified vote reward transaction lost invariant: {marker}")
 
     forbidden = {
-        "web vote route": (route, ["nxCredit", "VOTE_NX_REWARD", "NxRewardService"]),
-        "web vote service": (service, ["nxCredit", "VOTE_NX_REWARD", "NxRewardService"]),
-        "vote command": (command, ["earn 1,500 NX", "earn NX", "@points nx"]),
+        "web vote route": (route, ["rewardPoints", "nxReward: false"]),
+        "vote command": (command, ["Vote Points only", "@points vp"]),
     }
     for label, (text, markers) in forbidden.items():
         for marker in markers:
             if marker.lower() in text.lower():
                 fail(f"{label} contains forbidden NX-vote marker: {marker}")
 
-    if 'rewardPoints: Math.max(1, Math.min(10, Number(process.env.VOTE_POINTS_REWARD || 1)))' not in env:
-        fail("Default verified vote reward must remain 1 Vote Point and bounded")
+    if 'rewardNx: Math.max(1, Math.min(100000, Number(process.env.VOTE_NX_REWARD || 1500)))' not in env:
+        fail("Default verified vote reward must remain 1,500 NX and bounded")
 
     web_match = re.search(r'gtop100\.com/MapleStory/server-(\d+)\?vote=1', env)
     java_match = re.search(r'gtop100\.com/MapleStory/server-(\d+)\?vote=1', command)
@@ -96,9 +96,9 @@ def main() -> None:
     if 'VoteShopCommand.class' not in transform:
         fail("@voteshop is not registered by the EverLeaf build transform")
 
-    print("[PASS] Verified Vote Point reward policy audit")
+    print("[PASS] Verified NX reward policy audit")
     print(f"       GTop100 listing id={web_match.group(1)} (configuration still requires pre-production dashboard verification)")
-    print("       reward=1 VP default; no vote NX")
+    print("       reward=1,500 pending NX default; no direct balance mutation")
     print("       duplicate window=account/provider/UTC day")
     print("       callback=secret-gated + provider-success-only + transactional")
 

@@ -37,6 +37,7 @@ structural_migrations=(
     database/sql/migration/everleaf_pq_points.sql
     database/sql/migration/everleaf_account_entitlements.sql
     database/sql/migration/everleaf_vote_rewards.sql
+    database/sql/migration/everleaf_nx_rewards.sql
     database/sql/migration/everleaf_enhanced_encounters.sql
     database/sql/migration/everleaf_rooted_materials.sql
     database/sql/migration/everleaf_inventoryequipment_forge_stage.sql

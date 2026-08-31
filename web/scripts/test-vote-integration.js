@@ -2,7 +2,7 @@ const assert = require("assert");
 
 process.env.GTOP100_PINGBACK_KEY = "ci-secret";
 process.env.GTOP100_VOTE_URL = "https://gtop100.com/MapleStory/server-106444?vote=1";
-process.env.VOTE_POINTS_REWARD = "1";
+process.env.VOTE_NX_REWARD = "1500";
 
 const env = require("../src/config/env");
 const vote = require("../src/routes/vote")._test;
@@ -59,5 +59,5 @@ env.vote.gtopVoteUrl = "https://example.com/not-allowed";
 assert.throws(() => vote.verifiedVoteUrl("Alpha_1"), /gtop100\.com/);
 env.vote.gtopVoteUrl = originalUrl;
 
-assert.strictEqual(env.vote.rewardPoints, 1);
-console.log("EverLeaf Vote Point web integration tests passed.");
+assert.strictEqual(env.vote.rewardNx, 1500);
+console.log("EverLeaf NX vote web integration tests passed.");

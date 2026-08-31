@@ -6,7 +6,7 @@ import client.command.Command;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
-/** Shows the personalized GTop100 link used by EverLeaf's verified Vote Point flow. */
+/** Shows the personalized GTop100 link used by EverLeaf's verified NX flow. */
 public class VoteCommand extends Command {
     private static final String GTOP100_VOTE_URL =
             "https://gtop100.com/MapleStory/server-106444?vote=1&pingUsername=";
@@ -24,8 +24,8 @@ public class VoteCommand extends Command {
         }
 
         String encoded = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
-        client.getPlayer().yellowMessage("Vote for EverLeaf to earn Vote Points:");
+        client.getPlayer().yellowMessage("Vote for EverLeaf to earn 1,500 NX:");
         client.getPlayer().yellowMessage(GTOP100_VOTE_URL + encoded);
-        client.getPlayer().yellowMessage("Verified votes reward Vote Points only. Use @points vp to check your balance and @voteshop to spend them.");
+        client.getPlayer().yellowMessage("After GTop verifies the vote, use @points nx to claim your reward.");
     }
 }
