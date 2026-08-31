@@ -9,7 +9,7 @@ on:
   schedule:
     - cron: '23 9 * * *'
   workflow_run:
-    workflows: ['Deploy EverLeaf Game Production']
+    workflows: ['Deploy EverLeaf Game Production', 'Deploy EverLeaf Web']
     types: [completed]
 
 concurrency:
@@ -175,6 +175,10 @@ jobs:
             echo 'database_relationship_integrity=ready'
 
             echo '### Non-destructive full restore drill'
+            if sudo sh -c "gzip -dc '$latest_backup/game-mysql.sql.gz' | grep -Eq '^(CREATE DATABASE|USE )'"; then
+              echo 'Backup contains database-selection directives and is unsafe for an isolated restore drill.' >&2
+              exit 1
+            fi
             restore_db="everleaf_restore_${AUDIT_RUN_ID}"
             cleanup_restore() { sudo mysql -e "DROP DATABASE IF EXISTS \`$restore_db\`;" >/dev/null 2>&1 || true; }
             trap cleanup_restore EXIT
