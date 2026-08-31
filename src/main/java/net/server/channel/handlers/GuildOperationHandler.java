@@ -32,6 +32,7 @@ import net.server.Server;
 import net.server.coordinator.matchchecker.MatchCheckerListenerFactory.MatchCheckerType;
 import net.server.guild.Alliance;
 import net.server.guild.Guild;
+import net.server.guild.GuildCharacter;
 import net.server.guild.GuildPackets;
 import net.server.guild.GuildResponse;
 import net.server.world.Party;
@@ -65,7 +66,6 @@ public final class GuildOperationHandler extends AbstractPacketHandler {
         int allianceId = -1;
         switch (type) {
             case 0x00:
-                //c.sendPacket(PacketCreator.showGuildInfo(mc));
                 break;
             case 0x02:
                 if (mc.getGuildId() > 0) {
@@ -85,13 +85,10 @@ public final class GuildOperationHandler extends AbstractPacketHandler {
                 Set<Character> eligibleMembers = new HashSet<>(Guild.getEligiblePlayersForGuild(mc));
                 if (eligibleMembers.size() < YamlConfig.config.server.CREATE_GUILD_MIN_PARTNERS) {
                     if (mc.getMap().getAllPlayers().size() < YamlConfig.config.server.CREATE_GUILD_MIN_PARTNERS) {
-                        // thanks NovaStory for noticing message in need of smoother info
                         mc.dropMessage(1, "Your Guild doesn't have enough cofounders present here and therefore cannot be created at this time.");
                     } else {
-                        // players may be unaware of not belonging on a party in order to become eligible, thanks Hair (Legalize) for pointing this out
                         mc.dropMessage(1, "Please make sure everyone you are trying to invite is neither on a guild nor on a party.");
                     }
-
                     return;
                 }
 
@@ -104,21 +101,20 @@ public final class GuildOperationHandler extends AbstractPacketHandler {
                 for (Character chr : eligibleMembers) {
                     eligibleCids.add(chr.getId());
                 }
-
                 c.getWorldServer().getMatchCheckerCoordinator().createMatchConfirmation(MatchCheckerType.GUILD_CREATION, c.getWorld(), mc.getId(), eligibleCids, guildName);
                 break;
             case 0x05:
                 if (mc.getGuildId() <= 0 || mc.getGuildRank() > 2) {
                     return;
                 }
-
                 String targetName = p.readString();
+                if (targetName.equalsIgnoreCase(mc.getName())) {
+                    return;
+                }
                 GuildResponse mgr = Guild.sendInvitation(c, targetName);
                 if (mgr != null) {
                     c.sendPacket(mgr.getPacket(targetName));
-                } else {
-                } // already sent invitation, do nothing
-
+                }
                 break;
             case 0x06:
                 if (mc.getGuildId() > 0) {
@@ -136,8 +132,8 @@ public final class GuildOperationHandler extends AbstractPacketHandler {
                     return;
                 }
 
-                mc.getMGC().setGuildId(gid); // joins the guild
-                mc.getMGC().setGuildRank(5); // start at lowest rank
+                mc.getMGC().setGuildId(gid);
+                mc.getMGC().setGuildRank(5);
                 mc.getMGC().setAllianceRank(5);
 
                 int s = Server.getInstance().addGuildMember(mc.getMGC(), mc);
@@ -148,32 +144,41 @@ public final class GuildOperationHandler extends AbstractPacketHandler {
                 }
 
                 c.sendPacket(GuildPackets.showGuildInfo(mc));
-
-                allianceId = mc.getGuild().getAllianceId();
+                Guild joinedGuild = mc.getGuild();
+                if (joinedGuild == null) {
+                    mc.getMGC().setGuildId(0);
+                    return;
+                }
+                allianceId = joinedGuild.getAllianceId();
                 if (allianceId > 0) {
-                    Server.getInstance().getAlliance(allianceId).updateAlliancePackets(mc);
+                    Alliance alliance = Server.getInstance().getAlliance(allianceId);
+                    if (alliance != null) {
+                        alliance.updateAlliancePackets(mc);
+                    }
                 }
 
-                mc.saveGuildStatus(); // update database
-                mc.getMap().broadcastPacket(mc, GuildPackets.guildNameChanged(mc.getId(), mc.getGuild().getName())); // thanks Vcoc for pointing out an issue with updating guild tooltip to players in the map
-                mc.getMap().broadcastPacket(mc, GuildPackets.guildMarkChanged(mc.getId(), mc.getGuild()));
+                mc.saveGuildStatus();
+                mc.getMap().broadcastPacket(mc, GuildPackets.guildNameChanged(mc.getId(), joinedGuild.getName()));
+                mc.getMap().broadcastPacket(mc, GuildPackets.guildMarkChanged(mc.getId(), joinedGuild));
                 break;
             case 0x07:
                 cid = p.readInt();
                 String name = p.readString();
-                if (cid != mc.getId() || !name.equals(mc.getName()) || mc.getGuildId() <= 0) {
+                Guild currentGuild = mc.getGuild();
+                if (cid != mc.getId() || !name.equals(mc.getName()) || mc.getGuildId() <= 0 || currentGuild == null) {
                     log.warn("[Hack] Chr {} tried to quit guild under the name {} and current guild id of {}", mc.getName(), name, mc.getGuildId());
                     return;
                 }
 
-                allianceId = mc.getGuild().getAllianceId();
-
+                allianceId = currentGuild.getAllianceId();
                 c.sendPacket(GuildPackets.updateGP(mc.getGuildId(), 0));
                 Server.getInstance().leaveGuild(mc.getMGC());
-
                 c.sendPacket(GuildPackets.showGuildInfo(null));
                 if (allianceId > 0) {
-                    Server.getInstance().getAlliance(allianceId).updateAlliancePackets(mc);
+                    Alliance alliance = Server.getInstance().getAlliance(allianceId);
+                    if (alliance != null) {
+                        alliance.updateAlliancePackets(mc);
+                    }
                 }
 
                 mc.getMGC().setGuildId(0);
@@ -181,21 +186,33 @@ public final class GuildOperationHandler extends AbstractPacketHandler {
                 mc.saveGuildStatus();
                 mc.getMap().broadcastPacket(mc, GuildPackets.guildNameChanged(mc.getId(), ""));
                 break;
-            case 0x08:
-                allianceId = mc.getGuild().getAllianceId();
-
+            case 0x08: {
+                Guild guild = mc.getGuild();
+                if (mc.getGuildId() <= 0 || guild == null || mc.getGuildRank() > 2) {
+                    log.warn("[Hack] Chr {} is trying to expel without rank 1 or 2", mc.getName());
+                    return;
+                }
+                allianceId = guild.getAllianceId();
                 cid = p.readInt();
                 name = p.readString();
-                if (mc.getGuildRank() > 2 || mc.getGuildId() <= 0) {
-                    log.warn("[Hack] Chr {} is trying to expel without rank 1 or 2", mc.getName());
+                if (cid == mc.getId()) {
+                    return;
+                }
+                GuildCharacter target = guild.getMGC(cid);
+                if (target == null || !target.getName().equals(name) || mc.getGuildRank() >= target.getGuildRank()) {
+                    log.warn("[Hack] Chr {} attempted to expel invalid or protected guild member {} ({})", mc.getName(), name, cid);
                     return;
                 }
 
                 Server.getInstance().expelMember(mc.getMGC(), name, cid);
                 if (allianceId > 0) {
-                    Server.getInstance().getAlliance(allianceId).updateAlliancePackets(mc);
+                    Alliance alliance = Server.getInstance().getAlliance(allianceId);
+                    if (alliance != null) {
+                        alliance.updateAlliancePackets(mc);
+                    }
                 }
                 break;
+            }
             case 0x0d:
                 if (mc.getGuildId() <= 0 || mc.getGuildRank() != 1) {
                     log.warn("[Hack] Chr {} tried to change guild rank titles when s/he does not have permission", mc.getName());
@@ -204,22 +221,31 @@ public final class GuildOperationHandler extends AbstractPacketHandler {
                 String[] ranks = new String[5];
                 for (int i = 0; i < 5; i++) {
                     ranks[i] = p.readString();
+                    if (ranks[i].length() > 20) {
+                        return;
+                    }
                 }
-
                 Server.getInstance().changeRankTitle(mc.getGuildId(), ranks);
                 break;
-            case 0x0e:
+            case 0x0e: {
                 cid = p.readInt();
                 byte newRank = p.readByte();
-                if (mc.getGuildRank() > 2 || (newRank <= 2 && mc.getGuildRank() != 1) || mc.getGuildId() <= 0) {
+                Guild guild = mc.getGuild();
+                if (guild == null || mc.getGuildId() <= 0 || mc.getGuildRank() > 2 || newRank <= 1 || newRank > 5 || cid == mc.getId()) {
                     log.warn("[Hack] Chr {} is trying to change rank outside of his/her permissions.", mc.getName());
                     return;
                 }
-                if (newRank <= 1 || newRank > 5) {
+                GuildCharacter target = guild.getMGC(cid);
+                if (target == null || mc.getGuildRank() >= target.getGuildRank()) {
+                    log.warn("[Hack] Chr {} attempted to change rank of protected/non-member cid {}", mc.getName(), cid);
+                    return;
+                }
+                if (newRank <= 2 && mc.getGuildRank() != 1) {
                     return;
                 }
                 Server.getInstance().changeRank(mc.getGuildId(), cid, newRank);
                 break;
+            }
             case 0x0f:
                 if (mc.getGuildId() <= 0 || mc.getGuildRank() != 1 || mc.getMapId() != MapId.GUILD_HQ) {
                     log.warn("[Hack] Chr {} tried to change guild emblem without being the guild leader", mc.getName());
@@ -237,12 +263,16 @@ public final class GuildOperationHandler extends AbstractPacketHandler {
 
                 if (mc.getGuild() != null && mc.getGuild().getAllianceId() > 0) {
                     Alliance alliance = mc.getAlliance();
-                    Server.getInstance().allianceMessage(alliance.getId(), GuildPackets.getGuildAlliances(alliance, c.getWorld()), -1, -1);
+                    if (alliance != null) {
+                        Server.getInstance().allianceMessage(alliance.getId(), GuildPackets.getGuildAlliances(alliance, c.getWorld()), -1, -1);
+                    }
                 }
 
                 mc.gainMeso(-YamlConfig.config.server.CHANGE_EMBLEM_COST, true, false, true);
-                mc.getGuild().broadcastNameChanged();
-                mc.getGuild().broadcastEmblemChanged();
+                if (mc.getGuild() != null) {
+                    mc.getGuild().broadcastNameChanged();
+                    mc.getGuild().broadcastEmblemChanged();
+                }
                 break;
             case 0x10:
                 if (mc.getGuildId() <= 0 || mc.getGuildRank() > 2) {
@@ -274,14 +304,12 @@ public final class GuildOperationHandler extends AbstractPacketHandler {
                         if (leader != null) {
                             int partyid = leader.getPartyId();
                             if (partyid != -1) {
-                                Party.joinParty(mc, partyid, true);    // GMS gimmick "party to form guild" recalled thanks to Vcoc
+                                Party.joinParty(mc, partyid, true);
                             }
                         }
                     }
-
                     wserv.getMatchCheckerCoordinator().answerMatchConfirmation(mc.getId(), result);
                 }
-
                 break;
             default:
                 log.warn("Unhandled GUILD_OPERATION packet: {}", p);
