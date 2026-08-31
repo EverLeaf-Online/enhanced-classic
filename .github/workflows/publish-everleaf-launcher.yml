@@ -1,0 +1,180 @@
+name: Publish EverLeaf launcher
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - "launcher/**"
+      - ".github/workflows/publish-everleaf-launcher.yml"
+  pull_request:
+    branches: [release-dev]
+    paths:
+      - "launcher/**"
+      - ".github/workflows/publish-everleaf-launcher.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-launcher-production-${{ github.event_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_PUBLIC_HOST: everleafms.online
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'release-dev' }}
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj
+
+      - name: Test launcher
+        run: dotnet test launcher/EverLeaf.Launcher.Tests/EverLeaf.Launcher.Tests.csproj --configuration Release
+
+      - name: Publish self-contained launcher
+        run: dotnet publish launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj --configuration Release --runtime win-x64 --self-contained true --output launcher-publish -p:EverLeafRevision=${{ github.sha }}
+
+      - name: Compile launcher installer
+        shell: pwsh
+        run: |
+          $compiler = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+          if (-not $compiler) { $compiler = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' }
+          if (-not (Test-Path -LiteralPath $compiler)) { throw 'Inno Setup compiler is unavailable.' }
+          & $compiler 'launcher/installer/EverLeafLauncher.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE." }
+          if (-not (Test-Path 'launcher-installer/EverLeafLauncherSetup.exe')) { throw 'Compiled launcher installer is missing.' }
+
+      - name: Verify and package portable launcher
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'launcher-publish/EverLeafLauncher.exe')) { throw 'Launcher executable is missing.' }
+          Remove-Item 'launcher-publish/*.pdb' -Force -ErrorAction SilentlyContinue
+          Compress-Archive -Path 'launcher-publish/*' -DestinationPath 'EverLeafLauncher-portable.zip'
+          Expand-Archive 'EverLeafLauncher-portable.zip' 'launcher-package-check'
+          $files = @(Get-ChildItem 'launcher-package-check' -File -Recurse)
+          if ($files.Count -ne 1 -or $files[0].Name -ne 'EverLeafLauncher.exe') {
+            throw 'Portable launcher ZIP must contain only EverLeafLauncher.exe.'
+          }
+          Set-Content -NoNewline 'EverLeafLauncher-version.txt' '${{ github.sha }}'
+          Get-FileHash 'EverLeafLauncher-portable.zip' -Algorithm SHA256
+          Get-FileHash 'launcher-installer/EverLeafLauncherSetup.exe' -Algorithm SHA256
+
+      - name: Configure production SSH
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY" || { echo 'EVERLEAF_SSH_PRIVATE_KEY is not configured.' >&2; exit 1; }
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'test -d /opt/everleaf/patches && test -f /opt/everleaf/patches/managed-client-baseline.json && test -f /opt/everleaf/patches/manifest.json && test -f /opt/everleaf/web/scripts/build-patch-manifest.js'
+
+      - name: Stage verified launcher on production
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          REMOTE_STAGE="/tmp/everleaf-launcher-$GITHUB_SHA"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -i ~/.ssh/id_everleaf \
+            EverLeafLauncher-portable.zip \
+            EverLeafLauncher-version.txt \
+            launcher-installer/EverLeafLauncherSetup.exe \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$REMOTE_STAGE/"
+
+      - name: Publish launcher and regenerate signed-manifest payload
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "RELEASE_SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          PATCH_ROOT=/opt/everleaf/patches
+          DOWNLOADS="$PATCH_ROOT/downloads"
+          STAGE="/tmp/everleaf-launcher-$RELEASE_SHA"
+          GENERATED="$STAGE/manifest.json"
+          PATCH_VERSION="$(node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('$PATCH_ROOT/manifest.json','utf8'));process.stdout.write(String(m.version));")"
+
+          test -s "$STAGE/EverLeafLauncher-portable.zip"
+          test -s "$STAGE/EverLeafLauncherSetup.exe"
+          test "$(cat "$STAGE/EverLeafLauncher-version.txt")" = "$RELEASE_SHA"
+
+          sudo env \
+            LAUNCHER_PATCH_ROOT="$PATCH_ROOT" \
+            LAUNCHER_BASELINE_PATH="$PATCH_ROOT/managed-client-baseline.json" \
+            LAUNCHER_MANIFEST_PATH="$GENERATED" \
+            LAUNCHER_PORTABLE_PATH="$STAGE/EverLeafLauncher-portable.zip" \
+            LAUNCHER_VERSION_PATH="$STAGE/EverLeafLauncher-version.txt" \
+            node /opt/everleaf/web/scripts/build-patch-manifest.js "$PATCH_VERSION"
+
+          node - "$GENERATED" "$STAGE/EverLeafLauncher-portable.zip" "$RELEASE_SHA" <<'NODE'
+          const fs=require('fs');
+          const crypto=require('crypto');
+          const [manifestPath,zipPath,version]=process.argv.slice(2);
+          const manifest=JSON.parse(fs.readFileSync(manifestPath,'utf8'));
+          const digest=crypto.createHash('sha256').update(fs.readFileSync(zipPath)).digest('hex');
+          if(!manifest.launcher) throw new Error('Generated manifest lacks launcher metadata');
+          if(manifest.launcher.version!==version) throw new Error('Generated launcher version mismatch');
+          if(manifest.launcher.sha256!==digest) throw new Error('Generated launcher SHA-256 mismatch');
+          if(manifest.launcher.size!==fs.statSync(zipPath).size) throw new Error('Generated launcher size mismatch');
+          NODE
+
+          sudo install -d -m 755 "$DOWNLOADS"
+          sudo install -m 644 "$STAGE/EverLeafLauncher-portable.zip" "$DOWNLOADS/EverLeafLauncher-portable.zip.new"
+          sudo install -m 644 "$STAGE/EverLeafLauncherSetup.exe" "$DOWNLOADS/EverLeafLauncherSetup.exe.new"
+          sudo install -m 644 "$STAGE/EverLeafLauncher-version.txt" "$DOWNLOADS/EverLeafLauncher-version.txt.new"
+          sudo install -m 644 "$GENERATED" "$PATCH_ROOT/manifest.json.new"
+
+          sudo mv -f "$DOWNLOADS/EverLeafLauncher-portable.zip.new" "$DOWNLOADS/EverLeafLauncher-portable.zip"
+          sudo mv -f "$DOWNLOADS/EverLeafLauncherSetup.exe.new" "$DOWNLOADS/EverLeafLauncherSetup.exe"
+          sudo mv -f "$DOWNLOADS/EverLeafLauncher-version.txt.new" "$DOWNLOADS/EverLeafLauncher-version.txt"
+          sudo mv -f "$PATCH_ROOT/manifest.json.new" "$PATCH_ROOT/manifest.json"
+
+          EXPECTED="$(sha256sum "$DOWNLOADS/EverLeafLauncher-portable.zip" | awk '{print $1}')"
+          curl -fsS http://127.0.0.1:3000/launcher/download -o "$STAGE/live.zip"
+          ACTUAL="$(sha256sum "$STAGE/live.zip" | awk '{print $1}')"
+          test "$ACTUAL" = "$EXPECTED"
+          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
+          echo "Local launcher endpoint verified: $ACTUAL"
+          rm -rf "$STAGE"
+          REMOTE
+
+      - name: Verify public launcher download
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED="$(sha256sum EverLeafLauncher-portable.zip | awk '{print $1}')"
+          curl --fail --silent --show-error --location --max-time 60 \
+            "https://$EVERLEAF_PUBLIC_HOST/launcher/download" -o public-launcher.zip
+          ACTUAL="$(sha256sum public-launcher.zip | awk '{print $1}')"
+          test "$ACTUAL" = "$EXPECTED"
+          curl --fail --silent --show-error --max-time 20 \
+            "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" >/dev/null
+          echo "EverLeaf launcher published and verified: $GITHUB_SHA ($ACTUAL)"
