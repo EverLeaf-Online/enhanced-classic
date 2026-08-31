@@ -17,6 +17,10 @@ Boss Rush has many unused map variants in the WZ. EverLeaf's Agent Meow script
 selects only lobbies 0-7, so the audit validates the 8 active lobby variants of
 stages 1-27 plus the five rest maps instead of treating dormant variants as
 production progression.
+
+Empress / Knights of Cygnus content is outside EverLeaf's release scope. Maps in
+the 130xxxxxx family and links targeting that family are excluded from this
+audit entirely.
 """
 
 from __future__ import annotations
@@ -35,10 +39,12 @@ MOB_ROOT = ROOT / "wz" / "Mob.wz"
 REACTOR_ROOT = ROOT / "wz" / "Reactor.wz"
 NPC_SCRIPT_ROOT = ROOT / "scripts" / "npc"
 PORTAL_SCRIPT_ROOT = ROOT / "scripts" / "portal"
+EXCLUDED_MAP_START = 130_000_000
+EXCLUDED_MAP_END = 131_000_000
 
 BOSS_RUSH_LOBBIES = range(8)
 BOSS_RUSH_STAGE_BASES = [970030100 + (100 * index) for index in range(27)]
-BOSS_RUSH_PROGRESS_BASES = BOSS_RUSH_STAGE_BASES[:-1]  # stage 27 is the final boss
+BOSS_RUSH_PROGRESS_BASES = BOSS_RUSH_STAGE_BASES[:-1]
 BOSS_RUSH_REST_MAPS = {str(970030001 + index) for index in range(5)}
 BOSS_RUSH_ACTIVE_MAPS = {
     str(base + lobby)
@@ -80,14 +86,6 @@ def resource_ids(root: Path) -> set[str]:
     return {path.name.split(".", 1)[0].lstrip("0") or "0" for path in root.glob("*.img.xml")}
 
 
-def map_files() -> dict[str, Path]:
-    files: dict[str, Path] = {}
-    for path in MAP_ROOT.glob("Map*/*.img.xml"):
-        raw = path.name.split(".", 1)[0]
-        files[str(int(raw)) if raw.isdigit() else raw] = path
-    return files
-
-
 def normalize_id(value: str | None) -> str:
     if value is None:
         return ""
@@ -97,13 +95,30 @@ def normalize_id(value: str | None) -> str:
     return value
 
 
+def is_excluded_map(value: str | None) -> bool:
+    normalized = normalize_id(value)
+    if not normalized.isdigit():
+        return False
+    number = int(normalized)
+    return EXCLUDED_MAP_START <= number < EXCLUDED_MAP_END
+
+
+def map_files() -> dict[str, Path]:
+    files: dict[str, Path] = {}
+    for path in MAP_ROOT.glob("Map*/*.img.xml"):
+        raw = path.name.split(".", 1)[0]
+        map_id = str(int(raw)) if raw.isdigit() else raw
+        if is_excluded_map(map_id):
+            continue
+        files[map_id] = path
+    return files
+
+
 def is_known_legacy_missing_target(map_id: str, portal_name: str, target: str) -> bool:
-    """Return True only for explicitly researched, intentionally preserved data."""
     return map_id == "970033000" and portal_name == "test" and target == "970033001"
 
 
 def boss_rush_next_stage(map_id: str) -> str:
-    """Mirror scripts/portal/raid_stage.js for an active Boss Rush stage map."""
     current = int(map_id)
     if current % 500 >= 100:
         return str(current + 100)
@@ -190,7 +205,10 @@ def main() -> int:
                 target = normalize_id(child_value(node, "tm"))
                 script_name = (child_value(node, "script") or "").strip()
 
-                # -1 and 999999999 are standard scripted/special portal sentinels.
+                if is_excluded_map(target):
+                    counts["excluded_empress_links"] += 1
+                    continue
+
                 if target and target not in {"-1", "999999999"} and target not in maps:
                     finding = Finding(
                         "missing_target_map", map_id, portal_name,
@@ -260,13 +278,14 @@ def main() -> int:
     else:
         print(
             "EverLeaf world integrity audit: "
-            f"{len(maps)} maps, {counts['npc_spawns']} NPC spawns, "
+            f"{len(maps)} in-scope maps, {counts['npc_spawns']} NPC spawns, "
             f"{counts['mob_spawns']} mob spawns, {counts['portals']} portals"
         )
         print(
             f"Hard failures: {payload['hardFailureCount']}; "
             f"review-only findings: {payload['reviewFindingCount']}; "
             f"NPCs without dedicated scripts: {counts['npc_without_script']}; "
+            f"excluded Empress links: {counts['excluded_empress_links']}; "
             f"active Boss Rush stage portals: {counts['boss_rush_stage_portals_active']}"
         )
         for error in parse_errors:
