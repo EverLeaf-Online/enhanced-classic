@@ -117,6 +117,11 @@ def main() -> None:
     # global search so preserved production config cannot silently stay at 8.
     text = force_primary_world_channels(text, 20)
 
+    # Channel.java advertises server.HOST back to the MapleStory client after
+    # world/channel selection. Loopback here makes remote players reconnect to
+    # their own PC, so production must advertise EverLeaf's public IPv4 address.
+    text = replace_once(text, "    HOST: 127.0.0.1", "    HOST: 132.145.141.79")
+
     replacements = [
         ("    exp_rate: 10", "    exp_rate: 5"),
         ("    meso_rate: 10", "    meso_rate: 3"),
@@ -134,7 +139,7 @@ def main() -> None:
         text = replace_once(text, old, new)
 
     CONFIG.write_text(text, encoding="utf-8")
-    print("EverLeaf development configuration applied (20 channels; website registration required).")
+    print("EverLeaf development configuration applied (20 channels; public channel host; website registration required).")
 
 
 if __name__ == "__main__":
