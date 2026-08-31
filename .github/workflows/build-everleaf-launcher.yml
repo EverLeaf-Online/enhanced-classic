@@ -39,6 +39,24 @@ jobs:
       - name: Publish self-contained launcher
         run: dotnet publish launcher/EverLeaf.Launcher/EverLeaf.Launcher.csproj --configuration Release --runtime win-x64 --self-contained true --output launcher-publish -p:EverLeafRevision=${{ github.sha }}
 
+      - name: Compile launcher installer
+        shell: pwsh
+        run: |
+          $compiler = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+          if (-not $compiler) {
+            $compiler = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          }
+          if (-not (Test-Path -LiteralPath $compiler)) {
+            throw 'Inno Setup compiler is unavailable on the Windows runner.'
+          }
+          & $compiler 'launcher/installer/EverLeafLauncher.iss'
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup failed with exit code $LASTEXITCODE."
+          }
+          if (-not (Test-Path 'launcher-installer/EverLeafLauncherSetup.exe')) {
+            throw 'Compiled EverLeaf launcher installer is missing.'
+          }
+
       - name: Verify launcher security invariants
         shell: pwsh
         run: |
@@ -92,6 +110,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: everleaf-launcher-${{ github.sha }}
-          path: EverLeafLauncher-portable.zip
+          path: |
+            EverLeafLauncher-portable.zip
+            launcher-installer/EverLeafLauncherSetup.exe
           if-no-files-found: error
           retention-days: 7
