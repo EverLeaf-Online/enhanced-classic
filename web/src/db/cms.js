@@ -120,6 +120,17 @@ function initCms() {
       details TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS account_recovery_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','resolved','rejected')),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS recovery_requests_status_created
+      ON account_recovery_requests(status,created_at DESC);
   `);
 
   const paymentColumns = db.prepare("PRAGMA table_info(payment_orders)").all();
