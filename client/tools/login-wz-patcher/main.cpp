@@ -2,6 +2,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "wz/Properties/WzCanvasProperty.h"
@@ -226,6 +227,36 @@ static bool HasCanvas(wz::WzImageProperty* property, int depth = 0) {
     }
 }
 
+static wz::WzImage* FindRootImage(wz::WzDirectory* root,
+                                  const std::string& lower,
+                                  const std::string& upper) {
+    if (!root) return nullptr;
+    if (auto* image = root->GetImageByName(lower)) return image;
+    return root->GetImageByName(upper);
+}
+
+static bool PatchRequiredPath(wz::WzImage* image,
+                              const std::string& path,
+                              const fs::path& pngPath) {
+    if (!image || !fs::is_regular_file(pngPath)) {
+        std::cerr << "Missing image or artwork for " << path << ": "
+                  << pngPath.string() << "\n";
+        return false;
+    }
+    auto* property = image->GetFromPath(path);
+    if (!property) {
+        std::cerr << "Required WZ path was not found: " << path << "\n";
+        return false;
+    }
+    const int patched = PatchCanvasTree(property, pngPath);
+    if (patched <= 0) {
+        std::cerr << "Required WZ path contains no patchable canvas: " << path << "\n";
+        return false;
+    }
+    image->SetChanged(true);
+    return true;
+}
+
 static bool VerifyPatchedMap(const fs::path& outputPath) {
     wz::WzFile verify(outputPath.string(), 83, wz::WzMapleVersion::GMS);
     if (verify.ParseWzFile() != wz::WzFileParseStatus::Success) return false;
@@ -244,25 +275,47 @@ static bool VerifyPatchedMap(const fs::path& outputPath) {
 
     auto* background = FindBackgroundProperty(backLogin);
     auto* logo = objLogin->GetFromPath("Title/logo");
-    return HasCanvas(background) && HasCanvas(logo);
+    auto* signboard = objLogin->GetFromPath("Title/signboard");
+    return HasCanvas(background) && HasCanvas(logo) && HasCanvas(signboard);
+}
+
+static bool VerifyPatchedUi(const fs::path& outputPath) {
+    wz::WzFile verify(outputPath.string(), 83, wz::WzMapleVersion::GMS);
+    if (verify.ParseWzFile() != wz::WzFileParseStatus::Success) return false;
+    auto* login = FindRootImage(verify.GetWzDirectory(), "login.img", "Login.img");
+    if (!login) return false;
+    auto parsed = login->ParseImage();
+    if (!parsed || !parsed.value()) return false;
+    const std::vector<std::string> required = {
+        "Common/frame", "Title/BtLogin/normal", "Title/BtLogin/mouseOver",
+        "Title/BtLogin/pressed", "Title/BtLogin/disabled",
+        "Title/BtLoginIDSave/normal", "Title/BtLoginIDLost/normal",
+        "Title/BtPasswdLost/normal", "Title/BtNew/normal",
+        "Title/BtHomePage/normal", "Title/BtQuit/normal",
+        "Title/check/0", "Title/check/1"
+    };
+    for (const auto& path : required) {
+        if (!HasCanvas(login->GetFromPath(path))) return false;
+    }
+    return true;
 }
 
 int main(int argc, char** argv) {
-    if (argc != 5) {
-        std::cerr << "Usage: everleaf-login-wz-patcher <Map.wz> <background.png> "
-                     "<logo.png> <output Map.wz>\n";
+    if (argc != 6) {
+        std::cerr << "Usage: everleaf-login-wz-patcher <Map.wz> <UI.wz> "
+                     "<art directory> <output Map.wz> <output UI.wz>\n";
         return 2;
     }
 
     const fs::path mapPath = argv[1];
-    const fs::path backgroundPath = argv[2];
-    const fs::path logoPath = argv[3];
-    const fs::path outputPath = argv[4];
+    const fs::path uiPath = argv[2];
+    const fs::path artPath = argv[3];
+    const fs::path outputMapPath = argv[4];
+    const fs::path outputUiPath = argv[5];
 
     if (!fs::is_regular_file(mapPath) ||
-        !fs::is_regular_file(backgroundPath) ||
-        !fs::is_regular_file(logoPath)) {
-        std::cerr << "Map.wz or EverLeaf login artwork is missing.\n";
+        !fs::is_regular_file(uiPath) || !fs::is_directory(artPath)) {
+        std::cerr << "Map.wz, UI.wz, or EverLeaf login artwork is missing.\n";
         return 3;
     }
 
@@ -295,7 +348,7 @@ int main(int argc, char** argv) {
         std::cerr << "Could not resolve the v83 login background node 11 safely.\n";
         return 7;
     }
-    const int backgroundFrames = PatchCanvasTree(background, backgroundPath);
+    const int backgroundFrames = PatchCanvasTree(background, artPath / "background.png");
     if (backgroundFrames <= 0) {
         std::cerr << "Resolved login background contained no patchable canvas; property type="
                   << static_cast<int>(background->PropertyType()) << "\n";
@@ -308,7 +361,7 @@ int main(int argc, char** argv) {
         std::cerr << "obj/login.img/Title/logo was not found.\n";
         return 9;
     }
-    const int logoFrames = PatchCanvasTree(logo, logoPath);
+    const int logoFrames = PatchCanvasTree(logo, artPath / "logo.png");
     if (logoFrames <= 0) {
         std::cerr << "Title/logo did not contain a patchable canvas; property type="
                   << static_cast<int>(logo->PropertyType()) << "\n";
@@ -316,21 +369,75 @@ int main(int argc, char** argv) {
     }
     objLogin->SetChanged(true);
 
-    auto saved = mapFile.SaveToDisk(
-        outputPath.string(), false, wz::WzMapleVersion::GMS);
-    if (!saved) {
-        std::cerr << "Could not save patched Map.wz: "
-                  << saved.error().message() << "\n";
+    if (!PatchRequiredPath(objLogin, "Title/signboard", artPath / "signboard.png")) {
         return 11;
     }
 
-    if (!VerifyPatchedMap(outputPath)) {
-        std::cerr << "Saved Map.wz failed the post-write validation pass.\n";
+    auto saved = mapFile.SaveToDisk(
+        outputMapPath.string(), false, wz::WzMapleVersion::GMS);
+    if (!saved) {
+        std::cerr << "Could not save patched Map.wz: "
+                  << saved.error().message() << "\n";
         return 12;
+    }
+
+    if (!VerifyPatchedMap(outputMapPath)) {
+        std::cerr << "Saved Map.wz failed the post-write validation pass.\n";
+        return 13;
+    }
+
+    wz::WzFile uiFile(uiPath.string(), 83, wz::WzMapleVersion::GMS);
+    const auto uiParseStatus = uiFile.ParseWzFile();
+    if (uiParseStatus != wz::WzFileParseStatus::Success) {
+        std::cerr << "Could not parse UI.wz: "
+                  << wz::GetErrorDescription(uiParseStatus) << "\n";
+        return 14;
+    }
+    auto* uiLogin = FindRootImage(uiFile.GetWzDirectory(), "login.img", "Login.img");
+    if (!uiLogin) {
+        std::cerr << "UI.wz is missing Login.img.\n";
+        return 15;
+    }
+    auto uiParsed = uiLogin->ParseImage();
+    if (!uiParsed || !uiParsed.value()) {
+        std::cerr << "Could not parse UI.wz/Login.img.\n";
+        return 16;
+    }
+
+    if (!PatchRequiredPath(uiLogin, "Common/frame", artPath / "frame.png")) return 17;
+    const std::vector<std::pair<std::string, std::string>> controls = {
+        {"BtLogin", "login"}, {"BtLoginIDSave", "save-id"},
+        {"BtLoginIDLost", "find-id"}, {"BtPasswdLost", "reset-password"},
+        {"BtNew", "register"}, {"BtHomePage", "homepage"}, {"BtQuit", "quit"}
+    };
+    const std::vector<std::string> states = {"normal", "mouseOver", "pressed", "disabled"};
+    for (const auto& [node, asset] : controls) {
+        for (const auto& state : states) {
+            if (!PatchRequiredPath(uiLogin, "Title/" + node + "/" + state,
+                                   artPath / (asset + "-" + state + ".png"))) {
+                return 18;
+            }
+        }
+    }
+    if (!PatchRequiredPath(uiLogin, "Title/check/0", artPath / "check-0.png") ||
+        !PatchRequiredPath(uiLogin, "Title/check/1", artPath / "check-1.png")) {
+        return 19;
+    }
+
+    auto uiSaved = uiFile.SaveToDisk(
+        outputUiPath.string(), false, wz::WzMapleVersion::GMS);
+    if (!uiSaved) {
+        std::cerr << "Could not save patched UI.wz: "
+                  << uiSaved.error().message() << "\n";
+        return 20;
+    }
+    if (!VerifyPatchedUi(outputUiPath)) {
+        std::cerr << "Saved UI.wz failed the post-write validation pass.\n";
+        return 21;
     }
 
     std::cout << "Patched EverLeaf login background canvas frame(s): "
               << backgroundFrames << "; logo canvas frame(s): " << logoFrames
-              << "; saved validated Map.wz.\n";
+              << "; saved validated Map.wz and UI.wz theme.\n";
     return 0;
 }
