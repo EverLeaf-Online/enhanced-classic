@@ -8,6 +8,9 @@ const env=require("../config/env");
 const adminSupporter=require("../services/adminSupporterService");
 const router=express.Router();
 
+const cleanSlug=value=>String(value||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,80);
+const logAdmin=(req,action,details="")=>db.prepare("INSERT INTO audit_log(admin_id,action,details) VALUES(?,?,?)").run(req.session.admin?.id||null,action,String(details).slice(0,500));
+
 router.get("/login",(req,res)=>res.render("admin-login",{error:"",settings:settings()}));
 router.post("/login",async(req,res)=>{
   const admin=db.prepare("SELECT * FROM admins WHERE username=?").get(String(req.body.username||""));
@@ -36,6 +39,7 @@ router.get("/",requireAdmin,async(req,res)=>{
   const posts=db.prepare("SELECT * FROM posts ORDER BY created_at DESC").all();
   const downloads=db.prepare("SELECT * FROM downloads ORDER BY created_at DESC").all();
   const announcements=db.prepare("SELECT * FROM announcements ORDER BY created_at DESC LIMIT 10").all();
+  const pages=db.prepare("SELECT * FROM pages ORDER BY slug").all();
   const donations=db.prepare("SELECT * FROM donations ORDER BY created_at DESC LIMIT 10").all();
   const donationTotal=db.prepare("SELECT COALESCE(SUM(amount_cents),0) total FROM donations WHERE status='completed'").get().total;
   const paymentOrders=db.prepare("SELECT * FROM payment_orders ORDER BY created_at DESC LIMIT 20").all();
@@ -52,7 +56,7 @@ router.get("/",requireAdmin,async(req,res)=>{
     [players,status]=await Promise.all([game.onlineCount(),game.serverStatus()]);
   }catch{}
   const syncStatus=String(req.query.supporterSync||"");
-  res.render("admin",{posts,downloads,announcements,donations,donationTotal,paymentOrders,supporterProfiles,supporterSummary,auditLog,syncStatus,players,accounts,recentAccounts,status,site:settings(),settings:settings()});
+  res.render("admin",{posts,downloads,announcements,pages,donations,donationTotal,paymentOrders,supporterProfiles,supporterSummary,auditLog,syncStatus,players,accounts,recentAccounts,status,site:settings(),settings:settings()});
 });
 
 router.post("/supporters/:accountId/sync-discord",requireAdmin,async(req,res)=>{
@@ -70,9 +74,10 @@ router.post("/supporters/:accountId/sync-discord",requireAdmin,async(req,res)=>{
 });
 
 router.post("/posts",requireAdmin,(req,res)=>{
-  const slug=String(req.body.slug||req.body.title||"post").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,80);
+  const slug=cleanSlug(req.body.slug||req.body.title||"post");
   db.prepare(`INSERT INTO posts(slug,title,excerpt,body,type,published) VALUES(?,?,?,?,?,?)`)
     .run(slug,String(req.body.title||""),String(req.body.excerpt||""),String(req.body.body||""),String(req.body.type||"news"),req.body.published?1:0);
+  logAdmin(req,"post.create",slug);
   res.redirect("/admin");
 });
 
@@ -82,25 +87,31 @@ router.get("/posts/:id/edit",requireAdmin,(req,res)=>{
   res.render("admin-edit-post",{post,settings:settings()});
 });
 router.post("/posts/:id/edit",requireAdmin,(req,res)=>{
-  const slug=String(req.body.slug||req.body.title||"post").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,80);
+  const slug=cleanSlug(req.body.slug||req.body.title||"post");
   db.prepare(`UPDATE posts SET slug=?,title=?,excerpt=?,body=?,type=?,published=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
     .run(slug,String(req.body.title||""),String(req.body.excerpt||""),String(req.body.body||""),String(req.body.type||"news"),req.body.published==="1"?1:0,Number(req.params.id));
+  logAdmin(req,"post.update",slug);
   res.redirect("/admin");
 });
 
 router.post("/posts/:id/delete",requireAdmin,(req,res)=>{
+  const post=db.prepare("SELECT slug FROM posts WHERE id=?").get(Number(req.params.id));
   db.prepare("DELETE FROM posts WHERE id=?").run(Number(req.params.id));
+  logAdmin(req,"post.delete",post?.slug||req.params.id);
   res.redirect("/admin");
 });
 
 router.post("/downloads",requireAdmin,(req,res)=>{
   db.prepare(`INSERT INTO downloads(name,description,url,kind,version,published) VALUES(?,?,?,?,?,?)`)
     .run(String(req.body.name||""),String(req.body.description||""),String(req.body.url||""),String(req.body.kind||"client"),String(req.body.version||""),req.body.published?1:0);
+  logAdmin(req,"download.create",String(req.body.name||""));
   res.redirect("/admin");
 });
 
 router.post("/downloads/:id/delete",requireAdmin,(req,res)=>{
+  const item=db.prepare("SELECT name FROM downloads WHERE id=?").get(Number(req.params.id));
   db.prepare("DELETE FROM downloads WHERE id=?").run(Number(req.params.id));
+  logAdmin(req,"download.delete",item?.name||req.params.id);
   res.redirect("/admin");
 });
 
@@ -108,17 +119,65 @@ router.post("/settings",requireAdmin,(req,res)=>{
   const allowed=["hero_title","hero_subtitle","announcement","maintenance_message","footer_note"];
   const up=db.prepare("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value");
   for(const key of allowed) up.run(key,String(req.body[key]||""));
+  logAdmin(req,"settings.update",allowed.join(","));
   res.redirect("/admin");
 });
 
 router.post("/announcements",requireAdmin,(req,res)=>{
   db.prepare("INSERT INTO announcements(title,body,active) VALUES(?,?,?)")
     .run(String(req.body.title||""),String(req.body.body||""),req.body.active?1:0);
+  logAdmin(req,"announcement.create",String(req.body.title||""));
   res.redirect("/admin");
 });
 router.post("/announcements/:id/delete",requireAdmin,(req,res)=>{
+  const item=db.prepare("SELECT title FROM announcements WHERE id=?").get(Number(req.params.id));
   db.prepare("DELETE FROM announcements WHERE id=?").run(Number(req.params.id));
+  logAdmin(req,"announcement.delete",item?.title||req.params.id);
   res.redirect("/admin");
+});
+
+router.post("/pages",requireAdmin,(req,res)=>{
+  const title=String(req.body.title||"").trim();
+  const slug=cleanSlug(req.body.slug||title);
+  if(!title||!slug) return res.status(400).send("Page title and slug are required.");
+  try {
+    db.prepare("INSERT INTO pages(slug,title,body,published) VALUES(?,?,?,?)")
+      .run(slug,title,String(req.body.body||""),req.body.published?1:0);
+    logAdmin(req,"page.create",slug);
+    res.redirect("/admin#pages");
+  } catch(error) {
+    if(String(error.message).includes("UNIQUE")) return res.status(409).send("A page with that slug already exists.");
+    throw error;
+  }
+});
+
+router.get("/pages/:id/edit",requireAdmin,(req,res)=>{
+  const page=db.prepare("SELECT * FROM pages WHERE id=?").get(Number(req.params.id));
+  if(!page) return res.redirect("/admin#pages");
+  res.render("admin-edit-page",{page,settings:settings()});
+});
+
+router.post("/pages/:id/edit",requireAdmin,(req,res)=>{
+  const title=String(req.body.title||"").trim();
+  const slug=cleanSlug(req.body.slug||title);
+  if(!title||!slug) return res.status(400).send("Page title and slug are required.");
+  try {
+    db.prepare("UPDATE pages SET slug=?,title=?,body=?,published=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+      .run(slug,title,String(req.body.body||""),req.body.published==="1"?1:0,Number(req.params.id));
+    logAdmin(req,"page.update",slug);
+    res.redirect("/admin#pages");
+  } catch(error) {
+    if(String(error.message).includes("UNIQUE")) return res.status(409).send("A page with that slug already exists.");
+    throw error;
+  }
+});
+
+router.post("/pages/:id/delete",requireAdmin,(req,res)=>{
+  const page=db.prepare("SELECT slug FROM pages WHERE id=?").get(Number(req.params.id));
+  if(page&&["about","rules","terms"].includes(page.slug)) return res.status(400).send("Core pages cannot be deleted; unpublish them instead.");
+  db.prepare("DELETE FROM pages WHERE id=?").run(Number(req.params.id));
+  logAdmin(req,"page.delete",page?.slug||req.params.id);
+  res.redirect("/admin#pages");
 });
 
 module.exports=router;
