@@ -77,6 +77,10 @@ public final class PartyOperationHandler extends AbstractPacketHandler {
                 String name = p.readString();
                 Character invited = world.getPlayerStorage().getCharacterByName(name);
                 if (invited != null) {
+                    if (invited.getId() == player.getId()) {
+                        c.sendPacket(PacketCreator.serverNotice(5, "You cannot invite yourself to a party."));
+                        return;
+                    }
                     if (invited.getLevel() < 10 && (!YamlConfig.config.server.USE_PARTY_FOR_STARTERS || player.getLevel() >= 10)) { //min requirement is level 10
                         c.sendPacket(PacketCreator.serverNotice(5, "The player you have invited does not meet the requirements."));
                         return;
@@ -113,12 +117,21 @@ public final class PartyOperationHandler extends AbstractPacketHandler {
             }
             case 5: { // expel
                 int cid = p.readInt();
+                if (party == null || party.getLeaderId() != player.getId() || cid == player.getId()) {
+                    return;
+                }
                 Party.expelFromParty(party, c, cid);
                 break;
             }
             case 6: { // change leader
                 int newLeader = p.readInt();
+                if (party == null || party.getLeaderId() != player.getId() || newLeader == player.getId()) {
+                    return;
+                }
                 PartyCharacter newLeadr = party.getMemberById(newLeader);
+                if (newLeadr == null) {
+                    return;
+                }
                 world.updateParty(party.getId(), PartyOperation.CHANGE_LEADER, newLeadr);
                 break;
             }
