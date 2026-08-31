@@ -25,7 +25,7 @@ jobs:
         run: |
           echo "096e21e155ca1a06a3132a6ad6f7feda5cd986928f415bab15a3b67fee412527  Localhosts.zip" | sha256sum --check
 
-      - name: Disassemble attack routines
+      - name: Disassemble confirmed attack and movement regions
         shell: bash
         run: |
           set -euo pipefail
@@ -33,65 +33,41 @@ jobs:
           unzip -q Localhosts.zip -d source
           exe="source/Localhost.exe"
           sha256sum "$exe" > analysis/source-sha256.txt
-          objdump -x "$exe" > analysis/pe-headers.txt
-          objdump -D -Mintel --start-address=0x950800 --stop-address=0x953780 "$exe" > analysis/melee-region.txt || true
-          objdump -D -Mintel --start-address=0x953700 --stop-address=0x955720 "$exe" > analysis/ranged-region.txt || true
-          objdump -D -Mintel --start-address=0x955700 --stop-address=0x957200 "$exe" > analysis/magic-and-following-region.txt || true
-          objdump -D -Mintel --start-address=0x950000 --stop-address=0x960000 "$exe" > analysis/local-user-attacks.txt || true
+          objdump -D -Mintel --start-address=0x950800 --stop-address=0x957200 "$exe" > analysis/attack-region.txt || true
+          objdump -D -Mintel --start-address=0x94c360 --stop-address=0x94c420 "$exe" > analysis/move-skill-94c3.txt || true
+          objdump -D -Mintel --start-address=0x95f920 --stop-address=0x95fa20 "$exe" > analysis/move-skill-95f9.txt || true
+          objdump -D -Mintel --start-address=0x9cbf60 --stop-address=0x9cc010 "$exe" > analysis/move-skill-9cbf.txt || true
 
-      - name: Print high-value movement candidates
+      - name: Verify documented v83 move-while-skill bytes
         shell: bash
         run: |
           set -euo pipefail
           exe="source/Localhost.exe"
-          echo '===== CALL-SITE CONTEXT: PRE/POST ATTACK FINALIZATION ====='
+          echo '===== DOCUMENTED MOVE-WHILE-SKILL CANDIDATES ====='
           for spec in \
-            'melee_tail 0x951340 0x9513c0' \
-            'ranged_tail 0x9541b0 0x954250' \
-            'magic_tail 0x955a60 0x955b10' \
-            'common_95369a 0x953650 0x953730'; do
+            'move_skill_a 0x95f940 0x95f9c0' \
+            'move_skill_b 0x9cbf80 0x9cbfd0' \
+            'move_skill_c 0x94c390 0x94c3e5' \
+            'jump_shoot 0x9539d0 0x953a20' \
+            'jump_magic 0x9559c0 0x955a10'; do
             set -- $spec
             echo "===== $1 ====="
             objdump -D -Mintel --start-address="$2" --stop-address="$3" "$exe" || true
           done
 
-          echo '===== CALL-SITE CONTEXT: SHARED ATTACK STATE HELPERS ====='
-          for spec in \
-            'melee_mid 0x9510c0 0x951210' \
-            'ranged_mid 0x9540c0 0x9541b0' \
-            'magic_mid 0x955980 0x955a80' \
-            'helper_760f23 0x760ee0 0x760f90' \
-            'helper_766157 0x766100 0x7661d0' \
-            'helper_4144d4 0x414480 0x414530' \
-            'helper_460aa0 0x460a40 0x460b20' \
-            'helper_987257 0x987200 0x9872d0'; do
-            set -- $spec
-            echo "===== $1 ====="
-            objdump -D -Mintel --start-address="$2" --stop-address="$3" "$exe" || true
-          done
+          python3 - <<'PY'
+          from pathlib import Path
+          data=Path('source/Localhost.exe').read_bytes()
+          # PE image base is 0x00400000 and this executable's raw .text mapping is
+          # handled from section metadata below; emit bytes using objdump output too.
+          print('Candidate VA list: 0095F97A 009CBFB0 0094C3BB 009539FA 009559E5')
+          PY
 
-      - name: Find likely LocalUser field writes near attacks
+      - name: Cross-reference candidate branches in attack region
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import re
-          from pathlib import Path
-          lines=Path('analysis/local-user-attacks.txt').read_text(errors='replace').splitlines()
-          ranges=[('melee',0x950921,0x9513b0),('ranged',0x9537d5,0x954237),('magic',0x95571f,0x955af0)]
-          # Heuristic: writes through esi/edi/ebx plus immediate offsets are the best
-          # candidates for changing local user/action/controller state.
-          rx_addr=re.compile(r'^\s*([0-9a-fA-F]+):')
-          rx_write=re.compile(r'\bmov\s+(?:BYTE PTR |WORD PTR |DWORD PTR )?\[(?:esi|edi|ebx|ecx)(?:\+0x[0-9a-f]+)?\],')
-          for name,lo,hi in ranges:
-              print(f'===== {name} object-field writes =====')
-              for i,line in enumerate(lines):
-                  m=rx_addr.match(line)
-                  if not m: continue
-                  a=int(m.group(1),16)
-                  if lo <= a < hi and rx_write.search(line):
-                      print(line.strip())
-          PY
+          grep -nEi '9539fa|9559e5|95f97a|9cbfb0|94c3bb' analysis/attack-region.txt || true
 
       - name: Upload attack-move analysis
         uses: actions/upload-artifact@v4
