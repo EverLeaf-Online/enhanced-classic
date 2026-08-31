@@ -65,14 +65,16 @@ replace_once(
 )
 
 # EverLeaf QoL: storage is account utility and should be available from level 1.
-# Keep all existing GM restrictions, item checks, fees, and concurrency guards;
-# remove only Cosmic's legacy level-15 gate.
+# Older source snapshots still carry Cosmic's level-15 gate; newer EverLeaf
+# source has the gate removed directly. Support both shapes so this build
+# transform remains deterministic while the fork is being consolidated.
 storage_processor = Path("src/main/java/client/processor/npc/StorageProcessor.java")
-replace_once(
-    storage_processor,
-    """        if (chr.getLevel() < 15) {\n            chr.dropMessage(1, \"You may only use the storage once you have reached level 15.\");\n            c.sendPacket(PacketCreator.enableActions());\n            return;\n        }\n\n""",
-    """        // EverLeaf: storage is available at every character level.\n""",
-)
+storage_text = storage_processor.read_text(encoding="utf-8")
+storage_gate = """        if (chr.getLevel() < 15) {\n            chr.dropMessage(1, \"You may only use the storage once you have reached level 15.\");\n            c.sendPacket(PacketCreator.enableActions());\n            return;\n        }\n\n"""
+if storage_gate in storage_text:
+    storage_processor.write_text(storage_text.replace(storage_gate, "", 1), encoding="utf-8")
+elif "chr.getLevel() < 15" in storage_text:
+    raise SystemExit("Unexpected storage level-gate source shape in StorageProcessor.java")
 
 # Register player-facing Everleaf progression/economy commands without
 # permanently rewriting the large upstream command registry yet. Some branches
