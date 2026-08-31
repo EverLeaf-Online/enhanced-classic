@@ -13,6 +13,11 @@ def require(text: str, needle: str, source: Path, failures: list[str]) -> None:
         failures.append(f"{source.relative_to(ROOT)} missing required invariant: {needle}")
 
 
+def forbid(text: str, needle: str, source: Path, failures: list[str], detail: str) -> None:
+    if needle in text:
+        failures.append(f"{source.relative_to(ROOT)} {detail}: {needle}")
+
+
 def main() -> int:
     failures: list[str] = []
     for path in (PROCESSOR, HANDLER, CONFIG):
@@ -31,11 +36,20 @@ def main() -> int:
     require(handler, "private static final int FREE_MARKET_ENTRANCE = 910000000;", HANDLER, failures)
     require(handler, "if (!chr.isAlive())", HANDLER, failures)
     require(handler, "if (chr.isChangingMaps())", HANDLER, failures)
+
+    # Real player-commerce state must still block the shortcut.
     require(handler, "chr.getTrade() != null", HANDLER, failures)
-    require(handler, "chr.getStorage() != null", HANDLER, failures)
-    require(handler, "chr.getShop() != null", HANDLER, failures)
     require(handler, "chr.getPlayerShop() != null", HANDLER, failures)
     require(handler, "chr.getHiredMerchant() != null", HANDLER, failures)
+
+    # NPC shop/storage state can remain stale after the UI closes; the handler
+    # should close normal interactions before warping instead of false-blocking.
+    require(handler, "chr.closePlayerInteractions();", HANDLER, failures)
+    forbid(handler, "chr.getStorage() != null", HANDLER, failures,
+           "must not reject stale NPC storage state")
+    forbid(handler, "chr.getShop() != null", HANDLER, failures,
+           "must not reject stale NPC shop state")
+
     require(handler, "if (chr.getEventInstance() != null)", HANDLER, failures)
     require(handler, "MiniDungeonInfo.isDungeonMap(chr.getMapId())", HANDLER, failures)
     require(handler, "FieldLimit.CANNOTMIGRATE.check(chr.getMap().getFieldLimit())", HANDLER, failures)
@@ -45,8 +59,6 @@ def main() -> int:
 
     if "new MTSHandler" in handler or "MTSHandler(" in handler:
         failures.append("EnterMTSHandler delegates to legacy MTS behavior")
-    if "chr.closePlayerInteractions();" in handler:
-        failures.append("Trade -> FM must reject transactional state instead of force-closing it")
 
     if failures:
         for failure in failures:
