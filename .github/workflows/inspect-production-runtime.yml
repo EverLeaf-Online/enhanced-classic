@@ -47,22 +47,23 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p docs
-          REPORT_BODY="$(ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
-            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
-          set -euo pipefail
+          set +e
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' > /tmp/everleaf-production-inspection.txt 2>&1 <<'REMOTE'
+          set -u
           echo '=== host ==='
-          hostname
-          whoami
-          uname -a
+          hostname || true
+          whoami || true
+          uname -a || true
           echo
 
           echo '=== disk ==='
-          df -h / /opt 2>/dev/null || df -h /
+          df -h / /opt 2>/dev/null || df -h / || true
           echo
 
           echo '=== /opt/everleaf layout ==='
           if [ -d /opt/everleaf ]; then
-            find /opt/everleaf -maxdepth 2 -mindepth 1 -type d -printf '%p\n' 2>/dev/null | sort | head -100
+            find /opt/everleaf -maxdepth 2 -mindepth 1 -type d -printf '%p\n' 2>/dev/null | sort | head -100 || true
           else
             echo '/opt/everleaf not present'
           fi
@@ -107,15 +108,17 @@ jobs:
 
           echo 'Production inspection complete. No state was changed.'
           REMOTE
-          )"
+          REMOTE_STATUS=$?
+          set -e
           {
             echo '# EverLeaf Production Runtime Snapshot'
             echo
             echo "Generated: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             echo "Source release commit: $GITHUB_SHA"
+            echo "Remote inspection exit status: $REMOTE_STATUS"
             echo
             echo '```text'
-            printf '%s\n' "$REPORT_BODY"
+            cat /tmp/everleaf-production-inspection.txt
             echo '```'
           } > docs/PRODUCTION_RUNTIME_SNAPSHOT.md
           cat docs/PRODUCTION_RUNTIME_SNAPSHOT.md
