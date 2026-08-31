@@ -54,6 +54,8 @@ app.use(session({
 }));
 
 app.locals.brand=env.brand;
+app.locals.siteUrl=env.payments.publicBaseUrl;
+app.locals.siteDescription="EverLeaf is an Enhanced Classic MapleStory v83 server focused on nostalgia, thoughtful quality-of-life improvements, long-term progression, and no pay-to-win.";
 app.locals.year=new Date().getFullYear();
 app.use(require("./middleware/viewLocals"));
 
@@ -62,5 +64,10 @@ app.use("/",require("./routes/public"));
 app.use("/admin",require("./routes/admin"));
 
 app.use((req,res)=>res.status(404).render("404",{settings:settings()}));
+app.use((error,req,res,next)=>{
+  console.error("Unhandled web request error:",error);
+  if(res.headersSent) return next(error);
+  res.status(500).render("500",{settings:settings()});
+});
 
 app.listen(env.port,()=>console.log(`EverLeaf web running on port ${env.port}`));
