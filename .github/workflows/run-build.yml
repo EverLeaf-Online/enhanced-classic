@@ -33,6 +33,7 @@ jobs:
         run: |
           python3 tools/apply_level_cap_250.py
           python3 tools/apply_pq_points.py
+          python3 tools/apply_evan_skill_data.py
       - name: Audit economy and NX drops
         run: python3 tools/audit_economy_balance.py
       - name: Audit Gachapon and reward sources
@@ -74,9 +75,6 @@ jobs:
         run: python3 tools/generate_build_manifest.py
       - name: Upload Everleaf server artifact (best effort)
         if: success()
-        # A full account-level Actions artifact quota must not turn a verified
-        # compile/test/package run red. The jar is still available in the job
-        # workspace and production deployment has its own rollback copy.
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
