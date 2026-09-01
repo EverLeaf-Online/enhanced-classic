@@ -42,4 +42,4 @@ Generated donors are intermediate build inputs. They are not intended to replace
 
 The builder fails closed on malformed XML, missing `basedata`, unsupported property types, WZ write errors, or reparse failures. CI exercises an XML -> WZ -> reparse round trip before merge.
 
-The pull-request gate is intentionally rerun against the final branch head whenever the builder or its validation contract changes. A green final-head round trip is required before merge.
+The pull-request gate is intentionally rerun against the final branch head whenever the builder or its validation contract changes. A green final-head round trip is required before merge. The generated four-file donor set is considered valid only after libwz successfully reparses it.
