@@ -80,15 +80,21 @@ test("homepage uses authentic local class art without generic homepage emblems",
   for(const asset of ["launcher","trophy","journal","community","account"]) assert.match(home,new RegExp(`/assets/ui/${asset}\\.svg`));
 });
 
-test("rankings render a Maple-style leaderboard with local class artwork",()=>{
+test("rankings render a Maple-style leaderboard with individual local Cygnus class artwork",()=>{
   assert.match(rankings,/rankingPodium/);
   assert.match(rankings,/rankingTableV2/);
   assert.match(rankings,/rankPlayerIcon/);
   assert.match(rankings,/rankingJobBadge/);
-  assert.match(rankings,/\/assets\/jobs\/special\/cygnus\.png/);
   assert.match(rankings,/\/assets\/jobs\/special\/aran\.png/);
   assert.match(rankings,/\/assets\/jobs\/special\/evan\.png/);
   for(const asset of ["warrior","magician","bowman","thief","pirate"]) assert.match(rankings,new RegExp(`/assets/jobs/instructors/${asset}\\.png`));
+  for(const asset of ["dawn-warrior","blaze-wizard","wind-archer","night-walker","thunder-breaker"]) {
+    assert.match(rankings,new RegExp(`/assets/jobs/cygnus/${asset}\\.png`));
+    const file=path.join(root,`public/assets/jobs/cygnus/${asset}.png`);
+    assert.ok(fs.existsSync(file),`${asset} ranking artwork should exist`);
+    assert.ok(fs.statSync(file).size>10000,`${asset} ranking artwork should be a real image`);
+  }
+  assert.doesNotMatch(rankings,/dawn warrior\|blaze wizard\|wind archer\|night walker\|thunder breaker\|cygnus.*special\/cygnus\.png/);
   for(const asset of ["cygnus","aran","evan"]) assert.doesNotMatch(rankings,new RegExp(`/assets/jobs/${asset}\\.svg`));
   assert.match(rankingsCss,/\.rankingPodium/);
   assert.match(rankingsCss,/\.rankPlayerIcon/);
