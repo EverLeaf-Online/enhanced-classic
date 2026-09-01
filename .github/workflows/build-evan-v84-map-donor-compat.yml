@@ -28,11 +28,9 @@ jobs:
           git -C "$env:RUNNER_TEMP\MapleLib" checkout $env:MAPLELIB_COMMIT
           $f="$env:RUNNER_TEMP\MapleLib\MapleLib\WzLib\WzImageProperty.cs"
           $s=Get-Content $f -Raw
-          $old='else if (type == 0)`r`n                            properties.Add(new WzFloatProperty(name, 0f) { Parent = parent });'
-          if(-not $s.Contains($old)) { $old="else if (type == 0)`n                            properties.Add(new WzFloatProperty(name, 0f) { Parent = parent });" }
-          if(-not $s.Contains($old)) { throw 'Legacy float patch target not found' }
-          $new=$old.Replace('type == 0','type == 0 || type == 1')
-          Set-Content $f ($s.Replace($old,$new)) -NoNewline
+          $patched=[regex]::Replace($s,'else if\s*\(type == 0\)','else if (type == 0 || type == 1)',1)
+          if($patched -eq $s) { throw 'Legacy float patch target not found' }
+          Set-Content $f $patched -NoNewline
           Select-String -Path $f -Pattern 'type == 0 \|\| type == 1'
       - name: Fetch v84 Evan IMGs
         shell: pwsh
