@@ -56,6 +56,9 @@ jobs:
           target=/opt/everleaf/private/wz-donors/gms-v95-raw
           mkdir -p "$target"
 
+          # ZLZ.dll ships with the same v95.4 client and is required for
+          # MapleLib's exact-client WZ key fallback when a WZ does not parse
+          # with the normal GMS IV/version path.
           files=(
             Character.wz
             Item.wz
@@ -67,6 +70,7 @@ jobs:
             Skill.wz
             String.wz
             Etc.wz
+            ZLZ.dll
           )
 
           declare -A minimums=(
@@ -80,6 +84,7 @@ jobs:
             [Skill.wz]=171000000
             [String.wz]=3600000
             [Etc.wz]=1700000
+            [ZLZ.dll]=80000
           )
 
           base='https://sourceforge.net/projects/maplestoryv95/files/MapleStory'
@@ -153,6 +158,7 @@ jobs:
               'Skill.wz': 171_000_000,
               'String.wz': 3_600_000,
               'Etc.wz': 1_700_000,
+              'ZLZ.dll': 80_000,
           }
           bad=[]
           for name, minimum in minimums.items():
@@ -168,7 +174,7 @@ jobs:
           printf '%s\n' \
             'source=SourceForge MapleStory Files v.95' \
             'version=GMS v95.4' \
-            'source_path=/MapleStory individual WZ files' \
+            'source_path=/MapleStory individual WZ files + ZLZ.dll' \
             'staged_at='"$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             > "$target/PROVENANCE.txt"
           REMOTE

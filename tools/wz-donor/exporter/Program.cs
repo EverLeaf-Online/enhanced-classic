@@ -3,7 +3,7 @@ using MapleLib.WzLib.Serializer;
 
 if (args.Length < 2)
 {
-    Console.Error.WriteLine("Usage: EverLeafWzExporter <input-directory> <output-directory> [--patch-version=N] [--probe-patch-range=MIN:MAX] [wz-file ...]");
+    Console.Error.WriteLine("Usage: EverLeafWzExporter <input-directory> <output-directory> [--patch-version=N] [--probe-patch-range=MIN:MAX] [--try-zlz] [wz-file ...]");
     return 2;
 }
 
@@ -11,6 +11,7 @@ var inputDirectory = Path.GetFullPath(args[0]);
 var outputDirectory = Path.GetFullPath(args[1]);
 short patchVersion = -1;
 (short Min, short Max)? probePatchRange = null;
+bool tryZlz = false;
 var requestedFiles = new List<string>();
 
 foreach (var arg in args.Skip(2))
@@ -45,12 +46,24 @@ foreach (var arg in args.Skip(2))
         continue;
     }
 
+    if (string.Equals(arg, "--try-zlz", StringComparison.OrdinalIgnoreCase))
+    {
+        tryZlz = true;
+        continue;
+    }
+
     requestedFiles.Add(arg);
 }
 
 if (probePatchRange is not null && patchVersion < 0)
 {
     Console.Error.WriteLine("--probe-patch-range requires --patch-version as the preferred version");
+    return 2;
+}
+
+if (tryZlz && !File.Exists(Path.Combine(inputDirectory, "ZLZ.dll")))
+{
+    Console.Error.WriteLine($"--try-zlz requires ZLZ.dll beside the donor WZ files: {inputDirectory}");
     return 2;
 }
 
@@ -103,29 +116,49 @@ static bool HasPlausibleRootNames(WzFile wzFile, out string summary)
     return printableRatio >= 0.90 && imageNamesPlausible;
 }
 
+static WzFile? ValidateParsed(WzFile wzFile, WzFileParseStatus status, out string detail)
+{
+    if (status != WzFileParseStatus.Success)
+    {
+        detail = $"parse status {status}";
+        wzFile.Dispose();
+        return null;
+    }
+
+    if (!HasPlausibleRootNames(wzFile, out var plausibility))
+    {
+        detail = $"parsed but failed plausibility check ({plausibility})";
+        wzFile.Dispose();
+        return null;
+    }
+
+    detail = $"success ({plausibility})";
+    return wzFile;
+}
+
 static WzFile? TryParseVersion(string path, short version, out string detail)
 {
     WzFile? wzFile = null;
     try
     {
         wzFile = new WzFile(path, version, WzMapleVersion.GMS);
-        var status = wzFile.ParseWzFile();
-        if (status != WzFileParseStatus.Success)
-        {
-            detail = $"parse status {status}";
-            wzFile.Dispose();
-            return null;
-        }
+        return ValidateParsed(wzFile, wzFile.ParseWzFile(), out detail);
+    }
+    catch (Exception ex)
+    {
+        detail = $"{ex.GetType().Name}: {ex.Message}";
+        wzFile?.Dispose();
+        return null;
+    }
+}
 
-        if (!HasPlausibleRootNames(wzFile, out var plausibility))
-        {
-            detail = $"parsed but failed plausibility check ({plausibility})";
-            wzFile.Dispose();
-            return null;
-        }
-
-        detail = $"success ({plausibility})";
-        return wzFile;
+static WzFile? TryParseZlz(string path, out string detail)
+{
+    WzFile? wzFile = null;
+    try
+    {
+        wzFile = new WzFile(path, WzMapleVersion.GETFROMZLZ);
+        return ValidateParsed(wzFile, wzFile.ParseWzFile(), out detail);
     }
     catch (Exception ex)
     {
@@ -152,6 +185,8 @@ Console.WriteLine(patchVersion >= 0
     : "[EverLeaf] Using MapleLib patch-version auto-detection");
 if (probePatchRange is { } range)
     Console.WriteLine($"[EverLeaf] Bounded fallback patch probe enabled: {range.Min}:{range.Max}");
+if (tryZlz)
+    Console.WriteLine("[EverLeaf] Exact-client ZLZ key fallback enabled");
 
 foreach (var path in files.OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
 {
@@ -159,7 +194,7 @@ foreach (var path in files.OrderBy(Path.GetFileName, StringComparer.OrdinalIgnor
     Console.WriteLine($"[EverLeaf] Parsing {name}");
 
     WzFile? wzFile = null;
-    short? selectedVersion = null;
+    string selectedMode = "unknown";
     string failureDetail = "unknown parse failure";
 
     if (patchVersion >= 0)
@@ -167,7 +202,7 @@ foreach (var path in files.OrderBy(Path.GetFileName, StringComparer.OrdinalIgnor
         wzFile = TryParseVersion(path, patchVersion, out failureDetail);
         if (wzFile is not null)
         {
-            selectedVersion = patchVersion;
+            selectedMode = $"patch {patchVersion}";
         }
         else if (probePatchRange is { } probeRange)
         {
@@ -177,9 +212,12 @@ foreach (var path in files.OrderBy(Path.GetFileName, StringComparer.OrdinalIgnor
                 wzFile = TryParseVersion(path, candidate, out var candidateDetail);
                 Console.WriteLine($"[EverLeaf] Probe {name} patch {candidate}: {candidateDetail}");
                 if (wzFile is null)
+                {
+                    failureDetail = $"patch {candidate}: {candidateDetail}";
                     continue;
+                }
 
-                selectedVersion = candidate;
+                selectedMode = $"patch {candidate}";
                 break;
             }
         }
@@ -189,23 +227,9 @@ foreach (var path in files.OrderBy(Path.GetFileName, StringComparer.OrdinalIgnor
         try
         {
             wzFile = new WzFile(path, WzMapleVersion.GMS);
-            var status = wzFile.ParseWzFile();
-            if (status != WzFileParseStatus.Success)
-            {
-                failureDetail = $"parse status {status}";
-                wzFile.Dispose();
-                wzFile = null;
-            }
-            else if (!HasPlausibleRootNames(wzFile, out var plausibility))
-            {
-                failureDetail = $"parsed but failed plausibility check ({plausibility})";
-                wzFile.Dispose();
-                wzFile = null;
-            }
-            else
-            {
-                selectedVersion = wzFile.Version;
-            }
+            wzFile = ValidateParsed(wzFile, wzFile.ParseWzFile(), out failureDetail);
+            if (wzFile is not null)
+                selectedMode = $"auto-detected patch {wzFile.Version}";
         }
         catch (Exception ex)
         {
@@ -213,6 +237,16 @@ foreach (var path in files.OrderBy(Path.GetFileName, StringComparer.OrdinalIgnor
             wzFile?.Dispose();
             wzFile = null;
         }
+    }
+
+    if (wzFile is null && tryZlz)
+    {
+        wzFile = TryParseZlz(path, out var zlzDetail);
+        Console.WriteLine($"[EverLeaf] ZLZ fallback {name}: {zlzDetail}");
+        if (wzFile is not null)
+            selectedMode = $"ZLZ key, detected patch {wzFile.Version}";
+        else
+            failureDetail = $"ZLZ fallback: {zlzDetail}";
     }
 
     if (wzFile is null)
@@ -225,7 +259,7 @@ foreach (var path in files.OrderBy(Path.GetFileName, StringComparer.OrdinalIgnor
     using (wzFile)
     {
         var target = Path.Combine(outputDirectory, wzFile.Name);
-        Console.WriteLine($"[EverLeaf] Exporting {name} with patch {selectedVersion} -> {target}");
+        Console.WriteLine($"[EverLeaf] Exporting {name} using {selectedMode} -> {target}");
         try
         {
             serializer.SerializeFile(wzFile, target);
