@@ -1,0 +1,47 @@
+name: Publish Evan selector once
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/publish-evan-selector-once.yml"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for selector validation and dispatch production publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TARGET_SHA: e0cef872d71ad7b1bb43f62a2c6c8ecdcbb23899
+        run: |
+          set -euo pipefail
+          echo "Waiting for validation build of $TARGET_SHA"
+          for attempt in $(seq 1 90); do
+            run_json="$(gh api "repos/$REPO/actions/runs?head_sha=$TARGET_SHA&per_page=20")"
+            conclusion="$(printf '%s' "$run_json" | jq -r '[.workflow_runs[] | select(.name=="Build Everleaf v83 client")][0].conclusion // "")"
+            status="$(printf '%s' "$run_json" | jq -r '[.workflow_runs[] | select(.name=="Build Everleaf v83 client")][0].status // "missing")"
+            echo "validation status=$status conclusion=${conclusion:-pending}"
+            if [ "$conclusion" = success ]; then
+              gh workflow run build-everleaf-client.yml \
+                --repo "$REPO" \
+                --ref client-dev \
+                -f publish_patch=true \
+                -f publish_full_baseline=false
+              echo "Production publish dispatched."
+              exit 0
+            fi
+            if [ -n "$conclusion" ] && [ "$conclusion" != success ]; then
+              echo "Validation build failed with conclusion=$conclusion; refusing production publish." >&2
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for validation build." >&2
+          exit 1
