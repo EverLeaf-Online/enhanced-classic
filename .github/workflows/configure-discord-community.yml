@@ -7,6 +7,7 @@ on:
       - master
     paths:
       - tools/everleaf-ops/provision-discord-community.js
+      - tools/everleaf-ops/reconcile-discord-community-unlocked.js
       - tools/everleaf-ops/audit-discord-community.js
       - .github/workflows/configure-discord-community.yml
 
@@ -31,6 +32,7 @@ jobs:
       - name: Validate Discord community tools
         run: |
           node --check tools/everleaf-ops/provision-discord-community.js
+          node --check tools/everleaf-ops/reconcile-discord-community-unlocked.js
           node --check tools/everleaf-ops/audit-discord-community.js
           node --test tools/everleaf-ops/discord-community-config.test.js
 
@@ -52,7 +54,7 @@ jobs:
           fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Stage Discord community tool
+      - name: Stage Discord community tools
         shell: bash
         run: |
           set -euo pipefail
@@ -60,11 +62,11 @@ jobs:
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
             "install -d -m 700 '$discord_dir'"
           scp -i ~/.ssh/id_everleaf \
-            tools/everleaf-ops/provision-discord-community.js \
+            tools/everleaf-ops/reconcile-discord-community-unlocked.js \
             tools/everleaf-ops/audit-discord-community.js \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$discord_dir/"
 
-      - name: Reconcile Discord roles, channels, and official messages
+      - name: Reconcile safe Discord scope and audit
         shell: bash
         run: |
           set -euo pipefail
@@ -83,16 +85,6 @@ jobs:
             sudo test -s /etc/everleaf/discord-bot.env
             sudo chmod 600 /etc/everleaf/discord-bot.env
             sudo test "$(sudo stat -c '%a' /etc/everleaf/discord-bot.env)" = '600'
-            result_file="$discord_dir/reconcile-result.txt"
-            reconcile_status=0
-            sudo env DISCORD_RECONCILE_RESULT_PATH="$result_file" \
-              node "$discord_dir/provision-discord-community.js" /etc/everleaf/discord-bot.env \
-              || reconcile_status=$?
-            if sudo test -s "$result_file"; then
-              sudo cat "$result_file"
-            fi
-            if [ "$reconcile_status" -ne 0 ]; then
-              exit "$reconcile_status"
-            fi
+            sudo node "$discord_dir/reconcile-discord-community-unlocked.js" /etc/everleaf/discord-bot.env
             sudo node "$discord_dir/audit-discord-community.js" /etc/everleaf/discord-bot.env
           REMOTE
