@@ -16,6 +16,7 @@ env:
   PUBLIC_HOST: everleafms.online
   DONOR_RUN_ID: '33561502586'
   LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+  REPAIR_REVISION: '2'
 
 jobs:
   patch:
@@ -60,19 +61,14 @@ jobs:
           for mid in ids:
               tree=ET.parse(root/f'{mid}.img.xml')
               r=tree.getroot()
-              # Objects: copy the whole top-level l0 branch from the donor image.
               for obj in r.findall(".//imgdir[@name='obj']/imgdir"):
                   vals={c.get('name'):c.get('value') for c in obj if c.tag in ('string','int')}
                   os_,l0=vals.get('oS'),vals.get('l0')
-                  if os_ and l0:
-                      entries.add(f'property:Obj/{os_}.img/{l0}')
-              # Tiles: copy the referenced top-level u branch.
+                  if os_ and l0: entries.add(f'property:Obj/{os_}.img/{l0}')
               for tile in r.findall(".//imgdir[@name='tile']/imgdir"):
                   vals={c.get('name'):c.get('value') for c in tile if c.tag in ('string','int')}
                   ts,u=vals.get('tS'),vals.get('u')
-                  if ts and u:
-                      entries.add(f'property:Tile/{ts}.img/{u}')
-              # Backgrounds: copy only the used back/ani top-level branch.
+                  if ts and u: entries.add(f'property:Tile/{ts}.img/{u}')
               backdir=r.find("./imgdir[@name='back']")
               if backdir is not None:
                   for bg in backdir.findall('./imgdir'):
