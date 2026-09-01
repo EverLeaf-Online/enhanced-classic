@@ -1,0 +1,13 @@
+# EverLeaf v83 Evan String.wz donor merge.
+# Skill.img groups are imported individually so unrelated EverLeaf strings remain intact.
+property:Skill.img/2001
+property:Skill.img/2200
+property:Skill.img/2210
+property:Skill.img/2211
+property:Skill.img/2212
+property:Skill.img/2213
+property:Skill.img/2214
+property:Skill.img/2215
+property:Skill.img/2216
+property:Skill.img/2217
+property:Skill.img/2218
