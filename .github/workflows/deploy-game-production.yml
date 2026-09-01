@@ -1,4 +1,4 @@
-# Manual production deployment trigger: merchant-open-persistence-gate
+# Manual production deployment trigger: evan-dragon-fury-validation
 name: Deploy EverLeaf Game Production
 
 on:
@@ -47,6 +47,7 @@ jobs:
           python3 tools/apply_pq_points.py
           python3 tools/apply_evan_skill_data.py
           python3 tools/apply_evan_behavior_fixes.py
+          python3 tools/apply_evan_dragon_fury_fixes.py
           python3 tools/apply_evan_progression_fixes.py
           python3 tools/apply_equipment_requirement_fixes.py
           python3 tools/apply_item_stack_integrity_fixes.py
@@ -135,6 +136,7 @@ jobs:
           python3 tools/apply_everleaf_config.py
           python3 tools/apply_evan_skill_data.py
           python3 tools/apply_evan_behavior_fixes.py
+          python3 tools/apply_evan_dragon_fury_fixes.py
           python3 tools/apply_evan_progression_fixes.py
           python3 tools/apply_equipment_requirement_fixes.py
           python3 tools/apply_item_stack_integrity_fixes.py
