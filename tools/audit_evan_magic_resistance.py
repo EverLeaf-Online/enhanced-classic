@@ -31,10 +31,13 @@ def main() -> int:
         "int reductionPercent = Math.max(0, Math.min(100, magicResistance));",
         "damage = Math.max(0, damage - (int) Math.floor(damage * (reductionPercent / 100.0)));",
     )
+    # Audit executable transform invariants rather than prose formatting so a
+    # harmless docstring line wrap cannot break the production second-pass gate.
     require(
         TRANSFORM,
-        "Mob.wz attack records explicitly mark magical attacks with `magic=1`",
-        "applies the buff only to magical mob attacks",
+        'DataTool.getInt(\\"magic\\", attackData, 0) == 1',
+        "if (isMagicAttack && magicResistance != null)",
+        "Math.max(0, Math.min(100, magicResistance))",
     )
     print("EverLeaf Evan Magic Resistance audit: PASS")
     print("  attack classification: Mob.wz attack/info/magic")
