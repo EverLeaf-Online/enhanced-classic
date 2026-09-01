@@ -125,33 +125,26 @@ static bool CopyProperty(wz::WzDirectory* baseRoot, wz::WzDirectory* donorRoot, 
     wz::WzImage *baseImage=nullptr,*donorImage=nullptr; size_t baseIdx=0,donorIdx=0;
     if(!ResolveImagePath(baseRoot,parts,false,baseImage,baseIdx)) { std::cerr << "Base image missing for property " << e.path << "\n"; return false; }
     if(!ResolveImagePath(donorRoot,parts,false,donorImage,donorIdx)) { std::cerr << "Donor image missing for property " << e.path << "\n"; return false; }
-    if(baseIdx!=donorIdx || baseIdx+1>=parts.size()) { std::cerr << "Bad property path " << e.path << "\n"; return false; }
+    if(baseIdx!=donorIdx || parts.size()!=baseIdx+2) {
+        std::cerr << "Only top-level IMG properties are supported: " << e.path << "\n";
+        return false;
+    }
     if(!EnsureParsed(baseImage,"base/"+Join(parts,0,baseIdx+1))) return false;
     if(!EnsureParsed(donorImage,"donor/"+Join(parts,0,donorIdx+1))) return false;
 
-    auto* source=ResolveProperty(donorImage,parts,donorIdx,parts.size());
+    const std::string propName=parts.back();
+    auto* source=donorImage->GetFromPath(propName);
     if(!source) { std::cerr << "Donor property missing " << e.path << "\n"; return false; }
-    auto* existing=ResolveProperty(baseImage,parts,baseIdx,parts.size());
+    auto* existing=baseImage->GetFromPath(propName);
     if(existing && e.onlyIfMissing) { std::cout << "Property already present, preserved: " << e.path << "\n"; return true; }
 
-    wz::IPropertyContainer* donorParent = donorImage;
-    wz::IPropertyContainer* baseParent = baseImage;
-    if(parts.size() > donorIdx + 2) {
-        auto* dp=ResolveProperty(donorImage,parts,donorIdx,parts.size()-1);
-        auto* bp=ResolveProperty(baseImage,parts,baseIdx,parts.size()-1);
-        if(!dp || !bp) { std::cerr << "Property parent missing for " << e.path << "\n"; return false; }
-        donorParent=dynamic_cast<wz::IPropertyContainer*>(dp);
-        baseParent=dynamic_cast<wz::IPropertyContainer*>(bp);
-        if(!donorParent || !baseParent) { std::cerr << "Property parent is not a container for " << e.path << "\n"; return false; }
-    }
-
     if(existing) {
-        auto removed=baseParent->RemoveProperty(existing);
+        auto removed=baseImage->RemoveProperty(existing);
         if(!removed) { std::cerr << "Could not remove existing property " << e.path << ": " << removed.error().message() << "\n"; return false; }
     }
-    auto moved=donorParent->RemoveProperty(source);
+    auto moved=donorImage->RemoveProperty(source);
     if(!moved) { std::cerr << "Could not detach donor property " << e.path << ": " << moved.error().message() << "\n"; return false; }
-    auto added=baseParent->AddProperty(std::move(moved.value()));
+    auto added=baseImage->AddProperty(std::move(moved.value()));
     if(!added) { std::cerr << "Could not add property " << e.path << ": " << added.error().message() << "\n"; return false; }
     baseImage->SetChanged(true);
     std::cout << (existing?"Replaced property: ":"Added property: ") << e.path << "\n";
