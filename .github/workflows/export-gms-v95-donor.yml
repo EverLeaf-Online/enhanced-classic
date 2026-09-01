@@ -1,13 +1,7 @@
 name: Export GMS v95 donor XML
 
 on:
-  workflow_run:
-    workflows:
-      - Stage GMS v95 donor
-    types:
-      - completed
-    branches:
-      - release-dev
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -19,14 +13,11 @@ env:
 
 jobs:
   export:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: windows-2025
     timeout-minutes: 120
     steps:
       - name: Checkout EverLeaf
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
@@ -126,8 +117,11 @@ jobs:
           $donor = Join-Path $env:RUNNER_TEMP 'gms-v95-export'
           $diff = Join-Path $env:RUNNER_TEMP 'wz-gms-v95-diff.json'
           $manifest = Join-Path $env:RUNNER_TEMP 'wz-gms-v95-import-manifest.json'
+          $review = Join-Path $env:RUNNER_TEMP 'wz-gms-v95-review.md'
           python tools/wz-donor/wz_diff.py --baseline wz --donor $donor --donor-id gms-v95 --output $diff
           python tools/wz-donor/build_import_manifest.py $diff --output $manifest
+          python tools/wz-donor/render_review_report.py $diff $manifest --output $review
+          Get-Content $review | Add-Content $env:GITHUB_STEP_SUMMARY
           python -c "import json,sys; d=json.load(open(sys.argv[1])); m=json.load(open(sys.argv[2])); print('delta totals:',json.dumps(d['totals'],sort_keys=True)); print('missing dependencies:',d.get('dependencies',{}).get('missingReferenceCount')); print('risk counts:',json.dumps(m['riskCounts'],sort_keys=True))" $diff $manifest
 
       - name: Package and return donor export to Oracle
@@ -150,6 +144,7 @@ jobs:
           path: |
             ${{ runner.temp }}/wz-gms-v95-diff.json
             ${{ runner.temp }}/wz-gms-v95-import-manifest.json
+            ${{ runner.temp }}/wz-gms-v95-review.md
             ${{ runner.temp }}/MapleLib/WzExtract_Errors.txt
           retention-days: 14
           if-no-files-found: warn
