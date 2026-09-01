@@ -21,16 +21,10 @@ function isStrandedEvan() {
 }
 
 function finishEvanConversion() {
-    // v83 can invalidate the current field transition state when the job packet
-    // is sent first. Move the still-valid Beginner before changing jobs, and
-    // verify the synchronous server-side map change before committing the job.
+    // Move the still-valid Beginner first. Do not immediately verify getMapId():
+    // v83 field transitions are not guaranteed to be observable synchronously
+    // from the NPC script, and that check was cancelling valid Evan transitions.
     cm.warp(MAP_EVAN_START, 0);
-    if (cm.getPlayer().getMapId() != MAP_EVAN_START) {
-        cm.sendOk("EverLeaf could not move you to the Evan starting area. No job change was made. Please try again.");
-        cm.dispose();
-        return;
-    }
-
     cm.changeJobById(EVAN_BEGINNER_JOB);
 
     try {
