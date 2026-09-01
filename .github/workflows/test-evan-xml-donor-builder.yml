@@ -1,0 +1,82 @@
+name: Test Evan XML donor builder
+
+on:
+  pull_request:
+    paths:
+      - "client/tools/evan-xml-donor-builder/**"
+      - ".github/workflows/test-evan-xml-donor-builder.yml"
+  push:
+    branches: [client-dev]
+    paths:
+      - "client/tools/evan-xml-donor-builder/**"
+      - ".github/workflows/test-evan-xml-donor-builder.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Checkout pinned libwz
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone https://github.com/toyobayashi/libwz.git "$RUNNER_TEMP/libwz"
+          git -C "$RUNNER_TEMP/libwz" checkout 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+          git -C "$RUNNER_TEMP/libwz" submodule update --init --recursive
+          test "$(git -C "$RUNNER_TEMP/libwz" rev-parse HEAD)" = "41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f"
+
+      - name: Configure and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S client/tools/evan-xml-donor-builder -B "$RUNNER_TEMP/evan-xml-build" \
+            -DLIBWZ_SOURCE="$RUNNER_TEMP/libwz" \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/evan-xml-build" --config Release --parallel 2
+
+      - name: Create XML fixture with real Evan canvas encoding
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/evan-fixture/Evan"
+          mkdir -p "$root/Skill/Dragon" "$root/Character/Dragon" "$root/UI" "$root/String"
+          # Smallest canvas payload from the authorized Evan source archive
+          # (Evan/Skill/2001.img.xml). Keeping a real source encoding here
+          # avoids passing CI with a PNG encoder the actual archive never uses.
+          png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAANSURBVBhXY2BgYBAEAAAWABJnFC3KAAAAAElFTkSuQmCC'
+          make_xml() {
+            local path="$1" image="$2"
+            cat >"$path" <<EOF
+          <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <imgdir name="$image">
+            <imgdir name="info"><int name="sample" value="1"/></imgdir>
+            <canvas name="icon" width="1" height="1" basedata="$png"><vector name="origin" x="0" y="1"/></canvas>
+            <string name="label" value="EverLeaf &amp; Evan"/>
+            <short name="small" value="2"/>
+            <uol name="link" value="../icon"/>
+          </imgdir>
+          EOF
+          }
+          make_xml "$root/Skill/2200.img.xml" '2200.img'
+          make_xml "$root/Skill/Dragon/2200.img.xml" '2200.img'
+          make_xml "$root/Character/00002000.img.xml" '00002000.img'
+          make_xml "$root/Character/Dragon/01942000.img.xml" '01942000.img'
+          make_xml "$root/UI/Basic.img.xml" 'Basic.img'
+          make_xml "$root/UI/UIWindow.img.xml" 'UIWindow.img'
+          make_xml "$root/String/Skill.img.xml" 'Skill.img'
+
+      - name: Build synthetic donor WZ set
+        shell: bash
+        run: |
+          set -euo pipefail
+          builder="$RUNNER_TEMP/evan-xml-build/everleaf-evan-xml-donor-builder"
+          test -x "$builder"
+          "$builder" "$RUNNER_TEMP/evan-fixture/Evan" "$RUNNER_TEMP/evan-donor"
+          for wz in Skill Character UI String; do
+            test -s "$RUNNER_TEMP/evan-donor/$wz.wz"
+            echo "$wz.wz $(stat -c %s "$RUNNER_TEMP/evan-donor/$wz.wz") bytes"
+          done
