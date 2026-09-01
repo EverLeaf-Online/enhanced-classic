@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Audit Quest.wz scripted quest handlers against scripts/quest.
+"""Audit release-facing Quest.wz scripted handlers against scripts/quest.
 
-The runtime maps only the exact Quest.wz requirement names ``startscript`` and
-``endscript`` to QuestRequirementType.SCRIPT. ScriptRequirement enables the
-handler only when that node's string value is non-empty. Active scripted phases
-must therefore resolve to a quest JS exposing the matching start/end function;
-medal quests may use medalQuest.js.
+Runtime semantics:
+* only ``startscript``/``endscript`` map to QuestRequirementType.SCRIPT;
+* ScriptRequirement is enabled only by a non-empty string value;
+* classic QuestlineFetcher treats a start-phase ``end`` requirement as
+  limited/expired event content rather than normal release progression.
+
+Hard failures are therefore limited to non-limited quests whose owner NPC is
+spawned in the active world. Limited-time and unspawned quest scripts remain
+visible as review findings instead of blocking every release.
 """
 from __future__ import annotations
 
@@ -43,6 +47,13 @@ def direct_value(node: ET.Element, name: str) -> str | None:
     return None
 
 
+def phase(node: ET.Element, phase_name: str) -> ET.Element | None:
+    return next(
+        (child for child in node if child.tag == "imgdir" and child.attrib.get("name") == phase_name),
+        None,
+    )
+
+
 def quest_nodes() -> dict[str, ET.Element]:
     result: dict[str, ET.Element] = {}
     for node in parse(CHECK):
@@ -55,27 +66,26 @@ def quest_nodes() -> dict[str, ET.Element]:
 
 
 def phase_script_requirement(node: ET.Element, phase_name: str) -> bool:
-    phase = next(
-        (child for child in node if child.tag == "imgdir" and child.attrib.get("name") == phase_name),
-        None,
-    )
-    if phase is None:
+    p = phase(node, phase_name)
+    if p is None:
         return False
-
-    # QuestRequirementType.getByWZName maps only startscript/endscript to
-    # SCRIPT, and ScriptRequirement.processData enables it only for a non-empty
-    # string value. The phase determines whether start(...) or end(...) is used.
     expected_name = "startscript" if phase_name == "0" else "endscript"
-    value = direct_value(phase, expected_name)
+    value = direct_value(p, expected_name)
     return value is not None and value.strip() != ""
+
+
+def is_limited_quest(node: ET.Element) -> bool:
+    """Mirror classic QuestlineFetcher: start-phase `end` marks event content."""
+    p = phase(node, "0")
+    return p is not None and direct_value(p, "end") is not None
 
 
 def owners(node: ET.Element) -> set[str]:
     result: set[str] = set()
-    for phase in node:
-        if phase.tag != "imgdir":
+    for p in node:
+        if p.tag != "imgdir":
             continue
-        npc = norm(direct_value(phase, "npc"))
+        npc = norm(direct_value(p, "npc"))
         if npc.isdigit() and int(npc) > 0:
             result.add(npc)
     return result
@@ -129,7 +139,8 @@ def main() -> int:
             failures.append("medalQuest.js must expose both start(...) and end(...)")
 
     active_scripted: dict[str, set[str]] = defaultdict(set)
-    dormant_scripted: dict[str, set[str]] = defaultdict(set)
+    review_scripted: dict[str, set[str]] = defaultdict(set)
+    limited_scripted: set[str] = set()
     required_script_ids: set[str] = set()
 
     for qid, node in quests.items():
@@ -142,9 +153,15 @@ def main() -> int:
             continue
 
         required_script_ids.add(qid)
-        is_active = bool(owners(node) & spawned_npcs)
-        target = active_scripted if is_active else dormant_scripted
-        target[qid].update(phases)
+        limited = is_limited_quest(node)
+        spawned = bool(owners(node) & spawned_npcs)
+        is_active = spawned and not limited
+        if is_active:
+            active_scripted[qid].update(phases)
+        else:
+            review_scripted[qid].update(phases)
+            if limited:
+                limited_scripted.add(qid)
 
         script_path = SCRIPT_ROOT / f"{qid}.js"
         fallback = is_medal_fallback(qid)
@@ -155,7 +172,8 @@ def main() -> int:
             if is_active:
                 failures.append(message)
             else:
-                reviews.append("Dormant " + message.lower())
+                prefix = "Limited/event" if limited else "Dormant"
+                reviews.append(f"{prefix} {message.lower()}")
             continue
 
         has_start, has_end = script_contract(script_path)
@@ -164,13 +182,13 @@ def main() -> int:
             if is_active:
                 failures.append(message)
             else:
-                reviews.append("Dormant " + message.lower())
+                reviews.append(("Limited/event " if limited else "Dormant ") + message.lower())
         if "end" in phases and not has_end:
             message = f"Quest {qid} has scripted end requirement but {qid}.js has no end(...) function"
             if is_active:
                 failures.append(message)
             else:
-                reviews.append("Dormant " + message.lower())
+                reviews.append(("Limited/event " if limited else "Dormant ") + message.lower())
 
     numeric_scripts = {
         norm(match.group(1))
@@ -192,10 +210,11 @@ def main() -> int:
 
     payload = {
         "activeScriptedQuestCount": len(active_scripted),
-        "dormantScriptedQuestCount": len(dormant_scripted),
+        "reviewScriptedQuestCount": len(review_scripted),
+        "limitedScriptedQuestCount": len(limited_scripted),
         "numericQuestScriptCount": len(numeric_scripts),
         "activeScripted": {qid: sorted(phases) for qid, phases in sorted(active_scripted.items(), key=lambda p: int(p[0]))},
-        "dormantScripted": {qid: sorted(phases) for qid, phases in sorted(dormant_scripted.items(), key=lambda p: int(p[0]))},
+        "reviewScripted": {qid: sorted(phases) for qid, phases in sorted(review_scripted.items(), key=lambda p: int(p[0]))},
         "orphanScripts": orphan_scripts,
         "unusedNumericScripts": unused_numeric_scripts,
         "reviews": reviews,
@@ -205,8 +224,9 @@ def main() -> int:
         print(json.dumps(payload, indent=2))
     else:
         print(
-            f"Quest script audit: {len(active_scripted)} active scripted quests / "
-            f"{len(dormant_scripted)} dormant scripted quests / {len(numeric_scripts)} numeric JS files"
+            f"Quest script audit: {len(active_scripted)} release-facing / "
+            f"{len(review_scripted)} review-only ({len(limited_scripted)} limited/event) / "
+            f"{len(numeric_scripts)} numeric JS files"
         )
         for line in reviews:
             print(f"[REVIEW] {line}")
