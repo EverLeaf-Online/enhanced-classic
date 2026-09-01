@@ -21,4 +21,5 @@ FetchContent_MakeAvailable(pugixml)
 add_subdirectory("${LIBWZ_SOURCE}" "${CMAKE_BINARY_DIR}/libwz")
 
 add_executable(everleaf-evan-xml-donor-builder main.cpp)
+target_precompile_headers(everleaf-evan-xml-donor-builder PRIVATE <algorithm> <array>)
 target_link_libraries(everleaf-evan-xml-donor-builder PRIVATE wz pugixml::pugixml)
