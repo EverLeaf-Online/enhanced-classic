@@ -41,6 +41,7 @@ jobs:
           python3 tools/apply_item_transfer_integrity_fixes.py
           python3 tools/apply_duey_ownership_fixes.py
           python3 tools/apply_duey_settlement_fixes.py
+          python3 tools/apply_merchant_recovery_fixes.py
       - name: Verify Duey transform idempotency
         shell: bash
         run: |
@@ -57,6 +58,21 @@ jobs:
           python3 tools/audit_duey_integrity.py
           python3 tools/audit_duey_settlement.py
           echo 'Duey ownership/settlement transforms are repeat-safe.'
+      - name: Verify merchant transform idempotency
+        shell: bash
+        run: |
+          set -euo pipefail
+          merchant='src/main/java/server/maps/HiredMerchant.java'
+          fredrick='src/main/java/client/processor/npc/FredrickProcessor.java'
+          before="$(sha256sum "$merchant" "$fredrick" | sha256sum | awk '{print $1}')"
+          python3 tools/apply_merchant_recovery_fixes.py
+          after="$(sha256sum "$merchant" "$fredrick" | sha256sum | awk '{print $1}')"
+          test "$before" = "$after" || {
+            echo 'Merchant recovery transform is not idempotent; a production second pass would mutate source again.' >&2
+            exit 1
+          }
+          python3 tools/audit_merchant_recovery_integrity.py
+          echo 'Merchant recovery transform is repeat-safe.'
       - name: Audit economy and NX drops
         run: python3 tools/audit_economy_balance.py
       - name: Audit Gachapon and reward sources
@@ -85,6 +101,8 @@ jobs:
         run: python3 tools/audit_duey_integrity.py
       - name: Audit Duey settlement integrity
         run: python3 tools/audit_duey_settlement.py
+      - name: Audit merchant recovery integrity
+        run: python3 tools/audit_merchant_recovery_integrity.py
       - name: Audit boss and PQ event-manager links
         run: python3 tools/audit_event_manager_links.py
       - name: Audit world data integrity
