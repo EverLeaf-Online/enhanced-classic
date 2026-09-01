@@ -22,15 +22,22 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p web/public/assets/jobs/special
+
+          CYGNUS_PAGE='https://www.nicepng.com/ourpic/u2e6q8q8y3q8y3u2_cygnus-knights-maplestory-knights-of-cygnus/'
+          CYGNUS_URL="$(curl -fsSL -A 'Mozilla/5.0' "$CYGNUS_PAGE" | grep -oE 'https://www\.nicepng\.com/png/detail/[^" ]+\.png' | head -n1)"
+          test -n "$CYGNUS_URL"
+          echo "Resolved Cygnus asset: $CYGNUS_URL"
+
           curl -fL --retry 3 --retry-delay 2 -A 'Mozilla/5.0' \
-            'https://www.nicepng.com/downpng/u2e6q8q8y3q8y3u2_cygnus-knights-maplestory-knights-of-cygnus/' \
+            "$CYGNUS_URL" \
             -o web/public/assets/jobs/special/cygnus.png
           curl -fL --retry 3 --retry-delay 2 -A 'Mozilla/5.0' \
             'https://www.nicepng.com/png/detail/905-9051338_photo-aran-male-zps353cda7f-aran-maplestory.png' \
             -o web/public/assets/jobs/special/aran.png
           curl -fL --retry 3 --retry-delay 2 -A 'Mozilla/5.0' \
-            'https://www.clipartmax.com/download/m2i8b1A0G6H7m2d3_cartoons-anime-evan-maplestory-heroes-of-maple/' \
+            'https://www.clipartmax.com/png/middle/205-2055764_cartoons-anime-evan-maplestory-heroes-of-maple.png' \
             -o web/public/assets/jobs/special/evan.png
+
           python - <<'PY'
           from pathlib import Path
           sig = b'\x89PNG\r\n\x1a\n'
