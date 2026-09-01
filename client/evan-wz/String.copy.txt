@@ -1,6 +1,7 @@
 # EverLeaf v83 Evan String.wz donor merge.
-# Skill.img groups are imported individually so unrelated EverLeaf strings remain intact.
-property:Skill.img/2001
+# The authorized Evan source has mastery groups 2200 and 2210-2218.
+# It does not contain a top-level 2001 group or 2001 beginner skill-string IDs,
+# so do not require or synthesize data that is absent from the source archive.
 property:Skill.img/2200
 property:Skill.img/2210
 property:Skill.img/2211
