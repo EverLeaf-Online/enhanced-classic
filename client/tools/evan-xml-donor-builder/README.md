@@ -41,3 +41,5 @@ Generated donors are intermediate build inputs. They are not intended to replace
 ## Safety model
 
 The builder fails closed on malformed XML, missing `basedata`, unsupported property types, WZ write errors, or reparse failures. CI exercises an XML -> WZ -> reparse round trip before merge.
+
+The pull-request gate is intentionally rerun against the final branch head whenever the builder or its validation contract changes.
