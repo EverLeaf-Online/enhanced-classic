@@ -6,6 +6,9 @@ on:
       - release-dev
     paths:
       - '.github/workflows/stage-gms-v95-donor.yml'
+      - '.github/workflows/export-gms-v95-donor.yml'
+      - 'tools/wz-donor/exporter/**'
+      - 'tools/wz-donor/render_review_report.py'
   workflow_dispatch:
 
 permissions:
@@ -170,3 +173,8 @@ jobs:
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
             'cd /opt/everleaf/private/wz-donors/gms-v95-raw && cat PROVENANCE.txt && cat SIZES.tsv && cat SHA256SUMS'
+
+  export:
+    needs: stage
+    uses: ./.github/workflows/export-gms-v95-donor.yml
+    secrets: inherit
