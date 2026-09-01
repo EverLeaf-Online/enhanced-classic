@@ -1,11 +1,28 @@
 const fs = require("fs");
 
+function reportFailure(step, error) {
+  const safeMessage = String(error.message).replace(/[A-Za-z0-9_-]{32,}/g, "[redacted]");
+  const result = `discord_reconcile_failed step=${step} ${safeMessage}`;
+  if (process.env.DISCORD_RECONCILE_RESULT_PATH) {
+    fs.writeFileSync(process.env.DISCORD_RECONCILE_RESULT_PATH, `${result}\n`, { mode: 0o600 });
+  }
+  console.error(result);
+}
+
 const envPath = process.argv[2];
-if (!envPath) throw new Error("Environment path is required.");
-const env = Object.fromEntries(fs.readFileSync(envPath, "utf8").split(/\r?\n/).filter((line) => line && !line.startsWith("#") && line.includes("=")).map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]));
-const token = env.DISCORD_BOT_TOKEN;
-const guildId = env.DISCORD_GUILD_ID;
-if (!token || !guildId) throw new Error("Discord production configuration is incomplete.");
+let env;
+let token;
+let guildId;
+try {
+  if (!envPath) throw new Error("Environment path is required.");
+  env = Object.fromEntries(fs.readFileSync(envPath, "utf8").split(/\r?\n/).filter((line) => line && !line.startsWith("#") && line.includes("=")).map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]));
+  token = env.DISCORD_BOT_TOKEN;
+  guildId = env.DISCORD_GUILD_ID;
+  if (!token || !guildId) throw new Error("Discord production configuration is incomplete.");
+} catch (error) {
+  reportFailure("load_configuration", error);
+  process.exit(1);
+}
 
 const P = {
   KICK_MEMBERS: 1n << 1n, BAN_MEMBERS: 1n << 2n, MANAGE_CHANNELS: 1n << 4n,
@@ -258,11 +275,6 @@ let currentStep = "startup";
   console.log("discord_existing_channels_deleted=0");
   console.log(`discord_legacy_status_messages_deleted=${cleanedStatusMessages}`);
 })().catch((error) => {
-  const safeMessage = String(error.message).replace(/[A-Za-z0-9_-]{32,}/g, "[redacted]");
-  const result = `discord_reconcile_failed step=${currentStep} ${safeMessage}`;
-  if (process.env.DISCORD_RECONCILE_RESULT_PATH) {
-    fs.writeFileSync(process.env.DISCORD_RECONCILE_RESULT_PATH, `${result}\n`, { mode: 0o600 });
-  }
-  console.error(result);
+  reportFailure(currentStep, error);
   process.exitCode = 1;
 });
