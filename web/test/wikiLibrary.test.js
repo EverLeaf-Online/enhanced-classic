@@ -2,7 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
-const {categories,entries,bySlug,searchEntries}=require('../src/data/wikiCatalog');
+const {categories,entries,bySlug,searchEntries}=require('../src/services/wikiCatalog');
 const root=path.join(__dirname,'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 
@@ -12,6 +12,14 @@ test('wiki catalog exposes curated EverLeaf knowledge',()=>{
   for(const slug of ['enhanced-classic','level-250-progression','hp-washing-replacement','nx-reward-sources','everleaf-launcher','adventurer-jobs']) assert.ok(bySlug.has(slug));
   assert.ok(searchEntries('pet vac').some(x=>x.slug==='pet-vac'));
   assert.ok(searchEntries('', 'progression').every(x=>x.category==='progression'));
+});
+
+test('wiki catalog lives outside deploy-excluded data directories',()=>{
+  assert.ok(fs.existsSync(path.join(root,'src/services/wikiCatalog.js')));
+  assert.equal(fs.existsSync(path.join(root,'src/data/wikiCatalog.js')),false);
+  const route=read('src/routes/wiki.js');
+  assert.match(route,/\.\.\/services\/wikiCatalog/);
+  assert.doesNotMatch(route,/\.\.\/data\/wikiCatalog/);
 });
 
 test('wiki routes support search and article detail pages',()=>{

@@ -1,6 +1,6 @@
 const express=require("express");
 const {settings}=require("../db/cms");
-const {categories,entries,bySlug,searchEntries}=require("../data/wikiCatalog");
+const {categories,entries,bySlug,searchEntries}=require("../services/wikiCatalog");
 const router=express.Router();
 
 router.get("/wiki",(req,res)=>{
