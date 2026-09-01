@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "client/tools/evan-wz-patcher/**"
+      - "client/tools/evan-xml-donor-builder/**"
       - "client/evan-wz/**"
       - ".github/workflows/publish-evan-wz-assets.yml"
       - ".github/workflows/test-evan-wz-patcher.yml"
@@ -11,6 +12,7 @@ on:
     branches: [client-dev]
     paths:
       - "client/tools/evan-wz-patcher/**"
+      - "client/tools/evan-xml-donor-builder/**"
       - "client/evan-wz/**"
       - ".github/workflows/publish-evan-wz-assets.yml"
       - ".github/workflows/test-evan-wz-patcher.yml"
@@ -33,7 +35,7 @@ jobs:
           git -C "$RUNNER_TEMP/libwz" submodule update --init --recursive
           test "$(git -C "$RUNNER_TEMP/libwz" rev-parse HEAD)" = "41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f"
 
-      - name: Configure
+      - name: Configure Evan v83 importer
         shell: bash
         run: |
           set -euo pipefail
@@ -41,11 +43,11 @@ jobs:
             -DLIBWZ_SOURCE="$RUNNER_TEMP/libwz" \
             -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build
+      - name: Build Evan v83 importer
         shell: bash
         run: cmake --build "$RUNNER_TEMP/evan-wz-build" --config Release --parallel 2
 
-      - name: Verify Evan copy manifests and publisher wiring
+      - name: Verify Evan copy manifests and archive publisher wiring
         shell: python
         run: |
           from pathlib import Path
@@ -71,8 +73,13 @@ jobs:
 
           publisher = Path('.github/workflows/publish-evan-wz-assets.yml').read_text()
           required = [
-              'EVERLEAF_EVAN_DONOR_DIR: /opt/everleaf/private/evan-wz-donor',
-              'Verify authorized donor and production baseline',
+              'EVERLEAF_EVAN_ARCHIVE: /opt/everleaf/private/evan/Evan.zip',
+              'Verify authorized Evan archive and production baseline',
+              'Retrieve Evan archive and current managed WZ files',
+              'Build pinned Evan XML donor builder and WZ patcher',
+              'client/tools/evan-xml-donor-builder',
+              'Reconstruct verified donor WZs from Evan XML archive',
+              'everleaf-evan-xml-donor-builder',
               'client/evan-wz/Skill.copy.txt',
               'client/evan-wz/Character.copy.txt',
               'client/evan-wz/UI.copy.txt',
@@ -83,5 +90,6 @@ jobs:
           ]
           for marker in required:
               assert marker in publisher, f'Missing Evan publisher invariant: {marker}'
+          assert 'EVERLEAF_EVAN_DONOR_DIR' not in publisher, 'Publisher regressed to prebuilt donor directory'
           assert 'if: inputs.publish' in publisher
-          print('Evan WZ copy manifests + publisher wiring: PASS')
+          print('Evan WZ copy manifests + archive publisher wiring: PASS')
