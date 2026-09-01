@@ -12,6 +12,7 @@ permissions:
 env:
   HOST: 132.145.141.79
   USER: ubuntu
+  RESET_REVISION: '3'
 
 jobs:
   reset:
