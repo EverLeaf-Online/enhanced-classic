@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  build-and-smoke-test:
+  build-and-round-trip:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -44,9 +44,7 @@ jobs:
           set -euo pipefail
           root="$RUNNER_TEMP/evan-fixture/Evan"
           mkdir -p "$root/Skill/Dragon" "$root/Character/Dragon" "$root/UI" "$root/String"
-          # Smallest canvas payload from the authorized Evan source archive
-          # (Evan/Skill/2001.img.xml). Keeping a real source encoding here
-          # avoids passing CI with a PNG encoder the actual archive never uses.
+          # Real PNG-style Base64 encoding matching the authorized Evan XML format.
           png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAANSURBVBhXY2BgYBAEAAAWABJnFC3KAAAAAElFTkSuQmCC'
           make_xml() {
             local path="$1" image="$2"
@@ -61,7 +59,7 @@ jobs:
           </imgdir>
           EOF
           }
-          make_xml "$root/Skill/2200.img.xml" '2200.img'
+          make_xml "$root/Skill/2001.img.xml" '2001.img'
           make_xml "$root/Skill/Dragon/2200.img.xml" '2200.img'
           make_xml "$root/Character/00002000.img.xml" '00002000.img'
           make_xml "$root/Character/Dragon/01942000.img.xml" '01942000.img'
@@ -69,14 +67,15 @@ jobs:
           make_xml "$root/UI/UIWindow.img.xml" 'UIWindow.img'
           make_xml "$root/String/Skill.img.xml" 'Skill.img'
 
-      - name: Build synthetic donor WZ set
+      - name: Build and reparse synthetic donor WZ set
         shell: bash
         run: |
           set -euo pipefail
           builder="$RUNNER_TEMP/evan-xml-build/everleaf-evan-xml-donor-builder"
           test -x "$builder"
           "$builder" "$RUNNER_TEMP/evan-fixture/Evan" "$RUNNER_TEMP/evan-donor"
+          "$builder" --verify "$RUNNER_TEMP/evan-donor"
           for wz in Skill Character UI String; do
             test -s "$RUNNER_TEMP/evan-donor/$wz.wz"
-            echo "$wz.wz $(stat -c %s "$RUNNER_TEMP/evan-donor/$wz.wz") bytes"
+            sha256sum "$RUNNER_TEMP/evan-donor/$wz.wz"
           done
