@@ -4,6 +4,9 @@
 Player-originated claim/remove packets carry a package id chosen by the client.
 Every such operation must bind that id to the currently authenticated character's
 ReceiverId. Trusted server cleanup keeps its package-id-only path.
+
+This transform is intentionally composition-safe: later Duey transforms may
+strengthen the receiver-bound helper while preserving its ownership invariant.
 """
 from pathlib import Path
 
@@ -56,8 +59,11 @@ def main() -> int:
         }
     }
 """
-    text, did = replace_once(text, trusted_remove, trusted_and_owned, "receiver-bound package deletion helper")
-    changed |= did
+    if "private static boolean removeOwnedPackageFromDB(int packageId, int receiverId)" in text:
+        print("OK already fixed: receiver-bound package deletion helper")
+    else:
+        text, did = replace_once(text, trusted_remove, trusted_and_owned, "receiver-bound package deletion helper")
+        changed |= did
 
     old_remove = """    public static void dueyRemovePackage(Client c, int packageid, boolean playerRemove) {
         if (c.tryacquireClient()) {
@@ -109,6 +115,7 @@ def main() -> int:
 
     final = TARGET.read_text(encoding="utf-8")
     required = (
+        'private static boolean removeOwnedPackageFromDB(int packageId, int receiverId)',
         'DELETE FROM dueypackages WHERE PackageId = ? AND ReceiverId = ?',
         'removeOwnedPackageFromDB(packageid, c.getPlayer().getId())',
         'SELECT * FROM dueypackages dp WHERE PackageId = ? AND ReceiverId = ?',
@@ -123,6 +130,7 @@ def main() -> int:
     print("  player claim: package id + authenticated ReceiverId")
     print("  player delete: package id + authenticated ReceiverId")
     print("  trusted expiry cleanup: package-id-only helper preserved")
+    print("  transform composition/idempotency: later helper strengthening accepted")
     return 0
 
 
