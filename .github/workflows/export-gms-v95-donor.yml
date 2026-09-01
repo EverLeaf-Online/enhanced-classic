@@ -91,7 +91,7 @@ jobs:
           $outputDir = Join-Path $env:RUNNER_TEMP 'gms-v95-export'
           $project = Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter/EverLeafWzExporter.csproj'
           dotnet run --project $project -c Release --no-build -- `
-            $inputDir $outputDir --patch-version=95 --probe-patch-range=80:120 `
+            $inputDir $outputDir --patch-version=95 --probe-patch-range=80:120 --try-zlz `
             Character.wz Item.wz Map.wz Mob.wz Npc.wz Quest.wz Reactor.wz Skill.wz
 
       - name: Validate XML export
