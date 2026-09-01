@@ -1,6 +1,12 @@
 name: Export GMS v95 donor XML
 
 on:
+  push:
+    branches:
+      - release-dev
+    paths:
+      - '.github/workflows/export-gms-v95-donor.yml'
+      - 'tools/wz-donor/exporter/**'
   workflow_dispatch:
 
 permissions:
