@@ -1,0 +1,82 @@
+name: Wire Evan selector source
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/wire-evan-selector-source.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: client-dev
+          fetch-depth: 0
+      - name: Wire source without normalizing legacy line endings
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def insert_once(path, needles, replacement_builder):
+              p = Path(path)
+              b = p.read_bytes()
+              for needle in needles:
+                  if needle in b:
+                      replacement = replacement_builder(needle)
+                      if replacement in b:
+                          return
+                      p.write_bytes(b.replace(needle, replacement, 1))
+                      return
+              raise SystemExit(f'anchor not found in {path}')
+
+          client = Path('client/ezorsia/ezorsia/Client.cpp')
+          b = client.read_bytes()
+          if b'#include "EvanRaceSelectPatch.h"' not in b:
+              if b'#include "codecaves.h"\r\n' in b:
+                  b = b.replace(b'#include "codecaves.h"\r\n', b'#include "codecaves.h"\r\n#include "EvanRaceSelectPatch.h"\r\n', 1)
+              elif b'#include "codecaves.h"\n' in b:
+                  b = b.replace(b'#include "codecaves.h"\n', b'#include "codecaves.h"\n#include "EvanRaceSelectPatch.h"\n', 1)
+              else:
+                  raise SystemExit('Client.cpp include anchor missing')
+          if b'EverLeafEvanRaceSelect::Apply();' not in b:
+              if b'void Client::UpdateGameStartup() {\r\n' in b:
+                  b = b.replace(b'void Client::UpdateGameStartup() {\r\n', b'void Client::UpdateGameStartup() {\r\n\r\n\tEverLeafEvanRaceSelect::Apply(); // Evan selector and CREATE_CHAR type 3 bridge\r\n', 1)
+              elif b'void Client::UpdateGameStartup() {\n' in b:
+                  b = b.replace(b'void Client::UpdateGameStartup() {\n', b'void Client::UpdateGameStartup() {\n\n\tEverLeafEvanRaceSelect::Apply(); // Evan selector and CREATE_CHAR type 3 bridge\n', 1)
+              else:
+                  raise SystemExit('Client.cpp startup anchor missing')
+          client.write_bytes(b)
+
+          proj = Path('client/ezorsia/ezorsia/ezorsia.vcxproj')
+          b = proj.read_bytes()
+          nl = b'\r\n' if b'\r\n' in b else b'\n'
+          if b'<ClInclude Include="EvanRaceSelectPatch.h" />' not in b:
+              anchor = b'    <ClInclude Include="Client.h" />' + nl
+              if anchor not in b: raise SystemExit('vcxproj include anchor missing')
+              b = b.replace(anchor, anchor + b'    <ClInclude Include="EvanRaceSelectPatch.h" />' + nl, 1)
+          if b'<ClCompile Include="EvanRaceSelectPatch.cpp" />' not in b:
+              anchor = b'    <ClCompile Include="Client.cpp" />' + nl
+              if anchor not in b: raise SystemExit('vcxproj compile anchor missing')
+              b = b.replace(anchor, anchor + b'    <ClCompile Include="EvanRaceSelectPatch.cpp" />' + nl, 1)
+          proj.write_bytes(b)
+          PY
+          grep -q 'EvanRaceSelectPatch.h' client/ezorsia/ezorsia/Client.cpp
+          grep -q 'EverLeafEvanRaceSelect::Apply' client/ezorsia/ezorsia/Client.cpp
+          grep -q 'EvanRaceSelectPatch.cpp' client/ezorsia/ezorsia/ezorsia.vcxproj
+          git diff --check
+      - name: Commit source wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Policy'
+          git config user.email '173628847+iampolicy@users.noreply.github.com'
+          git add client/ezorsia/ezorsia/Client.cpp client/ezorsia/ezorsia/ezorsia.vcxproj
+          git commit -m 'feat(client): wire Evan character selector'
+          git push origin HEAD:client-dev
