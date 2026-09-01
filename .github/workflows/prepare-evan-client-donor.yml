@@ -1,3 +1,4 @@
+# Operations marker: re-check pinned Evan source state on Oracle.
 name: Prepare Evan client donor
 
 on:
