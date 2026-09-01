@@ -1,44 +1,49 @@
 # EverLeaf WZ donor pipeline
 
-This directory contains the tooling for comparing newer MapleStory WZ exports against EverLeaf's canonical GMS v83 data.
+This directory contains review-first tooling for comparing newer MapleStory WZ exports against EverLeaf's canonical GMS v83 data.
 
 ## Safety model
 
 - `release-dev/wz/` is the canonical server-side exported v83 baseline.
 - Newer WZ sets are **donors**, never drop-in replacements.
 - Do not commit proprietary raw `.wz` archives to this repository.
-- Export donor WZ data to XML outside the repo or under a gitignored local workspace.
+- Raw donor files and exported donor archives belong under `/opt/everleaf/private/wz-donors/` on Oracle or another private workspace.
 - Review client/server dependencies before importing any result.
-- Start with content that is mostly data-driven (maps, mobs, NPCs, equipment, items, reactors) before packet- or UI-dependent systems.
+- Start with mostly data-driven content before packet- or UI-dependent systems.
 
-## Donor order
+## First target: GMS v95.4
 
-1. GMS v95
+The primary v95 source is the preserved SourceForge `MapleStory Files v.95` collection. It exposes individual WZ files, so EverLeaf stages only the useful donor families rather than the whole client.
+
+`.github/workflows/stage-gms-v95-donor.yml` stages these privately on Oracle:
+
+- Character.wz
+- Item.wz
+- Map.wz
+- Mob.wz
+- Npc.wz
+- Quest.wz
+- Reactor.wz
+- Skill.wz
+- String.wz
+- Etc.wz
+
+The workflow validates minimum file sizes and records SHA-256 hashes, byte sizes, version and provenance. It does not deploy or modify the game server.
+
+Recommended donor order:
+
+1. GMS v95.4
 2. GMS v117.2
 3. TMS v120
 4. GMS v167
 5. GMS v213.2
 6. selective current GMS content
 
-The first controlled donor is **GMS v95** because it is the closest useful newer GMS generation to v83.
+## Exporting raw WZ to XML
 
-## Donor acquisition
+The comparison layer consumes XML rather than binding EverLeaf to one editor. For v95, maintained options include HaSuite/HaRepacker (focused on GMS v95 and below) and WzComparerR2. WzComparerR2 also has Lua batch-dump scripts available publicly. Export fidelity must be checked before using an export as a donor source; do not assume every generic XML exporter preserves every WZ node type correctly.
 
-The repository deliberately does not redistribute raw Nexon WZ archives.
-
-For GMS v95, use a legitimately obtained v95 client and export its WZ files with a reader/editor that supports the old GMS format. HaSuite/HaRepacker is a maintained option with an explicit focus on GMS v95 and lower. Kinoko is also a useful v95 structural reference: it expects local `Character.wz`, `Item.wz`, `Skill.wz`, `Morph.wz`, `Map.wz`, `Mob.wz`, `Npc.wz`, `Reactor.wz`, `Quest.wz`, `String.wz`, and `Etc.wz` files rather than distributing them.
-
-Useful public references:
-
-- HaSuite / HaRepacker: https://github.com/iw2d/HaSuite
-- Kinoko v95 server/reference: https://github.com/iw2d/kinoko
-- MapleStoryUnity WZ archive index: https://github.com/MapleStoryUnity/wzData
-
-The MapleStoryUnity archive currently indexes GMS v62/v83 and TMS v113/v119/v120, so **TMS v120 is a concrete public donor fallback** after the v95 pass.
-
-## Expected donor layout
-
-The diff tool accepts an exported XML tree with the same top-level shape as the server `wz/` directory:
+Place the validated export in this shape:
 
 ```text
 /path/to/gms-v95-export/
@@ -52,9 +57,9 @@ The diff tool accepts an exported XML tree with the same top-level shape as the 
   Skill.wz/
 ```
 
-The comparison layer consumes exported XML rather than binding EverLeaf to one WZ editor.
+Package the completed XML export as `/opt/everleaf/private/wz-donors/gms-v95.zip` for the Oracle-backed analysis workflow.
 
-## Run
+## Run locally
 
 From the repository root:
 
@@ -64,18 +69,21 @@ python3 tools/wz-donor/wz_diff.py \
   --donor /path/to/gms-v95-export \
   --donor-id gms-v95 \
   --output tools/output/wz-gms-v95-diff.json
+
+python3 tools/wz-donor/build_import_manifest.py \
+  tools/output/wz-gms-v95-diff.json \
+  --output tools/output/wz-gms-v95-import-manifest.json
 ```
 
-The tool is read-only. It produces:
+The diff tool is read-only. It reports:
 
-- baseline ID counts
-- donor ID counts
-- IDs present only in the donor
-- ID collisions with v83
-- collisions whose underlying XML differs
-- source paths for new entries
-- conservative cross-content references from donor-new entries
-- missing high-confidence dependencies
+- baseline and donor ID counts
+- donor-new IDs
+- v83 ID collisions
+- content-different collisions
+- source paths for donor-new entries
+- high-confidence map life/portal dependencies
+- missing referenced mobs, NPCs, reactors and maps
 
 Current categories:
 
@@ -88,29 +96,18 @@ Current categories:
 - quests
 - skills
 
-### Dependency scope
+## Oracle analysis workflow
 
-Dependency extraction intentionally under-reports instead of guessing. It currently recognizes high-confidence direct property names plus classic map structures such as:
+`.github/workflows/analyze-wz-donor.yml` accepts a private exported donor ZIP from `/opt/everleaf/private/wz-donors/`, compares it with `wz/`, and uploads two temporary GitHub Actions artifacts:
 
-- portal target maps (`portal/*/tm`)
-- map life mob IDs (`type=m`)
-- map life NPC IDs (`type=n`)
-- map life reactor IDs (`type=r`)
-- explicit map/mob/NPC/item/reactor/skill reference properties
+1. the full donor delta report
+2. a disabled-by-default import manifest
 
-A zero-missing-dependency report is therefore **not** proof that an import is complete. Visual assets, scripts, special client behavior, sounds, strings, footholds, tiles, objects, backgrounds, and packet-dependent mechanics still require review.
-
-## Tests
-
-```bash
-python3 tools/wz-donor/test_wz_diff.py
-```
-
-The PR CI runs these regression checks automatically whenever the donor tooling changes.
+The import manifest ranks candidates as low, medium, high or blocked. Every candidate starts with `approved=false`; missing high-confidence dependencies force `blocked`.
 
 ## Import gate
 
-A reported `newId` is **not automatically safe**. Before importing it, check at minimum:
+A reported donor-new ID is **not automatically safe**. Before approval, check at minimum:
 
 1. client asset dependencies (Map/Tile/Obj/Back/Effect/Sound/String/etc.)
 2. referenced mob/NPC/reactor/item/map IDs
@@ -121,12 +118,8 @@ A reported `newId` is **not automatically safe**. Before importing it, check at 
 7. ID collisions across EverLeaf custom content
 8. client/server XML parity after the final WZ edit
 
-## Planned stages
+## Current limits
 
-- richer dependency extraction and missing-reference reports
-- compatibility rules by WZ family/version
-- per-content import manifests
-- deterministic client/server parity checks
-- a staging-only import command that copies only explicitly approved content
+Dependency extraction is intentionally conservative and under-reports rather than guessing. Image links, arbitrary script logic, modern packet requirements and newer WZ schema semantics still require explicit review.
 
-No automatic import of donor content is enabled.
+No automatic WZ import is enabled. A future staging importer must consume only explicitly approved manifest entries and must never write directly to the canonical baseline without a reviewable patch/package.
