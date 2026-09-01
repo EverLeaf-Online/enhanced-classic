@@ -26,7 +26,7 @@ jobs:
           curl --fail --location --retry 3 --user-agent 'Mozilla/5.0' 'https://cdn.wikimg.net/en/strategywiki/images/c/c2/MS_NPC_Grendel_the_Really_Old.png' -o web/public/assets/jobs/instructors/magician.png
           curl --fail --location --retry 3 --user-agent 'Mozilla/5.0' 'https://cdn.wikimg.net/en/strategywiki/images/9/9a/MS_NPC_Athena_Pierce.png' -o web/public/assets/jobs/instructors/bowman.png
           curl --fail --location --retry 3 --user-agent 'Mozilla/5.0' 'https://cdn.wikimg.net/en/strategywiki/images/7/70/MS_NPC_Dark_Lord.png' -o web/public/assets/jobs/instructors/thief.png
-          curl --fail --location --retry 3 --user-agent 'Mozilla/5.0' 'https://www.spriters-resource.com/media/assets/21/23509.png?updated=1755472551' -o web/public/assets/jobs/instructors/pirate.png
+          curl --fail --location --retry 3 --user-agent 'Mozilla/5.0' 'https://legends.ml/static/images/lib/npc/1090000.png' -o web/public/assets/jobs/instructors/pirate.png
           file web/public/assets/jobs/instructors/*.png
           test "$(find web/public/assets/jobs/instructors -type f -name '*.png' -size +500c | wc -l)" -eq 5
       - name: Commit imported sprites
