@@ -4,7 +4,12 @@ const jobArt=(name='')=>{
   const n=String(name).toLowerCase();
   if(/aran/.test(n)) return '/assets/jobs/special/aran.png';
   if(/evan/.test(n)) return '/assets/jobs/special/evan.png';
-  if(/dawn warrior|blaze wizard|wind archer|night walker|thunder breaker|cygnus/.test(n)) return '/assets/jobs/special/cygnus.png';
+  if(/dawn warrior/.test(n)) return '/assets/jobs/cygnus/dawn-warrior.png';
+  if(/blaze wizard/.test(n)) return '/assets/jobs/cygnus/blaze-wizard.png';
+  if(/wind archer/.test(n)) return '/assets/jobs/cygnus/wind-archer.png';
+  if(/night walker/.test(n)) return '/assets/jobs/cygnus/night-walker.png';
+  if(/thunder breaker/.test(n)) return '/assets/jobs/cygnus/thunder-breaker.png';
+  if(/cygnus|noblesse/.test(n)) return '/assets/jobs/special/cygnus.png';
   if(/warrior|fighter|crusader|hero|page|white knight|paladin|spearman|dragon knight|dark knight/.test(n)) return '/assets/jobs/instructors/warrior.png';
   if(/magician|wizard|mage|cleric|priest|bishop/.test(n)) return '/assets/jobs/instructors/magician.png';
   if(/bowman|archer|hunter|ranger|bowmaster|crossbow|sniper|marksman/.test(n)) return '/assets/jobs/instructors/bowman.png';
