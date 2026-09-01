@@ -51,6 +51,26 @@ jobs:
             done
           REMOTE
 
+      - name: Inventory existing Evan donor material
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE' | tee evan-donor-inventory.txt
+            set -euo pipefail
+            echo '### Evan-named archives/files'
+            for root in /opt/everleaf /home/ubuntu /tmp; do
+              test -d "$root" || continue
+              find "$root" -maxdepth 6 -type f \
+                \( -iname 'Evan*.zip' -o -iname '*Evan*.xml' -o -iname '*Evan*.wz' -o -iname '221*.img.xml' -o -iname '2001.img.xml' -o -iname '2200.img.xml' \) \
+                -printf '%p\t%s bytes\n' 2>/dev/null || true
+            done
+            echo '### Evan-named directories'
+            for root in /opt/everleaf /home/ubuntu /tmp; do
+              test -d "$root" || continue
+              find "$root" -maxdepth 6 -type d -iname '*evan*' -print 2>/dev/null || true
+            done
+          REMOTE
+
       - name: Copy Evan-relevant WZ files from Oracle
         shell: bash
         run: |
@@ -68,6 +88,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: evan-client-wz-baseline-${{ github.sha }}
-          path: evan-wz-baseline/
+          path: |
+            evan-wz-baseline/
+            evan-donor-inventory.txt
           retention-days: 7
           if-no-files-found: error
