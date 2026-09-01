@@ -24,6 +24,84 @@ def main() -> int:
     text = TARGET.read_text(encoding="utf-8")
     changed = False
 
+    old_trusted_remove = """    private static void removePackageFromDB(int packageId) {
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(\"DELETE FROM dueypackages WHERE PackageId = ?\")) {
+            ps.setInt(1, packageId);
+            ps.executeUpdate();
+
+            deletePackageFromInventoryDB(con, packageId);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+"""
+    new_trusted_remove = """    private static void removePackageFromDB(int packageId) {
+        try (Connection con = DatabaseConnection.getConnection()) {
+            con.setAutoCommit(false);
+            try (PreparedStatement ps = con.prepareStatement(\"DELETE FROM dueypackages WHERE PackageId = ?\")) {
+                ps.setInt(1, packageId);
+                ps.executeUpdate();
+                deletePackageFromInventoryDB(con, packageId);
+                con.commit();
+            } catch (SQLException e) {
+                con.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            log.error(\"Failed to remove Duey package {} atomically\", packageId, e);
+        }
+    }
+"""
+    text, did = replace_once(text, old_trusted_remove, new_trusted_remove, "atomic trusted package deletion")
+    changed |= did
+
+    old_owned_remove = """    private static boolean removeOwnedPackageFromDB(int packageId, int receiverId) {
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(\"DELETE FROM dueypackages WHERE PackageId = ? AND ReceiverId = ?\")) {
+            ps.setInt(1, packageId);
+            ps.setInt(2, receiverId);
+            int removed = ps.executeUpdate();
+            if (removed != 1) {
+                return false;
+            }
+
+            deletePackageFromInventoryDB(con, packageId);
+            return true;
+        } catch (SQLException e) {
+            log.error(\"Failed to remove owned Duey package {} for receiver {}\", packageId, receiverId, e);
+            return false;
+        }
+    }
+"""
+    new_owned_remove = """    private static boolean removeOwnedPackageFromDB(int packageId, int receiverId) {
+        try (Connection con = DatabaseConnection.getConnection()) {
+            con.setAutoCommit(false);
+            try (PreparedStatement ps = con.prepareStatement(\"DELETE FROM dueypackages WHERE PackageId = ? AND ReceiverId = ?\")) {
+                ps.setInt(1, packageId);
+                ps.setInt(2, receiverId);
+                int removed = ps.executeUpdate();
+                if (removed != 1) {
+                    con.rollback();
+                    return false;
+                }
+
+                deletePackageFromInventoryDB(con, packageId);
+                con.commit();
+                return true;
+            } catch (SQLException e) {
+                con.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            log.error(\"Failed to remove owned Duey package {} for receiver {} atomically\", packageId, receiverId, e);
+            return false;
+        }
+    }
+"""
+    text, did = replace_once(text, old_owned_remove, new_owned_remove, "atomic receiver-bound package deletion")
+    changed |= did
+
     old_helper = """    private static int addPackageItemFromInventory(int packageId, Client c, byte invTypeId, short itemPos, short amount) {
         if (invTypeId > 0) {
             ItemInformationProvider ii = ItemInformationProvider.getInstance();
@@ -140,10 +218,6 @@ def main() -> int:
 
                 int res = addPackageItemFromInventory(packageId, c, invTypeId, itemPos, amount);
                 if (res != 0) {
-                    // The package header was created, but settlement failed. Remove
-                    // it before returning so invalid/failed sends cannot orphan an
-                    // empty delivery. Item persistence now happens before sender
-                    // inventory removal, so this path does not consume the item.
                     removePackageFromDB(packageId);
                     if (res > 0) {
                         c.sendPacket(PacketCreator.sendDueyMSG(DueyProcessor.Actions.TOCLIENT_SEND_ENABLE_ACTIONS.getCode()));
@@ -153,9 +227,6 @@ def main() -> int:
                     return;
                 }
 
-                // Charge only after the package header + optional item payload are
-                // successfully settled. A failed package no longer consumes mesos
-                // or a Quick Delivery ticket.
                 if (quick) {
                     InventoryManipulator.removeById(c, InventoryType.CASH, ItemId.QUICK_DELIVERY_TICKET, (short) 1, false, false);
                 }
@@ -208,6 +279,9 @@ def main() -> int:
 
     final = TARGET.read_text(encoding="utf-8")
     required = (
+        "con.setAutoCommit(false);",
+        "con.rollback();",
+        "con.commit();",
         "if (invTypeId <= 0)",
         "sourceItem == null || amount < 1 || sourceItem.getQuantity() < amount",
         "if (!insertPackageItem(packageId, packageItem))",
@@ -223,6 +297,7 @@ def main() -> int:
             raise SystemExit(f"ERROR Duey settlement invariant missing: {fragment}")
 
     print("EverLeaf Duey settlement hardening: PASS")
+    print("  package/payload deletion: DB-atomic")
     print("  package payload persists before sender item removal")
     print("  failed send cleans package header")
     print("  failed send does not charge mesos/quick ticket")
