@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(everleaf_wz_path_patcher LANGUAGES CXX)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(NOT DEFINED LIBWZ_SOURCE)
   message(FATAL_ERROR "LIBWZ_SOURCE is required")
