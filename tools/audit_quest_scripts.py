@@ -2,7 +2,8 @@
 """Audit Quest.wz SCRIPT requirements against scripts/quest handlers.
 
 QuestScriptManager only loads a quest JS when the corresponding Check.wz phase
-has a SCRIPT requirement. This audit mirrors that contract:
+has a SCRIPT requirement. ScriptRequirement treats any non-empty string value
+as enabled, so this audit mirrors that exact runtime contract.
 
 * active scripted start phase -> quest/<id>.js with function start(...)
 * active scripted end phase   -> quest/<id>.js with function end(...)
@@ -66,8 +67,12 @@ def phase_script_requirement(node: ET.Element, phase_name: str) -> bool:
     )
     if phase is None:
         return False
-    value = norm(direct_value(phase, "script"))
-    return value.lstrip("-").isdigit() and int(value) != 0
+    # ScriptRequirement.processData() calls DataTool.getString(data, "") and
+    # enables scripting whenever that string is non-empty. Do not coerce this
+    # to an integer: classic Quest.wz commonly stores script names/markers as
+    # strings.
+    value = direct_value(phase, "script")
+    return value is not None and value.strip() != ""
 
 
 def owners(node: ET.Element) -> set[str]:
@@ -101,8 +106,6 @@ def active_npcs() -> set[str]:
 
 
 def is_medal_fallback(qid: str) -> bool:
-    # QuestActionManager documents medal quests as id 299XX and the runtime
-    # falls back to scripts/quest/medalQuest.js for those quests.
     return qid.isdigit() and 29900 <= int(qid) <= 29999
 
 
