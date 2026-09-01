@@ -18,7 +18,7 @@ env:
 jobs:
   stage:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Configure SSH
         env:
@@ -58,22 +58,71 @@ jobs:
             Etc.wz
           )
 
+          # Tight lower bounds derived from the SourceForge v95.4 file listing.
+          # They are intentionally just below the published sizes so a truncated
+          # transfer cannot be accepted merely because it is "large".
+          declare -A minimums=(
+            [Character.wz]=6700000
+            [Item.wz]=23000000
+            [Map.wz]=744000000
+            [Mob.wz]=635000000
+            [Npc.wz]=57000000
+            [Quest.wz]=14000000
+            [Reactor.wz]=78000000
+            [Skill.wz]=171000000
+            [String.wz]=3600000
+            [Etc.wz]=1700000
+          )
+
           base='https://sourceforge.net/projects/maplestoryv95/files/MapleStory'
           for file in "${files[@]}"; do
             dest="$target/$file"
             part="$dest.part"
+            minimum="${minimums[$file]}"
+
             if [ -s "$dest" ]; then
-              echo "present: $file ($(stat -c%s "$dest") bytes)"
-              continue
+              size="$(stat -c%s "$dest")"
+              if [ "$size" -ge "$minimum" ]; then
+                echo "present: $file ($size bytes)"
+                continue
+              fi
+              echo "discarding undersized final file: $file ($size < $minimum)"
+              rm -f "$dest"
             fi
-            echo "fetching: $file"
-            rm -f "$part"
-            curl --fail --location --retry 5 --retry-delay 3 \
+
+            if [ -s "$part" ]; then
+              part_size="$(stat -c%s "$part")"
+              if [ "$part_size" -ge "$minimum" ]; then
+                echo "promoting completed partial: $file ($part_size bytes)"
+                mv "$part" "$dest"
+                continue
+              fi
+              echo "resuming: $file from $part_size bytes"
+            else
+              echo "fetching: $file"
+            fi
+
+            curl_rc=0
+            curl --fail --location --retry 8 --retry-delay 3 --retry-all-errors \
+              --continue-at - \
               --user-agent 'EverLeaf-WZ-Donor/1.0' \
               "$base/$file/download" \
-              --output "$part"
-            test -s "$part"
-            mv "$part" "$dest"
+              --output "$part" || curl_rc=$?
+
+            part_size="$(stat -c%s "$part" 2>/dev/null || echo 0)"
+            if [ "$part_size" -ge "$minimum" ]; then
+              if [ "$curl_rc" -ne 0 ]; then
+                echo "warning: curl exited $curl_rc after receiving a published-size $file ($part_size bytes); accepting staged payload"
+              fi
+              mv "$part" "$dest"
+              continue
+            fi
+
+            if [ "$curl_rc" -eq 0 ]; then
+              curl_rc=1
+            fi
+            echo "failed to stage $file: curl=$curl_rc size=$part_size minimum=$minimum" >&2
+            exit "$curl_rc"
           done
 
           (
@@ -86,16 +135,16 @@ jobs:
           from pathlib import Path
           root = Path('/opt/everleaf/private/wz-donors/gms-v95-raw')
           minimums = {
-              'Character.wz': 6_000_000,
-              'Item.wz': 20_000_000,
-              'Map.wz': 700_000_000,
-              'Mob.wz': 600_000_000,
-              'Npc.wz': 50_000_000,
-              'Quest.wz': 10_000_000,
-              'Reactor.wz': 70_000_000,
-              'Skill.wz': 160_000_000,
-              'String.wz': 3_000_000,
-              'Etc.wz': 1_000_000,
+              'Character.wz': 6_700_000,
+              'Item.wz': 23_000_000,
+              'Map.wz': 744_000_000,
+              'Mob.wz': 635_000_000,
+              'Npc.wz': 57_000_000,
+              'Quest.wz': 14_000_000,
+              'Reactor.wz': 78_000_000,
+              'Skill.wz': 171_000_000,
+              'String.wz': 3_600_000,
+              'Etc.wz': 1_700_000,
           }
           bad=[]
           for name, minimum in minimums.items():
