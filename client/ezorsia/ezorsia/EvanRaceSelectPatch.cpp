@@ -1,0 +1,277 @@
+#include "stdafx.h"
+#include "EvanRaceSelectPatch.h"
+#include "Memory.h"
+#include <cstring>
+
+namespace EverLeafEvanRaceSelect {
+
+#if defined(_M_IX86)
+
+namespace {
+
+constexpr DWORD kRaceSelectEntry = 0x005F569D;
+constexpr DWORD kRaceSelectEntryReturn = 0x005F56A7;
+constexpr DWORD kCreatePacketRacePush = 0x005F7F04;
+constexpr DWORD kCreatePacketRacePushReturn = 0x005F7F0A;
+
+constexpr unsigned char kRaceSelectEntryBytes[] = {
+    0xC7, 0x86, 0x14, 0x02, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00
+};
+constexpr unsigned char kCreatePacketRacePushBytes[] = {
+    0xFF, 0xB6, 0x14, 0x02, 0x00, 0x00
+};
+
+DWORD gRaceSelectEntryReturn = kRaceSelectEntryReturn;
+DWORD gCreatePacketRacePushReturn = kCreatePacketRacePushReturn;
+volatile LONG gEvanMode = 0;
+BYTE* gLogin = nullptr;
+HWND gEvanButton = nullptr;
+HWND gGameWindow = nullptr;
+bool gHovered = false;
+bool gInstalled = false;
+const wchar_t* kWindowClass = L"EverLeafEvanRaceChoice";
+
+bool BytesMatch(DWORD address, const unsigned char* expected, size_t length) {
+    __try {
+        return std::memcmp(reinterpret_cast<const void*>(address), expected, length) == 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+BOOL CALLBACK FindGameWindowProc(HWND hwnd, LPARAM param) {
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid != GetCurrentProcessId() || !IsWindowVisible(hwnd) || GetWindow(hwnd, GW_OWNER)) {
+        return TRUE;
+    }
+    *reinterpret_cast<HWND*>(param) = hwnd;
+    return FALSE;
+}
+
+HWND FindGameWindow() {
+    HWND foreground = GetForegroundWindow();
+    if (foreground) {
+        DWORD pid = 0;
+        GetWindowThreadProcessId(foreground, &pid);
+        if (pid == GetCurrentProcessId()) {
+            return foreground;
+        }
+    }
+    HWND result = nullptr;
+    EnumWindows(FindGameWindowProc, reinterpret_cast<LPARAM>(&result));
+    return result;
+}
+
+void PositionButton() {
+    if (!gEvanButton || !gGameWindow) return;
+    RECT rc{};
+    if (!GetClientRect(gGameWindow, &rc)) return;
+    const int clientWidth = rc.right - rc.left;
+    const int clientHeight = rc.bottom - rc.top;
+    const int width = 190;
+    const int height = 86;
+    int x = clientWidth >= 1000 ? clientWidth - width - 18 : clientWidth - width - 8;
+    int y = (clientHeight - height) / 2;
+    if (x < 8) x = 8;
+    if (y < 8) y = 8;
+    SetWindowPos(gEvanButton, HWND_TOP, x, y, width, height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+}
+
+void SelectEvan() {
+    if (!gLogin) return;
+
+    // Keep stock v83 on the fully-supported Aran customization shell. The
+    // packet hook changes only the transmitted race to 3, so the server
+    // creates Evan while Explorer/Cygnus/Aran remain untouched.
+    InterlockedExchange(&gEvanMode, 1);
+    *reinterpret_cast<volatile int*>(gLogin + 0x214) = 2;
+    *reinterpret_cast<volatile int*>(gLogin + 0x238) = 1;
+    *reinterpret_cast<volatile int*>(gLogin + 0x23C) = 1;
+
+    if (gEvanButton) ShowWindow(gEvanButton, SW_HIDE);
+    if (gGameWindow) {
+        SetFocus(gGameWindow);
+        PostMessageW(gGameWindow, WM_NULL, 0, 0);
+    }
+}
+
+LRESULT CALLBACK EvanChoiceWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    switch (msg) {
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_MOUSEMOVE: {
+        if (!gHovered) {
+            gHovered = true;
+            TRACKMOUSEEVENT tme{ sizeof(tme), TME_LEAVE, hwnd, 0 };
+            TrackMouseEvent(&tme);
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
+        return 0;
+    }
+    case WM_MOUSELEAVE:
+        gHovered = false;
+        InvalidateRect(hwnd, nullptr, FALSE);
+        return 0;
+    case WM_LBUTTONUP:
+        SelectEvan();
+        return 0;
+    case WM_SETCURSOR:
+        SetCursor(LoadCursor(nullptr, IDC_HAND));
+        return TRUE;
+    case WM_PAINT: {
+        PAINTSTRUCT ps{};
+        HDC dc = BeginPaint(hwnd, &ps);
+        RECT rc{};
+        GetClientRect(hwnd, &rc);
+
+        const bool selected = InterlockedCompareExchange(&gEvanMode, 0, 0) != 0;
+        COLORREF fill = selected ? RGB(103, 73, 34) : (gHovered ? RGB(82, 59, 34) : RGB(58, 43, 29));
+        HBRUSH brush = CreateSolidBrush(fill);
+        HPEN pen = CreatePen(PS_SOLID, selected || gHovered ? 3 : 2,
+            selected ? RGB(255, 220, 113) : RGB(211, 174, 91));
+        HGDIOBJ oldBrush = SelectObject(dc, brush);
+        HGDIOBJ oldPen = SelectObject(dc, pen);
+        RoundRect(dc, rc.left + 1, rc.top + 1, rc.right - 1, rc.bottom - 1, 13, 13);
+        SelectObject(dc, oldPen);
+        SelectObject(dc, oldBrush);
+        DeleteObject(pen);
+        DeleteObject(brush);
+
+        SetBkMode(dc, TRANSPARENT);
+        SetTextColor(dc, RGB(255, 235, 174));
+        HFONT titleFont = CreateFontW(25, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            ANTIALIASED_QUALITY, DEFAULT_PITCH, L"Arial");
+        HFONT oldFont = reinterpret_cast<HFONT>(SelectObject(dc, titleFont));
+        RECT title = rc;
+        title.top += 8;
+        title.bottom = title.top + 30;
+        DrawTextW(dc, L"EVAN", -1, &title, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+        SelectObject(dc, oldFont);
+        DeleteObject(titleFont);
+
+        SetTextColor(dc, RGB(244, 225, 187));
+        HFONT subFont = CreateFontW(15, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            ANTIALIASED_QUALITY, DEFAULT_PITCH, L"Arial");
+        oldFont = reinterpret_cast<HFONT>(SelectObject(dc, subFont));
+        RECT sub = rc;
+        sub.top += 39;
+        sub.bottom = sub.top + 20;
+        DrawTextW(dc, L"Dragon Master", -1, &sub, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+        SetTextColor(dc, RGB(185, 222, 148));
+        RECT action = rc;
+        action.top += 61;
+        DrawTextW(dc, L"Select", -1, &action, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+        SelectObject(dc, oldFont);
+        DeleteObject(subFont);
+
+        EndPaint(hwnd, &ps);
+        return 0;
+    }
+    }
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+void EnsureButton() {
+    if (!gGameWindow || !IsWindow(gGameWindow)) gGameWindow = FindGameWindow();
+    if (!gGameWindow) return;
+
+    if (!gEvanButton || !IsWindow(gEvanButton)) {
+        HINSTANCE module = GetModuleHandleW(L"dinput8.dll");
+        if (!module) module = GetModuleHandleW(nullptr);
+
+        WNDCLASSEXW wc{};
+        wc.cbSize = sizeof(wc);
+        wc.lpfnWndProc = EvanChoiceWndProc;
+        wc.hInstance = module;
+        wc.hCursor = LoadCursor(nullptr, IDC_HAND);
+        wc.lpszClassName = kWindowClass;
+        wc.style = CS_HREDRAW | CS_VREDRAW;
+        if (!GetClassInfoExW(module, kWindowClass, &wc)) {
+            wc = {};
+            wc.cbSize = sizeof(wc);
+            wc.lpfnWndProc = EvanChoiceWndProc;
+            wc.hInstance = module;
+            wc.hCursor = LoadCursor(nullptr, IDC_HAND);
+            wc.lpszClassName = kWindowClass;
+            wc.style = CS_HREDRAW | CS_VREDRAW;
+            RegisterClassExW(&wc);
+        }
+
+        gEvanButton = CreateWindowExW(
+            WS_EX_NOPARENTNOTIFY, kWindowClass, L"Evan", WS_CHILD | WS_VISIBLE,
+            0, 0, 190, 86, gGameWindow, nullptr, module, nullptr);
+    }
+
+    PositionButton();
+    if (gEvanButton) {
+        InvalidateRect(gEvanButton, nullptr, TRUE);
+        ShowWindow(gEvanButton, SW_SHOWNA);
+    }
+}
+
+void __cdecl OnRaceSelectorShown(void* login) {
+    gLogin = reinterpret_cast<BYTE*>(login);
+    InterlockedExchange(&gEvanMode, 0);
+    EnsureButton();
+}
+
+__declspec(naked) void RaceSelectEntryHook() {
+    __asm {
+        mov dword ptr [esi + 0x214], 1
+        pushfd
+        pushad
+        push esi
+        call OnRaceSelectorShown
+        add esp, 4
+        popad
+        popfd
+        jmp dword ptr [gRaceSelectEntryReturn]
+    }
+}
+
+__declspec(naked) void CreatePacketRaceHook() {
+    __asm {
+        pushfd
+        cmp dword ptr [gEvanMode], 0
+        je normalRace
+        popfd
+        push 3
+        jmp dword ptr [gCreatePacketRacePushReturn]
+    normalRace:
+        popfd
+        push dword ptr [esi + 0x214]
+        jmp dword ptr [gCreatePacketRacePushReturn]
+    }
+}
+
+} // namespace
+
+bool Apply() {
+    if (gInstalled) return true;
+    if (!BytesMatch(kRaceSelectEntry, kRaceSelectEntryBytes, sizeof(kRaceSelectEntryBytes))) {
+        std::cerr << "EverLeaf Evan selector: race-select entry bytes changed; refusing selector hook." << std::endl;
+        return false;
+    }
+    if (!BytesMatch(kCreatePacketRacePush, kCreatePacketRacePushBytes, sizeof(kCreatePacketRacePushBytes))) {
+        std::cerr << "EverLeaf Evan selector: CREATE_CHAR race push bytes changed; refusing packet hook." << std::endl;
+        return false;
+    }
+
+    Memory::CodeCave(reinterpret_cast<void*>(RaceSelectEntryHook), kRaceSelectEntry, sizeof(kRaceSelectEntryBytes));
+    Memory::CodeCave(reinterpret_cast<void*>(CreatePacketRaceHook), kCreatePacketRacePush, sizeof(kCreatePacketRacePushBytes));
+    gInstalled = true;
+    std::cout << "EverLeaf Evan selector: enabled Evan choice and CREATE_CHAR type 3 routing." << std::endl;
+    return true;
+}
+
+#else
+
+bool Apply() { return false; }
+
+#endif
+
+} // namespace EverLeafEvanRaceSelect
