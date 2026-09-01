@@ -7,6 +7,7 @@ classic quest/tutorial behavior.
 
 Checks:
 - discover Maple Island NPCs from active Map.wz data (map IDs below 100000)
+- isolate classic low-ID tutorial NPCs from global event/service NPCs
 - discover quests whose Check.wz start/completion owner is one of those NPCs
 - require each discovered quest to retain Check/Say/QuestInfo data
 - validate quest-owner NPC references have Npc.wz assets
@@ -41,6 +42,7 @@ QUEST_FILES = {
 HEENA_NPC = "2101"
 HEENA_QUEST = "1031"
 HEENA_PORTAL_SCRIPT = "infoMinimap"
+CLASSIC_NPC_MAX = 100000
 
 
 def direct_imgdir(root: ET.Element, name: str) -> ET.Element | None:
@@ -72,7 +74,6 @@ def maple_island_maps() -> dict[str, Path]:
         if not raw.isdigit():
             continue
         map_id = int(raw)
-        # Classic Maple Island/tutorial maps occupy the low Map0 ID range.
         if 0 <= map_id < 100000:
             result[str(map_id)] = path
     return result
@@ -116,12 +117,6 @@ def quest_nodes(root: ET.Element) -> dict[str, ET.Element]:
 
 
 def quest_owner_npcs(check_node: ET.Element) -> set[str]:
-    """Return only the start/end NPC owner fields from a Check.wz quest node.
-
-    Check.wz stores quest phases under direct imgdir children such as 0/1.
-    Looking recursively through Say/QuestInfo produces many false positives
-    because unrelated/event quests merely mention Maple Island NPCs in text.
-    """
     refs: set[str] = set()
     for phase in check_node:
         if phase.tag != "imgdir":
@@ -152,6 +147,11 @@ def main() -> int:
             failures.append(f"Unable to parse Maple Island map data: {exc}")
         maps, island_npcs, npc_locations, portal_scripts = {}, set(), defaultdict(set), []
 
+    classic_island_npcs = {
+        npc for npc in island_npcs
+        if npc.isdigit() and 0 <= int(npc) < CLASSIC_NPC_MAX
+    }
+
     quest_sets: dict[str, dict[str, ET.Element]] = {}
     for kind, path in QUEST_FILES.items():
         try:
@@ -165,27 +165,23 @@ def main() -> int:
     for qid, node in quest_sets.get("check", {}).items():
         refs = quest_owner_npcs(node)
         quest_owner_refs[qid].update(refs)
-        if refs & island_npcs:
+        if refs & classic_island_npcs:
             discovered.add(qid)
 
     for qid in sorted(discovered, key=int):
-        # Check is authoritative for discovery; Say and QuestInfo are expected
-        # for player-facing classic quests. Act can legitimately be absent on a
-        # pure tutorial/dialogue step, so absence there is review-only.
         for required in ("check", "say", "info"):
             if qid not in quest_sets.get(required, {}):
                 failures.append(f"Maple Island quest {qid} is missing {required} data")
         if qid not in quest_sets.get("act", {}):
             reviews.append(f"Maple Island quest {qid} has no Act.img entry (may be dialogue/tutorial-only)")
         for npc_id in sorted(quest_owner_refs.get(qid, set()), key=int):
-            if not npc_asset_exists(npc_id):
+            if npc_id in classic_island_npcs and not npc_asset_exists(npc_id):
                 failures.append(f"Quest {qid} references missing quest-owner NPC asset {npc_id}")
 
-    # Hard gate the specific regression that triggered this audit.
-    if HEENA_NPC not in island_npcs:
+    if HEENA_NPC not in classic_island_npcs:
         failures.append("Heena NPC 2101 is not spawned on the Maple Island/tutorial map set")
     if HEENA_QUEST not in discovered:
-        failures.append("Quest 1031 (Heena and Sera) is no longer owned by a Maple Island NPC in Check.wz")
+        failures.append("Quest 1031 (Heena and Sera) is no longer owned by a classic Maple Island NPC in Check.wz")
     for required in ("check", "say", "info"):
         if HEENA_QUEST not in quest_sets.get(required, {}):
             failures.append(f"Quest 1031 is missing {required} data")
@@ -214,7 +210,6 @@ def main() -> int:
             if fragment in lowered:
                 failures.append(f"Heena 2101 script contains custom class/tutorial override text: {fragment!r}")
 
-    # Quest 1031 drives a tutorial UI hint through infoMinimap.js.
     portal_path = PORTAL_SCRIPTS / f"{HEENA_PORTAL_SCRIPT}.js"
     if not portal_path.is_file():
         failures.append(f"Quest 1031 tutorial hook scripts/portal/{HEENA_PORTAL_SCRIPT}.js is missing")
@@ -227,11 +222,14 @@ def main() -> int:
     for script in missing_portal_scripts:
         failures.append(f"Maple Island portal references missing script {script}.js")
 
-    scripted_island_npcs = sorted(npc for npc in island_npcs if (NPC_SCRIPTS / f"{npc}.js").is_file())
+    scripted_classic_npcs = sorted(
+        npc for npc in classic_island_npcs if (NPC_SCRIPTS / f"{npc}.js").is_file()
+    )
     payload = {
         "maps": len(maps),
-        "islandNpcs": len(island_npcs),
-        "scriptedIslandNpcs": scripted_island_npcs,
+        "allIslandNpcs": len(island_npcs),
+        "classicIslandNpcIds": sorted(classic_island_npcs, key=int),
+        "scriptedClassicIslandNpcs": scripted_classic_npcs,
         "discoveredQuestCount": len(discovered),
         "discoveredQuests": sorted(discovered, key=int),
         "heenaMaps": sorted(npc_locations.get(HEENA_NPC, set()), key=int),
@@ -243,9 +241,10 @@ def main() -> int:
         print(json.dumps(payload, indent=2))
     else:
         print(
-            f"Maple Island quest audit: {len(maps)} maps, {len(island_npcs)} NPCs, "
-            f"{len(discovered)} owned quest records"
+            f"Maple Island quest audit: {len(maps)} maps, {len(island_npcs)} total NPCs, "
+            f"{len(classic_island_npcs)} classic NPCs, {len(discovered)} owned quest records"
         )
+        print("Classic NPCs:", ", ".join(payload["classicIslandNpcIds"]) or "none")
         print("Discovered quests:", ", ".join(payload["discoveredQuests"]) or "none")
         print("Heena maps:", ", ".join(payload["heenaMaps"]) or "none")
         for item in reviews:
