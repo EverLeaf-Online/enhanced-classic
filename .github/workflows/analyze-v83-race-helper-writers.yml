@@ -20,7 +20,7 @@ jobs:
           sparse-checkout: Localhosts.zip
           sparse-checkout-cone-mode: false
       - run: python3 -m pip install --user pefile capstone
-      - name: Inspect race helper writers
+      - name: Identify race selector method boundary
         shell: bash
         run: |
           set -euo pipefail
@@ -35,16 +35,27 @@ jobs:
 
           data=Path('v83.exe').read_bytes(); pe=pefile.PE('v83.exe'); base=pe.OPTIONAL_HEADER.ImageBase
           md=Cs(CS_ARCH_X86,CS_MODE_32)
-          for start_va,end_va,label in [
-              (0x006172B0,0x006173B0,'writer_617348'),
-              (0x0067F100,0x0067F220,'writer_67F181'),
-              (0x005F3D60,0x005F3E20,'writer_5F3DBE'),
-              (0x005F5680,0x005F5820,'selector_setters'),
-          ]:
-              print('\n===== '+label+' =====')
-              start=pe.get_offset_from_rva(start_va-base); end=pe.get_offset_from_rva(end_va-base)
-              for i in md.disasm(data[start:end],start_va):
+          target=0x00617348
+          off=pe.get_offset_from_rva(target-base)
+          print('TARGET_FILE_OFF',hex(off))
+          # Search backwards for compiler prologues / previous returns.
+          start=max(0,off-0x1000)
+          blob=data[start:off+0x80]
+          for pat,name in [(b'\x55\x8b\xec','push-ebp'),(b'\xc2\x04\x00','ret4'),(b'\xc3','ret')]:
+              positions=[]; p=0
+              while True:
+                  q=blob.find(pat,p)
+                  if q<0: break
+                  positions.append(start+q); p=q+1
+              print(name,[hex(base+pe.get_rva_from_offset(x)) for x in positions[-20:]])
+
+          # Disassemble candidate windows at 0x617000 boundaries to expose method starts.
+          for sva,eva in [(0x00616F00,0x00617390),(0x00617000,0x00617390),(0x00617100,0x00617390)]:
+              print(f'\n===== {sva:08X}-{eva:08X} =====')
+              so=pe.get_offset_from_rva(sva-base); eo=pe.get_offset_from_rva(eva-base)
+              for i in md.disasm(data[so:eo],sva):
                   mark=''
-                  if b'\x14\x02\x00\x00' in bytes(i.bytes): mark=' <<< RACE'
-                  print(f'{i.address:08X}: {bytes(i.bytes).hex(" "):<30} {i.mnemonic:<7} {i.op_str}{mark}')
+                  if i.address==target: mark=' <<< RACE WRITE'
+                  if i.mnemonic in ('ret','leave'): mark += ' <<< END?'
+                  print(f'{i.address:08X}: {bytes(i.bytes).hex(" "):<28} {i.mnemonic:<7} {i.op_str}{mark}')
           PY
