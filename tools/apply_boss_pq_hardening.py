@@ -40,7 +40,7 @@ def apply_event_manager() -> None:
     text = replace_once(
         text,
         """    public boolean startInstance(int lobbyId, Expedition exped, Character leader) {\n        if (this.isDisposed()) {\n            return false;\n        }\n""",
-        """    public boolean startInstance(int lobbyId, Expedition exped, Character leader) {\n        if (this.isDisposed() || exped == null || leader == null || exped.getLeader() == null\n                || exped.getLeader().getId() != leader.getId() || !exped.contains(leader)\n                || leader.getMap() != exped.getRecruitingMap()\n                || exped.getActiveMembers().size() < exped.getMinSize()) {\n            return false;\n        }\n""",
+        """    public boolean startInstance(int lobbyId, Expedition exped, Character leader) {\n        if (this.isDisposed() || exped == null || leader == null || exped.getLeader() == null\n                || exped.getLeader().getId() != leader.getId() || !exped.contains(leader)\n                || leader.getMapId() != exped.getRecruitingMap().getId()\n                || exped.getActiveMembers().size() < exped.getMinSize()) {\n            return false;\n        }\n""",
         "expedition leader/min-size validation",
     )
 
@@ -100,13 +100,14 @@ def apply_event_manager() -> None:
         "existing-instance leader validation",
     )
 
-    # The four setup-created start paths shared the same false-success catch.
+    # The first four setup-created paths share this false-success catch. The
+    # fifth occurrence belongs to the existing-EIM path and is handled below.
     old_catch = """                    } catch (ScriptException | NoSuchMethodException ex) {\n                        log.error(\"Event script startInstance\", ex);\n                    }\n\n                    return true;\n"""
     new_catch = """                    } catch (ScriptException | NoSuchMethodException ex) {\n                        log.error(\"Event script startInstance\", ex);\n                        if (lobbyId > -1) {\n                            setLockLobby(lobbyId, false);\n                        }\n                        return false;\n                    }\n\n                    return true;\n"""
     if new_catch not in text:
         count = text.count(old_catch)
-        if count != 4:
-            raise SystemExit(f"shared start failure handling: expected 4 source matches, found {count}")
+        if count != 5:
+            raise SystemExit(f"shared start failure handling: expected 5 source matches, found {count}")
         text = text.replace(old_catch, new_catch, 4)
 
     # Existing-EIM setup can fail after the instance was registered, so dispose it too.
