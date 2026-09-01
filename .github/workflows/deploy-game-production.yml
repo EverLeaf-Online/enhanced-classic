@@ -1,4 +1,4 @@
-# Manual production deployment trigger: merchant-listing-persistence-compensation
+# Manual production deployment trigger: merchant-open-persistence-gate
 name: Deploy EverLeaf Game Production
 
 on:
