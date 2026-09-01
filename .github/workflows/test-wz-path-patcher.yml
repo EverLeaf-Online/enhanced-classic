@@ -1,0 +1,35 @@
+name: Test WZ path patcher
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - 'client/tools/wz-path-patcher/**'
+      - '.github/workflows/test-wz-path-patcher.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Build pinned libwz patcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone https://github.com/toyobayashi/libwz "$RUNNER_TEMP/libwz"
+          git -C "$RUNNER_TEMP/libwz" checkout "$LIBWZ_COMMIT"
+          test "$(git -C "$RUNNER_TEMP/libwz" rev-parse HEAD)" = "$LIBWZ_COMMIT"
+          cmake -S client/tools/wz-path-patcher -B "$RUNNER_TEMP/wz-path-build" \
+            -DLIBWZ_SOURCE="$RUNNER_TEMP/libwz" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/wz-path-build" --config Release --parallel 2
+          test -x "$RUNNER_TEMP/wz-path-build/everleaf-wz-path-patcher"
+          "$RUNNER_TEMP/wz-path-build/everleaf-wz-path-patcher" 2>&1 | grep -q 'Usage:' || test ${PIPESTATUS[0]} -eq 2
