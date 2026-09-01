@@ -1,0 +1,130 @@
+name: Analyze Evan character selector
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/analyze-evan-character-selector.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_BOOTSTRAP_FILE_ID: 1TW-COG0-lfu998QjYvqvh6OemzZeSWXa
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: client-dev
+      - name: Install analysis dependencies
+        run: python3 -m pip install --user pefile capstone
+      - name: Retrieve exact EverLeaf bootstrap executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-delay 5 \
+            "https://drive.usercontent.google.com/download?id=$EVERLEAF_BOOTSTRAP_FILE_ID&export=download&confirm=t" \
+            --output everleaf-bootstrap.rar
+          7z x -y everleaf-bootstrap.rar -obootstrap-extract >/dev/null
+          game_executable="$(find bootstrap-extract -type f -iname MapleStory.exe -print -quit)"
+          test -n "$game_executable"
+          cp "$game_executable" EverLeaf.exe
+          sha256sum EverLeaf.exe
+      - name: Locate class-selector strings and executable references
+        shell: python
+        run: |
+          from pathlib import Path
+          import json, re, struct
+          import pefile
+          from capstone import Cs, CS_ARCH_X86, CS_MODE_32, CS_OP_IMM, CS_OP_MEM
+
+          exe = Path('EverLeaf.exe')
+          data = exe.read_bytes()
+          pe = pefile.PE(str(exe), fast_load=False)
+          base = pe.OPTIONAL_HEADER.ImageBase
+          out = []
+
+          needles = [
+              'Choose Character Type', 'Cygnus Knights', 'Cygnus',
+              'Explorers', 'Explorer', 'Aran',
+              'Evan', 'Evan0', 'Evan1', 'Evan10'
+          ]
+
+          def rva_for_offset(off):
+              try:
+                  return pe.get_rva_from_offset(off)
+              except Exception:
+                  return None
+
+          string_addrs = {}
+          for text in needles:
+              variants = [('ascii', text.encode('ascii')), ('utf16', text.encode('utf-16le'))]
+              for enc, needle in variants:
+                  start = 0
+                  while True:
+                      off = data.find(needle, start)
+                      if off < 0:
+                          break
+                      rva = rva_for_offset(off)
+                      va = base + rva if rva is not None else None
+                      out.append({'kind':'string','text':text,'encoding':enc,'file_offset':hex(off),'rva':hex(rva) if rva is not None else None,'va':hex(va) if va is not None else None})
+                      if va is not None:
+                          string_addrs.setdefault(va, []).append((text, enc))
+                      start = off + 1
+
+          md = Cs(CS_ARCH_X86, CS_MODE_32)
+          md.detail = True
+          for section in pe.sections:
+              if not (section.Characteristics & 0x20000000):
+                  continue
+              code = section.get_data()
+              va0 = base + section.VirtualAddress
+              for ins in md.disasm(code, va0):
+                  hit = []
+                  for op in ins.operands:
+                      if op.type == CS_OP_IMM and op.imm in string_addrs:
+                          hit.extend(string_addrs[op.imm])
+                      elif op.type == CS_OP_MEM:
+                          disp = op.mem.disp & 0xffffffff
+                          if disp in string_addrs:
+                              hit.extend(string_addrs[disp])
+                  if hit:
+                      out.append({'kind':'xref','address':hex(ins.address),'mnemonic':ins.mnemonic,'op_str':ins.op_str,'targets':hit})
+
+          # Known public Evan skill-activation locations, recorded for exact-build comparison.
+          for va in (0x0075C783, 0x00761714):
+              rva = va - base
+              try:
+                  off = pe.get_offset_from_rva(rva)
+                  chunk = data[off:off+32]
+                  out.append({'kind':'known_evan_patch','va':hex(va),'file_offset':hex(off),'bytes':chunk.hex(' ')})
+              except Exception as exc:
+                  out.append({'kind':'known_evan_patch','va':hex(va),'error':str(exc)})
+
+          # Surface immediate constants that are likely to be selector counts/types near xrefs.
+          xref_addrs = [int(x['address'],16) for x in out if x.get('kind')=='xref']
+          if xref_addrs:
+              for section in pe.sections:
+                  if not (section.Characteristics & 0x20000000):
+                      continue
+                  code = section.get_data()
+                  va0 = base + section.VirtualAddress
+                  for ins in md.disasm(code, va0):
+                      if any(abs(ins.address - x) <= 0x100 for x in xref_addrs):
+                          out.append({'kind':'near_xref','address':hex(ins.address),'mnemonic':ins.mnemonic,'op_str':ins.op_str,'bytes':bytes(ins.bytes).hex(' ')})
+
+          Path('evan-character-selector-analysis.json').write_text(json.dumps(out, indent=2))
+          print('strings:', sum(1 for x in out if x['kind']=='string'))
+          print('xrefs:', sum(1 for x in out if x['kind']=='xref'))
+          print('near-xref instructions:', sum(1 for x in out if x['kind']=='near_xref'))
+      - name: Upload analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: evan-character-selector-analysis
+          path: evan-character-selector-analysis.json
+          retention-days: 7
+          if-no-files-found: error
