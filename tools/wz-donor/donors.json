@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "baseline": {
     "id": "everleaf-v83",
     "region": "GMS",
@@ -11,10 +11,20 @@
     {
       "id": "gms-v95",
       "region": "GMS",
-      "version": "95",
+      "version": "95.4",
       "priority": 1,
-      "status": "planned",
+      "status": "source-verified",
       "role": "closest-newer-donor",
+      "source": {
+        "type": "public-archive-index",
+        "url": "https://sourceforge.net/projects/maplestoryv95/files/MapleStory/",
+        "verified": "2026-09-01",
+        "notes": "Archive visibly lists individual Character/Item/Map/Mob/Npc/Quest/Reactor/Skill/String/Etc WZ files for v95.4. Keep raw archives outside git."
+      },
+      "tooling": [
+        "https://github.com/iw2d/HaSuite",
+        "https://github.com/iw2d/kinoko"
+      ],
       "notes": "First target for controlled backports. Prefer maps, mobs, NPCs, items, equipment and reactors before packet-dependent systems."
     },
     {
@@ -22,7 +32,7 @@
       "region": "GMS",
       "version": "117.2",
       "priority": 2,
-      "status": "planned",
+      "status": "research-verified",
       "role": "expanded-content-donor"
     },
     {
@@ -30,8 +40,14 @@
       "region": "TMS",
       "version": "120",
       "priority": 3,
-      "status": "planned",
+      "status": "source-verified",
       "role": "alternate-expanded-content-donor",
+      "source": {
+        "type": "public-archive-index",
+        "url": "https://github.com/MapleStoryUnity/wzData",
+        "verified": "2026-09-01",
+        "notes": "Repository README indexes a downloadable TMS v120 WZ archive."
+      },
       "notes": "Treat String.wz localization separately from structural/game assets."
     },
     {
@@ -39,7 +55,7 @@
       "region": "GMS",
       "version": "167",
       "priority": 4,
-      "status": "planned",
+      "status": "research-verified",
       "role": "modern-map-asset-donor"
     },
     {
@@ -47,7 +63,7 @@
       "region": "GMS",
       "version": "213.2",
       "priority": 5,
-      "status": "planned",
+      "status": "research-verified",
       "role": "modern-content-library"
     },
     {
