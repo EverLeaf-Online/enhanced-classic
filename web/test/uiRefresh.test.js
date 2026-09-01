@@ -9,6 +9,9 @@ const header = read("src/views/partials/header.ejs");
 const footer = read("src/views/partials/footer.ejs");
 const home = read("src/views/home.ejs");
 const wiki = read("src/views/wiki.ejs");
+const wikiEntry = read("src/views/wiki-entry.ejs");
+const wikiRoute = read("src/routes/wiki.js");
+const wikiCatalog = read("src/data/wikiCatalog.js");
 const rankings = read("src/views/rankings.ejs");
 const account = read("src/views/account.ejs");
 const downloads = read("src/views/downloads.ejs");
@@ -20,6 +23,7 @@ const jobs = read("public/css/maple-jobs.css");
 const final = read("public/css/maple-final.css");
 const rankingsCss = read("public/css/rankings-remaster.css");
 const homePolish = read("public/css/home-polish.css");
+const wikiCss = read("public/css/wiki-remaster.css");
 const assertRgbaPng = relative => {
   const file=path.join(root,relative);
   assert.ok(fs.existsSync(file),`${relative} should exist`);
@@ -112,6 +116,14 @@ test("wiki is a searchable library-backed knowledge database",()=>{
   assert.match(wiki,/Library-backed/);
   assert.match(wiki,/entry\.source/);
   assert.doesNotMatch(wiki,/Wiki is being built/);
+  assert.match(wikiRoute,/searchEntries/);
+  assert.match(wikiRoute,/\/wiki\/:slug/);
+  assert.match(wikiEntry,/Curated into the website from EverLeaf's durable research library/);
+  assert.match(wikiEntry,/wikiEntrySections/);
+  for(const term of ["level-250-progression","hp-washing-replacement","nx-reward-sources","everleaf-launcher","rooted-content","adventurer-jobs"]) assert.match(wikiCatalog,new RegExp(term));
+  assert.match(wikiCss,/\.wikiArticleGrid/);
+  assert.match(wikiCss,/\.wikiEntryLayout/);
+  assert.match(wikiCss,/@media\(max-width:620px\)/);
 });
 
 test("rankings render a Maple-style leaderboard with individual local Cygnus and clean Beginner artwork",()=>{
