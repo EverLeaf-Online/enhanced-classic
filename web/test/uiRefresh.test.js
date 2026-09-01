@@ -20,6 +20,7 @@ const jobs = read("public/css/maple-jobs.css");
 const final = read("public/css/maple-final.css");
 const rankingsCss = read("public/css/rankings-remaster.css");
 const homePolish = read("public/css/home-polish.css");
+const uiux = read("public/css/uiux-2026.css");
 const assertRgbaPng = relative => {
   const file=path.join(root,relative);
   assert.ok(fs.existsSync(file),`${relative} should exist`);
@@ -36,6 +37,7 @@ test("global navigation loads the unified Maple remaster design system",()=>{
   assert.match(header,/rankings-remaster\.css/);
   assert.match(header,/home-polish\.css/);
   assert.match(header,/wiki-remaster\.css/);
+  assert.match(header,/uiux-2026\.css/);
   assert.match(header,/maple-remaster-admin\.css/);
   assert.doesNotMatch(header,/design-v2\.css/);
   assert.doesNotMatch(header,/home-v2\.css/);
@@ -43,6 +45,8 @@ test("global navigation loads the unified Maple remaster design system",()=>{
   assert.match(header,/mobileMenu/);
   assert.match(header,/siteBanner/);
   assert.match(header,/worldRibbon/);
+  assert.match(header,/class="skipLink" href="#main-content"/);
+  assert.match(header,/id="main-content"/);
   assert.match(header,/{href:"\/wiki",label:"WIKI"}/);
   assert.doesNotMatch(header,/{href:"\/about",label:"WORLD"}/);
 });
@@ -166,4 +170,8 @@ test("remaster styles cover public pages, authentication, CMS and mobile layouts
   assert.match(final,/\.characterCards/);
   assert.match(final,/\.mapleQuickIcon img/);
   assert.match(final,/\.mapleJobPortrait/);
+  for (const token of [".skipLink",":focus-visible","@media (max-width: 560px)","prefers-reduced-motion"]) {
+    assert.match(uiux,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));
+  }
+  assert.match(uiux,/min-height: 44px/);
 });
