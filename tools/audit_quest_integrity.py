@@ -24,6 +24,15 @@ QUEST_FILES = {
     "info": QUEST_ROOT / "QuestInfo.img.xml",
 }
 
+# Quest 9820 is an orphaned prerequisite from Cassandra's 2010 event chain.
+# Cassandra (NPC 9010010) carries a bingoBoard script explicitly active only
+# from 2010-02-22 through 2010-03-26. Act/Say/QuestInfo still contain 9820 but
+# Check.wz does not. Keep this visible as legacy cleanup without blocking the
+# modern EverLeaf release over an expired seasonal event.
+KNOWN_LEGACY_MISSING_PREREQUISITES = {
+    "9820": "expired Cassandra bingo event (2010-02-22 through 2010-03-26)",
+}
+
 
 def normalize(value: str | None) -> str:
     raw = (value or "").strip()
@@ -147,6 +156,7 @@ def main() -> int:
     dormant_missing_npcs: list[tuple[str, str]] = []
     active_missing_prereqs: list[tuple[str, str, tuple[str, ...]]] = []
     dormant_missing_prereqs: list[tuple[str, str]] = []
+    legacy_missing_prereqs: list[tuple[str, str, tuple[str, ...]]] = []
 
     for qid, node in quest_sets.get("check", {}).items():
         owners = owner_npcs(node)
@@ -159,8 +169,6 @@ def main() -> int:
         if is_active:
             active_quests.add(qid)
 
-        # Judge each owner independently. A quest can legitimately retain a
-        # dormant alternate/event owner while its classic owner remains active.
         for npc_id in sorted(owners, key=int):
             if npc_asset_exists(npc_id):
                 continue
@@ -176,8 +184,11 @@ def main() -> int:
         for required_qid in sorted(prereqs, key=int):
             if required_qid in check_ids:
                 continue
+            owner_tuple = tuple(sorted(active_owners, key=int))
+            if required_qid in KNOWN_LEGACY_MISSING_PREREQUISITES:
+                legacy_missing_prereqs.append((qid, required_qid, owner_tuple))
+                continue
             if is_active:
-                owner_tuple = tuple(sorted(active_owners, key=int))
                 active_missing_prereqs.append((qid, required_qid, owner_tuple))
                 failures.append(
                     f"Active quest {qid} (spawned owners {','.join(owner_tuple)}) "
@@ -196,6 +207,15 @@ def main() -> int:
         samples = [f"{qid}->{req}" for qid, req in dormant_missing_prereqs]
         reviews.append(
             f"{len(dormant_missing_prereqs)} dormant prerequisite edges target absent Check.wz quests: "
+            + preview(samples)
+        )
+    if legacy_missing_prereqs:
+        samples = [
+            f"{qid}->{req} ({KNOWN_LEGACY_MISSING_PREREQUISITES[req]})"
+            for qid, req, _owners in legacy_missing_prereqs
+        ]
+        reviews.append(
+            f"{len(legacy_missing_prereqs)} known legacy event prerequisite edges retained: "
             + preview(samples)
         )
 
@@ -237,9 +257,14 @@ def main() -> int:
             {"quest": qid, "prerequisite": required, "activeOwners": list(owners)}
             for qid, required, owners in active_missing_prereqs
         ],
-        "dormantMissingPrerequisites": [
-            {"quest": qid, "prerequisite": required}
-            for qid, required in dormant_missing_prereqs
+        "legacyMissingPrerequisites": [
+            {
+                "quest": qid,
+                "prerequisite": required,
+                "activeOwners": list(owners),
+                "reason": KNOWN_LEGACY_MISSING_PREREQUISITES[required],
+            }
+            for qid, required, owners in legacy_missing_prereqs
         ],
         "missingSectionCounts": section_missing_counts,
         "orphanSectionCounts": orphan_section_counts,
