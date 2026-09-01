@@ -168,14 +168,21 @@ jobs:
             echo 'EVAN_SOURCE_ARCHIVE_READY=false'
           fi
 
-          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/tmp/everleaf-live-launcher-manifest.json
-          python3 - /tmp/everleaf-live-launcher-manifest.json "$EXPECTED_SKILL" "$EXPECTED_CHARACTER" "$EXPECTED_UI" "$EXPECTED_STRING" <<'PY'
-          import json, sys
-          manifest = json.load(open(sys.argv[1]))
+          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/tmp/everleaf-live-launcher-envelope.json
+          python3 - /tmp/everleaf-live-launcher-envelope.json "$EXPECTED_SKILL" "$EXPECTED_CHARACTER" "$EXPECTED_UI" "$EXPECTED_STRING" <<'PY'
+          import base64, json, sys
+          envelope = json.load(open(sys.argv[1]))
+          payload = envelope.get('payload')
+          signature = envelope.get('signature')
+          assert isinstance(payload, str) and payload, 'Launcher manifest payload missing'
+          assert isinstance(signature, str) and signature, 'Launcher manifest signature missing'
+          manifest = json.loads(base64.b64decode(payload, validate=True).decode('utf-8'))
           expected = {'Skill.wz': sys.argv[2], 'Character.wz': sys.argv[3], 'UI.wz': sys.argv[4], 'String.wz': sys.argv[5]}
           files = {entry['path']: entry for entry in manifest.get('files', [])}
+          assert len(files) == 36, f'Launcher manifest file count mismatch: {len(files)}'
           for path, digest in expected.items():
               assert files.get(path, {}).get('sha256') == digest, f'Launcher manifest mismatch: {path}'
           print('EVAN_LAUNCHER_MANIFEST_HASHES_MATCH=true')
+          print('EVAN_LAUNCHER_MANIFEST_SIGNED=true')
           PY
           REMOTE
