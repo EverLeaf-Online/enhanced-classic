@@ -1,17 +1,10 @@
 #!/usr/bin/env python3
-"""Audit Quest.wz SCRIPT requirements against scripts/quest handlers.
+"""Audit Quest.wz scripted quest handlers against scripts/quest.
 
-QuestScriptManager only loads a quest JS when the corresponding Check.wz phase
-has a SCRIPT requirement. ScriptRequirement treats any non-empty string value
-as enabled, so this audit mirrors that exact runtime contract.
-
-* active scripted start phase -> quest/<id>.js with function start(...)
-* active scripted end phase   -> quest/<id>.js with function end(...)
-* medal quests (299xx) may use the server's medalQuest.js fallback
-* dormant scripted requirements are inventoried without blocking release
-* numeric quest scripts that do not correspond to Check.wz are inventoried
-
-"Active" means at least one quest owner NPC is spawned in active Map.wz.
+This mirrors the server's classic quest tooling and runtime contract. A direct
+start/end requirement field whose name contains ``script`` marks that phase as
+scripted. Active scripted phases must have a quest JS exposing the matching
+start/end function; medal quests may use medalQuest.js.
 """
 from __future__ import annotations
 
@@ -67,12 +60,18 @@ def phase_script_requirement(node: ET.Element, phase_name: str) -> bool:
     )
     if phase is None:
         return False
-    # ScriptRequirement.processData() calls DataTool.getString(data, "") and
-    # enables scripting whenever that string is non-empty. Do not coerce this
-    # to an integer: classic Quest.wz commonly stores script names/markers as
-    # strings.
-    value = direct_value(phase, "script")
-    return value is not None and value.strip() != ""
+
+    # Mirror tools.mapletools.QuestlineFetcher: at the direct requirement level,
+    # any field whose *name contains* "script" denotes scripted quest handling.
+    # Do not require the field to be named exactly "script" and do not coerce
+    # its value to an integer.
+    for child in phase:
+        if child.tag == "imgdir":
+            continue
+        name = (child.attrib.get("name") or "").lower()
+        if "script" in name:
+            return True
+    return False
 
 
 def owners(node: ET.Element) -> set[str]:
@@ -145,6 +144,7 @@ def main() -> int:
             phases.add("end")
         if not phases:
             continue
+
         required_script_ids.add(qid)
         is_active = bool(owners(node) & spawned_npcs)
         target = active_scripted if is_active else dormant_scripted
@@ -156,45 +156,33 @@ def main() -> int:
             if fallback:
                 continue
             message = f"Quest {qid} requires scripted {','.join(sorted(phases))} phase(s) but {qid}.js is missing"
-            if is_active:
-                failures.append(message)
-            else:
-                reviews.append("Dormant " + message.lower())
+            (failures if is_active else reviews).append(message if is_active else "Dormant " + message.lower())
             continue
 
         has_start, has_end = script_contract(script_path)
         if "start" in phases and not has_start:
             message = f"Quest {qid} has scripted start requirement but {qid}.js has no start(...) function"
-            if is_active:
-                failures.append(message)
-            else:
-                reviews.append("Dormant " + message.lower())
+            (failures if is_active else reviews).append(message if is_active else "Dormant " + message.lower())
         if "end" in phases and not has_end:
             message = f"Quest {qid} has scripted end requirement but {qid}.js has no end(...) function"
-            if is_active:
-                failures.append(message)
-            else:
-                reviews.append("Dormant " + message.lower())
+            (failures if is_active else reviews).append(message if is_active else "Dormant " + message.lower())
 
-    numeric_scripts: set[str] = set()
-    for path in SCRIPT_ROOT.glob("*.js"):
-        match = NUMERIC_SCRIPT_RE.match(path.name)
-        if match:
-            numeric_scripts.add(norm(match.group(1)))
-
+    numeric_scripts = {
+        norm(match.group(1))
+        for path in SCRIPT_ROOT.glob("*.js")
+        if (match := NUMERIC_SCRIPT_RE.match(path.name))
+    }
     orphan_scripts = sorted(numeric_scripts - set(quests), key=int)
     unused_numeric_scripts = sorted(numeric_scripts - required_script_ids, key=int)
     if orphan_scripts:
         reviews.append(
             f"{len(orphan_scripts)} numeric quest scripts have no Check.wz quest: "
-            + ", ".join(orphan_scripts[:25])
-            + (" ..." if len(orphan_scripts) > 25 else "")
+            + ", ".join(orphan_scripts[:25]) + (" ..." if len(orphan_scripts) > 25 else "")
         )
     if unused_numeric_scripts:
         reviews.append(
             f"{len(unused_numeric_scripts)} numeric quest scripts exist without a current SCRIPT requirement: "
-            + ", ".join(unused_numeric_scripts[:25])
-            + (" ..." if len(unused_numeric_scripts) > 25 else "")
+            + ", ".join(unused_numeric_scripts[:25]) + (" ..." if len(unused_numeric_scripts) > 25 else "")
         )
 
     payload = {
@@ -208,7 +196,6 @@ def main() -> int:
         "reviews": reviews,
         "failures": failures,
     }
-
     if emit_json:
         print(json.dumps(payload, indent=2))
     else:
