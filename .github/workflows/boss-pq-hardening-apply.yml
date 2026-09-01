@@ -1,0 +1,49 @@
+name: Apply Boss PQ Hardening Branch
+
+on:
+  push:
+    branches:
+      - fix-boss-pq-hardening-pass
+    paths:
+      - 'tools/apply_boss_pq_hardening.py'
+      - '.github/workflows/boss-pq-hardening-apply.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix-boss-pq-hardening-pass
+          fetch-depth: 0
+      - name: Apply hardening
+        run: python3 tools/apply_boss_pq_hardening.py
+      - name: Verify idempotency
+        shell: bash
+        run: |
+          set -euo pipefail
+          before="$(sha256sum src/main/java/scripting/event/EventManager.java src/main/java/scripting/event/EventInstanceManager.java src/main/java/server/expeditions/Expedition.java scripts/npc/2101014.js | sha256sum | awk '{print $1}')"
+          python3 tools/apply_boss_pq_hardening.py
+          after="$(sha256sum src/main/java/scripting/event/EventManager.java src/main/java/scripting/event/EventInstanceManager.java src/main/java/server/expeditions/Expedition.java scripts/npc/2101014.js | sha256sum | awk '{print $1}')"
+          test "$before" = "$after"
+      - name: Compile server
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -DskipTests package
+      - name: Commit hardened sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/main/java/scripting/event/EventManager.java \
+                  src/main/java/scripting/event/EventInstanceManager.java \
+                  src/main/java/server/expeditions/Expedition.java \
+                  scripts/npc/2101014.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(events): harden boss and PQ lifecycle'
+          git push origin HEAD:fix-boss-pq-hardening-pass
