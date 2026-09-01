@@ -1,0 +1,14 @@
+# EverLeaf v83 Evan Skill.wz donor import
+# Donor should be a compatible GMS v84-era WZ.
+image:2001.img
+image:2200.img
+image:2210.img
+image:2211.img
+image:2212.img
+image:2213.img
+image:2214.img
+image:2215.img
+image:2216.img
+image:2217.img
+image:2218.img
+directory:Dragon
