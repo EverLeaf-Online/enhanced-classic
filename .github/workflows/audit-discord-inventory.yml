@@ -1,12 +1,6 @@
 name: Audit EverLeaf Discord inventory
 
 on:
-  push:
-    branches:
-      - improve-discord-community
-    paths:
-      - tools/everleaf-ops/audit-discord-inventory.js
-      - .github/workflows/audit-discord-inventory.yml
   workflow_dispatch:
 
 permissions:
