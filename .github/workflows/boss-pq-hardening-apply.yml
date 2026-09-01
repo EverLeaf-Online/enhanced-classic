@@ -6,6 +6,7 @@ on:
       - release-dev
     paths:
       - 'tools/apply_boss_pq_hardening.py'
+      - 'tools/apply_boss_pq_failed_setup_cleanup.py'
       - '.github/workflows/boss-pq-hardening-apply.yml'
 
 permissions:
@@ -25,7 +26,9 @@ jobs:
           ref: release-dev
           fetch-depth: 0
       - name: Apply Boss/PQ hardening
-        run: python3 tools/apply_boss_pq_hardening.py
+        run: |
+          python3 tools/apply_boss_pq_hardening.py
+          python3 tools/apply_boss_pq_failed_setup_cleanup.py
       - name: Verify idempotency
         shell: bash
         run: |
@@ -38,9 +41,10 @@ jobs:
           )
           before="$(sha256sum "${targets[@]}" | sha256sum | awk '{print $1}')"
           python3 tools/apply_boss_pq_hardening.py
+          python3 tools/apply_boss_pq_failed_setup_cleanup.py
           after="$(sha256sum "${targets[@]}" | sha256sum | awk '{print $1}')"
           test "$before" = "$after" || {
-            echo 'Boss/PQ hardening transform is not idempotent.' >&2
+            echo 'Boss/PQ hardening transforms are not idempotent.' >&2
             exit 1
           }
       - name: Compile transformed server
