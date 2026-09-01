@@ -1,0 +1,23 @@
+name: Trigger launcher repair fix publish
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/trigger-launcher-repair-publish.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish fixed launcher
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run publish-everleaf-launcher.yml --repo "$GITHUB_REPOSITORY" --ref release-dev
+          echo 'EverLeaf launcher production publish dispatched.'
