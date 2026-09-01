@@ -1,0 +1,106 @@
+name: Analyze v83 race selector
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/analyze-v83-raceselect.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve verified unpacked v83 localhost
+        uses: actions/checkout@v5
+        with:
+          ref: 335d4fbb74e713a01f63163c39c941865401d24a
+          sparse-checkout: Localhosts.zip
+          sparse-checkout-cone-mode: false
+
+      - name: Install analysis dependencies
+        run: python3 -m pip install --user pefile capstone
+
+      - name: Extract and trace race-select strings
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "096e21e155ca1a06a3132a6ad6f7feda5cd986928f415bab15a3b67fee412527  Localhosts.zip" | sha256sum --check
+          mkdir source
+          unzip -q Localhosts.zip -d source
+          cp source/Localhost.exe v83.exe
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import pefile
+          from capstone import Cs, CS_ARCH_X86, CS_MODE_32, CS_OP_IMM, CS_OP_MEM
+
+          exe=Path('v83.exe')
+          data=exe.read_bytes()
+          pe=pefile.PE(str(exe), fast_load=False)
+          base=pe.OPTIONAL_HEADER.ImageBase
+          needles=['RaceSelect','BtSelect','aran','aran1','knight','normal','textGL','Login.img']
+          found=[]
+          string_vas={}
+          for text in needles:
+              for enc,needle in [('ascii',text.encode()),('utf16',text.encode('utf-16le'))]:
+                  start=0
+                  while True:
+                      off=data.find(needle,start)
+                      if off<0: break
+                      try:
+                          rva=pe.get_rva_from_offset(off); va=base+rva
+                      except Exception:
+                          rva=None; va=None
+                      rec={'kind':'string','text':text,'enc':enc,'off':hex(off),'rva':hex(rva) if rva is not None else None,'va':hex(va) if va else None}
+                      found.append(rec)
+                      if va: string_vas.setdefault(va,[]).append((text,enc))
+                      start=off+1
+
+          md=Cs(CS_ARCH_X86,CS_MODE_32); md.detail=True
+          insns=[]
+          for sec in pe.sections:
+              if not (sec.Characteristics & 0x20000000): continue
+              code=sec.get_data(); va0=base+sec.VirtualAddress
+              for ins in md.disasm(code,va0):
+                  hits=[]
+                  for op in ins.operands:
+                      if op.type==CS_OP_IMM and op.imm in string_vas:
+                          hits += string_vas[op.imm]
+                      elif op.type==CS_OP_MEM:
+                          disp=op.mem.disp & 0xffffffff
+                          if disp in string_vas: hits += string_vas[disp]
+                  if hits:
+                      found.append({'kind':'xref','address':hex(ins.address),'mnemonic':ins.mnemonic,'op_str':ins.op_str,'targets':hits})
+                      insns.append(ins.address)
+
+          # Emit broad disassembly windows around every xref so function boundaries,
+          # compare chains, and click dispatch can be reconstructed.
+          for x in sorted(set(insns)):
+              rva=x-base
+              try: off=pe.get_offset_from_rva(rva)
+              except Exception: continue
+              start=max(0,off-0x180); blob=data[start:off+0x280]
+              start_va=base+pe.get_rva_from_offset(start)
+              window=[]
+              for ins in md.disasm(blob,start_va):
+                  window.append(f'{ins.address:08X}: {ins.mnemonic:<7} {ins.op_str}')
+              found.append({'kind':'disasm_window','xref':hex(x),'lines':window})
+
+          Path('v83-raceselect-analysis.json').write_text(json.dumps(found,indent=2))
+          print('strings',sum(1 for x in found if x['kind']=='string'))
+          print('xrefs',sum(1 for x in found if x['kind']=='xref'))
+          for x in found:
+              if x['kind'] in ('string','xref'):
+                  print(json.dumps(x))
+          PY
+
+      - name: Upload analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: v83-raceselect-analysis
+          path: v83-raceselect-analysis.json
+          retention-days: 7
