@@ -19,7 +19,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          TARGET_SHA: e0cef872d71ad7b1bb43f62a2c6c8ecdcbb23899
+          TARGET_SHA: 51248282998279139547c31c712ed418618708a5
         run: |
           set -euo pipefail
           echo "Waiting for validation build of $TARGET_SHA"
