@@ -1,0 +1,6 @@
+# EverLeaf v83 Evan Character.wz donor import
+# The 2024 v83 completion pass replaces 00002000.img and adds Dragon.
+# Keep this deliberately narrow so EverLeaf does not overwrite unrelated
+# Character.wz cosmetics/actions from its existing managed baseline.
+image:00002000.img
+directory:Dragon
