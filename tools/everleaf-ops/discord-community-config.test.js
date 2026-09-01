@@ -24,7 +24,8 @@ test("uses the current 20-channel topology in the bug template", () => {
 });
 
 test("keeps the class guides read-only and moves known issues into news", () => {
-  assert.match(source, /guides: await ensureCategory\(channels, \{ name: "📚 CLASS GUIDES", fallbackName: "Wiki" \}\)/);
+  assert.match(source, /guides: await ensureCategory\(channels, \{ name: "📚 CLASS GUIDES" \}\)/);
+  assert.doesNotMatch(source, /guides: await ensureCategory\([^\n]+fallbackName: "Wiki"/);
   assert.doesNotMatch(source, /guides: await ensureCategory\([^\n]+permission_overwrites: readOnlyOverwrites/);
   assert.match(source, /channelSpec\("known-issues", 0, categories\.news/);
   assert.match(source, /channelSpec\("class-overview"[^\n]+permission_overwrites: readOnlyOverwrites/);
