@@ -21,8 +21,18 @@ function isStrandedEvan() {
 }
 
 function finishEvanConversion() {
-    cm.changeJobById(EVAN_BEGINNER_JOB);
+    // v83 can invalidate the current field transition state when the job packet
+    // is sent first. Move the still-valid Beginner before changing jobs, and
+    // verify the synchronous server-side map change before committing the job.
     cm.warp(MAP_EVAN_START, 0);
+    if (cm.getPlayer().getMapId() != MAP_EVAN_START) {
+        cm.sendOk("EverLeaf could not move you to the Evan starting area. No job change was made. Please try again.");
+        cm.dispose();
+        return;
+    }
+
+    cm.changeJobById(EVAN_BEGINNER_JOB);
+
     try {
         var guideCount = cm.itemQuantity(BEGINNERS_GUIDE);
         if (guideCount > 0) cm.gainItem(BEGINNERS_GUIDE, -guideCount);
@@ -49,7 +59,7 @@ function start() {
         cm.sendSimple(
             "Welcome to EverLeaf. Before you continue, choose how you want this character to begin.\r\n\r\n"
             + "#L0##bBegin as an Evan (Dragon Master).#k#l\r\n"
-            + "#L1#Skip the Maple Island tutorial and go to Lith Harbor.#l\r\n"
+            + "#L1#Skip Maple Island and go to Lith Harbor.#l\r\n"
             + "#L2#Stay on Maple Island and continue the normal tutorial.#l"
         );
         return;
