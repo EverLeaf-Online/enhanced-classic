@@ -3,13 +3,30 @@ using MapleLib.WzLib.Serializer;
 
 if (args.Length < 2)
 {
-    Console.Error.WriteLine("Usage: EverLeafWzExporter <input-directory> <output-directory> [wz-file ...]");
+    Console.Error.WriteLine("Usage: EverLeafWzExporter <input-directory> <output-directory> [--patch-version=N] [wz-file ...]");
     return 2;
 }
 
 var inputDirectory = Path.GetFullPath(args[0]);
 var outputDirectory = Path.GetFullPath(args[1]);
-var requestedFiles = args.Skip(2).ToArray();
+short patchVersion = -1;
+var requestedFiles = new List<string>();
+
+foreach (var arg in args.Skip(2))
+{
+    const string patchPrefix = "--patch-version=";
+    if (arg.StartsWith(patchPrefix, StringComparison.OrdinalIgnoreCase))
+    {
+        var raw = arg[patchPrefix.Length..];
+        if (!short.TryParse(raw, out patchVersion) || patchVersion < 0)
+        {
+            Console.Error.WriteLine($"Invalid patch version: {raw}");
+            return 2;
+        }
+        continue;
+    }
+    requestedFiles.Add(arg);
+}
 
 if (!Directory.Exists(inputDirectory))
 {
@@ -19,7 +36,7 @@ if (!Directory.Exists(inputDirectory))
 
 Directory.CreateDirectory(outputDirectory);
 
-var files = requestedFiles.Length > 0
+var files = requestedFiles.Count > 0
     ? requestedFiles.Select(name => Path.Combine(inputDirectory, name)).ToArray()
     : Directory.GetFiles(inputDirectory, "*.wz", SearchOption.TopDirectoryOnly);
 
@@ -41,6 +58,10 @@ foreach (var path in files)
 var serializer = new WzClassicXmlSerializer(2, LineBreak.Windows, false);
 var failures = new List<string>();
 
+Console.WriteLine(patchVersion >= 0
+    ? $"[EverLeaf] Using explicit MapleStory patch version {patchVersion}"
+    : "[EverLeaf] Using MapleLib patch-version auto-detection");
+
 foreach (var path in files.OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
 {
     var name = Path.GetFileName(path);
@@ -48,7 +69,9 @@ foreach (var path in files.OrderBy(Path.GetFileName, StringComparer.OrdinalIgnor
 
     try
     {
-        using var wzFile = new WzFile(path, WzMapleVersion.GMS);
+        using var wzFile = patchVersion >= 0
+            ? new WzFile(path, patchVersion, WzMapleVersion.GMS)
+            : new WzFile(path, WzMapleVersion.GMS);
         var status = wzFile.ParseWzFile();
         if (status != WzFileParseStatus.Success)
         {
