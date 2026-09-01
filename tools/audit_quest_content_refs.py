@@ -2,17 +2,8 @@
 """Audit active quest item, mob, and map references against the v83 WZ corpus.
 
 A quest is active when one of its Check.wz start/completion NPC owners is
-spawned in the active Map.wz corpus. This audit validates only typed quest
-reference groups whose semantics are stable in classic Quest.wz:
-
-* Check.wz/item       -> required item ids
-* Check.wz/mob        -> required monster ids
-* Check.wz/fieldEnter -> explicit map-entry ids
-* Act.img/item        -> item grants/removals
-
-Missing references are release failures for active quests. Quantity oddities are
-reported separately so classic negative removal counts are not mistaken for
-corruption.
+spawned in the active Map.wz corpus. This audit validates stable classic quest
+reference groups: Check/item, Check/mob, Check/fieldEnter, and Act/item.
 """
 from __future__ import annotations
 
@@ -27,13 +18,15 @@ ROOT = Path(__file__).resolve().parents[1]
 QUEST_ROOT = ROOT / "wz" / "Quest.wz"
 MAP_TREE = ROOT / "wz" / "Map.wz" / "Map"
 MOB_ROOT = ROOT / "wz" / "Mob.wz"
-NPC_ROOT = ROOT / "wz" / "Npc.wz"
 ITEM_ROOT = ROOT / "wz" / "Item.wz"
 CHARACTER_ROOT = ROOT / "wz" / "Character.wz"
-
 CHECK = QUEST_ROOT / "Check.img.xml"
 ACT = QUEST_ROOT / "Act.img.xml"
 NUMERIC_FILE_RE = re.compile(r"^(\d+)\.img\.xml$")
+
+# MapId.NONE is a first-class sentinel throughout the v83 server/WZ data and is
+# valid in quest fieldEnter conditions; it is intentionally not a real map.
+SPECIAL_MAP_IDS = {"999999999"}
 
 
 def normalize(value: str | None) -> str:
@@ -102,7 +95,10 @@ def index_maps_and_npcs() -> tuple[set[str], set[str]]:
 
 def index_mobs() -> set[str]:
     result: set[str] = set()
-    for path in MOB_ROOT.glob("*.img.xml"):
+    # QuestCountGroup/*.img.xml are semantic monster-group IDs used directly by
+    # Quest.wz kill-count conditions (e.g. 9101000 = Green Mushroom group).
+    # They are as valid for quest references as ordinary top-level Mob.wz IDs.
+    for path in MOB_ROOT.rglob("*.img.xml"):
         match = NUMERIC_FILE_RE.match(path.name)
         if match:
             result.add(normalize(match.group(1)))
@@ -111,8 +107,6 @@ def index_mobs() -> set[str]:
 
 def index_items() -> set[str]:
     result: set[str] = set()
-
-    # Equipment is stored as one Character.wz XML file per item.
     for path in CHARACTER_ROOT.rglob("*.img.xml"):
         match = NUMERIC_FILE_RE.match(path.name)
         if match:
@@ -120,7 +114,6 @@ def index_items() -> set[str]:
             if value.isdigit() and 1_000_000 <= int(value) < 2_000_000:
                 result.add(value)
 
-    # Non-equipment Item.wz families group items as direct numeric imgdirs.
     for path in ITEM_ROOT.rglob("*.img.xml"):
         try:
             root = parse(path)
@@ -169,8 +162,6 @@ def collect_check_refs(node: ET.Element) -> tuple[set[str], set[str], set[str], 
                 mobs.add(mob_id)
             if count and count.lstrip("-").isdigit() and abs(int(count)) > 32767:
                 quantity_notes.append(f"required mob {mob_id} count={count}")
-
-        # fieldEnter is normally a group of ints whose values are map IDs.
         for group in phase:
             if group.tag != "imgdir" or group.attrib.get("name") != "fieldEnter":
                 continue
@@ -201,7 +192,6 @@ def main() -> int:
     emit_json = "--json" in sys.argv
     failures: list[str] = []
     reviews: list[str] = []
-
     try:
         check_nodes = quest_nodes(CHECK)
         act_nodes = quest_nodes(ACT)
@@ -213,10 +203,8 @@ def main() -> int:
         return 1
 
     active_quests = {
-        qid for qid, node in check_nodes.items()
-        if quest_owners(node) & active_npcs
+        qid for qid, node in check_nodes.items() if quest_owners(node) & active_npcs
     }
-
     missing_items: dict[str, set[str]] = defaultdict(set)
     missing_mobs: dict[str, set[str]] = defaultdict(set)
     missing_maps: dict[str, set[str]] = defaultdict(set)
@@ -227,12 +215,10 @@ def main() -> int:
         act_items, act_notes = collect_act_items(act_nodes[qid]) if qid in act_nodes else (set(), [])
         for note in notes + act_notes:
             reviews.append(f"Quest {qid}: suspicious quantity {note}")
-
         all_items = check_items | act_items
         checked_item_refs += len(all_items)
         checked_mob_refs += len(mobs)
         checked_map_refs += len(maps)
-
         for item_id in all_items:
             if item_id not in item_ids:
                 missing_items[qid].add(item_id)
@@ -240,21 +226,22 @@ def main() -> int:
             if mob_id not in mob_ids:
                 missing_mobs[qid].add(mob_id)
         for map_id in maps:
-            if map_id not in map_ids:
+            if map_id not in map_ids and map_id not in SPECIAL_MAP_IDS:
                 missing_maps[qid].add(map_id)
 
     for qid, ids in sorted(missing_items.items(), key=lambda pair: int(pair[0])):
         failures.append(f"Active quest {qid} references missing item ids: {','.join(sorted(ids, key=int))}")
     for qid, ids in sorted(missing_mobs.items(), key=lambda pair: int(pair[0])):
-        failures.append(f"Active quest {qid} references missing mob ids: {','.join(sorted(ids, key=int))}")
+        failures.append(f"Active quest {qid} references missing mob/group ids: {','.join(sorted(ids, key=int))}")
     for qid, ids in sorted(missing_maps.items(), key=lambda pair: int(pair[0])):
         failures.append(f"Active quest {qid} references missing fieldEnter map ids: {','.join(sorted(ids, key=int))}")
 
     payload = {
         "activeQuestCount": len(active_quests),
         "indexedItemCount": len(item_ids),
-        "indexedMobCount": len(mob_ids),
+        "indexedMobOrGroupCount": len(mob_ids),
         "indexedMapCount": len(map_ids),
+        "specialMapIds": sorted(SPECIAL_MAP_IDS),
         "checkedItemReferenceCount": checked_item_refs,
         "checkedMobReferenceCount": checked_mob_refs,
         "checkedMapReferenceCount": checked_map_refs,
@@ -264,13 +251,12 @@ def main() -> int:
         "reviews": reviews,
         "failures": failures,
     }
-
     if emit_json:
         print(json.dumps(payload, indent=2))
     else:
         print(
             f"Quest content refs: {len(active_quests)} active quests; "
-            f"items={len(item_ids)} mobs={len(mob_ids)} maps={len(map_ids)}"
+            f"items={len(item_ids)} mobs/groups={len(mob_ids)} maps={len(map_ids)}"
         )
         print(
             f"Checked references: items={checked_item_refs} mobs={checked_mob_refs} maps={checked_map_refs}"
@@ -279,7 +265,6 @@ def main() -> int:
             print(f"[REVIEW] {line}")
         for line in failures:
             print(f"[FAIL] {line}")
-
     return 1 if failures else 0
 
 
