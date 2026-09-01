@@ -22,8 +22,11 @@ jobs:
   stage:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    outputs:
+      known_hosts: ${{ steps.ssh.outputs.known_hosts }}
     steps:
       - name: Configure SSH
+        id: ssh
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
@@ -38,6 +41,11 @@ jobs:
             ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
           fi
           chmod 600 ~/.ssh/known_hosts
+          {
+            echo 'known_hosts<<EOF'
+            cat ~/.ssh/known_hosts
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Stage core v95.4 WZ files privately on Oracle
         run: |
@@ -61,9 +69,6 @@ jobs:
             Etc.wz
           )
 
-          # Tight lower bounds derived from the SourceForge v95.4 file listing.
-          # They are intentionally just below the published sizes so a truncated
-          # transfer cannot be accepted merely because it is "large".
           declare -A minimums=(
             [Character.wz]=6700000
             [Item.wz]=23000000
@@ -177,4 +182,6 @@ jobs:
   export:
     needs: stage
     uses: ./.github/workflows/export-gms-v95-donor.yml
+    with:
+      known_hosts: ${{ needs.stage.outputs.known_hosts }}
     secrets: inherit
