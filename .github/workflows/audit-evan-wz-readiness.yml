@@ -20,6 +20,10 @@ env:
   EVERLEAF_EVAN_ARCHIVE: /opt/everleaf/private/evan/Evan.zip
   EVERLEAF_EVAN_ARCHIVE_SIZE: "61860666"
   EVERLEAF_EVAN_ARCHIVE_SHA256: 961e0cbf826aca48efa619afec51fd12c2472a82e654e6e73542b5bf65a0e5ce
+  EVERLEAF_EVAN_SKILL_SHA256: 1f5dd8fc9bb2ae9d4afb6f59b961e0ebe318866908f5a2aa8ed7776ea342e25e
+  EVERLEAF_EVAN_CHARACTER_SHA256: fb20d0fdcc2749a205745e9fb39d06c4f4e6cfca52d0423d5c98da58574960c6
+  EVERLEAF_EVAN_UI_SHA256: 8d9ca13a79ac68ef799c3b6f7f11f07d3e0c9ec2e021614f7a5ba45b9cd8cd98
+  EVERLEAF_EVAN_STRING_SHA256: 75418d45153d8e6b4687f9c4ad0c2807470701f2a241102f1106552ede566d99
 
 jobs:
   readiness:
@@ -64,26 +68,58 @@ jobs:
           fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Audit production WZ and source-archive readiness
+      - name: Audit production Evan publication and source archive
         shell: bash
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "ARCHIVE='$EVERLEAF_EVAN_ARCHIVE' EXPECTED_SIZE='$EVERLEAF_EVAN_ARCHIVE_SIZE' EXPECTED_SHA='$EVERLEAF_EVAN_ARCHIVE_SHA256' bash -s" <<'REMOTE'
+            "ARCHIVE='$EVERLEAF_EVAN_ARCHIVE' EXPECTED_SIZE='$EVERLEAF_EVAN_ARCHIVE_SIZE' EXPECTED_SHA='$EVERLEAF_EVAN_ARCHIVE_SHA256' EXPECTED_SKILL='$EVERLEAF_EVAN_SKILL_SHA256' EXPECTED_CHARACTER='$EVERLEAF_EVAN_CHARACTER_SHA256' EXPECTED_UI='$EVERLEAF_EVAN_UI_SHA256' EXPECTED_STRING='$EVERLEAF_EVAN_STRING_SHA256' bash -s" <<'REMOTE'
           set -euo pipefail
-          echo '--- managed production WZ ---'
-          missing_base=0
-          for name in Skill.wz Character.wz UI.wz String.wz; do
-            if test -s "/opt/everleaf/patches/files/$name"; then
-              stat -c '%n %s bytes' "/opt/everleaf/patches/files/$name"
-            else
-              echo "MISSING production WZ: $name"
-              missing_base=1
-            fi
-          done
-          test "$missing_base" -eq 0
-          test -s /opt/everleaf/patches/managed-client-baseline.json
-          test -s /opt/everleaf/patches/manifest.json
+          patch_root=/opt/everleaf/patches
+          test -s "$patch_root/managed-client-baseline.json"
+          test -s "$patch_root/manifest.json"
+
+          echo '--- live Evan-patched WZ hashes ---'
+          check_wz() {
+            local name="$1" expected="$2" path="$patch_root/files/$1"
+            test -s "$path"
+            actual="$(sha256sum "$path" | awk '{print $1}')"
+            printf '%s %s\n' "$name" "$actual"
+            test "$actual" = "$expected" || {
+              echo "Live Evan WZ hash mismatch: $name expected=$expected actual=$actual" >&2
+              exit 1
+            }
+          }
+          check_wz Skill.wz "$EXPECTED_SKILL"
+          check_wz Character.wz "$EXPECTED_CHARACTER"
+          check_wz UI.wz "$EXPECTED_UI"
+          check_wz String.wz "$EXPECTED_STRING"
+          echo 'EVAN_LIVE_WZ_HASHES_MATCH=true'
+
+          python3 - "$patch_root/manifest.json" "$EXPECTED_SKILL" "$EXPECTED_CHARACTER" "$EXPECTED_UI" "$EXPECTED_STRING" <<'PY'
+          import json, sys
+          manifest = json.load(open(sys.argv[1]))
+          expected = {
+              'Skill.wz': sys.argv[2],
+              'Character.wz': sys.argv[3],
+              'UI.wz': sys.argv[4],
+              'String.wz': sys.argv[5],
+          }
+          files = manifest.get('files')
+          assert isinstance(files, list) and len(files) == 36, f"Expected 36 manifest files, got {len(files) if isinstance(files, list) else 'invalid'}"
+          by_path = {entry['path']: entry for entry in files}
+          for path, digest in expected.items():
+              assert path in by_path, f'Missing Evan WZ from manifest: {path}'
+              assert by_path[path].get('sha256') == digest, f'Manifest Evan hash mismatch: {path}'
+          print('EVAN_MANIFEST_HASHES_MATCH=true')
+          print('EVAN_MANIFEST_FILE_COUNT=36')
+          PY
+
+          marker=/opt/everleaf/private/evan-client-published.sha256
+          test -s "$marker"
+          published_source="$(awk 'NR==1 {print $1}' "$marker")"
+          test "$published_source" = "$EXPECTED_SHA"
+          echo 'EVAN_PUBLICATION_MARKER_MATCH=true'
 
           echo '--- authorized Evan XML source archive ---'
           archive_ready=0
@@ -131,4 +167,15 @@ jobs:
           else
             echo 'EVAN_SOURCE_ARCHIVE_READY=false'
           fi
+
+          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/tmp/everleaf-live-launcher-manifest.json
+          python3 - /tmp/everleaf-live-launcher-manifest.json "$EXPECTED_SKILL" "$EXPECTED_CHARACTER" "$EXPECTED_UI" "$EXPECTED_STRING" <<'PY'
+          import json, sys
+          manifest = json.load(open(sys.argv[1]))
+          expected = {'Skill.wz': sys.argv[2], 'Character.wz': sys.argv[3], 'UI.wz': sys.argv[4], 'String.wz': sys.argv[5]}
+          files = {entry['path']: entry for entry in manifest.get('files', [])}
+          for path, digest in expected.items():
+              assert files.get(path, {}).get('sha256') == digest, f'Launcher manifest mismatch: {path}'
+          print('EVAN_LAUNCHER_MANIFEST_HASHES_MATCH=true')
+          PY
           REMOTE
