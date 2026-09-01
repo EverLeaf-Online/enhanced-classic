@@ -40,7 +40,9 @@ def main() -> int:
                 c.sendPacket(PacketCreator.enableActions());
                 return false;
             }
-            long stackExpiration = !ItemConstants.isPermanentItem(itemId) ? expiration : -1L;
+            long stackExpiration = !ItemConstants.isPermanentItem(itemId)
+                    ? expiration
+                    : ItemConstants.isPet(itemId) ? Long.MAX_VALUE : -1L;
             List<Item> existing = inv.listById(itemId);
             if (!ItemConstants.isRechargeable(itemId) && petid == -1) {
 """
@@ -95,7 +97,7 @@ def main() -> int:
     final = TARGET.read_text(encoding="utf-8")
     required = (
         "if (slotMax <= 0)",
-        "long stackExpiration = !ItemConstants.isPermanentItem(itemId) ? expiration : -1L;",
+        "ItemConstants.isPet(itemId) ? Long.MAX_VALUE : -1L",
         "eItem.getExpiration() == stackExpiration",
         "item.getExpiration() == eItem.getExpiration()",
     )
@@ -107,6 +109,7 @@ def main() -> int:
 
     print("EverLeaf item stack integrity fixes: PASS")
     print("  timed stacks merge only with identical expirations")
+    print("  permanent item expiration normalization mirrors Item.setExpiration")
     print("  malformed zero/negative slotMax values fail closed")
     return 0
 
