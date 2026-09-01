@@ -22,6 +22,8 @@ env:
   EVERLEAF_DEPLOY_USER: ubuntu
   EVERLEAF_LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
   EVERLEAF_EVAN_ARCHIVE: /opt/everleaf/private/evan/Evan.zip
+  EVERLEAF_EVAN_ARCHIVE_SIZE: "61860666"
+  EVERLEAF_EVAN_ARCHIVE_SHA256: 961e0cbf826aca48efa619afec51fd12c2472a82e654e6e73542b5bf65a0e5ce
 
 jobs:
   patch-and-validate:
@@ -50,23 +52,34 @@ jobs:
           fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Verify authorized Evan archive and production baseline
+      - name: Verify exact authorized Evan archive and production baseline
         shell: bash
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "ARCHIVE='$EVERLEAF_EVAN_ARCHIVE' bash -s" <<'REMOTE'
+            "ARCHIVE='$EVERLEAF_EVAN_ARCHIVE' EXPECTED_SIZE='$EVERLEAF_EVAN_ARCHIVE_SIZE' EXPECTED_SHA='$EVERLEAF_EVAN_ARCHIVE_SHA256' bash -s" <<'REMOTE'
           set -euo pipefail
           test -s "$ARCHIVE" || { echo "Missing authorized Evan archive: $ARCHIVE" >&2; exit 1; }
+          actual_size="$(stat -c '%s' "$ARCHIVE")"
+          actual_sha="$(sha256sum "$ARCHIVE" | awk '{print $1}')"
+          test "$actual_size" = "$EXPECTED_SIZE" || {
+            echo "Evan archive size mismatch: $actual_size != $EXPECTED_SIZE" >&2
+            exit 1
+          }
+          test "$actual_sha" = "$EXPECTED_SHA" || {
+            echo "Evan archive SHA-256 mismatch: $actual_sha != $EXPECTED_SHA" >&2
+            exit 1
+          }
+          unzip -tq "$ARCHIVE" >/dev/null
           for name in Skill.wz Character.wz UI.wz String.wz; do
             test -s "/opt/everleaf/patches/files/$name" || { echo "Missing production baseline: $name" >&2; exit 1; }
           done
           test -s /opt/everleaf/patches/managed-client-baseline.json
           test -s /opt/everleaf/patches/manifest.json
-          echo 'Authorized Evan archive and production baseline are present.'
+          echo "Exact authorized Evan archive verified: size=$actual_size sha256=$actual_sha"
           REMOTE
 
-      - name: Retrieve Evan archive and current managed WZ files
+      - name: Retrieve and re-verify Evan archive and current managed WZ files
         shell: bash
         run: |
           set -euo pipefail
@@ -74,61 +87,44 @@ jobs:
           scp -i ~/.ssh/id_everleaf \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$EVERLEAF_EVAN_ARCHIVE" \
             evan-source.zip
-          test -s evan-source.zip
+          test "$(stat -c '%s' evan-source.zip)" = "$EVERLEAF_EVAN_ARCHIVE_SIZE"
+          printf '%s  evan-source.zip\n' "$EVERLEAF_EVAN_ARCHIVE_SHA256" | sha256sum --check --strict
+          unzip -tq evan-source.zip >/dev/null
           for name in Skill.wz Character.wz UI.wz String.wz; do
             scp -i ~/.ssh/id_everleaf \
               "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/$name" \
               "base/$name"
+            test -s "base/$name"
           done
           scp -i ~/.ssh/id_everleaf \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/managed-client-baseline.json" \
             managed-client-baseline.json
+          test -s managed-client-baseline.json
 
-      - name: Build pinned Evan XML donor builder and WZ patcher
+      - name: Reconstruct strictly validated donor WZs from Evan archive
         shell: bash
         run: |
           set -euo pipefail
-          git clone https://github.com/toyobayashi/libwz.git "$RUNNER_TEMP/libwz"
-          git -C "$RUNNER_TEMP/libwz" checkout "$EVERLEAF_LIBWZ_COMMIT"
-          git -C "$RUNNER_TEMP/libwz" submodule update --init --recursive
-          test "$(git -C "$RUNNER_TEMP/libwz" rev-parse HEAD)" = "$EVERLEAF_LIBWZ_COMMIT"
-
-          cmake -S client/tools/evan-xml-donor-builder -B "$RUNNER_TEMP/evan-xml-build" \
-            -DLIBWZ_SOURCE="$RUNNER_TEMP/libwz" \
-            -DCMAKE_BUILD_TYPE=Release
-          cmake --build "$RUNNER_TEMP/evan-xml-build" --config Release --parallel 2
-          test -x "$RUNNER_TEMP/evan-xml-build/everleaf-evan-xml-donor-builder"
-
-          cmake -S client/tools/evan-wz-patcher -B "$RUNNER_TEMP/evan-wz-build" \
-            -DLIBWZ_SOURCE="$RUNNER_TEMP/libwz" \
-            -DCMAKE_BUILD_TYPE=Release
-          cmake --build "$RUNNER_TEMP/evan-wz-build" --config Release --parallel 2
-          test -x "$RUNNER_TEMP/evan-wz-build/everleaf-evan-wz-patcher"
-
-      - name: Reconstruct verified donor WZs from Evan XML archive
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p evan-source donor
-          unzip -q evan-source.zip -d evan-source
-          evan_root="$(find evan-source -type d -name Evan -print -quit)"
-          if [ -z "$evan_root" ]; then
-            if [ -d evan-source/Skill ] && [ -d evan-source/Character ]; then
-              evan_root=evan-source
-            else
-              echo 'Evan archive does not contain the expected Evan/ XML tree.' >&2
-              exit 1
-            fi
-          fi
-
-          builder="$RUNNER_TEMP/evan-xml-build/everleaf-evan-xml-donor-builder"
-          "$builder" "$evan_root" donor
-          "$builder" --verify donor
+          chmod +x client/scripts/build-evan-donor-from-zip.sh
+          client/scripts/build-evan-donor-from-zip.sh evan-source.zip donor
+          rm -f evan-source.zip
           for name in Skill.wz Character.wz UI.wz String.wz; do
             test -s "donor/$name"
             sha256sum "donor/$name"
           done
-          rm -rf evan-source evan-source.zip
+
+      - name: Build pinned Evan WZ patcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          libwz="$RUNNER_TEMP/everleaf-libwz"
+          test -d "$libwz/.git"
+          test "$(git -C "$libwz" rev-parse HEAD)" = "$EVERLEAF_LIBWZ_COMMIT"
+          cmake -S client/tools/evan-wz-patcher -B "$RUNNER_TEMP/evan-wz-build" \
+            -DLIBWZ_SOURCE="$libwz" \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/evan-wz-build" --config Release --parallel 2
+          test -x "$RUNNER_TEMP/evan-wz-build/everleaf-evan-wz-patcher"
 
       - name: Patch Evan WZ nodes
         shell: bash
