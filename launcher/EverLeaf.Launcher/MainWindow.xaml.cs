@@ -25,9 +25,31 @@ public partial class MainWindow : Window
         Closed += (_, _) => _api.Dispose();
     }
 
+    private bool IsGameRunning()
+        => Process.GetProcessesByName("EverLeaf").Any(process => process.Id != Environment.ProcessId);
+
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         _launcherReady = false;
+
+        // .everleaf-launch is a transient one-time ticket. Older clients or an
+        // interrupted launch can leave it behind. It must never participate in
+        // launcher self-update or managed-file repair state.
+        if (!IsGameRunning())
+        {
+            try
+            {
+                LaunchTicket.CleanupStale(_gameDirectory);
+            }
+            catch (Exception ex)
+            {
+                ErrorText.Text = FriendlyError(ex);
+                PatchStatusText.Text = "Could not clear stale launch state";
+                SetBusy(false);
+                return;
+            }
+        }
+
         try
         {
             PatchStatusText.Text = "Checking for launcher updates…";
@@ -80,7 +102,7 @@ public partial class MainWindow : Window
 
         if (!gameExists) return;
 
-        if (Process.GetProcessesByName("EverLeaf").Any(process => process.Id != Environment.ProcessId))
+        if (IsGameRunning())
         {
             ErrorText.Text = "EverLeaf is currently running. Close the game before checking or repairing client files.";
             PatchStatusText.Text = "Close EverLeaf before repair";
@@ -176,6 +198,13 @@ public partial class MainWindow : Window
 
     private async Task RepairInternalAsync()
     {
+        if (IsGameRunning())
+            throw new IOException("EverLeaf is currently running. Close the game before checking or repairing client files.");
+
+        // Do this before PatchService creates probes/temp files. A stale launch
+        // ticket is session state and must not affect folder writability or repair.
+        LaunchTicket.CleanupStale(_gameDirectory);
+
         var progress = new Progress<(double Percent, string Status)>(value =>
         {
             PatchProgress.Value = Math.Clamp(value.Percent, 0, 100);
@@ -201,6 +230,8 @@ public partial class MainWindow : Window
         if (ex is UnauthorizedAccessException)
             return "EverLeaf could not update this folder. Close the game and make sure you have permission to write to the game directory.";
         if (ex is InsufficientDiskSpaceException)
+            return ex.Message;
+        if (ex is IOException && ex.Message.Contains("EverLeaf", StringComparison.OrdinalIgnoreCase))
             return ex.Message;
         if (ex is IOException)
             return "A game file is in use or could not be replaced. Close EverLeaf and try Repair again.";
