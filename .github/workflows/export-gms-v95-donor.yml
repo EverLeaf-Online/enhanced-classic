@@ -1,0 +1,127 @@
+name: Export GMS v95 donor XML
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  export:
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sshDir = Join-Path $HOME '.ssh'
+          New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          $keyPath = Join-Path $sshDir 'id_everleaf'
+          [IO.File]::WriteAllText($keyPath, ($env:SSH_PRIVATE_KEY -replace "`r", "") + "`n")
+          $knownHosts = Join-Path $sshDir 'known_hosts'
+          if ($env:SSH_KNOWN_HOSTS) {
+            [IO.File]::WriteAllText($knownHosts, ($env:SSH_KNOWN_HOSTS -replace "`r", "") + "`n")
+          } else {
+            ssh-keyscan -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Out-File -Encoding ascii $knownHosts
+          }
+
+      - name: Fetch staged raw v95 donor from Oracle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $keyPath = Join-Path $HOME '.ssh/id_everleaf'
+          ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" `
+            "cd /opt/everleaf/private/wz-donors && tar -czf /tmp/gms-v95-raw.tgz gms-v95-raw && sha256sum /tmp/gms-v95-raw.tgz"
+          scp -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/tmp/gms-v95-raw.tgz" "$env:RUNNER_TEMP/gms-v95-raw.tgz"
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/gms-v95" | Out-Null
+          tar -xzf "$env:RUNNER_TEMP/gms-v95-raw.tgz" -C "$env:RUNNER_TEMP/gms-v95"
+
+      - name: Build MapleLib exporter
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $toolDir = Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter'
+          New-Item -ItemType Directory -Force -Path $toolDir | Out-Null
+          Copy-Item 'tools/wz-donor/exporter/Program.cs' (Join-Path $toolDir 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net10.0-windows</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <EnableWindowsTargeting>true</EnableWindowsTargeting>
+            </PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="..\MapleLib\MapleLib.csproj" />
+            </ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $toolDir 'EverLeafWzExporter.csproj')
+          dotnet build (Join-Path $toolDir 'EverLeafWzExporter.csproj') -c Release
+
+      - name: Export v95 WZ files to private-server XML
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $inputDir = Join-Path $env:RUNNER_TEMP 'gms-v95/gms-v95-raw'
+          $outputDir = Join-Path $env:RUNNER_TEMP 'gms-v95-export'
+          $project = Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter/EverLeafWzExporter.csproj'
+          dotnet run --project $project -c Release --no-build -- `
+            $inputDir $outputDir `
+            Character.wz Item.wz Map.wz Mob.wz Npc.wz Quest.wz Reactor.wz Skill.wz
+
+      - name: Validate XML export
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'gms-v95-export'
+          $required = @('Character.wz','Item.wz','Map.wz','Mob.wz','Npc.wz','Quest.wz','Reactor.wz','Skill.wz')
+          foreach ($family in $required) {
+            $dir = Join-Path $root $family
+            if (-not (Test-Path $dir)) { throw "Missing exported family: $family" }
+            $count = (Get-ChildItem -Path $dir -Filter '*.xml' -Recurse -File | Measure-Object).Count
+            Write-Host "$family XML files: $count"
+            if ($count -eq 0) { throw "No XML emitted for $family" }
+          }
+          $total = (Get-ChildItem -Path $root -Filter '*.xml' -Recurse -File | Measure-Object).Count
+          Write-Host "Total XML files: $total"
+          if ($total -lt 1000) { throw "Export produced suspiciously few XML files: $total" }
+
+      - name: Package and return donor export to Oracle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'gms-v95-export'
+          $zip = Join-Path $env:RUNNER_TEMP 'gms-v95.zip'
+          Compress-Archive -Path (Join-Path $root '*') -DestinationPath $zip -CompressionLevel Optimal
+          Get-FileHash $zip -Algorithm SHA256
+          $keyPath = Join-Path $HOME '.ssh/id_everleaf'
+          scp -i $keyPath $zip "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/private/wz-donors/gms-v95.zip.part"
+          ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" `
+            "set -e; cd /opt/everleaf/private/wz-donors; unzip -t gms-v95.zip.part >/dev/null; mv gms-v95.zip.part gms-v95.zip; sha256sum gms-v95.zip; rm -f /tmp/gms-v95-raw.tgz"
+
+      - name: Upload export metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: gms-v95-export-metadata-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/MapleLib/WzExtract_Errors.txt
+          retention-days: 7
+          if-no-files-found: ignore
