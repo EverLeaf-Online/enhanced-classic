@@ -1,0 +1,69 @@
+name: Build Evan v84 Map package
+
+on:
+  push:
+    branches: [release-dev]
+    paths: ['.github/workflows/build-evan-v84-map-package.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MAPLELIB_COMMIT: 4970d339b2ab2bc00ffc33edfbf570e87053b822
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with: { ref: release-dev }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '10.0.x' }
+      - name: Fetch and compatibility-patch MapleLib
+        shell: pwsh
+        run: |
+          git clone --filter=blob:none https://github.com/lastbattle/MapleLib "$env:RUNNER_TEMP\MapleLib"
+          git -C "$env:RUNNER_TEMP\MapleLib" checkout $env:MAPLELIB_COMMIT
+          $f="$env:RUNNER_TEMP\MapleLib\MapleLib\WzLib\WzImageProperty.cs"
+          $s=Get-Content $f -Raw
+          $patched=[regex]::Replace($s,'else if\s*\(type == 0\)','else if (type == 0 || type == 1)',1)
+          if($patched -eq $s) { throw 'Legacy float patch target not found' }
+          Set-Content $f $patched -NoNewline
+      - name: Fetch v84 Evan map IMGs
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force package\maps | Out-Null
+          $ids=100030100,100030101,100030102,100030103,100030200,100030300,100030310,100030400
+          foreach($id in $ids){
+            curl.exe -fsSL --retry 2 --connect-timeout 15 --max-time 90 "https://maplestory.io/api/wz/export/GMS/84/Map/Map/Map1/$id.img?rawImage=true" -o "package\maps\$id.img"
+            if((Get-Item "package\maps\$id.img").Length -lt 64){ throw "Bad map IMG $id" }
+          }
+      - name: Parse maps lazily, export XML, and fetch dependencies
+        shell: pwsh
+        run: |
+          $p="$env:RUNNER_TEMP\EvanMapPackage"; New-Item -ItemType Directory -Force $p | Out-Null
+          @'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><EnableWindowsTargeting>true</EnableWindowsTargeting><ImplicitUsings>enable</ImplicitUsings></PropertyGroup><ItemGroup><ProjectReference Include="..\MapleLib\MapleLib\MapleLib.csproj" /></ItemGroup></Project>
+          '@ | Set-Content "$p\EvanMapPackage.csproj"
+          @'
+          using MapleLib.WzLib; using MapleLib.WzLib.Serializer; using MapleLib.WzLib.WzProperties; using System.Text.Json;
+          static class Program {
+            static readonly string[] Ids={"100030100","100030101","100030102","100030103","100030200","100030300","100030310","100030400"};
+            static readonly Dictionary<string,HashSet<string>> R=new(){{"Obj",new()},{"Tile",new()},{"Back",new()}};
+            static void Walk(WzImageProperty p){if(p is WzStringProperty s){if(p.Name=="oS"&&!string.IsNullOrWhiteSpace(s.Value))R["Obj"].Add(s.Value);if(p.Name=="tS"&&!string.IsNullOrWhiteSpace(s.Value))R["Tile"].Add(s.Value);if(p.Name=="bS"&&!string.IsNullOrWhiteSpace(s.Value))R["Back"].Add(s.Value);}if(p.WzProperties!=null)foreach(WzImageProperty c in p.WzProperties)Walk(c);}
+            static WzImage ParseLazy(byte[] b,string n){var d=new WzImgDeserializer(false);var i=d.WzImageFromIMGBytes(b,WzMapleVersion.BMS,n,false);i.ParseEverything=false;if(!i.ParseImage(true))throw new Exception("Could not parse "+n);if(i.WzProperties.Count==0)throw new Exception("Empty "+n);return i;}
+            static async Task<byte[]> Get(string t,string n){using var h=new HttpClient{Timeout=TimeSpan.FromSeconds(90)};return await h.GetByteArrayAsync($"https://maplestory.io/api/wz/export/GMS/84/Map/{t}/{Uri.EscapeDataString(n)}.img?rawImage=true");}
+            static async Task Main(string[] a){var root=Path.GetFullPath(a[0]);var maps=Path.Combine(root,"maps");var xd=Path.Combine(root,"server-xml");Directory.CreateDirectory(xd);var xs=new WzClassicXmlSerializer(2,LineBreak.Windows,false);foreach(var id in Ids){using var i=ParseLazy(File.ReadAllBytes(Path.Combine(maps,id+".img")),id+".img");foreach(var p in i.WzProperties)Walk(p);var xp=Path.Combine(xd,id+".img.xml");xs.SerializeImage(i,xp);var sz=new FileInfo(xp).Length;if(sz<1000)throw new Exception("XML too small "+id);Console.WriteLine($"MAP {id} xml={sz}");}var deps=R.ToDictionary(x=>x.Key,x=>x.Value.OrderBy(v=>v).ToArray());File.WriteAllText(Path.Combine(root,"dependencies.json"),JsonSerializer.Serialize(deps,new JsonSerializerOptions{WriteIndented=true}));Console.WriteLine(File.ReadAllText(Path.Combine(root,"dependencies.json")));foreach(var t in new[]{"Obj","Tile","Back"}){var dd=Path.Combine(root,"dependencies",t);Directory.CreateDirectory(dd);foreach(var n in deps[t]){var b=await Get(t,n);if(b.Length<64)throw new Exception("Bad dependency "+t+"/"+n);using var parsed=ParseLazy(b,n+".img");File.WriteAllBytes(Path.Combine(dd,n+".img"),b);Console.WriteLine($"DEP {t}/{n}.img bytes={b.Length} props={parsed.WzProperties.Count}");}}}
+          }
+          '@ | Set-Content "$p\Program.cs"
+          dotnet run --project "$p\EvanMapPackage.csproj" -c Release -- "${{ github.workspace }}\package"
+          Get-Content package\dependencies.json
+          Get-ChildItem package\server-xml | Select-Object Name,Length
+          if((Get-ChildItem package\server-xml -File).Count -ne 8){ throw 'Expected exactly 8 server map XML files' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evan-v84-map-package
+          path: package/
+          if-no-files-found: error
