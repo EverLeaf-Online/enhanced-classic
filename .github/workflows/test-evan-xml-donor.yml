@@ -34,5 +34,7 @@ jobs:
       - name: Build and round-trip synthetic Evan donor WZs
         shell: bash
         run: |
+          set -euo pipefail
           chmod +x client/scripts/test-evan-xml-donor-builder.sh
           client/scripts/test-evan-xml-donor-builder.sh
+          echo 'Final-head Evan XML donor round trip completed.'
