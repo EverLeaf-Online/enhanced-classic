@@ -1,0 +1,39 @@
+name: Fix Evan selector implementer
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/fix-evan-selector-implementer.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: client-dev
+          fetch-depth: 0
+      - name: Preserve legacy CRLF before validating generated patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/implement-evan-race-selector.yml')
+          text = p.read_text()
+          old = '''          git diff --check\n          grep -q 'EverLeafEvanRaceSelect::Apply' "$dir/Client.cpp"'''
+          new = '''          python3 - <<'PY2'\n          from pathlib import Path\n          for name in ('client/ezorsia/ezorsia/Client.cpp', 'client/ezorsia/ezorsia/ezorsia.vcxproj'):\n              p = Path(name)\n              b = p.read_bytes().replace(b'\\r\\n', b'\\n').replace(b'\\n', b'\\r\\n')\n              p.write_bytes(b)\n          PY2\n          git diff --check -- "$dir/EvanRaceSelectPatch.h" "$dir/EvanRaceSelectPatch.cpp" "$dir/ezorsia.vcxproj"\n          grep -q 'EverLeafEvanRaceSelect::Apply' "$dir/Client.cpp"'''
+          if old not in text:
+              raise SystemExit('expected validation block not found')
+          p.write_text(text.replace(old, new, 1))
+          PY
+          git diff --check
+          git config user.name 'Policy'
+          git config user.email '173628847+iampolicy@users.noreply.github.com'
+          git add .github/workflows/implement-evan-race-selector.yml
+          git commit -m 'fix(client): preserve line endings in Evan selector generation'
+          git push origin HEAD:client-dev
