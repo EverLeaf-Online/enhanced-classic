@@ -1,0 +1,221 @@
+name: Deploy Evan v84 Maps Production v2
+
+on:
+  push:
+    branches: [release-dev]
+    paths: ['.github/workflows/deploy-evan-v84-maps-production-v2.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-evan-v84-map-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+env:
+  PACKAGE_RUN_ID: '33561070740'
+  DONOR_RUN_ID: '33561502586'
+  LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_PUBLIC_HOST: everleafms.online
+
+jobs:
+  publish-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+          fetch-depth: 1
+
+      - name: Resolve server release SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SERVER_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: evan-v84-map-package
+          path: package
+          repository: iampolicy/enhanced-classic
+          run-id: ${{ env.PACKAGE_RUN_ID }}
+          github-token: ${{ github.token }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: evan-v84-donor-production
+          path: donor
+          repository: iampolicy/enhanced-classic
+          run-id: ${{ env.DONOR_RUN_ID }}
+          github-token: ${{ github.token }}
+
+      - name: Build validated WZ path patcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --recurse-submodules https://github.com/toyobayashi/libwz "$RUNNER_TEMP/libwz"
+          git -C "$RUNNER_TEMP/libwz" checkout "$LIBWZ_COMMIT"
+          git -C "$RUNNER_TEMP/libwz" submodule update --init --recursive
+          cmake -S client/tools/wz-path-patcher -B "$RUNNER_TEMP/wz-path-build" -DLIBWZ_SOURCE="$RUNNER_TEMP/libwz" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/wz-path-build" --config Release --parallel 2
+          test -x "$RUNNER_TEMP/wz-path-build/everleaf-wz-path-patcher"
+
+      - name: Generate exact Evan map patch spec
+        shell: bash
+        run: |
+          set -euo pipefail
+          for id in 100030100 100030101 100030102 100030103 100030200 100030300 100030310 100030400; do echo "image:Map/Map1/$id.img"; done > evan-map.spec
+          python3 - <<'PY' >> evan-map.spec
+          import json
+          d=json.load(open('package/dependencies.json'))
+          for kind in ('Obj','Tile','Back'):
+              for name in d.get(kind,[]):
+                  print(f'missing-image:{kind}/{name}.img')
+          PY
+          cat evan-map.spec
+
+      - name: Configure production SSH and fetch current Map.wz
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'test -s /opt/everleaf/patches/files/Map.wz && test -s /opt/everleaf/patches/manifest.json && systemctl is-active --quiet everleaf.service'
+          scp -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/Map.wz" Map-live.wz
+          sha256sum Map-live.wz
+
+      - name: Patch v83 Map.wz and verify inserted WZ paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/wz-path-build/everleaf-wz-path-patcher" Map-live.wz 83 donor/EvanMap-v84-donor.wz 84 evan-map.spec Map-patched.wz
+          test -s Map-patched.wz
+          PATCHED_SHA=$(sha256sum Map-patched.wz | awk '{print $1}')
+          echo "PATCHED_SHA=$PATCHED_SHA" >> "$GITHUB_ENV"
+          echo "$PATCHED_SHA  Map-patched.wz"
+
+      - name: Atomically publish Map.wz and launcher manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGE="/tmp/everleaf-evan-map-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$STAGE' && mkdir -p '$STAGE'"
+          scp -i ~/.ssh/id_everleaf Map-patched.wz "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$STAGE/Map.wz"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "STAGE='$STAGE' RELEASE_SHA='$SERVER_SHA' EXPECTED_SHA='$PATCHED_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          PATCH_ROOT=/opt/everleaf/patches
+          FILES="$PATCH_ROOT/files"
+          test -s "$STAGE/Map.wz"
+          test "$(sha256sum "$STAGE/Map.wz" | awk '{print $1}')" = "$EXPECTED_SHA"
+          cp "$FILES/Map.wz" "$STAGE/Map.wz.backup"
+          cp "$PATCH_ROOT/manifest.json" "$STAGE/manifest.json.backup"
+          rollback(){
+            echo 'Rolling back Evan Map.wz publish' >&2
+            sudo install -m 644 "$STAGE/Map.wz.backup" "$FILES/Map.wz"
+            sudo install -m 644 "$STAGE/manifest.json.backup" "$PATCH_ROOT/manifest.json"
+          }
+          trap rollback ERR
+
+          sudo install -m 644 "$STAGE/Map.wz" "$FILES/Map.wz.new"
+          sudo mv -f "$FILES/Map.wz.new" "$FILES/Map.wz"
+          cmp -s "$STAGE/Map.wz" "$FILES/Map.wz"
+          installed=$(sha256sum "$FILES/Map.wz" | awk '{print $1}')
+          test "$installed" = "$EXPECTED_SHA"
+
+          LAUNCHER_PATCH_ROOT="$PATCH_ROOT" \
+          LAUNCHER_BASELINE_PATH="$PATCH_ROOT/managed-client-baseline.json" \
+          LAUNCHER_MANIFEST_PATH="$STAGE/manifest.json" \
+          node /opt/everleaf/web/scripts/build-patch-manifest.js "$RELEASE_SHA"
+
+          EXPECTED_SHA="$EXPECTED_SHA" node - "$STAGE/manifest.json" <<'NODE'
+          const fs=require('fs');
+          const m=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          if(m.files.length!==36) throw new Error(`Expected 36 managed files, got ${m.files.length}`);
+          const row=m.files.find(x=>x.path==='Map.wz');
+          if(!row) throw new Error('Map.wz absent from manifest');
+          if(String(row.sha256).toLowerCase()!==process.env.EXPECTED_SHA.toLowerCase()) throw new Error(`Map.wz manifest hash mismatch ${row.sha256}`);
+          NODE
+
+          sudo install -m 644 "$STAGE/manifest.json" "$PATCH_ROOT/manifest.json.new"
+          sudo mv -f "$PATCH_ROOT/manifest.json.new" "$PATCH_ROOT/manifest.json"
+
+          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest > "$STAGE/live-manifest.json"
+          EXPECTED_SHA="$EXPECTED_SHA" node - "$STAGE/live-manifest.json" <<'NODE'
+          const fs=require('fs');
+          const m=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          const row=m.files.find(x=>x.path==='Map.wz');
+          if(!row || String(row.sha256).toLowerCase()!==process.env.EXPECTED_SHA.toLowerCase()) throw new Error('Local launcher manifest is not advertising patched Map.wz');
+          NODE
+          curl -fsSI --max-time 20 http://127.0.0.1:3000/patches/Map.wz >/dev/null
+          trap - ERR
+          echo "LIVE_MAP_SHA256=$EXPECTED_SHA"
+          REMOTE
+
+      - name: Verify public launcher manifest and Map.wz endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 30 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" -o public-manifest.json
+          EXPECTED_SHA="$PATCHED_SHA" python3 - <<'PY'
+          import json,os
+          m=json.load(open('public-manifest.json'))
+          row=next((x for x in m['files'] if x['path']=='Map.wz'),None)
+          assert row, 'Map.wz missing from public manifest'
+          assert row['sha256'].lower()==os.environ['EXPECTED_SHA'].lower(), (row['sha256'], os.environ['EXPECTED_SHA'])
+          print('PUBLIC_MAP_MANIFEST_OK',row['sha256'])
+          PY
+          curl -fsSI --max-time 30 "https://$EVERLEAF_PUBLIC_HOST/patches/Map.wz" >/dev/null
+
+      - name: Dispatch production game deployment
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run deploy-game-production.yml --repo "$GITHUB_REPOSITORY" --ref release-dev
+          sleep 5
+          for i in $(seq 1 30); do
+            rid=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow deploy-game-production.yml --branch release-dev --event workflow_dispatch --limit 10 --json databaseId,headSha --jq '.[] | select(.headSha==env.SERVER_SHA) | .databaseId' | head -1)
+            if [ -n "$rid" ]; then
+              echo "deploy_run_id=$rid" >> "$GITHUB_OUTPUT"
+              echo "Production deploy run: $rid"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'Could not resolve production deployment run id' >&2
+          exit 1
+
+      - name: Wait for production game deployment
+        shell: bash
+        run: gh run watch "${{ steps.deploy.outputs.deploy_run_id }}" --repo "$GITHUB_REPOSITORY" --exit-status
+
+      - name: Verify active production release has all Evan maps
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "EXPECTED_SHA='$PATCHED_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          systemctl is-active --quiet everleaf.service
+          ROOT=/opt/everleaf/current/wz/Map.wz/Map/Map1
+          for id in 100030100 100030101 100030102 100030103 100030200 100030300 100030310 100030400; do
+            test -s "$ROOT/$id.img.xml"
+          done
+          test "$(sha256sum /opt/everleaf/patches/files/Map.wz | awk '{print $1}')" = "$EXPECTED_SHA"
+          ss -lnt | grep -q ':8484 '
+          ss -lnt | grep -q ':7575 '
+          echo "EVAN_V84_MAPS_PRODUCTION_OK $EXPECTED_SHA"
+          REMOTE
