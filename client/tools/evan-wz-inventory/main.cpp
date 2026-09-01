@@ -1,6 +1,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include "wz/Properties/WzCanvasProperty.h"
+#include "wz/Properties/WzSubProperty.h"
 #include "wz/WzDirectory.h"
 #include "wz/WzFile.h"
 #include "wz/WzImage.h"
@@ -22,9 +24,17 @@ static bool Parse(wz::WzImage* image) {
 static void PrintChildren(const std::string& label, wz::WzImageProperty* prop) {
   std::cout << "### " << label << "\n";
   if (!prop) { std::cout << "MISSING\n"; return; }
-  auto* container = dynamic_cast<wz::IPropertyContainer*>(prop);
-  if (!container) { std::cout << "PRESENT type=" << static_cast<int>(prop->PropertyType()) << "\n"; return; }
-  for (auto* child : *container->WzProperties()) {
+  wz::WzPropertyCollection* children = nullptr;
+  if (prop->PropertyType() == wz::WzPropertyType::SubProperty) {
+    children = static_cast<wz::WzSubProperty*>(prop)->WzProperties();
+  } else if (prop->PropertyType() == wz::WzPropertyType::Canvas) {
+    children = static_cast<wz::WzCanvasProperty*>(prop)->WzProperties();
+  }
+  if (!children) {
+    std::cout << "PRESENT type=" << static_cast<int>(prop->PropertyType()) << "\n";
+    return;
+  }
+  for (auto* child : *children) {
     std::cout << "PROP " << child->Name() << " type=" << static_cast<int>(child->PropertyType()) << "\n";
   }
 }
