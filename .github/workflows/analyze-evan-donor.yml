@@ -1,0 +1,84 @@
+name: Analyze Evan donor archive
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - ".github/workflows/analyze-evan-donor.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Fetch donor archive
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/private/evan/Evan.zip" "$RUNNER_TEMP/Evan.zip"
+          unzip -t "$RUNNER_TEMP/Evan.zip" >/dev/null
+          sha256sum "$RUNNER_TEMP/Evan.zip"
+          unzip -l "$RUNNER_TEMP/Evan.zip" | sed -n '1,140p'
+
+      - name: Probe donor structure
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/evan-donor"
+          mkdir -p "$RUNNER_TEMP/evan-donor"
+          unzip -q "$RUNNER_TEMP/Evan.zip" -d "$RUNNER_TEMP/evan-donor"
+          echo '### top-level tree'
+          find "$RUNNER_TEMP/evan-donor" -maxdepth 4 -type f -printf '%P\t%s bytes\n' | sort | sed -n '1,180p'
+          echo '### extensions'
+          find "$RUNNER_TEMP/evan-donor" -type f | sed 's/.*\.//' | sort | uniq -c | sort -nr
+          echo '### representative XML roots/first lines'
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          import os
+          root=Path(os.environ['RUNNER_TEMP'])/'evan-donor'
+          picks=[]
+          for pattern in ('**/2001.img.xml','**/2217.img.xml','**/00002000.img.xml','**/Skill.img.xml','**/UIWindow.img.xml','**/Basic.img.xml'):
+              found=sorted(root.glob(pattern))
+              if found: picks.append(found[0])
+          for p in picks:
+              print(f'--- {p.relative_to(root)} ({p.stat().st_size} bytes) ---')
+              tree=ET.parse(p)
+              r=tree.getroot()
+              print('root', r.tag, dict(r.attrib))
+              print('children', [(c.tag, c.attrib.get('name')) for c in list(r)[:20]])
+              with p.open('r',encoding='utf-8-sig',errors='replace') as f:
+                  for i,line in zip(range(35),f): print(line.rstrip()[:500])
+          PY
+          echo '### non-XML payload samples'
+          find "$RUNNER_TEMP/evan-donor" -type f ! -name '*.xml' -printf '%P\t%s bytes\n' | sort | sed -n '1,100p'
+
+      - name: Upload extracted donor for follow-up jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: evan-donor-extracted-${{ github.sha }}
+          path: ${{ runner.temp }}/evan-donor/
+          retention-days: 7
+          if-no-files-found: error
