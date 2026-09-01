@@ -29,7 +29,13 @@ async function discord(path, options = {}) {
     }
     if (!response.ok) {
       const route = path.replace(/\d{10,}/g, ":id");
-      throw new Error(`discord_request_failed status=${response.status} method=${options.method || "GET"} route=${route}`);
+      let detail = "";
+      try {
+        const payload = await response.json();
+        if (payload?.code !== undefined) detail += ` code=${payload.code}`;
+        if (payload?.message) detail += ` message=${String(payload.message).replace(/\d{10,}/g, ":id")}`;
+      } catch {}
+      throw new Error(`discord_request_failed status=${response.status} method=${options.method || "GET"} route=${route}${detail}`);
     }
     return response.status === 204 ? null : response.json();
   }
@@ -42,6 +48,31 @@ function stable(value) {
   return value;
 }
 const same = (left, right) => JSON.stringify(stable(left)) === JSON.stringify(stable(right));
+
+function mergePermissionOverwrites(existing, desired) {
+  const merged = (existing || []).map((item) => ({ ...item }));
+  const index = new Map(merged.map((item, position) => [`${item.type}:${item.id}`, position]));
+  for (const wanted of desired || []) {
+    const key = `${wanted.type}:${wanted.id}`;
+    const position = index.get(key);
+    if (position === undefined) {
+      merged.push({ ...wanted });
+      index.set(key, merged.length - 1);
+      continue;
+    }
+    const current = merged[position];
+    const currentAllow = BigInt(current.allow || "0");
+    const currentDeny = BigInt(current.deny || "0");
+    const desiredAllow = BigInt(wanted.allow || "0");
+    const desiredDeny = BigInt(wanted.deny || "0");
+    merged[position] = {
+      ...current,
+      allow: ((currentAllow | desiredAllow) & ~desiredDeny).toString(),
+      deny: ((currentDeny | desiredDeny) & ~desiredAllow).toString(),
+    };
+  }
+  return merged;
+}
 
 function mergeForumTags(existing, desired) {
   const pending = new Map(desired.map((tag) => [tag.name, tag]));
@@ -60,7 +91,11 @@ async function ensureChannel(channels, spec) {
   let channel = channels.find((item) => item.name === spec.name);
   if (channel && channel.type !== spec.type) throw new Error(`Channel ${spec.name} exists as type ${channel.type}, expected ${spec.type}; refusing to create a duplicate.`);
   if (!channel) {
-    channel = await discord(`/guilds/${guildId}/channels`, { method: "POST", body: JSON.stringify(spec) });
+    try {
+      channel = await discord(`/guilds/${guildId}/channels`, { method: "POST", body: JSON.stringify(spec) });
+    } catch (error) {
+      throw new Error(`channel=${spec.name} ${error.message}`);
+    }
     channels.push(channel);
     return channel;
   }
@@ -70,7 +105,10 @@ async function ensureChannel(channels, spec) {
     const flags = (channel.flags || 0) | spec.flags;
     if (channel.flags !== flags) body.flags = flags;
   }
-  if (spec.permission_overwrites && !same(channel.permission_overwrites, spec.permission_overwrites)) body.permission_overwrites = spec.permission_overwrites;
+  if (spec.permission_overwrites) {
+    const permissions = mergePermissionOverwrites(channel.permission_overwrites || [], spec.permission_overwrites);
+    if (!same(channel.permission_overwrites || [], permissions)) body.permission_overwrites = permissions;
+  }
   if (spec.available_tags) {
     const tags = mergeForumTags(channel.available_tags || [], spec.available_tags);
     if (!same(channel.available_tags || [], tags)) body.available_tags = tags;
@@ -79,7 +117,13 @@ async function ensureChannel(channels, spec) {
     const actual = channel.default_reaction_emoji || {};
     if (actual.emoji_name !== spec.default_reaction_emoji.emoji_name || actual.emoji_id !== (spec.default_reaction_emoji.emoji_id || null)) body.default_reaction_emoji = spec.default_reaction_emoji;
   }
-  if (Object.keys(body).length) channel = await discord(`/channels/${channel.id}`, { method: "PATCH", body: JSON.stringify(body) });
+  if (Object.keys(body).length) {
+    try {
+      channel = await discord(`/channels/${channel.id}`, { method: "PATCH", body: JSON.stringify(body) });
+    } catch (error) {
+      throw new Error(`channel=${spec.name} ${error.message}`);
+    }
+  }
   return channel;
 }
 
@@ -133,6 +177,8 @@ async function cleanupLegacyStatusMessages(channelId, botId) {
   const suggestionsTags = ["Gameplay", "QoL", "Content", "Classes", "Economy", "Events", "Website / Launcher", "Discord", "Other"].map((name) => ({ name, moderated: false })).concat(["Under Review", "Planned", "Accepted", "Implemented", "Declined", "Considering"].map((name) => ({ name, moderated: true })));
   const bugTags = ["New"].map((name) => ({ name, moderated: false })).concat(["Investigating", "Confirmed", "Fix In Progress", "Fixed", "Cannot Reproduce"].map((name) => ({ name, moderated: true })), ["Map / NPC", "Quest", "Gameplay", "Mob / Boss", "Item / Drop", "Client / Launcher", "Server / Connection", "Rooted Content"].map((name) => ({ name, moderated: false })));
   const spec = (name, type, parent, topic, options = {}) => ({ name, type, parent_id: parent.id, topic, ...options });
+  const suggestionsTopic = "**EverLeaf Suggestions & Feedback**\nHave an idea that could improve EverLeaf? Search existing suggestions before creating a new post.\n\n**Please include:**\n**Suggestion:** What would you like changed or added?\n**Why:** What problem does it solve or improve?\n**Details:** Explain how you think it should work.\n**Impact:** Who or what would this affect?\nPlease submit **one main idea per post** so each suggestion can be discussed and evaluated separately.\nUse 👍 on suggestions you support rather than creating duplicates.\nSuggestions are considered feedback, not guarantees that a feature will be implemented.\n\n**— EverLeaf Team**";
+  const bugReportsTopic = "**EverLeaf Closed Beta Bug Reports**\nSearch existing reports and check #known-issues before posting.\nUse a short, descriptive title and include:\n**Expected:** What should happen\n**Actual:** What happened instead\n**Steps to Reproduce:** How we can reproduce the issue\n**Character:** Character name, if relevant\n**Channel:** CH1–CH20, if relevant\n**Map/NPC:** Name or ID, if known\n**Evidence:** Screenshot or video when possible\nPlease create **one post per bug** and avoid duplicate reports.";
   const specs = [
     spec("welcome", 0, categories.start, "Start here for the EverLeaf overview, next steps, and official links.", { permission_overwrites: readOnly }),
     spec("rules", 0, categories.start, "Community and game rules. Participation means accepting these rules.", { permission_overwrites: readOnly }),
@@ -143,9 +189,9 @@ async function cleanupLegacyStatusMessages(channelId, botId) {
     spec("general", 0, categories.community, "General EverLeaf community discussion.", { rate_limit_per_user: 2 }),
     spec("introductions", 0, categories.community, "Introduce yourself to the EverLeaf community."),
     spec("screenshots-and-media", 0, categories.community, "Share EverLeaf screenshots, clips, art, and community media."),
-    spec("suggestions", 15, categories.community, "EverLeaf suggestions and feedback. Search first, use one idea per post, and select the closest category tag.", { rate_limit_per_user: 300, available_tags: suggestionsTags, default_reaction_emoji: { emoji_name: "👍" }, flags: 16 }),
+    spec("suggestions", 15, categories.community, suggestionsTopic, { rate_limit_per_user: 300, available_tags: suggestionsTags, default_reaction_emoji: { emoji_name: "👍" }, flags: 16 }),
     spec("help-and-support", 0, categories.help, "Player help, launcher support, account guidance, and common troubleshooting.", { rate_limit_per_user: 3 }),
-    spec("bug-reports", 15, categories.help, "Closed beta bug reports. Search known issues and existing posts first. Include expected behavior, actual behavior, reproduction steps, character, CH1–CH20, map/NPC, and safe evidence.", { rate_limit_per_user: 300, available_tags: bugTags, default_reaction_emoji: { emoji_name: "👍" }, flags: 16 }),
+    spec("bug-reports", 15, categories.help, bugReportsTopic, { rate_limit_per_user: 300, available_tags: bugTags, default_reaction_emoji: { emoji_name: "👍" }, flags: 16 }),
     spec("class-help", 0, categories.help, "Build, skill, equipment, and class questions for MapleStory v83."),
     spec("events", 0, categories.events, "Official and community in-game event discussion."),
     spec("party-finder", 0, categories.events, "Find parties for bosses, quests, training, and party content.", { rate_limit_per_user: 3 }),
@@ -160,13 +206,13 @@ async function cleanupLegacyStatusMessages(channelId, botId) {
   const voice = [];
   for (const [position, name] of ["General", "Party 1", "Party 2", "Bossing", "AFK"].entries()) {
     const channel = await ensureChannel(channels, { name, type: 2, parent_id: categories.voice.id });
-    voice.push({ id: channel.id, position, parent_id: categories.voice.id });
+    voice.push({ id: channel.id, position });
   }
 
   const categoryOrder = [categories.start, categories.news, categories.community, categories.help, categories.guides, categories.events, categories.voice, categories.supporters, categories.staff];
   await discord(`/guilds/${guildId}/channels`, { method: "PATCH", body: JSON.stringify([
     ...categoryOrder.map((item, position) => ({ id: item.id, position })),
-    ...specs.map((item, position) => ({ id: managed.get(item.name).id, position, parent_id: item.parent_id })),
+    ...specs.map((item, position) => ({ id: managed.get(item.name).id, position })),
     ...voice,
   ]) });
 
@@ -183,7 +229,7 @@ async function cleanupLegacyStatusMessages(channelId, botId) {
   console.log("discord_existing_channels_deleted=0");
   console.log(`discord_legacy_status_messages_deleted=${cleaned}`);
   console.log(`discord_locked_legacy_channels_preserved=${lockedLegacyNames.size}`);
-  console.log("discord_locked_legacy_reason=explicit_everyone_manage_channels_and_manage_roles_denies");
+  console.log("discord_locked_legacy_reason=migrated_separately_preserving_existing_readonly_overwrites");
 })().catch((error) => {
   const safe = String(error.message).replace(/[A-Za-z0-9_-]{32,}/g, "[redacted]");
   console.error(`discord_reconcile_unlocked_scope_failed ${safe}`);
