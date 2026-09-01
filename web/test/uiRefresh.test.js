@@ -51,6 +51,15 @@ test("homepage uses a materially different EverLeaf Maple layout while preservin
   assert.match(home,/mapleJobsGrid/);
   assert.match(home,/mapleSpecialJobs/);
   for(const asset of ["warrior","magician","bowman","thief","pirate","cygnus","aran","evan"]) assert.match(home,new RegExp(`/assets/jobs/${asset}\\.svg`));
+  for(const asset of ["warrior","magician","bowman","thief","pirate"]) {
+    assert.match(home,new RegExp(`/assets/jobs/instructors/${asset}\\.png`));
+    assert.ok(fs.statSync(path.join(root,`public/assets/jobs/instructors/${asset}.png`)).size>500);
+  }
+  assert.match(home,/Dances with Balrog/);
+  assert.match(home,/Grendel the Really Old/);
+  assert.match(home,/Athena Pierce/);
+  assert.match(home,/Dark Lord/);
+  assert.match(home,/Kyrin/);
   for(const asset of ["launcher","trophy","journal","community","account"]) assert.match(home,new RegExp(`/assets/ui/${asset}\\.svg`));
 });
 
@@ -88,4 +97,6 @@ test("remaster styles cover public pages, authentication, CMS and mobile layouts
   assert.match(final,/\.rankingBoard/);
   assert.match(final,/\.characterCards/);
   assert.match(final,/\.mapleQuickIcon img/);
+  assert.match(final,/\.mapleJobPortrait/);
+  assert.match(final,/\.mapleJobBadge/);
 });
