@@ -39,7 +39,7 @@ test("footer exposes useful site navigation",()=>{
   assert.match(footer,/\/recover/);
 });
 
-test("homepage uses a materially different EverLeaf Maple layout while preserving local world art",()=>{
+test("homepage uses authentic local Adventurer art without legacy circular badge markup",()=>{
   assert.match(home,/everleaf-remaster\.svg/);
   assert.match(home,/homeV2Hero/);
   assert.match(home,/homeV2Status/);
@@ -50,11 +50,13 @@ test("homepage uses a materially different EverLeaf Maple layout while preservin
   assert.match(remaster,/hero-forest\.webp/);
   assert.match(home,/mapleJobsGrid/);
   assert.match(home,/mapleSpecialJobs/);
-  for(const asset of ["warrior","magician","bowman","thief","pirate","cygnus","aran","evan"]) assert.match(home,new RegExp(`/assets/jobs/${asset}\\.svg`));
+  for(const asset of ["cygnus","aran","evan"]) assert.match(home,new RegExp(`/assets/jobs/${asset}\\.svg`));
   for(const asset of ["warrior","magician","bowman","thief","pirate"]) {
     assert.match(home,new RegExp(`/assets/jobs/instructors/${asset}\\.png`));
     assert.ok(fs.statSync(path.join(root,`public/assets/jobs/instructors/${asset}.png`)).size>500);
+    assert.doesNotMatch(home,new RegExp(`/assets/jobs/${asset}\\.svg`));
   }
+  assert.doesNotMatch(home,/mapleJobBadge/);
   assert.match(home,/Dances with Balrog/);
   assert.match(home,/Grendel the Really Old/);
   assert.match(home,/Athena Pierce/);
@@ -98,5 +100,4 @@ test("remaster styles cover public pages, authentication, CMS and mobile layouts
   assert.match(final,/\.characterCards/);
   assert.match(final,/\.mapleQuickIcon img/);
   assert.match(final,/\.mapleJobPortrait/);
-  assert.match(final,/\.mapleJobBadge/);
 });
