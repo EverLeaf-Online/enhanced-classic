@@ -1,0 +1,123 @@
+name: Stage GMS v95 donor
+
+on:
+  push:
+    branches:
+      - wz/donor-pipeline-v1
+    paths:
+      - '.github/workflows/stage-gms-v95-donor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage core v95.4 WZ files privately on Oracle
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          umask 077
+          target=/opt/everleaf/private/wz-donors/gms-v95-raw
+          mkdir -p "$target"
+
+          files=(
+            Character.wz
+            Item.wz
+            Map.wz
+            Mob.wz
+            Npc.wz
+            Quest.wz
+            Reactor.wz
+            Skill.wz
+            String.wz
+            Etc.wz
+          )
+
+          base='https://sourceforge.net/projects/maplestoryv95/files/MapleStory'
+          for file in "${files[@]}"; do
+            dest="$target/$file"
+            part="$dest.part"
+            if [ -s "$dest" ]; then
+              echo "present: $file ($(stat -c%s "$dest") bytes)"
+              continue
+            fi
+            echo "fetching: $file"
+            rm -f "$part"
+            curl --fail --location --retry 5 --retry-delay 3 \
+              --user-agent 'EverLeaf-WZ-Donor/1.0' \
+              "$base/$file/download" \
+              --output "$part"
+            test -s "$part"
+            mv "$part" "$dest"
+          done
+
+          (
+            cd "$target"
+            sha256sum -- "${files[@]}" > SHA256SUMS
+            stat -c '%n\t%s' -- "${files[@]}" > SIZES.tsv
+          )
+
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('/opt/everleaf/private/wz-donors/gms-v95-raw')
+          minimums = {
+              'Character.wz': 6_000_000,
+              'Item.wz': 20_000_000,
+              'Map.wz': 700_000_000,
+              'Mob.wz': 600_000_000,
+              'Npc.wz': 50_000_000,
+              'Quest.wz': 10_000_000,
+              'Reactor.wz': 70_000_000,
+              'Skill.wz': 160_000_000,
+              'String.wz': 3_000_000,
+              'Etc.wz': 1_000_000,
+          }
+          bad=[]
+          for name, minimum in minimums.items():
+              p=root/name
+              size=p.stat().st_size if p.exists() else 0
+              print(f'{name}: {size} bytes')
+              if size < minimum:
+                  bad.append((name,size,minimum))
+          if bad:
+              raise SystemExit(f'v95 donor size validation failed: {bad}')
+          PY
+
+          printf '%s\n' \
+            'source=SourceForge MapleStory Files v.95' \
+            'version=GMS v95.4' \
+            'source_path=/MapleStory individual WZ files' \
+            'staged_at='"$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > "$target/PROVENANCE.txt"
+          REMOTE
+
+      - name: Verify staged donor metadata
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'cd /opt/everleaf/private/wz-donors/gms-v95-raw && cat PROVENANCE.txt && cat SIZES.tsv && cat SHA256SUMS'
