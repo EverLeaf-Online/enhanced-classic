@@ -1,4 +1,4 @@
-# Manual production deployment trigger: evan-dragon-fury-validation
+# Manual production deployment trigger: evan-magic-resistance
 name: Deploy EverLeaf Game Production
 
 on:
@@ -48,6 +48,7 @@ jobs:
           python3 tools/apply_evan_skill_data.py
           python3 tools/apply_evan_behavior_fixes.py
           python3 tools/apply_evan_dragon_fury_fixes.py
+          python3 tools/apply_evan_magic_resistance_fixes.py
           python3 tools/apply_evan_progression_fixes.py
           python3 tools/apply_equipment_requirement_fixes.py
           python3 tools/apply_item_stack_integrity_fixes.py
@@ -137,6 +138,7 @@ jobs:
           python3 tools/apply_evan_skill_data.py
           python3 tools/apply_evan_behavior_fixes.py
           python3 tools/apply_evan_dragon_fury_fixes.py
+          python3 tools/apply_evan_magic_resistance_fixes.py
           python3 tools/apply_evan_progression_fixes.py
           python3 tools/apply_equipment_requirement_fixes.py
           python3 tools/apply_item_stack_integrity_fixes.py
