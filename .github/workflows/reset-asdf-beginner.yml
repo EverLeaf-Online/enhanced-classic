@@ -1,0 +1,93 @@
+name: Reset asdf to Beginner
+
+on:
+  push:
+    branches: [release-dev]
+    paths: ['.github/workflows/reset-asdf-beginner.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-reset-asdf-beginner
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  HOST: 132.145.141.79
+  USER: ubuntu
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure production SSH
+        shell: bash
+        env:
+          KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          KNOWN: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$KNOWN" ]; then printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Reset asdf safely to fresh Beginner state
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          echo 'Before reset:'
+          sudo mysql --batch --skip-column-names cosmic -e "SELECT id,name,accountid,level,job,exp,map,spawnpoint FROM characters WHERE BINARY name='asdf';"
+          count=$(sudo mysql --batch --skip-column-names cosmic -e "SELECT COUNT(*) FROM characters WHERE BINARY name='asdf';")
+          test "$count" = "1"
+
+          sudo systemctl stop everleaf.service
+          trap 'sudo systemctl start everleaf.service' EXIT
+
+          sudo mysql cosmic <<'SQL'
+          START TRANSACTION;
+          SET @cid := (SELECT id FROM characters WHERE BINARY name='asdf' LIMIT 1);
+          SET @aid := (SELECT accountid FROM characters WHERE id=@cid);
+
+          UPDATE characters
+          SET level=1,
+              job=0,
+              exp=0,
+              gachaexp=0,
+              map=10000,
+              spawnpoint=0,
+              hpMpUsed=0,
+              fame=0,
+              party=-1,
+              messengerid=0,
+              messengerposition=4
+          WHERE id=@cid;
+
+          DELETE FROM skills WHERE characterid=@cid;
+          DELETE FROM skillmacros WHERE characterid=@cid;
+          DELETE FROM savedlocations WHERE characterid=@cid;
+          DELETE FROM trocklocations WHERE characterid=@cid;
+          UPDATE accounts SET loggedin=0 WHERE id=@aid;
+          COMMIT;
+          SQL
+
+          sudo systemctl start everleaf.service
+          trap - EXIT
+          sleep 4
+          systemctl is-active --quiet everleaf.service
+          ss -lnt | grep -q ':8484 '
+          ss -lnt | grep -q ':7575 '
+
+          echo 'After reset:'
+          sudo mysql --batch --skip-column-names cosmic -e "SELECT id,name,accountid,level,job,exp,map,spawnpoint FROM characters WHERE BINARY name='asdf';"
+          sudo mysql --batch --skip-column-names cosmic -e "SELECT CONCAT('remaining_skills=',COUNT(*)) FROM skills WHERE characterid=(SELECT id FROM characters WHERE BINARY name='asdf' LIMIT 1);"
+          sudo mysql --batch --skip-column-names cosmic -e "SELECT CONCAT('account_loggedin=',a.loggedin) FROM accounts a JOIN characters c ON c.accountid=a.id WHERE BINARY c.name='asdf';"
+          REMOTE
