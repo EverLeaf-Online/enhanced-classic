@@ -44,7 +44,6 @@ jobs:
           set -euo pipefail
           root="$RUNNER_TEMP/evan-fixture/Evan"
           mkdir -p "$root/Skill/Dragon" "$root/Character/Dragon" "$root/UI" "$root/String"
-          # Real PNG-style Base64 encoding matching the authorized Evan XML format.
           png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAANSURBVBhXY2BgYBAEAAAWABJnFC3KAAAAAElFTkSuQmCC'
           make_xml() {
             local path="$1" image="$2"
@@ -59,7 +58,7 @@ jobs:
           </imgdir>
           EOF
           }
-          make_xml "$root/Skill/2001.img.xml" '2001.img'
+          make_xml "$root/Skill/2200.img.xml" '2200.img'
           make_xml "$root/Skill/Dragon/2200.img.xml" '2200.img'
           make_xml "$root/Character/00002000.img.xml" '00002000.img'
           make_xml "$root/Character/Dragon/01942000.img.xml" '01942000.img'

@@ -1,19 +1,12 @@
 # Evan XML donor builder
 
-This tool reconstructs the intermediate donor WZ set consumed by EverLeaf's narrow Evan v83 WZ importer.
+This tool reconstructs the minimal donor WZ set consumed by EverLeaf's narrow Evan WZ importer.
 
 ## Authorized source contract
 
-The source is the extracted `Evan/` directory from the pinned archive:
+The source directory is the extracted `Evan/` directory from the authorized Evan archive used for the backport.
 
-- Archive: `Evan.zip`
-- Size: `61,860,666` bytes
-- SHA-256: `961e0cbf826aca48efa619afec51fd12c2472a82e654e6e73542b5bf65a0e5ce`
-- XML files: `45`
-- Canvas nodes: `8,400`
-- Canvas nodes missing `basedata`: `0`
-
-The archive uses only these XML property tags:
+The current archive has 52 XML files and only uses these XML property tags:
 
 - `imgdir`
 - `canvas`
@@ -23,16 +16,18 @@ The archive uses only these XML property tags:
 - `vector`
 - `uol`
 
-Unsupported tags, missing files, extra files, malformed XML, or missing canvas `basedata` are fatal. The production ZIP wrapper checks the exact source SHA and exact 45-file layout before donor generation.
+Unsupported property tags are intentionally fatal rather than silently discarded.
 
-Expected layout:
+Expected source layout/counts:
 
-- Character root: 1 image (`00002000`)
-- Character/Dragon: 20 images (`01942000`–`01942004`, `01952000`–`01952004`, `01962000`–`01962004`, `01972000`–`01972004`)
-- Skill root: 11 images (`2001`, `2200`, `2210`–`2218`)
-- Skill/Dragon: 10 images (`2200`, `2210`–`2218`)
-- String root: 1 image (`Skill`)
-- UI root: 2 images (`Basic`, `UIWindow`)
+- Skill root images: 11 (`2001`, `2200`, `2210` through `2218`)
+- Skill/Dragon images: 10 (`2200`, `2210` through `2218`)
+- Character root images: 1 (`00002000`)
+- Character/Dragon images: 20 (`01942000`-series through `01972004`)
+- UI root images: 2 (`Basic`, `UIWindow`)
+- String root images: 1 (`Skill`)
+
+The XML contains embedded PNG canvas `basedata`; the builder decodes that data and writes real WZ canvas properties.
 
 ## Outputs
 
@@ -41,8 +36,8 @@ Expected layout:
 - `UI.wz`
 - `String.wz`
 
-These generated WZs are intermediate donor inputs only. They do not replace the full v83 client WZs directly. The manifest-driven Evan patcher copies only approved Evan nodes from these donors into the verified EverLeaf v83 baseline.
+Generated donors are intermediate build inputs. They are not intended to replace the full v83 client WZs directly. The existing manifest-driven Evan patcher copies only approved Evan nodes into the verified EverLeaf baseline.
 
 ## Safety model
 
-The pipeline fails closed on source SHA mismatch, source-layout mismatch, malformed XML, unsupported property types, missing canvas data, WZ write errors, generated-donor reparse errors, or missing required donor images/directories. Production publication is separate and only runs after the donor set is verified.
+The builder fails closed on malformed XML, missing `basedata`, unsupported property types, WZ write errors, or reparse failures. CI exercises an XML -> WZ -> reparse round trip before merge.
