@@ -79,14 +79,24 @@ async function ensureCategory(channels, spec) {
   let category = channels.find((item) => item.type === 4 && item.name === spec.name);
   if (!category && spec.fallbackName) category = channels.find((item) => item.type === 4 && item.name === spec.fallbackName);
   if (!category) {
-    category = await discord(`/guilds/${guildId}/channels`, { method: "POST", body: JSON.stringify({ name: spec.name, type: 4, permission_overwrites: spec.permission_overwrites }) });
+    try {
+      category = await discord(`/guilds/${guildId}/channels`, { method: "POST", body: JSON.stringify({ name: spec.name, type: 4, permission_overwrites: spec.permission_overwrites }) });
+    } catch (error) {
+      throw new Error(`category=${spec.name} ${error.message}`);
+    }
     channels.push(category);
     return category;
   }
   const body = {};
   if (category.name !== spec.name) body.name = spec.name;
   if (spec.permission_overwrites && !same(category.permission_overwrites, spec.permission_overwrites)) body.permission_overwrites = spec.permission_overwrites;
-  if (Object.keys(body).length) category = await discord(`/channels/${category.id}`, { method: "PATCH", body: JSON.stringify(body) });
+  if (Object.keys(body).length) {
+    try {
+      category = await discord(`/channels/${category.id}`, { method: "PATCH", body: JSON.stringify(body) });
+    } catch (error) {
+      throw new Error(`category=${spec.name} ${error.message}`);
+    }
+  }
   return category;
 }
 
@@ -107,7 +117,11 @@ async function ensureChannel(channels, spec) {
   let created = false;
   if (channel && channel.type !== spec.type) throw new Error(`Channel ${spec.name} exists as type ${channel.type}, expected ${spec.type}; refusing to create a duplicate.`);
   if (!channel) {
-    channel = await discord(`/guilds/${guildId}/channels`, { method: "POST", body: JSON.stringify(spec) });
+    try {
+      channel = await discord(`/guilds/${guildId}/channels`, { method: "POST", body: JSON.stringify(spec) });
+    } catch (error) {
+      throw new Error(`channel=${spec.name} ${error.message}`);
+    }
     channels.push(channel);
     return { channel, created: true };
   }
@@ -130,7 +144,13 @@ async function ensureChannel(channels, spec) {
       body.default_reaction_emoji = spec.default_reaction_emoji;
     }
   }
-  if (Object.keys(body).length) channel = await discord(`/channels/${channel.id}`, { method: "PATCH", body: JSON.stringify(body) });
+  if (Object.keys(body).length) {
+    try {
+      channel = await discord(`/channels/${channel.id}`, { method: "PATCH", body: JSON.stringify(body) });
+    } catch (error) {
+      throw new Error(`channel=${spec.name} ${error.message}`);
+    }
+  }
   return { channel, created };
 }
 
@@ -201,7 +221,7 @@ let currentStep = "startup";
     news: await ensureCategory(channels, { name: "📢 NEWS & STATUS" }),
     community: await ensureCategory(channels, { name: "🌿 COMMUNITY", fallbackName: "Text Channels" }),
     help: await ensureCategory(channels, { name: "🛠 GAME HELP" }),
-    guides: await ensureCategory(channels, { name: "📚 CLASS GUIDES", fallbackName: "Wiki", permission_overwrites: readOnlyOverwrites }),
+    guides: await ensureCategory(channels, { name: "📚 CLASS GUIDES", fallbackName: "Wiki" }),
     events: await ensureCategory(channels, { name: "🎉 EVENTS & GROUPS" }),
     voice: await ensureCategory(channels, { name: "🔊 VOICE LOUNGES", fallbackName: "Voice Channels" }),
     supporters: await ensureCategory(channels, { name: "💚 SUPPORTERS", permission_overwrites: supporterOverwrites }),
