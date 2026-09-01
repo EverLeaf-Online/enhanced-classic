@@ -68,6 +68,10 @@ jobs:
             throw "Function-pointer address is still being tested as an HRESULT"
           }
 
+      - name: Verify Evan baseline integration script
+        shell: bash
+        run: bash -n client/scripts/apply-evan-wz-baseline.sh
+
       - name: Verify and package
         shell: pwsh
         run: |
@@ -160,6 +164,21 @@ jobs:
           scp -i ~/.ssh/id_everleaf \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/tmp/everleaf-client-overlays-$GITHUB_RUN_ID.zip" \
             release/EverleafClient-source-built.zip
+
+      - name: Retrieve authorized Evan donor WZs
+        if: inputs.publish_full_baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -m 700 evan-donor
+          for wz in Skill Character UI String; do
+            scp -i ~/.ssh/id_everleaf \
+              "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/private/evan-wz-donor/$wz.wz" \
+              "evan-donor/$wz.wz"
+            test -s "evan-donor/$wz.wz"
+          done
+          chmod 600 evan-donor/*.wz
+          echo 'Authorized Evan donor WZ set retrieved.'
 
       - name: Extract and validate patch payload
         shell: bash
@@ -274,6 +293,11 @@ jobs:
           PY
           cp "$cosmic_root"/*.wz full-client/
           rm -rf cosmic-extract
+
+          chmod +x client/scripts/apply-evan-wz-baseline.sh
+          client/scripts/apply-evan-wz-baseline.sh full-client evan-donor
+          rm -rf evan-donor
+
           cp -a runtime-payload/. full-client/
           python3 - <<'PY'
           import json
