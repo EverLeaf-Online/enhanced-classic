@@ -1,0 +1,56 @@
+name: Import special job artwork
+
+on:
+  push:
+    branches:
+      - web/authentic-special-job-art
+    paths:
+      - .github/workflows/import-special-job-art.yml
+
+permissions:
+  contents: write
+
+jobs:
+  import-art:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: web/authentic-special-job-art
+      - name: Download local class artwork
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p web/public/assets/jobs/special
+          curl -fL --retry 3 --retry-delay 2 -A 'Mozilla/5.0' \
+            'https://www.nicepng.com/downpng/u2e6q8q8y3q8y3u2_cygnus-knights-maplestory-knights-of-cygnus/' \
+            -o web/public/assets/jobs/special/cygnus.png
+          curl -fL --retry 3 --retry-delay 2 -A 'Mozilla/5.0' \
+            'https://www.nicepng.com/png/detail/905-9051338_photo-aran-male-zps353cda7f-aran-maplestory.png' \
+            -o web/public/assets/jobs/special/aran.png
+          curl -fL --retry 3 --retry-delay 2 -A 'Mozilla/5.0' \
+            'https://www.clipartmax.com/download/m2i8b1A0G6H7m2d3_cartoons-anime-evan-maplestory-heroes-of-maple/' \
+            -o web/public/assets/jobs/special/evan.png
+          python - <<'PY'
+          from pathlib import Path
+          sig = b'\x89PNG\r\n\x1a\n'
+          for name in ('cygnus','aran','evan'):
+              p = Path(f'web/public/assets/jobs/special/{name}.png')
+              data = p.read_bytes()
+              if not data.startswith(sig) or len(data) < 5000:
+                  raise SystemExit(f'{p} is not a valid PNG ({len(data)} bytes)')
+              print(name, len(data))
+          PY
+      - name: Commit imported assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add web/public/assets/jobs/special/*.png
+          if git diff --cached --quiet; then
+            echo 'Artwork already present.'
+            exit 0
+          fi
+          git commit -m 'assets(web): add Cygnus Aran Evan artwork'
+          git push origin HEAD:web/authentic-special-job-art
