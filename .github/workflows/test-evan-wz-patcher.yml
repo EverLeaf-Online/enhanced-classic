@@ -28,6 +28,7 @@ jobs:
           set -euo pipefail
           git clone https://github.com/toyobayashi/libwz.git "$RUNNER_TEMP/libwz"
           git -C "$RUNNER_TEMP/libwz" checkout 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+          git -C "$RUNNER_TEMP/libwz" submodule update --init --recursive
           test "$(git -C "$RUNNER_TEMP/libwz" rev-parse HEAD)" = "41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f"
 
       - name: Configure
