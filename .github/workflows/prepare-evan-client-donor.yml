@@ -22,6 +22,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
@@ -92,6 +93,20 @@ jobs:
               echo "Exact Evan source archive is not present at $remote; preparation skipped safely."
             fi
           fi
+
+      - name: Verify client workflow dispatch route
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run build-everleaf-client.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref client-dev \
+            -f publish_patch=false \
+            -f publish_full_baseline=false
+          echo 'Client workflow dry dispatch request accepted.'
 
       - name: Retrieve exact private Evan source archive
         if: steps.source.outputs.ready == 'true'
