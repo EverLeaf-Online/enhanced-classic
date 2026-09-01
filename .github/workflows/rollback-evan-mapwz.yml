@@ -1,0 +1,70 @@
+name: Rollback Evan Map.wz
+
+on:
+  push:
+    branches: [release-dev]
+    paths: ['.github/workflows/rollback-evan-mapwz.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HOST: 132.145.141.79
+  USER: ubuntu
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Configure SSH
+        shell: bash
+        env:
+          KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          KNOWN: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$KNOWN" ]; then printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Roll back to last launchable Map.wz and rebuild manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          ROOT=/opt/everleaf/patches
+          FILES="$ROOT/files"
+          # The dependency-repair workflow preserved the prior launchable Map.wz here.
+          CANDIDATE=/tmp/evan-deps-33564623965-1/old-Map.wz
+          test -s "$CANDIDATE"
+          OLD_SHA=$(sha256sum "$CANDIDATE" | cut -d' ' -f1)
+          test "$OLD_SHA" = "79a2908e9a09288ac79091f145fc33be07b619215ed9d1aab9181240ad909cdc"
+          sudo install -m 644 "$CANDIDATE" "$FILES/Map.wz"
+          test "$(sha256sum "$FILES/Map.wz" | cut -d' ' -f1)" = "$OLD_SHA"
+          STAGE=$(mktemp)
+          LAUNCHER_PATCH_ROOT="$ROOT" LAUNCHER_BASELINE_PATH="$ROOT/managed-client-baseline.json" LAUNCHER_MANIFEST_PATH="$STAGE" node /opt/everleaf/web/scripts/build-patch-manifest.js "rollback-${GITHUB_SHA:-manual}"
+          node - "$STAGE" "$OLD_SHA" <<'NODE'
+          const fs=require('fs'); const m=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          const r=m.files.find(x=>x.path==='Map.wz');
+          if(!r || String(r.sha256).toLowerCase()!==process.argv[3].toLowerCase()) throw Error('manifest Map.wz mismatch');
+          if(m.files.length!==36) throw Error('managed file count mismatch');
+          NODE
+          sudo install -m 644 "$STAGE" "$ROOT/manifest.json"
+          rm -f "$STAGE"
+          systemctl is-active --quiet everleaf.service
+          ss -lnt | grep -q ':8484 '
+          ss -lnt | grep -q ':7575 '
+          echo "MAP_WZ_ROLLBACK_OK $OLD_SHA"
+          REMOTE
+      - name: Verify public delivery
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 30 https://everleafms.online/v1/launcher/manifest >/dev/null
+          curl -fsSI --max-time 30 https://everleafms.online/patches/Map.wz >/dev/null
+          echo PUBLIC_ROLLBACK_OK
