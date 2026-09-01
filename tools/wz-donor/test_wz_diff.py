@@ -2,15 +2,16 @@
 from __future__ import annotations
 
 import importlib.util
-import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).with_name("wz_diff.py")
 SPEC = importlib.util.spec_from_file_location("wz_diff", MODULE_PATH)
-wz_diff = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
+wz_diff = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = wz_diff
 SPEC.loader.exec_module(wz_diff)
 
 
