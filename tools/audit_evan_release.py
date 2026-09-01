@@ -89,24 +89,28 @@ def main() -> int:
         "private synchronized void changeJob(Job newJob, boolean grantJobChangeSp)",
         "if (grantJobChangeSp)",
         "private boolean isEvanGrowthJob()",
+        "while (true)",
         "advanceEvanGrowthStage();\n        levelUpGainSp();",
         "changeJob(nextJob, false);",
-        "level == 10 && job == Job.EVAN",
-        "level == 20 && job == Job.EVAN1",
-        "level == 30 && job == Job.EVAN2",
-        "level == 40 && job == Job.EVAN3",
-        "level == 50 && job == Job.EVAN4",
-        "level == 60 && job == Job.EVAN5",
-        "level == 80 && job == Job.EVAN6",
-        "level == 100 && job == Job.EVAN7",
-        "level == 120 && job == Job.EVAN8",
-        "level == 160 && job == Job.EVAN9",
+        "level >= 10 && job == Job.EVAN",
+        "level >= 20 && job == Job.EVAN1",
+        "level >= 30 && job == Job.EVAN2",
+        "level >= 40 && job == Job.EVAN3",
+        "level >= 50 && job == Job.EVAN4",
+        "level >= 60 && job == Job.EVAN5",
+        "level >= 80 && job == Job.EVAN6",
+        "level >= 100 && job == Job.EVAN7",
+        "level >= 120 && job == Job.EVAN8",
+        "level >= 160 && job == Job.EVAN9",
+        "Your bond with Mir has deepened.",
         "job.isA(Job.BLAZEWIZARD1) || isEvanGrowthJob()",
     )
     forbid(
         "src/main/java/client/Character.java",
         "levelUpGainSp();\n        advanceEvanGrowthStage();",
         "changeJob(nextJob);",
+        "level == 10 && job == Job.EVAN",
+        "level == 160 && job == Job.EVAN9",
     )
 
     require(
@@ -137,6 +141,7 @@ def main() -> int:
         "tools/apply_evan_progression_fixes.py",
         "Evan automatic mastery skips generic job-change SP",
         "Evan mastery-before-SP ordering",
+        "catch-up safe",
     )
     require(
         ".github/workflows/run-build.yml",
@@ -155,7 +160,7 @@ def main() -> int:
 
     print("EverLeaf Evan release audit: PASS")
     print("  fresh Evan creation: selector 3 -> job 2001, level 1, Utah's attic")
-    print("  automatic mastery growth: 10/20/30/40/50/60/80/100/120/160")
+    print("  automatic mastery growth: catch-up safe at 10/20/30/40/50/60/80/100/120/160")
     print("  mastery SP: one normal level-up grant into newly unlocked book; no generic changeJob double grant")
     print("  job growth chain: 2001, 2200, 2210-2218")
     print("  Evan Skill.wz: 43/43 declared server skills")
