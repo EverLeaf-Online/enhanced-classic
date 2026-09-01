@@ -221,7 +221,7 @@ let currentStep = "startup";
     news: await ensureCategory(channels, { name: "📢 NEWS & STATUS" }),
     community: await ensureCategory(channels, { name: "🌿 COMMUNITY", fallbackName: "Text Channels" }),
     help: await ensureCategory(channels, { name: "🛠 GAME HELP" }),
-    guides: await ensureCategory(channels, { name: "📚 CLASS GUIDES", fallbackName: "Wiki" }),
+    guides: await ensureCategory(channels, { name: "📚 CLASS GUIDES" }),
     events: await ensureCategory(channels, { name: "🎉 EVENTS & GROUPS" }),
     voice: await ensureCategory(channels, { name: "🔊 VOICE LOUNGES", fallbackName: "Voice Channels" }),
     supporters: await ensureCategory(channels, { name: "💚 SUPPORTERS", permission_overwrites: supporterOverwrites }),
