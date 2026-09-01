@@ -10,14 +10,25 @@
 #include "wz/WzEnums.h"
 #include "wz/WzFile.h"
 #include "wz/WzImage.h"
+#include "wz/WzImageProperty.h"
 
 namespace fs = std::filesystem;
 
-struct Entry { bool onlyIfMissing; std::string path; };
+enum class EntryType { Image, Property };
+struct Entry { EntryType type; bool onlyIfMissing; std::string path; };
 
 static std::vector<std::string> Split(const std::string& s) {
     std::vector<std::string> out; std::stringstream ss(s); std::string part;
     while (std::getline(ss, part, '/')) if (!part.empty()) out.push_back(part);
+    return out;
+}
+
+static std::string Join(const std::vector<std::string>& parts, size_t begin, size_t end) {
+    std::string out;
+    for (size_t i = begin; i < end; ++i) {
+        if (!out.empty()) out += '/';
+        out += parts[i];
+    }
     return out;
 }
 
@@ -27,9 +38,14 @@ static bool ReadSpec(const fs::path& p, std::vector<Entry>& entries) {
         if (!line.empty() && line.back()=='\r') line.pop_back();
         auto first=line.find_first_not_of(" \t"); if(first==std::string::npos || line[first]=='#') continue;
         line.erase(0,first);
-        const std::string add="image:"; const std::string missing="missing-image:";
-        if(line.rfind(add,0)==0) entries.push_back({false,line.substr(add.size())});
-        else if(line.rfind(missing,0)==0) entries.push_back({true,line.substr(missing.size())});
+        const std::string image="image:";
+        const std::string missingImage="missing-image:";
+        const std::string property="property:";
+        const std::string missingProperty="missing-property:";
+        if(line.rfind(image,0)==0) entries.push_back({EntryType::Image,false,line.substr(image.size())});
+        else if(line.rfind(missingImage,0)==0) entries.push_back({EntryType::Image,true,line.substr(missingImage.size())});
+        else if(line.rfind(property,0)==0) entries.push_back({EntryType::Property,false,line.substr(property.size())});
+        else if(line.rfind(missingProperty,0)==0) entries.push_back({EntryType::Property,true,line.substr(missingProperty.size())});
         else { std::cerr << "Invalid spec: " << line << "\n"; return false; }
     }
     return !entries.empty();
@@ -58,6 +74,22 @@ static bool EnsureParsed(wz::WzImage* image, const std::string& label) {
     return true;
 }
 
+static bool ResolveImagePath(wz::WzDirectory* root, const std::vector<std::string>& parts,
+                             bool createDirs, wz::WzImage*& image, size_t& imageIndex) {
+    image = nullptr; imageIndex = 0;
+    for(size_t i=0;i<parts.size();++i) {
+        if(parts[i].size() >= 4 && parts[i].substr(parts[i].size()-4)==".img") {
+            std::vector<std::string> dirs(parts.begin(),parts.begin()+i);
+            auto* dir=ResolveDir(root,dirs,createDirs);
+            if(!dir) return false;
+            image=dir->GetImageByName(parts[i]);
+            imageIndex=i;
+            return image!=nullptr;
+        }
+    }
+    return false;
+}
+
 static bool CopyImage(wz::WzDirectory* baseRoot, wz::WzDirectory* donorRoot, const Entry& e) {
     auto parts=Split(e.path);
     if(parts.size()<2 || parts.back().find(".img")==std::string::npos) { std::cerr << "Bad image path " << e.path << "\n"; return false; }
@@ -82,11 +114,61 @@ static bool CopyImage(wz::WzDirectory* baseRoot, wz::WzDirectory* donorRoot, con
     return true;
 }
 
-static bool VerifyPath(wz::WzDirectory* root, const std::string& path) {
-    auto parts=Split(path); if(parts.size()<2) return false;
-    auto image=parts.back(); parts.pop_back();
-    auto* dir=ResolveDir(root,parts,false);
-    return dir && dir->GetImageByName(image);
+static wz::WzImageProperty* ResolveProperty(wz::WzImage* image, const std::vector<std::string>& parts,
+                                            size_t imageIndex, size_t endExclusive) {
+    if(endExclusive <= imageIndex + 1) return nullptr;
+    return image->GetFromPath(Join(parts,imageIndex+1,endExclusive));
+}
+
+static bool CopyProperty(wz::WzDirectory* baseRoot, wz::WzDirectory* donorRoot, const Entry& e) {
+    auto parts=Split(e.path);
+    wz::WzImage *baseImage=nullptr,*donorImage=nullptr; size_t baseIdx=0,donorIdx=0;
+    if(!ResolveImagePath(baseRoot,parts,false,baseImage,baseIdx)) { std::cerr << "Base image missing for property " << e.path << "\n"; return false; }
+    if(!ResolveImagePath(donorRoot,parts,false,donorImage,donorIdx)) { std::cerr << "Donor image missing for property " << e.path << "\n"; return false; }
+    if(baseIdx!=donorIdx || baseIdx+1>=parts.size()) { std::cerr << "Bad property path " << e.path << "\n"; return false; }
+    if(!EnsureParsed(baseImage,"base/"+Join(parts,0,baseIdx+1))) return false;
+    if(!EnsureParsed(donorImage,"donor/"+Join(parts,0,donorIdx+1))) return false;
+
+    auto* source=ResolveProperty(donorImage,parts,donorIdx,parts.size());
+    if(!source) { std::cerr << "Donor property missing " << e.path << "\n"; return false; }
+    auto* existing=ResolveProperty(baseImage,parts,baseIdx,parts.size());
+    if(existing && e.onlyIfMissing) { std::cout << "Property already present, preserved: " << e.path << "\n"; return true; }
+
+    wz::IPropertyContainer* donorParent = donorImage;
+    wz::IPropertyContainer* baseParent = baseImage;
+    if(parts.size() > donorIdx + 2) {
+        auto* dp=ResolveProperty(donorImage,parts,donorIdx,parts.size()-1);
+        auto* bp=ResolveProperty(baseImage,parts,baseIdx,parts.size()-1);
+        if(!dp || !bp) { std::cerr << "Property parent missing for " << e.path << "\n"; return false; }
+        donorParent=dynamic_cast<wz::IPropertyContainer*>(dp);
+        baseParent=dynamic_cast<wz::IPropertyContainer*>(bp);
+        if(!donorParent || !baseParent) { std::cerr << "Property parent is not a container for " << e.path << "\n"; return false; }
+    }
+
+    if(existing) {
+        auto removed=baseParent->RemoveProperty(existing);
+        if(!removed) { std::cerr << "Could not remove existing property " << e.path << ": " << removed.error().message() << "\n"; return false; }
+    }
+    auto moved=donorParent->RemoveProperty(source);
+    if(!moved) { std::cerr << "Could not detach donor property " << e.path << ": " << moved.error().message() << "\n"; return false; }
+    auto added=baseParent->AddProperty(std::move(moved.value()));
+    if(!added) { std::cerr << "Could not add property " << e.path << ": " << added.error().message() << "\n"; return false; }
+    baseImage->SetChanged(true);
+    std::cout << (existing?"Replaced property: ":"Added property: ") << e.path << "\n";
+    return true;
+}
+
+static bool VerifyEntry(wz::WzDirectory* root, const Entry& e) {
+    auto parts=Split(e.path);
+    if(e.type==EntryType::Image) {
+        if(parts.size()<2) return false;
+        auto image=parts.back(); parts.pop_back();
+        auto* dir=ResolveDir(root,parts,false);
+        return dir && dir->GetImageByName(image);
+    }
+    wz::WzImage* image=nullptr; size_t idx=0;
+    if(!ResolveImagePath(root,parts,false,image,idx) || !EnsureParsed(image,"verify/"+e.path)) return false;
+    return ResolveProperty(image,parts,idx,parts.size())!=nullptr;
 }
 
 int main(int argc,char** argv) {
@@ -101,13 +183,17 @@ int main(int argc,char** argv) {
     wz::WzFile donor(donorPath.string(),donorVer,wz::WzMapleVersion::GMS);
     if(base.ParseWzFile()!=wz::WzFileParseStatus::Success) { std::cerr << "Base parse failed\n"; return 4; }
     if(donor.ParseWzFile()!=wz::WzFileParseStatus::Success) { std::cerr << "Donor parse failed\n"; return 5; }
-    for(const auto& e:entries) if(!CopyImage(base.GetWzDirectory(),donor.GetWzDirectory(),e)) return 6;
+    for(const auto& e:entries) {
+        const bool ok = e.type==EntryType::Image ? CopyImage(base.GetWzDirectory(),donor.GetWzDirectory(),e)
+                                                 : CopyProperty(base.GetWzDirectory(),donor.GetWzDirectory(),e);
+        if(!ok) return 6;
+    }
     auto saved=base.SaveToDisk(outputPath.string(),false,wz::WzMapleVersion::GMS);
     if(!saved) { std::cerr << "Save failed: " << saved.error().message() << "\n"; return 7; }
     wz::WzFile verify(outputPath.string(),baseVer,wz::WzMapleVersion::GMS);
     if(verify.ParseWzFile()!=wz::WzFileParseStatus::Success) { std::cerr << "Output reparse failed\n"; return 8; }
     for(const auto& e:entries) {
-        if(!VerifyPath(verify.GetWzDirectory(),e.path)) { std::cerr << "Output missing " << e.path << "\n"; return 9; }
+        if(!VerifyEntry(verify.GetWzDirectory(),e)) { std::cerr << "Output missing " << e.path << "\n"; return 9; }
         std::cout << "Verified: " << e.path << "\n";
     }
     return 0;
