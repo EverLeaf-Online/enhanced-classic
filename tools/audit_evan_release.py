@@ -127,6 +127,9 @@ def main() -> int:
     require(
         "tools/apply_evan_behavior_fixes.py",
         "Evan Soul Stone death interception",
+        "Evan Soul Stone random WZ target cap",
+        "int additionalTargets = Math.max(0, y);",
+        "Collections.shuffle(affectedp);",
         "Evan Killer Wings target lock",
         "Evan Critical Magic damage-validation support",
     )
@@ -158,6 +161,7 @@ def main() -> int:
     print("  Evan Skill.wz: 43/43 declared server skills")
     print("  Evan HP/MP: magician-style level-up growth")
     print("  Magic Shield: WZ x-percent damage absorption consumed by TakeDamageHandler")
+    print("  Soul Stone: caster + random WZ y nearby party targets; one-use revive")
     print("  extended SP, dragon object/movement, charged Breath: wired")
     print("  Evan behavior + progression transforms: CI + production wired")
     return 0

@@ -6,8 +6,8 @@ Covers legacy Evan defects that otherwise compile cleanly:
 - Phantom Imprint must not fall through into Aran Combo.
 - Evan temporary-stat masks must occupy their v83/v88 third-mask slots without
   colliding with Elemental Reset or Wind Walk.
-- Soul Stone must register a temporary stat and revive the protected character
-  once on death.
+- Soul Stone must register a temporary stat, protect only the WZ-defined number
+  of party members, and revive a protected character once on death.
 - Killer Wings must reuse the existing Homing Beacon target-lock machinery.
 - Critical Magic must be recognized by damage validation so legitimate Evan
   critical casts are not treated as impossible damage.
@@ -62,6 +62,11 @@ def patch_stat_effect() -> None:
             """                case Outlaw.HOMING_BEACON:\n                case Corsair.BULLSEYE:\n                    statups.add(new Pair<>(BuffStat.HOMING_BEACON, x));\n""",
             """                case Outlaw.HOMING_BEACON:\n                case Corsair.BULLSEYE:\n                case Evan.KILLER_WINGS:\n                    statups.add(new Pair<>(BuffStat.HOMING_BEACON, x));\n""",
             "Evan Killer Wings homing temporary-stat registration",
+        ),
+        (
+            """            affectedc += affectedp.size();   // used for heal\n            for (Character affected : affectedp) {\n""",
+            """            if (sourceid == Evan.SOUL_STONE) {\n                int additionalTargets = Math.max(0, y);\n                if (affectedp.size() > additionalTargets) {\n                    Collections.shuffle(affectedp);\n                    affectedp = new ArrayList<>(affectedp.subList(0, additionalTargets));\n                }\n            }\n\n            affectedc += affectedp.size();   // used for heal\n            for (Character affected : affectedp) {\n""",
+            "Evan Soul Stone random WZ target cap",
         ),
     )
 
