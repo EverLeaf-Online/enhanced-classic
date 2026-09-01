@@ -8,6 +8,7 @@ on:
       - ".github/workflows/publish-evan-wz-assets.yml"
       - "client/evan-wz/**"
       - "client/tools/evan-wz-patcher/**"
+      - "client/tools/evan-xml-donor-builder/**"
   workflow_dispatch:
 
 permissions:
@@ -16,7 +17,7 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
-  EVERLEAF_EVAN_DONOR_DIR: /opt/everleaf/private-assets/evan-wz-donor
+  EVERLEAF_EVAN_ARCHIVE: /opt/everleaf/private/evan/Evan.zip
 
 jobs:
   readiness:
@@ -35,6 +36,8 @@ jobs:
               'client/evan-wz/String.copy.txt',
               'client/tools/evan-wz-patcher/CMakeLists.txt',
               'client/tools/evan-wz-patcher/main.cpp',
+              'client/tools/evan-xml-donor-builder/CMakeLists.txt',
+              'client/tools/evan-xml-donor-builder/main.cpp',
               '.github/workflows/publish-evan-wz-assets.yml',
           ]
           for path in required:
@@ -59,12 +62,12 @@ jobs:
           fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Audit production WZ and donor readiness
+      - name: Audit production WZ and source-archive readiness
         shell: bash
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "DONOR='$EVERLEAF_EVAN_DONOR_DIR' bash -s" <<'REMOTE'
+            "ARCHIVE='$EVERLEAF_EVAN_ARCHIVE' bash -s" <<'REMOTE'
           set -euo pipefail
           echo '--- managed production WZ ---'
           missing_base=0
@@ -80,25 +83,16 @@ jobs:
           test -s /opt/everleaf/patches/managed-client-baseline.json
           test -s /opt/everleaf/patches/manifest.json
 
-          echo '--- authorized Evan donor ---'
-          donor_ready=1
-          if ! test -d "$DONOR"; then
-            donor_ready=0
-            echo "DONOR_DIRECTORY_MISSING=$DONOR"
+          echo '--- authorized Evan XML source archive ---'
+          if test -s "$ARCHIVE"; then
+            stat -c '%n %s bytes' "$ARCHIVE"
+            echo 'EVAN_SOURCE_ARCHIVE_READY=true'
+            if command -v unzip >/dev/null 2>&1; then
+              unzip -tq "$ARCHIVE" >/dev/null
+              echo 'EVAN_SOURCE_ARCHIVE_ZIP_VALID=true'
+            fi
           else
-            for name in Skill.wz Character.wz UI.wz String.wz; do
-              if test -s "$DONOR/$name"; then
-                stat -c '%n %s bytes' "$DONOR/$name"
-              else
-                echo "DONOR_FILE_MISSING=$DONOR/$name"
-                donor_ready=0
-              fi
-            done
-          fi
-
-          if test "$donor_ready" -eq 1; then
-            echo 'EVAN_WZ_DONOR_READY=true'
-          else
-            echo 'EVAN_WZ_DONOR_READY=false'
+            echo "EVAN_SOURCE_ARCHIVE_MISSING=$ARCHIVE"
+            echo 'EVAN_SOURCE_ARCHIVE_READY=false'
           fi
           REMOTE
