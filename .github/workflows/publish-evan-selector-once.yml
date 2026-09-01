@@ -25,8 +25,8 @@ jobs:
           echo "Waiting for validation build of $TARGET_SHA"
           for attempt in $(seq 1 90); do
             run_json="$(gh api "repos/$REPO/actions/runs?head_sha=$TARGET_SHA&per_page=20")"
-            conclusion="$(printf '%s' "$run_json" | jq -r '[.workflow_runs[] | select(.name=="Build Everleaf v83 client")][0].conclusion // "")"
-            status="$(printf '%s' "$run_json" | jq -r '[.workflow_runs[] | select(.name=="Build Everleaf v83 client")][0].status // "missing")"
+            conclusion="$(printf '%s' "$run_json" | jq -r '.workflow_runs | map(select(.name == "Build Everleaf v83 client")) | .[0].conclusion // ""')"
+            status="$(printf '%s' "$run_json" | jq -r '.workflow_runs | map(select(.name == "Build Everleaf v83 client")) | .[0].status // "missing"')"
             echo "validation status=$status conclusion=${conclusion:-pending}"
             if [ "$conclusion" = success ]; then
               gh workflow run build-everleaf-client.yml \
