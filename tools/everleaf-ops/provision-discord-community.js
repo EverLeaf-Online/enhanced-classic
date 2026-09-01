@@ -30,8 +30,8 @@ async function discord(path, options = {}) {
       continue;
     }
     if (!response.ok) {
-      const detail = (await response.text()).replace(/[A-Za-z0-9_-]{40,}/g, "[redacted]").slice(0, 300);
-      throw new Error(`Discord API returned ${response.status} for ${options.method || "GET"} ${path}: ${detail}`);
+      const route = path.replace(/\d{10,}/g, ":id");
+      throw new Error(`discord_request_failed status=${response.status} method=${options.method || "GET"} route=${route}`);
     }
     return response.status === 204 ? null : response.json();
   }
@@ -138,8 +138,10 @@ async function cleanupLegacyStatusMessages(channelId, botId) {
 }
 
 const channelSpec = (name, type, parent, topic, options = {}) => ({ name, type, parent_id: parent.id, topic, ...options });
+let currentStep = "startup";
 
 (async () => {
+  currentStep = "load_bot_and_roles";
   const bot = await discord("/users/@me");
   const member = await discord(`/guilds/${guildId}/members/${bot.id}`);
   const roles = await discord(`/guilds/${guildId}/roles`);
@@ -150,9 +152,11 @@ const channelSpec = (name, type, parent, topic, options = {}) => ({ name, type, 
   const required = P.MANAGE_CHANNELS | P.VIEW_CHANNEL | P.SEND_MESSAGES | P.READ_MESSAGE_HISTORY | P.MANAGE_ROLES;
   if ((botPermissions & required) !== required) throw new Error("Bot is missing required limited permissions.");
 
+  currentStep = "ensure_staff_roles";
   const moderator = await ensureRole(roles, { name: "Moderator", color: 0x4aa3df, permissions: moderatorPermissions.toString(), hoist: true, mentionable: false });
   const gameMaster = await ensureRole(roles, { name: "Game Master", color: 0x2f9b43, permissions: gmPermissions.toString(), hoist: true, mentionable: false });
   const betaTester = await ensureRole(roles, { name: "Closed Beta Tester", color: 0xa4c639, permissions: "0", hoist: false, mentionable: false });
+  currentStep = "reorder_roles";
   await discord(`/guilds/${guildId}/roles`, { method: "PATCH", body: JSON.stringify([
     { id: gameMaster.id, position: 4 }, { id: moderator.id, position: 3 },
     { id: supporter.id, position: 2 }, { id: betaTester.id, position: 1 },
@@ -167,11 +171,13 @@ const channelSpec = (name, type, parent, topic, options = {}) => ({ name, type, 
     allow(botRole.id), allow(moderator.id), allow(gameMaster.id),
   ];
 
+  currentStep = "guild_safety_settings";
   if ((botPermissions & P.MANAGE_GUILD) !== 0n) {
     await discord(`/guilds/${guildId}`, { method: "PATCH", body: JSON.stringify({ verification_level: 1, default_message_notifications: 1, explicit_content_filter: 2 }) });
     console.log("discord_guild_safety_settings=updated");
   } else console.log("discord_guild_safety_settings=skipped_missing_manage_guild");
 
+  currentStep = "ensure_categories";
   const channels = await discord(`/guilds/${guildId}/channels`);
   const categories = {
     start: await ensureCategory(channels, { name: "🍃 START HERE" }),
@@ -216,6 +222,7 @@ const channelSpec = (name, type, parent, topic, options = {}) => ({ name, type, 
     channelSpec("staff-logs", 0, categories.staff, "Private operational and moderation notes.", { permission_overwrites: staffOverwrites }),
   ];
 
+  currentStep = "ensure_channels";
   const managed = new Map();
   for (const spec of specs) managed.set(spec.name, (await ensureChannel(channels, spec)).channel);
   const voice = [];
@@ -224,12 +231,14 @@ const channelSpec = (name, type, parent, topic, options = {}) => ({ name, type, 
     voice.push({ id: channel.id, position, parent_id: categories.voice.id });
   }
   const categoryOrder = [categories.start, categories.news, categories.community, categories.help, categories.guides, categories.events, categories.voice, categories.supporters, categories.staff];
+  currentStep = "reorder_channels";
   await discord(`/guilds/${guildId}/channels`, { method: "PATCH", body: JSON.stringify([
     ...categoryOrder.map((category, position) => ({ id: category.id, position })),
     ...specs.map((spec, position) => ({ id: managed.get(spec.name).id, position, parent_id: spec.parent_id })),
     ...voice,
   ]) });
 
+  currentStep = "update_official_messages";
   await ensureBotMessage(managed.get("welcome").id, bot.id, "# Welcome to EverLeaf", "# Welcome to EverLeaf\nEnhanced Classic MapleStory v83 with quality-of-life improvements, long-term progression, and no pay-to-win.\n\n1. Read #rules.\n2. Get the game and launcher from #downloads-and-links.\n3. Create and link your account on the website.\n4. Check #known-issues before reporting a problem.\n5. Use the matching help, suggestion, party, or class channel so answers stay easy to find.");
   await ensureBotMessage(managed.get("rules").id, bot.id, "# EverLeaf Community Rules", "# EverLeaf Community Rules\n1. Be respectful; harassment, hate speech, threats, and targeted abuse are not allowed.\n2. No cheating, exploiting, botting, real-money trading, or malicious files.\n3. Keep credentials private. Staff will never ask for your password.\n4. Use the appropriate channel and avoid spam, duplicate posts, and disruptive advertising.\n5. Report exploits privately to staff; never publish reproduction instructions.\n6. Follow staff direction and the website Terms of Service.");
   await ensureBotMessage(managed.get("downloads-and-links").id, bot.id, "# Official EverLeaf Links", "# Official EverLeaf Links\nWebsite: https://everleafms.online\nDownloads and launcher: https://everleafms.online/downloads\nAccount and Discord linking: https://everleafms.online/account\nVote and rewards: https://everleafms.online/vote\n\nOnly use files and links published through the official website, launcher, or this channel.");
@@ -239,6 +248,7 @@ const channelSpec = (name, type, parent, topic, options = {}) => ({ name, type, 
   await ensureBotMessage(managed.get("help-and-support").id, bot.id, "# Getting Help", "# Getting Help\nFor account or launcher help, describe the problem and any safe error message. For reproducible defects, use #bug-reports. For build and skill questions, use #class-help. Never post passwords, tokens, private account data, or sensitive logs.");
   await ensureBotMessage(managed.get("class-overview").id, bot.id, "# EverLeaf Class Guides", "# EverLeaf Class Guides\nUse the class channels for authoritative availability, progression, skill, equipment, and balance information. Discussion and personal build questions belong in #class-help.");
 
+  currentStep = "cleanup_legacy_status_messages";
   const cleanedStatusMessages = await cleanupLegacyStatusMessages(managed.get("server-status").id, bot.id);
 
   console.log("discord_reconcile=ok");
@@ -247,4 +257,7 @@ const channelSpec = (name, type, parent, topic, options = {}) => ({ name, type, 
   console.log(`discord_voice_channels_ready=${voice.length}`);
   console.log("discord_existing_channels_deleted=0");
   console.log(`discord_legacy_status_messages_deleted=${cleanedStatusMessages}`);
-})().catch((error) => { console.error(error.message); process.exitCode = 1; });
+})().catch((error) => {
+  console.error(`discord_reconcile_failed step=${currentStep} ${error.message}`);
+  process.exitCode = 1;
+});
