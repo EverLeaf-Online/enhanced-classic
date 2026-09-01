@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "baseline": {
+    "id": "everleaf-v83",
+    "region": "GMS",
+    "version": "83",
+    "path": "wz",
+    "role": "canonical-baseline"
+  },
+  "donors": [
+    {
+      "id": "gms-v95",
+      "region": "GMS",
+      "version": "95",
+      "priority": 1,
+      "status": "planned",
+      "role": "closest-newer-donor",
+      "notes": "First target for controlled backports. Prefer maps, mobs, NPCs, items, equipment and reactors before packet-dependent systems."
+    },
+    {
+      "id": "gms-v117",
+      "region": "GMS",
+      "version": "117.2",
+      "priority": 2,
+      "status": "planned",
+      "role": "expanded-content-donor"
+    },
+    {
+      "id": "tms-v120",
+      "region": "TMS",
+      "version": "120",
+      "priority": 3,
+      "status": "planned",
+      "role": "alternate-expanded-content-donor",
+      "notes": "Treat String.wz localization separately from structural/game assets."
+    },
+    {
+      "id": "gms-v167",
+      "region": "GMS",
+      "version": "167",
+      "priority": 4,
+      "status": "planned",
+      "role": "modern-map-asset-donor"
+    },
+    {
+      "id": "gms-v213",
+      "region": "GMS",
+      "version": "213.2",
+      "priority": 5,
+      "status": "planned",
+      "role": "modern-content-library"
+    },
+    {
+      "id": "current",
+      "region": "GMS",
+      "version": "current",
+      "priority": 6,
+      "status": "selective-only",
+      "role": "individual-modern-content-donor",
+      "notes": "Never wholesale-replace the v83 baseline. Extract individual content and normalize it first."
+    }
+  ]
+}
