@@ -1,0 +1,197 @@
+name: Publish EverLeaf Evan WZ assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      donor_version:
+        description: GMS donor WZ version containing the Evan backport assets
+        required: true
+        default: "84"
+        type: string
+      publish:
+        description: Publish the validated patched WZ files to the launcher patch root
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+  EVERLEAF_EVAN_DONOR_DIR: /opt/everleaf/private-assets/evan-wz-donor
+
+jobs:
+  patch-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: client-dev
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY" || { echo 'EVERLEAF_SSH_PRIVATE_KEY is not configured.' >&2; exit 1; }
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Verify authorized donor and production baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "DONOR='$EVERLEAF_EVAN_DONOR_DIR' bash -s" <<'REMOTE'
+          set -euo pipefail
+          test -d "$DONOR"
+          for name in Skill.wz Character.wz UI.wz String.wz; do
+            test -s "$DONOR/$name" || { echo "Missing authorized Evan donor: $DONOR/$name" >&2; exit 1; }
+            test -s "/opt/everleaf/patches/files/$name" || { echo "Missing production baseline: $name" >&2; exit 1; }
+          done
+          test -s /opt/everleaf/patches/managed-client-baseline.json
+          test -s /opt/everleaf/patches/manifest.json
+          echo 'Authorized Evan donor and production baseline are present.'
+          REMOTE
+
+      - name: Retrieve donor and current managed WZ files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p donor base patched
+          for name in Skill.wz Character.wz UI.wz String.wz; do
+            scp -i ~/.ssh/id_everleaf \
+              "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$EVERLEAF_EVAN_DONOR_DIR/$name" \
+              "donor/$name"
+            scp -i ~/.ssh/id_everleaf \
+              "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/$name" \
+              "base/$name"
+          done
+          scp -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/managed-client-baseline.json" \
+            managed-client-baseline.json
+
+      - name: Build pinned Evan WZ patcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone https://github.com/toyobayashi/libwz.git "$RUNNER_TEMP/libwz"
+          git -C "$RUNNER_TEMP/libwz" checkout "$EVERLEAF_LIBWZ_COMMIT"
+          git -C "$RUNNER_TEMP/libwz" submodule update --init --recursive
+          test "$(git -C "$RUNNER_TEMP/libwz" rev-parse HEAD)" = "$EVERLEAF_LIBWZ_COMMIT"
+          cmake -S client/tools/evan-wz-patcher -B "$RUNNER_TEMP/evan-wz-build" \
+            -DLIBWZ_SOURCE="$RUNNER_TEMP/libwz" \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/evan-wz-build" --config Release --parallel 2
+          test -x "$RUNNER_TEMP/evan-wz-build/everleaf-evan-wz-patcher"
+
+      - name: Patch Evan WZ nodes
+        shell: bash
+        run: |
+          set -euo pipefail
+          patcher="$RUNNER_TEMP/evan-wz-build/everleaf-evan-wz-patcher"
+          donor_version='${{ inputs.donor_version }}'
+          [[ "$donor_version" =~ ^[0-9]+$ ]] || { echo 'donor_version must be numeric' >&2; exit 1; }
+
+          "$patcher" base/Skill.wz 83 donor/Skill.wz "$donor_version" client/evan-wz/Skill.copy.txt patched/Skill.wz
+          "$patcher" base/Character.wz 83 donor/Character.wz "$donor_version" client/evan-wz/Character.copy.txt patched/Character.wz
+          "$patcher" base/UI.wz 83 donor/UI.wz "$donor_version" client/evan-wz/UI.copy.txt patched/UI.wz
+          "$patcher" base/String.wz 83 donor/String.wz "$donor_version" client/evan-wz/String.copy.txt patched/String.wz
+
+          for name in Skill.wz Character.wz UI.wz String.wz; do
+            test -s "patched/$name"
+            test "$(sha256sum "base/$name" | cut -d' ' -f1)" != "$(sha256sum "patched/$name" | cut -d' ' -f1)" \
+              || { echo "Patched $name is unchanged" >&2; exit 1; }
+          done
+
+      - name: Verify managed-file membership
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+
+          baseline = json.loads(Path('managed-client-baseline.json').read_text())
+          managed = {entry['path'].lower(): entry for entry in baseline['managedFiles']}
+          for name in ('Skill.wz', 'Character.wz', 'UI.wz', 'String.wz'):
+              entry = managed.get(name.lower())
+              assert entry, f'{name} is not managed by the launcher baseline'
+              assert entry.get('redistributable') is True, f'{name} is not approved for managed distribution'
+              path = Path('patched') / name
+              assert path.stat().st_size > 0, f'{name} output is empty'
+          assert len(baseline['managedFiles']) == 36, 'Managed baseline count changed unexpectedly'
+          print('Evan WZ managed-file validation: PASS')
+
+      - name: Publish patched WZ files atomically
+        if: inputs.publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          stamp="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          tar -czf evan-wz-patched.tar.gz -C patched Skill.wz Character.wz UI.wz String.wz
+          scp -i ~/.ssh/id_everleaf evan-wz-patched.tar.gz web/scripts/build-patch-manifest.js \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/tmp/"
+
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "STAMP='$stamp' bash -s" <<'REMOTE'
+          set -euo pipefail
+          live=/opt/everleaf/patches
+          stage="/opt/everleaf/evan-wz-stage-$STAMP"
+          backup="/opt/everleaf/evan-wz-backup-$STAMP"
+          trap 'rm -rf "$stage"' EXIT
+
+          test -d "$live/files"
+          test -s "$live/managed-client-baseline.json"
+          mkdir -p "$stage/files" "$backup"
+          cp -a "$live/files"/. "$stage/files/"
+          cp -a "$live/managed-client-baseline.json" "$stage/managed-client-baseline.json"
+          cp -a "$live/manifest.json" "$backup/manifest.json"
+          for name in Skill.wz Character.wz UI.wz String.wz; do
+            cp -a "$live/files/$name" "$backup/$name"
+          done
+
+          tar -xzf /tmp/evan-wz-patched.tar.gz -C "$stage/files"
+          LAUNCHER_PATCH_ROOT="$stage" \
+            LAUNCHER_BASELINE_PATH="$stage/managed-client-baseline.json" \
+            LAUNCHER_MANIFEST_PATH="$stage/manifest.json" \
+            node /tmp/build-patch-manifest.js
+
+          python3 - "$stage/manifest.json" "$stage/managed-client-baseline.json" <<'PY'
+          import json, sys
+          manifest=json.load(open(sys.argv[1]))
+          baseline=json.load(open(sys.argv[2]))
+          assert len(manifest['files']) == len(baseline['managedFiles']) == 36
+          names={entry['path'].lower() for entry in manifest['files']}
+          for name in ('skill.wz','character.wz','ui.wz','string.wz'):
+              assert name in names, f'Manifest missing {name}'
+          print('Patched production manifest validation: PASS')
+          PY
+
+          for name in Skill.wz Character.wz UI.wz String.wz; do
+            install -m 644 "$stage/files/$name" "$live/files/$name"
+          done
+          install -m 644 "$stage/manifest.json" "$live/manifest.json"
+          sudo systemctl restart everleaf-web
+          sleep 2
+          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
+          printf '%s\n' "$STAMP" > /opt/everleaf/.evan-wz-release
+          rm -f /tmp/evan-wz-patched.tar.gz /tmp/build-patch-manifest.js
+          echo "EverLeaf Evan WZ assets published: $STAMP"
+          REMOTE
+
+      - name: Print hashes
+        shell: bash
+        run: |
+          sha256sum patched/Skill.wz patched/Character.wz patched/UI.wz patched/String.wz
