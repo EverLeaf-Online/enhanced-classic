@@ -1,0 +1,78 @@
+name: EverLeafOSRS Oracle Inventory
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/everleafosrs-oracle-inventory.yml'
+
+concurrency:
+  group: everleafosrs-oracle-inventory
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY" || { echo 'EVERLEAF_SSH_PRIVATE_KEY is not configured.' >&2; exit 1; }
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'echo EverLeaf production SSH OK'
+
+      - name: Read-only Oracle inventory for OSRS placement
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          echo '=== host ==='
+          uname -a
+          echo '=== architecture ==='
+          uname -m
+          echo '=== cpu ==='
+          nproc
+          echo '=== memory ==='
+          free -h
+          echo '=== disk ==='
+          df -h /
+          echo '=== java ==='
+          java -version 2>&1 || true
+          echo '=== active EverLeaf and infrastructure services ==='
+          systemctl --no-pager --type=service --state=running | grep -Ei 'everleaf|mysql|mariadb|nginx' || true
+          echo '=== relevant listeners ==='
+          sudo ss -lntp | grep -E ':(80|443|43594|7575|7576|7577|8484)\b' || true
+          echo '=== existing EverLeaf footprint ==='
+          sudo du -sh /opt/everleaf 2>/dev/null || true
+          echo '=== OSRS target path ==='
+          sudo test -e /opt/everleafosrs && sudo ls -ld /opt/everleafosrs || echo '/opt/everleafosrs not present'
+          echo '=== VM GitHub access to EverleafOSRS ==='
+          if GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new' git ls-remote git@github.com:iampolicy/EverleafOSRS.git HEAD >/dev/null 2>&1; then
+            echo 'VM GitHub SSH access: yes'
+          else
+            echo 'VM GitHub SSH access: no'
+          fi
+          REMOTE
