@@ -71,7 +71,7 @@ jobs:
 
           publisher = Path('.github/workflows/publish-evan-wz-assets.yml').read_text()
           required = [
-              'EVERLEAF_EVAN_DONOR_DIR: /opt/everleaf/private-assets/evan-wz-donor',
+              'EVERLEAF_EVAN_DONOR_DIR: /opt/everleaf/private/evan-wz-donor',
               'Verify authorized donor and production baseline',
               'client/evan-wz/Skill.copy.txt',
               'client/evan-wz/Character.copy.txt',

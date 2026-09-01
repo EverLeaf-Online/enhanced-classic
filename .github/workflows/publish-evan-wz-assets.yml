@@ -21,7 +21,7 @@ env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
   EVERLEAF_LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
-  EVERLEAF_EVAN_DONOR_DIR: /opt/everleaf/private-assets/evan-wz-donor
+  EVERLEAF_EVAN_DONOR_DIR: /opt/everleaf/private/evan-wz-donor
 
 jobs:
   patch-and-validate:
