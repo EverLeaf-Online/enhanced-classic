@@ -1,0 +1,52 @@
+name: Analyze v83 race selector focused
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/analyze-v83-raceselect-focused.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 335d4fbb74e713a01f63163c39c941865401d24a
+          sparse-checkout: Localhosts.zip
+          sparse-checkout-cone-mode: false
+      - run: python3 -m pip install --user pefile capstone
+      - name: Disassemble CLogin race selector region
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "096e21e155ca1a06a3132a6ad6f7feda5cd986928f415bab15a3b67fee412527  Localhosts.zip" | sha256sum --check
+          mkdir source
+          unzip -q Localhosts.zip -d source
+          cp source/Localhost.exe v83.exe
+          python3 - <<'PY'
+          from pathlib import Path
+          import pefile
+          from capstone import Cs, CS_ARCH_X86, CS_MODE_32
+
+          data=Path('v83.exe').read_bytes(); pe=pefile.PE('v83.exe'); base=pe.OPTIONAL_HEADER.ImageBase
+          md=Cs(CS_ARCH_X86,CS_MODE_32)
+          start_va=0x005F4C00
+          end_va=0x005F5920
+          start_off=pe.get_offset_from_rva(start_va-base)
+          end_off=pe.get_offset_from_rva(end_va-base)
+          blob=data[start_off:end_off]
+          for ins in md.disasm(blob,start_va):
+              marker=''
+              raw=bytes(ins.bytes)
+              # Highlight race field +0x214 and obvious small constants/buttons.
+              if b'\x14\x02\x00\x00' in raw:
+                  marker='  <<< RACE FIELD'
+              elif ins.mnemonic in ('cmp','mov','push') and any(f' {x}' in ins.op_str or ins.op_str.endswith(str(x)) for x in (0,1,2,3,4,5,6,7,8,9,10,11,12)):
+                  marker='  *'
+              print(f'{ins.address:08X}: {raw.hex(" "):<30} {ins.mnemonic:<7} {ins.op_str}{marker}')
+          PY
