@@ -33,7 +33,6 @@ if(NOT MSVC)
 endif()
 
 add_executable(everleaf-evan-xml-donor-builder main.cpp)
-target_precompile_headers(everleaf-evan-xml-donor-builder PRIVATE <algorithm> <array>)
 if(MSVC)
   target_compile_options(everleaf-evan-xml-donor-builder PRIVATE /EHsc)
 else()
