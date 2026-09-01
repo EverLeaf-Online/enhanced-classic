@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 2,
+  "baseline": {
+    "id": "everleaf-v83",
+    "region": "GMS",
+    "version": "83",
+    "path": "wz",
+    "role": "canonical-baseline"
+  },
+  "donors": [
+    {
+      "id": "gms-v95",
+      "region": "GMS",
+      "version": "95.4",
+      "priority": 1,
+      "status": "source-verified",
+      "role": "closest-newer-donor",
+      "source": {
+        "type": "public-archive-index",
+        "url": "https://sourceforge.net/projects/maplestoryv95/files/MapleStory/",
+        "verified": "2026-09-01",
+        "notes": "Archive visibly lists individual Character/Item/Map/Mob/Npc/Quest/Reactor/Skill/String/Etc WZ files for v95.4. Keep raw archives outside git."
+      },
+      "tooling": [
+        "https://github.com/iw2d/HaSuite",
+        "https://github.com/iw2d/kinoko"
+      ],
+      "notes": "First target for controlled backports. Prefer maps, mobs, NPCs, items, equipment and reactors before packet-dependent systems."
+    },
+    {
+      "id": "gms-v117",
+      "region": "GMS",
+      "version": "117.2",
+      "priority": 2,
+      "status": "research-verified",
+      "role": "expanded-content-donor"
+    },
+    {
+      "id": "tms-v120",
+      "region": "TMS",
+      "version": "120",
+      "priority": 3,
+      "status": "source-verified",
+      "role": "alternate-expanded-content-donor",
+      "source": {
+        "type": "public-archive-index",
+        "url": "https://github.com/MapleStoryUnity/wzData",
+        "verified": "2026-09-01",
+        "notes": "Repository README indexes a downloadable TMS v120 WZ archive."
+      },
+      "notes": "Treat String.wz localization separately from structural/game assets."
+    },
+    {
+      "id": "gms-v167",
+      "region": "GMS",
+      "version": "167",
+      "priority": 4,
+      "status": "research-verified",
+      "role": "modern-map-asset-donor"
+    },
+    {
+      "id": "gms-v213",
+      "region": "GMS",
+      "version": "213.2",
+      "priority": 5,
+      "status": "research-verified",
+      "role": "modern-content-library"
+    },
+    {
+      "id": "current",
+      "region": "GMS",
+      "version": "current",
+      "priority": 6,
+      "status": "selective-only",
+      "role": "individual-modern-content-donor",
+      "notes": "Never wholesale-replace the v83 baseline. Extract individual content and normalize it first."
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+name: Analyze WZ donor
+
+on:
+  workflow_dispatch:
+    inputs:
+      donor_id:
+        description: Donor identifier under /opt/everleaf/private/wz-donors
+        required: true
+        type: choice
+        options:
+          - gms-v95
+          - gms-v117
+          - tms-v120
+          - gms-v167
+          - gms-v213
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Fetch private donor export
+        env:
+          DONOR_ID: ${{ inputs.donor_id }}
+        run: |
+          set -euo pipefail
+          case "$DONOR_ID" in
+            gms-v95|gms-v117|tms-v120|gms-v167|gms-v213) ;;
+            *) echo "unsupported donor id: $DONOR_ID" >&2; exit 2 ;;
+          esac
+          remote="/opt/everleaf/private/wz-donors/${DONOR_ID}.zip"
+          scp -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$remote" "$RUNNER_TEMP/donor.zip"
+          unzip -t "$RUNNER_TEMP/donor.zip" >/dev/null
+          sha256sum "$RUNNER_TEMP/donor.zip"
+
+      - name: Extract and locate WZ XML root
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/donor"
+          unzip -q "$RUNNER_TEMP/donor.zip" -d "$RUNNER_TEMP/donor"
+          python3 - <<'PY' > "$RUNNER_TEMP/donor-root.txt"
+          from pathlib import Path
+          import os
+          root = Path(os.environ['RUNNER_TEMP']) / 'donor'
+          candidates = [root, *[p for p in root.rglob('*') if p.is_dir()]]
+          required = {'Map.wz', 'Mob.wz', 'Npc.wz'}
+          matches = []
+          for candidate in candidates:
+              children = {p.name for p in candidate.iterdir()} if candidate.exists() else set()
+              score = len(children & {'Character.wz','Item.wz','Map.wz','Mob.wz','Npc.wz','Quest.wz','Reactor.wz','Skill.wz'})
+              if required <= children:
+                  matches.append((score, len(candidate.parts), candidate))
+          if not matches:
+              raise SystemExit('could not locate a donor XML root containing Map.wz, Mob.wz, and Npc.wz')
+          matches.sort(key=lambda row: (-row[0], row[1], str(row[2])))
+          print(matches[0][2])
+          PY
+          echo "Donor root: $(cat "$RUNNER_TEMP/donor-root.txt")"
+
+      - name: Compare against EverLeaf v83
+        env:
+          DONOR_ID: ${{ inputs.donor_id }}
+        run: |
+          set -euo pipefail
+          donor_root="$(cat "$RUNNER_TEMP/donor-root.txt")"
+          python3 tools/wz-donor/wz_diff.py \
+            --baseline wz \
+            --donor "$donor_root" \
+            --donor-id "$DONOR_ID" \
+            --output "$RUNNER_TEMP/wz-donor-diff.json"
+
+      - name: Build disabled import manifest
+        run: |
+          python3 tools/wz-donor/build_import_manifest.py \
+            "$RUNNER_TEMP/wz-donor-diff.json" \
+            --output "$RUNNER_TEMP/wz-import-manifest.json"
+
+      - name: Print summary
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])
+          report = json.loads((root/'wz-donor-diff.json').read_text())
+          manifest = json.loads((root/'wz-import-manifest.json').read_text())
+          print(json.dumps(report['totals'], indent=2))
+          deps = report.get('dependencies', {})
+          print('missing high-confidence dependencies:', deps.get('missingReferenceCount', 'n/a'))
+          print('candidate risk counts:', manifest['riskCounts'])
+          for category, data in report['categories'].items():
+              print(f"{category}: new={len(data['newIds'])} collisions={len(data['collisionIds'])} changed={len(data['changedCollisionIds'])}")
+          PY
+
+      - name: Upload donor analysis artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wz-donor-analysis-${{ inputs.donor_id }}-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/wz-donor-diff.json
+            ${{ runner.temp }}/wz-import-manifest.json
+          retention-days: 14
+          if-no-files-found: error
