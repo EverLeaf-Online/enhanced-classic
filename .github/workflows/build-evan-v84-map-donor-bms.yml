@@ -1,0 +1,58 @@
+name: Build Evan v84 Map donor BMS
+
+on:
+  push:
+    branches: [release-dev]
+    paths: ['.github/workflows/build-evan-v84-map-donor-bms.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MAPLELIB_COMMIT: 4970d339b2ab2bc00ffc33edfbf570e87053b822
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with: { ref: release-dev }
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '10.0.x' }
+      - name: Fetch pinned MapleLib and v84 images
+        shell: pwsh
+        run: |
+          git clone --filter=blob:none https://github.com/lastbattle/MapleLib "$env:RUNNER_TEMP\MapleLib"
+          git -C "$env:RUNNER_TEMP\MapleLib" checkout $env:MAPLELIB_COMMIT
+          New-Item -ItemType Directory -Force donor\raw | Out-Null
+          $ids=100030100,100030101,100030102,100030103,100030200,100030300,100030310,100030400
+          foreach($id in $ids){ curl.exe -fsSL --retry 2 --max-time 90 "https://maplestory.io/api/wz/export/GMS/84/Map/Map/Map1/$id.img?rawImage=true" -o "donor\raw\$id.img" }
+      - name: Build donor with standalone-IMG BMS IV
+        shell: pwsh
+        run: |
+          $p="$env:RUNNER_TEMP\EvanMapDonor"; New-Item -ItemType Directory -Force $p | Out-Null
+          @'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><EnableWindowsTargeting>true</EnableWindowsTargeting><ImplicitUsings>enable</ImplicitUsings></PropertyGroup><ItemGroup><ProjectReference Include="..\MapleLib\MapleLib\MapleLib.csproj" /></ItemGroup></Project>
+          '@ | Set-Content "$p\EvanMapDonor.csproj"
+          @'
+          using MapleLib.WzLib; using MapleLib.WzLib.Serializer; using MapleLib.WzLib.WzProperties; using System.Text.Json;
+          static class Program {
+            static string[] Ids={"100030100","100030101","100030102","100030103","100030200","100030300","100030310","100030400"};
+            static Dictionary<string,HashSet<string>> R=new(){{"Obj",new()},{"Tile",new()},{"Back",new()}};
+            static void Walk(WzImageProperty p){ if(p is WzStringProperty s){if(p.Name=="oS")R["Obj"].Add(s.Value);if(p.Name=="tS")R["Tile"].Add(s.Value);if(p.Name=="bS")R["Back"].Add(s.Value);} if(p.WzProperties!=null)foreach(WzImageProperty c in p.WzProperties)Walk(c); }
+            static WzImage Parse(byte[] b,string n){var d=new WzImgDeserializer(true);var i=d.WzImageFromIMGBytes(b,WzMapleVersion.BMS,n,true);if(i.WzProperties.Count==0)throw new Exception("Empty parsed IMG "+n);return i;}
+            static WzDirectory Dir(WzDirectory p,string n,WzFile f){var d=new WzDirectory(n,f);p.AddDirectory(d);return d;}
+            static async Task<byte[]> Get(string t,string n){using var h=new HttpClient{Timeout=TimeSpan.FromSeconds(90)};return await h.GetByteArrayAsync($"https://maplestory.io/api/wz/export/GMS/84/Map/{t}/{Uri.EscapeDataString(n)}.img?rawImage=true");}
+            static async Task Main(string[] a){var raw=a[0];var o=a[1];Directory.CreateDirectory(o);var xd=Path.Combine(o,"server-xml");Directory.CreateDirectory(xd);var xs=new WzClassicXmlSerializer(2,LineBreak.Windows,false);var maps=new List<WzImage>();foreach(var id in Ids){var i=Parse(File.ReadAllBytes(Path.Combine(raw,id+".img")),id+".img");foreach(var p in i.WzProperties)Walk(p);xs.SerializeImage(i,Path.Combine(xd,id+".img.xml"));if(new FileInfo(Path.Combine(xd,id+".img.xml")).Length<1000)throw new Exception("XML too small "+id);maps.Add(i);}File.WriteAllText(Path.Combine(o,"dependencies.json"),JsonSerializer.Serialize(R.ToDictionary(x=>x.Key,x=>x.Value.Where(v=>!string.IsNullOrWhiteSpace(v)).OrderBy(v=>v).ToArray()),new JsonSerializerOptions{WriteIndented=true}));Console.WriteLine(File.ReadAllText(Path.Combine(o,"dependencies.json")));using var f=new WzFile(84,WzMapleVersion.GMS){Name="Map.wz"};f.WzDirectory.Name="Map.wz";var m1=Dir(Dir(f.WzDirectory,"Map",f),"Map1",f);foreach(var i in maps)m1.AddImage(i);foreach(var t in new[]{"Obj","Tile","Back"}){var d=Dir(f.WzDirectory,t,f);foreach(var n in R[t].Where(v=>!string.IsNullOrWhiteSpace(v)).OrderBy(v=>v)){var b=await Get(t,n);var i=Parse(b,n+".img");d.AddImage(i);Console.WriteLine($"{t}/{n}.img {b.Length}");}}var wp=Path.Combine(o,"Map-donor-v84.wz");f.SaveToDisk(wp,false,WzMapleVersion.GMS);if(new FileInfo(wp).Length<10000)throw new Exception("Donor WZ too small");using var v=new WzFile(wp,84,WzMapleVersion.GMS);if(v.ParseWzFile()!=WzFileParseStatus.Success)throw new Exception("Donor reparse failed");Console.WriteLine("DONOR_OK "+new FileInfo(wp).Length);}
+          }
+          '@ | Set-Content "$p\Program.cs"
+          dotnet run --project "$p\EvanMapDonor.csproj" -c Release -- "${{ github.workspace }}\donor\raw" "${{ github.workspace }}\donor\built"
+          Get-Content donor\built\dependencies.json
+          Get-Item donor\built\Map-donor-v84.wz | Format-List Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evan-v84-map-donor-bms
+          path: donor/built/
+          if-no-files-found: error
