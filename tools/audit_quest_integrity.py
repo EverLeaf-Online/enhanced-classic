@@ -1,23 +1,8 @@
 #!/usr/bin/env python3
 """Repository-wide structural Quest.wz integrity audit for EverLeaf.
 
-The global quest corpus contains dormant/event/donor records that are not
-reachable in the active v83 world. This audit therefore separates release-
-facing quest problems from archival data cleanup:
-
-Hard failures:
-* malformed Quest.wz / active map XML
-* non-numeric or duplicate Quest.wz quest ids
-* an ACTIVE quest owner NPC has no Npc.wz asset
-* an ACTIVE quest requires a prerequisite absent from Check.wz
-
-Review-only inventory:
-* missing NPCs referenced only by dormant quest records
-* missing prerequisites referenced only by dormant quest records
-* section asymmetry between Check/Act/Say/QuestInfo
-
-A quest is considered active when at least one of its Check.wz start/completion
-owner NPCs is actually spawned in the active Map.wz map corpus.
+Hard failures are limited to release-facing structural impossibilities. Dormant
+or legacy donor/event records are reported for cleanup without blocking builds.
 """
 from __future__ import annotations
 
@@ -126,8 +111,7 @@ def collect_active_npcs(failures: list[str]) -> tuple[set[str], int]:
         for entry in life:
             if entry.tag != "imgdir":
                 continue
-            life_type = normalize(direct_child_value(entry, "type"))
-            if life_type != "n":
+            if normalize(direct_child_value(entry, "type")) != "n":
                 continue
             npc_id = normalize(direct_child_value(entry, "id"))
             if npc_id.isdigit() and int(npc_id) > 0:
@@ -161,7 +145,7 @@ def main() -> int:
 
     active_missing_npcs: list[tuple[str, str]] = []
     dormant_missing_npcs: list[tuple[str, str]] = []
-    active_missing_prereqs: list[tuple[str, str]] = []
+    active_missing_prereqs: list[tuple[str, str, tuple[str, ...]]] = []
     dormant_missing_prereqs: list[tuple[str, str]] = []
 
     for qid, node in quest_sets.get("check", {}).items():
@@ -170,31 +154,37 @@ def main() -> int:
         owner_refs[qid].update(owners)
         prereq_refs[qid].update(prereqs)
 
-        is_active = bool(owners & active_npcs)
+        active_owners = owners & active_npcs
+        is_active = bool(active_owners)
         if is_active:
             active_quests.add(qid)
 
+        # Judge each owner independently. A quest can legitimately retain a
+        # dormant alternate/event owner while its classic owner remains active.
         for npc_id in sorted(owners, key=int):
             if npc_asset_exists(npc_id):
                 continue
             pair = (qid, npc_id)
-            if is_active:
+            if npc_id in active_npcs:
                 active_missing_npcs.append(pair)
-                failures.append(f"Active quest {qid} references missing owner NPC asset {npc_id}")
+                failures.append(
+                    f"Active spawned owner NPC {npc_id} for quest {qid} has no Npc.wz asset"
+                )
             else:
                 dormant_missing_npcs.append(pair)
 
         for required_qid in sorted(prereqs, key=int):
             if required_qid in check_ids:
                 continue
-            pair = (qid, required_qid)
             if is_active:
-                active_missing_prereqs.append(pair)
+                owner_tuple = tuple(sorted(active_owners, key=int))
+                active_missing_prereqs.append((qid, required_qid, owner_tuple))
                 failures.append(
-                    f"Active quest {qid} requires missing prerequisite quest {required_qid}"
+                    f"Active quest {qid} (spawned owners {','.join(owner_tuple)}) "
+                    f"requires missing prerequisite quest {required_qid}"
                 )
             else:
-                dormant_missing_prereqs.append(pair)
+                dormant_missing_prereqs.append((qid, required_qid))
 
     if dormant_missing_npcs:
         samples = [f"{qid}->{npc}" for qid, npc in dormant_missing_npcs]
@@ -244,8 +234,8 @@ def main() -> int:
             {"quest": qid, "npc": npc} for qid, npc in dormant_missing_npcs
         ],
         "activeMissingPrerequisites": [
-            {"quest": qid, "prerequisite": required}
-            for qid, required in active_missing_prereqs
+            {"quest": qid, "prerequisite": required, "activeOwners": list(owners)}
+            for qid, required, owners in active_missing_prereqs
         ],
         "dormantMissingPrerequisites": [
             {"quest": qid, "prerequisite": required}
