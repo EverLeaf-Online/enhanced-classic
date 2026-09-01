@@ -28,15 +28,19 @@ jobs:
           test -n "$CYGNUS_URL"
           echo "Resolved Cygnus asset: $CYGNUS_URL"
 
-          curl -fL --retry 3 --retry-delay 2 -A 'Mozilla/5.0' \
-            "$CYGNUS_URL" \
-            -o web/public/assets/jobs/special/cygnus.png
+          curl -fL --retry 3 --retry-delay 2 -A 'Mozilla/5.0' "$CYGNUS_URL" -o /tmp/cygnus-source
           curl -fL --retry 3 --retry-delay 2 -A 'Mozilla/5.0' \
             'https://www.nicepng.com/png/detail/905-9051338_photo-aran-male-zps353cda7f-aran-maplestory.png' \
-            -o web/public/assets/jobs/special/aran.png
+            -o /tmp/aran-source
           curl -fL --retry 3 --retry-delay 2 -A 'Mozilla/5.0' \
             'https://www.clipartmax.com/png/middle/205-2055764_cartoons-anime-evan-maplestory-heroes-of-maple.png' \
-            -o web/public/assets/jobs/special/evan.png
+            -o /tmp/evan-source
+
+          file /tmp/cygnus-source /tmp/aran-source /tmp/evan-source
+          command -v convert >/dev/null || { sudo apt-get update -y && sudo apt-get install -y imagemagick; }
+          convert /tmp/cygnus-source web/public/assets/jobs/special/cygnus.png
+          convert /tmp/aran-source web/public/assets/jobs/special/aran.png
+          convert /tmp/evan-source web/public/assets/jobs/special/evan.png
 
           python - <<'PY'
           from pathlib import Path
@@ -45,7 +49,7 @@ jobs:
               p = Path(f'web/public/assets/jobs/special/{name}.png')
               data = p.read_bytes()
               if not data.startswith(sig) or len(data) < 5000:
-                  raise SystemExit(f'{p} is not a valid PNG ({len(data)} bytes)')
+                  raise SystemExit(f'{p} is not a valid normalized PNG ({len(data)} bytes)')
               print(name, len(data))
           PY
       - name: Commit imported assets
