@@ -1,0 +1,30 @@
+name: Diagnose quest script blockers
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/diagnose-quest-script-blockers.yml'
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Print remaining quest WZ records
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          root=Path('wz/Quest.wz')
+          ids={'1028','20015','2233','2234'}
+          for fn in ['Check.img.xml','Act.img.xml','Say.img.xml','QuestInfo.img.xml']:
+              print('\n===== '+fn+' =====')
+              tree=ET.parse(root/fn).getroot()
+              for n in tree:
+                  if n.tag=='imgdir' and n.attrib.get('name') in ids:
+                      print('\n--- QUEST '+n.attrib['name']+' ---')
+                      print(ET.tostring(n, encoding='unicode'))
+          PY
