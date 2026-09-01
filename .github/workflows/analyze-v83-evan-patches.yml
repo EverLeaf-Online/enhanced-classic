@@ -1,0 +1,64 @@
+name: Analyze v83 Evan patch signatures
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/analyze-v83-evan-patches.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve verified unpacked v83 localhost
+        uses: actions/checkout@v5
+        with:
+          ref: 335d4fbb74e713a01f63163c39c941865401d24a
+          sparse-checkout: Localhosts.zip
+          sparse-checkout-cone-mode: false
+
+      - name: Verify and extract
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "096e21e155ca1a06a3132a6ad6f7feda5cd986928f415bab15a3b67fee412527  Localhosts.zip" | sha256sum --check
+          mkdir source
+          unzip -q Localhosts.zip -d source
+          sha256sum source/Localhost.exe
+
+      - name: Inspect Evan patch sites
+        shell: python
+        run: |
+          from pathlib import Path
+          import struct
+
+          data = Path('source/Localhost.exe').read_bytes()
+          image_base = 0x400000
+
+          # This historical localhost is a flat PE where these known VAs map to RVA/file offset
+          # for .text. Print enough context to derive fail-closed runtime signatures.
+          sites = [(0x75C783, 4), (0x761714, 21)]
+          for va, n in sites:
+              off = va - image_base
+              print(f'PATCH va=0x{va:08X} file_off=0x{off:X} len={n}')
+              print('target=', data[off:off+n].hex(' '))
+              print('before=', data[off-32:off].hex(' '))
+              print('after =', data[off+n:off+n+32].hex(' '))
+              print('window=', data[off-48:off+n+48].hex(' '))
+
+          guard = bytes([0x83,0xF8,0x16,0x0F,0x84,0xD7,0,0,0,0x81,0xFE,0xD1,0x07,0,0,0x0F,0x84,0xCB,0,0,0])
+          print('known_21_guard_occurrences=', data.count(guard))
+          if guard in data:
+              print('known_21_guard_file_offset=', hex(data.index(guard)))
+
+          # Candidate uniqueness around the 4-byte patch: grow context symmetrically.
+          off = 0x75C783 - image_base
+          for radius in (4, 8, 12, 16, 24, 32):
+              start = off-radius
+              end = off+4+radius
+              sig = data[start:end]
+              print(f'first_patch_radius_{radius}_len={len(sig)} occurrences={data.count(sig)} sig={sig.hex(" ")}')
