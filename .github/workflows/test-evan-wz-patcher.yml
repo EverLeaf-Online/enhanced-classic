@@ -5,12 +5,14 @@ on:
     paths:
       - "client/tools/evan-wz-patcher/**"
       - "client/evan-wz/**"
+      - ".github/workflows/publish-evan-wz-assets.yml"
       - ".github/workflows/test-evan-wz-patcher.yml"
   push:
     branches: [client-dev]
     paths:
       - "client/tools/evan-wz-patcher/**"
       - "client/evan-wz/**"
+      - ".github/workflows/publish-evan-wz-assets.yml"
       - ".github/workflows/test-evan-wz-patcher.yml"
 
 permissions:
@@ -43,7 +45,7 @@ jobs:
         shell: bash
         run: cmake --build "$RUNNER_TEMP/evan-wz-build" --config Release --parallel 2
 
-      - name: Verify Evan copy manifests
+      - name: Verify Evan copy manifests and publisher wiring
         shell: python
         run: |
           from pathlib import Path
@@ -56,7 +58,6 @@ jobs:
 
           skill_expected = [f'image:{x}.img' for x in stages] + ['directory:Dragon']
           assert entries('Skill') == skill_expected, entries('Skill')
-
           assert entries('Character') == ['image:00002000.img', 'directory:Dragon'], entries('Character')
 
           ui_expected = [
@@ -65,8 +66,22 @@ jobs:
               'property:UIWindow.img/SkillMacroEx',
           ]
           assert entries('UI') == ui_expected, entries('UI')
-
           string_expected = [f'property:Skill.img/{x}' for x in stages]
           assert entries('String') == string_expected, entries('String')
 
-          print('Evan WZ copy manifests: PASS')
+          publisher = Path('.github/workflows/publish-evan-wz-assets.yml').read_text()
+          required = [
+              'EVERLEAF_EVAN_DONOR_DIR: /opt/everleaf/private-assets/evan-wz-donor',
+              'Verify authorized donor and production baseline',
+              'client/evan-wz/Skill.copy.txt',
+              'client/evan-wz/Character.copy.txt',
+              'client/evan-wz/UI.copy.txt',
+              'client/evan-wz/String.copy.txt',
+              'Publish patched WZ files atomically',
+              "assert len(manifest['files']) == len(baseline['managedFiles']) == 36",
+              'curl -fsS http://127.0.0.1:3000/v1/launcher/manifest',
+          ]
+          for marker in required:
+              assert marker in publisher, f'Missing Evan publisher invariant: {marker}'
+          assert 'if: inputs.publish' in publisher
+          print('Evan WZ copy manifests + publisher wiring: PASS')
