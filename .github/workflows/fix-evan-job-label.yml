@@ -1,0 +1,243 @@
+name: Fix Evan beginner job label
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - '.github/workflows/fix-evan-job-label.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  patch-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: client-dev
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'test -s /opt/everleaf/patches/files/EverLeaf.exe && test -s /opt/everleaf/patches/managed-client-baseline.json'
+
+      - name: Retrieve production client
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/EverLeaf.exe" EverLeaf.exe
+          test -s EverLeaf.exe
+          sha256sum EverLeaf.exe
+
+      - name: Patch encrypted v83 StringPool Evan0 label
+        shell: python
+        run: |
+          from pathlib import Path
+          import hashlib, struct
+
+          src = bytearray(Path('EverLeaf.exe').read_bytes())
+          FILE_BASE = 0x400000
+          STRINGS_POS = 0xA6F17C
+          KEY_POS = 0x9E30C4
+          KEY_SIZE_POS = 0x9E30D4
+          STRING_AMOUNT_POS = 0x9E30D8
+
+          def off(va):
+              value = va - FILE_BASE
+              if value < 0 or value >= len(src):
+                  raise RuntimeError(f'VA 0x{va:X} outside production executable')
+              return value
+
+          key_size = struct.unpack_from('<i', src, off(KEY_SIZE_POS))[0]
+          string_count = struct.unpack_from('<I', src, off(STRING_AMOUNT_POS))[0]
+          if not 1 <= key_size <= 64:
+              raise RuntimeError(f'Unexpected StringPool key size: {key_size}')
+          if not 1000 <= string_count <= 100000:
+              raise RuntimeError(f'Unexpected StringPool count: {string_count}')
+          key = bytes(src[off(KEY_POS):off(KEY_POS)+key_size])
+          if len(key) != key_size:
+              raise RuntimeError('StringPool key truncated')
+
+          def rotate_left_bytes(value, shift_signed):
+              length = len(value)
+              shift = shift_signed & 0xFFFFFFFF
+              v = bytearray(value)
+              if shift >= 8:
+                  byte_shift = ((shift >> 3) % length)
+                  if byte_shift:
+                      v = bytearray(value[(i + byte_shift) % length] for i in range(length))
+              bit_shift = shift & 7
+              if bit_shift:
+                  carry = (v[0] >> (8 - bit_shift)) if length > 1 else 0
+                  for i in range(length):
+                      nxt = (v[i + 1] >> (8 - bit_shift)) if i != length - 1 else 0
+                      v[i] = ((v[i] << bit_shift) & 0xFF) | nxt
+                  v[-1] |= carry
+              return bytes(v)
+
+          def pointer_for(index):
+              p = off(STRINGS_POS) + 4 * index
+              if p + 4 > len(src):
+                  raise RuntimeError('StringPool pointer table truncated')
+              return struct.unpack_from('<I', src, p)[0]
+
+          def decode(index):
+              va = pointer_for(index)
+              p = off(va)
+              shift = struct.unpack_from('<b', src, p)[0]
+              p += 1
+              rotated = rotate_left_bytes(key, shift)
+              out = bytearray()
+              encrypted_positions = []
+              i = 0
+              while p < len(src):
+                  b = src[p]
+                  if b == 0:
+                      return out.decode('latin1'), encrypted_positions, p, shift, rotated
+                  k = rotated[i % key_size]
+                  plain = k if b == k else (b ^ k)
+                  out.append(plain)
+                  encrypted_positions.append(p)
+                  p += 1
+                  i += 1
+                  if i > 65536:
+                      raise RuntimeError(f'Unterminated StringPool entry {index}')
+              raise RuntimeError(f'Truncated StringPool entry {index}')
+
+          matches = []
+          evan_entries = []
+          for i in range(string_count):
+              try:
+                  value, positions, terminator, shift, rotated = decode(i)
+              except Exception:
+                  continue
+              if value.startswith('Evan'):
+                  evan_entries.append((i, value))
+              if value == 'Evan0':
+                  matches.append((i, positions, terminator, shift, rotated))
+
+          print('Evan StringPool entries:', evan_entries)
+          if len(matches) != 1:
+              raise RuntimeError(f'Expected exactly one Evan0 StringPool entry, found {len(matches)}')
+
+          index, positions, terminator, shift, rotated = matches[0]
+          replacement = b'Evan'
+          if len(replacement) > len(positions):
+              raise RuntimeError('Replacement does not fit existing StringPool allocation')
+
+          for i, plain in enumerate(replacement):
+              k = rotated[i % key_size]
+              encrypted = plain if plain == k else (plain ^ k)
+              if encrypted == 0:
+                  raise RuntimeError('Replacement would introduce premature encrypted terminator')
+              src[positions[i]] = encrypted
+          src[positions[len(replacement)]] = 0
+
+          Path('EverLeaf-patched.exe').write_bytes(src)
+
+          # Re-read from the patched byte array using the same decoder state.
+          value, *_ = decode(index)
+          if value != 'Evan':
+              raise RuntimeError(f'Post-patch decode mismatch: {value!r}')
+
+          before = hashlib.sha256(Path('EverLeaf.exe').read_bytes()).hexdigest()
+          after = hashlib.sha256(src).hexdigest()
+          if before == after:
+              raise RuntimeError('Patched executable hash did not change')
+          print(f'Evan0 StringPool index {index} -> Evan')
+          print(f'before={before}')
+          print(f'after={after}')
+
+      - name: Publish patched client atomically
+        shell: bash
+        run: |
+          set -euo pipefail
+          stamp="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          scp -i ~/.ssh/id_everleaf EverLeaf-patched.exe web/scripts/build-patch-manifest.js \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/tmp/"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "STAMP='$stamp' bash -s" <<'REMOTE'
+          set -euo pipefail
+          live=/opt/everleaf/patches
+          stage="/opt/everleaf/evan-label-stage-$STAMP"
+          backup="/opt/everleaf/evan-label-backup-$STAMP"
+          changed=0
+          rollback() {
+            code=$?
+            if [ "$code" -ne 0 ] && [ "$changed" -eq 1 ]; then
+              echo 'Evan label publication failed; restoring previous client and manifest.' >&2
+              install -m 644 "$backup/EverLeaf.exe" "$live/files/EverLeaf.exe" || true
+              install -m 644 "$backup/manifest.json" "$live/manifest.json" || true
+              sudo systemctl restart everleaf-web || true
+            fi
+            rm -rf "$stage"
+            exit "$code"
+          }
+          trap rollback EXIT
+
+          mkdir -p "$stage/files" "$backup"
+          cp -a "$live/files"/. "$stage/files/"
+          cp -a "$live/managed-client-baseline.json" "$stage/managed-client-baseline.json"
+          cp -a "$live/files/EverLeaf.exe" "$backup/EverLeaf.exe"
+          cp -a "$live/manifest.json" "$backup/manifest.json"
+          install -m 644 /tmp/EverLeaf-patched.exe "$stage/files/EverLeaf.exe"
+
+          LAUNCHER_PATCH_ROOT="$stage" \
+            LAUNCHER_BASELINE_PATH="$stage/managed-client-baseline.json" \
+            LAUNCHER_MANIFEST_PATH="$stage/manifest.json" \
+            node /tmp/build-patch-manifest.js
+
+          python3 - "$stage/manifest.json" "$stage/files/EverLeaf.exe" <<'PY'
+          import hashlib, json, pathlib, sys
+          manifest=json.load(open(sys.argv[1]))
+          exe=pathlib.Path(sys.argv[2])
+          digest=hashlib.sha256(exe.read_bytes()).hexdigest()
+          entries=[x for x in manifest['files'] if x['path'].lower()=='everleaf.exe']
+          assert len(entries)==1, 'Manifest must contain exactly one EverLeaf.exe entry'
+          assert entries[0]['sha256']==digest, 'Manifest executable hash mismatch'
+          print('Evan job-label manifest validation: PASS', digest)
+          PY
+
+          install -m 644 "$stage/files/EverLeaf.exe" "$live/files/EverLeaf.exe"
+          install -m 644 "$stage/manifest.json" "$live/manifest.json"
+          changed=1
+          sudo systemctl restart everleaf-web
+          sleep 2
+          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
+          printf '%s\n' "$STAMP" > /opt/everleaf/.evan-job-label-release
+          changed=0
+          rm -f /tmp/EverLeaf-patched.exe /tmp/build-patch-manifest.js
+          echo "EverLeaf Evan job label published: $STAMP"
+          REMOTE
+
+      - name: Verify public manifest advertises patched executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(sha256sum EverLeaf-patched.exe | awk '{print $1}')"
+          actual="$(curl -fsS https://everleafms.online/v1/launcher/manifest | python3 -c 'import json,sys; m=json.load(sys.stdin); print(next(x["sha256"] for x in m["files"] if x["path"].lower()=="everleaf.exe"))')"
+          test "$actual" = "$expected"
+          echo "Public EverLeaf.exe hash verified: $actual"
