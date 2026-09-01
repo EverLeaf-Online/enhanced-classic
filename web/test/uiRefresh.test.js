@@ -20,6 +20,13 @@ const jobs = read("public/css/maple-jobs.css");
 const final = read("public/css/maple-final.css");
 const rankingsCss = read("public/css/rankings-remaster.css");
 const homePolish = read("public/css/home-polish.css");
+const assertRgbaPng = relative => {
+  const file=path.join(root,relative);
+  assert.ok(fs.existsSync(file),`${relative} should exist`);
+  const data=fs.readFileSync(file);
+  assert.ok(data.length>5000,`${relative} should be a real image`);
+  assert.equal(data[25],6,`${relative} should retain an RGBA alpha channel`);
+};
 
 test("global navigation loads the unified Maple remaster design system",()=>{
   assert.match(header,/maple-remaster\.css/);
@@ -46,7 +53,7 @@ test("footer exposes useful site navigation",()=>{
   assert.match(footer,/\/recover/);
 });
 
-test("homepage uses authentic local class art including Beginner",()=>{
+test("homepage class guide uses clean centered local artwork",()=>{
   assert.match(home,/everleaf-remaster\.svg/);
   assert.match(home,/homeV2Hero/);
   assert.match(home,/homeV2Status/);
@@ -57,10 +64,9 @@ test("homepage uses authentic local class art including Beginner",()=>{
   assert.match(remaster,/hero-forest\.webp/);
   assert.match(home,/mapleJobsGridSix/);
   assert.match(home,/beginnerJobCard/);
-  assert.match(home,/\/assets\/jobs\/beginner\/beginner\.png/);
-  const beginnerFile=path.join(root,"public/assets/jobs/beginner/beginner.png");
-  assert.ok(fs.existsSync(beginnerFile),"Beginner artwork should exist");
-  assert.ok(fs.statSync(beginnerFile).size>5000,"Beginner artwork should be a real image");
+  assert.match(home,/\/assets\/jobs\/beginner\/beginner-clean\.png/);
+  assert.doesNotMatch(home,/\/assets\/jobs\/beginner\/beginner\.png/);
+  assertRgbaPng("public/assets/jobs/beginner/beginner-clean.png");
 
   for(const asset of ["warrior","magician","bowman","thief","pirate"]) {
     assert.match(home,new RegExp(`/assets/jobs/instructors/${asset}\\.png`));
@@ -68,14 +74,23 @@ test("homepage uses authentic local class art including Beginner",()=>{
     assert.doesNotMatch(home,new RegExp(`/assets/jobs/${asset}\\.svg`));
   }
   assert.doesNotMatch(home,/mapleJobBadge/);
+  assert.doesNotMatch(homePolish,/content:\s*"NEW"/);
+  assert.match(homePolish,/\.mapleJobsGridSix \.mapleJobPortrait\{height:164px/);
+  assert.match(homePolish,/align-items:center;justify-content:center/);
 
-  for(const asset of ["cygnus","aran","evan"]) {
+  assert.match(home,/\/assets\/jobs\/special\/cygnus-clean\.png/);
+  assert.doesNotMatch(home,/\/assets\/jobs\/special\/cygnus\.png/);
+  assertRgbaPng("public/assets/jobs/special/cygnus-clean.png");
+  for(const asset of ["aran","evan"]) {
     assert.match(home,new RegExp(`/assets/jobs/special/${asset}\\.png`));
     assert.ok(fs.statSync(path.join(root,`public/assets/jobs/special/${asset}.png`)).size>5000);
     assert.doesNotMatch(home,new RegExp(`/assets/jobs/${asset}\\.svg`));
   }
   assert.match(home,/cygnusFeature/);
-  assert.match(homePolish,/\.cygnusFeatureArt img/);
+  assert.match(home,/specialCompact aranFeature/);
+  assert.match(home,/specialCompact evanFeature/);
+  assert.match(homePolish,/\.cygnusFeatureArt img\{max-width:300px/);
+  assert.match(homePolish,/radial-gradient/);
   assert.match(homePolish,/\.siteFooter:before\{display:none!important/);
   assert.match(home,/Dances with Balrog/);
   assert.match(home,/Grendel the Really Old/);
@@ -97,12 +112,13 @@ test("wiki placeholder is wired for future database work",()=>{
   assert.match(homePolish,/\.wikiHeroCard/);
 });
 
-test("rankings render a Maple-style leaderboard with individual local Cygnus and Beginner artwork",()=>{
+test("rankings render a Maple-style leaderboard with individual local Cygnus and clean Beginner artwork",()=>{
   assert.match(rankings,/rankingPodium/);
   assert.match(rankings,/rankingTableV2/);
   assert.match(rankings,/rankPlayerIcon/);
   assert.match(rankings,/rankingJobBadge/);
-  assert.match(rankings,/\/assets\/jobs\/beginner\/beginner\.png/);
+  assert.match(rankings,/\/assets\/jobs\/beginner\/beginner-clean\.png/);
+  assert.match(rankings,/\/assets\/jobs\/special\/cygnus-clean\.png/);
   assert.match(rankings,/\/assets\/jobs\/special\/aran\.png/);
   assert.match(rankings,/\/assets\/jobs\/special\/evan\.png/);
   for(const asset of ["warrior","magician","bowman","thief","pirate"]) assert.match(rankings,new RegExp(`/assets/jobs/instructors/${asset}\\.png`));
