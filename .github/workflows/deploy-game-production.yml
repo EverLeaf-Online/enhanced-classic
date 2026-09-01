@@ -1,4 +1,4 @@
-# Manual production deployment trigger: duey-transform-idempotency-hotfix
+# Manual production deployment trigger: merchant-recovery-integrity
 name: Deploy EverLeaf Game Production
 
 on:
@@ -53,6 +53,7 @@ jobs:
           python3 tools/apply_item_transfer_integrity_fixes.py
           python3 tools/apply_duey_ownership_fixes.py
           python3 tools/apply_duey_settlement_fixes.py
+          python3 tools/apply_merchant_recovery_fixes.py
 
       - name: Configure SSH
         env:
@@ -134,6 +135,7 @@ jobs:
           python3 tools/apply_item_transfer_integrity_fixes.py
           python3 tools/apply_duey_ownership_fixes.py
           python3 tools/apply_duey_settlement_fixes.py
+          python3 tools/apply_merchant_recovery_fixes.py
           chmod +x mvnw || true
           ./mvnw -B -DskipTests clean package
           test -s target/everleaf-server-1.0-SNAPSHOT.jar
