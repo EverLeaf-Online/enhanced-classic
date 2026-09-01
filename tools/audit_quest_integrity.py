@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 """Repository-wide structural Quest.wz integrity audit for EverLeaf.
 
-This first global quest gate is intentionally conservative. It hard-fails only
-references that are structurally impossible at runtime:
+The global quest corpus contains dormant/event/donor records that are not
+reachable in the active v83 world. This audit therefore separates release-
+facing quest problems from archival data cleanup:
 
-* malformed Quest.wz XML
-* a quest owner NPC referenced by Check.wz has no Npc.wz asset
-* a prerequisite quest referenced from a Check.wz `quest` condition does not
-  exist in Check.wz
-* a Quest.wz quest id is not numeric
+Hard failures:
+* malformed Quest.wz / active map XML
+* non-numeric or duplicate Quest.wz quest ids
+* an ACTIVE quest owner NPC has no Npc.wz asset
+* an ACTIVE quest requires a prerequisite absent from Check.wz
 
-Differences between Check/Act/Say/QuestInfo are inventoried as review data,
-because classic v83 contains legitimate tutorial/dialogue quests without every
-section. Future regional audits can make those requirements stricter once the
-content is classified.
+Review-only inventory:
+* missing NPCs referenced only by dormant quest records
+* missing prerequisites referenced only by dormant quest records
+* section asymmetry between Check/Act/Say/QuestInfo
+
+A quest is considered active when at least one of its Check.wz start/completion
+owner NPCs is actually spawned in the active Map.wz map corpus.
 """
 from __future__ import annotations
 
@@ -26,6 +30,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 QUEST_ROOT = ROOT / "wz" / "Quest.wz"
 NPC_ROOT = ROOT / "wz" / "Npc.wz"
+MAP_ROOT = ROOT / "wz" / "Map.wz" / "Map"
 
 QUEST_FILES = {
     "check": QUEST_ROOT / "Check.img.xml",
@@ -71,7 +76,6 @@ def direct_child_value(node: ET.Element, name: str) -> str | None:
 
 
 def owner_npcs(check_node: ET.Element) -> set[str]:
-    """Quest start/end NPCs are direct `npc` values on Check.wz phase nodes."""
     refs: set[str] = set()
     for phase in check_node:
         if phase.tag != "imgdir":
@@ -83,7 +87,6 @@ def owner_npcs(check_node: ET.Element) -> set[str]:
 
 
 def prerequisite_quests(check_node: ET.Element) -> set[str]:
-    """Collect prerequisite quest ids from explicit `quest` condition groups."""
     refs: set[str] = set()
     for phase in check_node:
         if phase.tag != "imgdir":
@@ -104,6 +107,39 @@ def npc_asset_exists(npc_id: str) -> bool:
     return (NPC_ROOT / f"{int(npc_id):07d}.img.xml").is_file()
 
 
+def collect_active_npcs(failures: list[str]) -> tuple[set[str], int]:
+    active: set[str] = set()
+    map_count = 0
+    for path in sorted(MAP_ROOT.glob("Map*/*.img.xml")):
+        try:
+            root = parse(path)
+        except (ET.ParseError, OSError) as exc:
+            failures.append(f"Unable to parse active map {path.relative_to(ROOT)}: {exc}")
+            continue
+        map_count += 1
+        life = next(
+            (c for c in root if c.tag == "imgdir" and c.attrib.get("name") == "life"),
+            None,
+        )
+        if life is None:
+            continue
+        for entry in life:
+            if entry.tag != "imgdir":
+                continue
+            life_type = normalize(direct_child_value(entry, "type"))
+            if life_type != "n":
+                continue
+            npc_id = normalize(direct_child_value(entry, "id"))
+            if npc_id.isdigit() and int(npc_id) > 0:
+                active.add(npc_id)
+    return active, map_count
+
+
+def preview(values: list[str], limit: int = 20) -> str:
+    text = ", ".join(values[:limit])
+    return text + (" ..." if len(values) > limit else "")
+
+
 def main() -> int:
     emit_json = "--json" in sys.argv
     failures: list[str] = []
@@ -117,11 +153,16 @@ def main() -> int:
             failures.append(f"Unable to parse {path.relative_to(ROOT)}: {exc}")
             quest_sets[kind] = {}
 
+    active_npcs, active_map_count = collect_active_npcs(failures)
     check_ids = set(quest_sets.get("check", {}))
     owner_refs: dict[str, set[str]] = defaultdict(set)
     prereq_refs: dict[str, set[str]] = defaultdict(set)
-    missing_npcs: list[tuple[str, str]] = []
-    missing_prereqs: list[tuple[str, str]] = []
+    active_quests: set[str] = set()
+
+    active_missing_npcs: list[tuple[str, str]] = []
+    dormant_missing_npcs: list[tuple[str, str]] = []
+    active_missing_prereqs: list[tuple[str, str]] = []
+    dormant_missing_prereqs: list[tuple[str, str]] = []
 
     for qid, node in quest_sets.get("check", {}).items():
         owners = owner_npcs(node)
@@ -129,55 +170,86 @@ def main() -> int:
         owner_refs[qid].update(owners)
         prereq_refs[qid].update(prereqs)
 
+        is_active = bool(owners & active_npcs)
+        if is_active:
+            active_quests.add(qid)
+
         for npc_id in sorted(owners, key=int):
-            if not npc_asset_exists(npc_id):
-                missing_npcs.append((qid, npc_id))
-                failures.append(f"Quest {qid} references missing owner NPC asset {npc_id}")
+            if npc_asset_exists(npc_id):
+                continue
+            pair = (qid, npc_id)
+            if is_active:
+                active_missing_npcs.append(pair)
+                failures.append(f"Active quest {qid} references missing owner NPC asset {npc_id}")
+            else:
+                dormant_missing_npcs.append(pair)
 
         for required_qid in sorted(prereqs, key=int):
-            if required_qid not in check_ids:
-                missing_prereqs.append((qid, required_qid))
-                failures.append(f"Quest {qid} requires missing prerequisite quest {required_qid}")
+            if required_qid in check_ids:
+                continue
+            pair = (qid, required_qid)
+            if is_active:
+                active_missing_prereqs.append(pair)
+                failures.append(
+                    f"Active quest {qid} requires missing prerequisite quest {required_qid}"
+                )
+            else:
+                dormant_missing_prereqs.append(pair)
 
-    # Inventory section asymmetry without assuming every old v83 quest needs
-    # every section. Regional/content-specific audits can promote individual
-    # cases to hard failures after classification.
+    if dormant_missing_npcs:
+        samples = [f"{qid}->{npc}" for qid, npc in dormant_missing_npcs]
+        reviews.append(
+            f"{len(dormant_missing_npcs)} dormant quest owner references have no NPC asset: "
+            + preview(samples)
+        )
+    if dormant_missing_prereqs:
+        samples = [f"{qid}->{req}" for qid, req in dormant_missing_prereqs]
+        reviews.append(
+            f"{len(dormant_missing_prereqs)} dormant prerequisite edges target absent Check.wz quests: "
+            + preview(samples)
+        )
+
     section_missing_counts: dict[str, int] = {}
     for kind in ("act", "say", "info"):
         missing = sorted(check_ids - set(quest_sets.get(kind, {})), key=int)
         section_missing_counts[kind] = len(missing)
         if missing:
-            preview = ", ".join(missing[:20])
-            suffix = " ..." if len(missing) > 20 else ""
             reviews.append(
-                f"{len(missing)} Check.wz quests have no {kind} section: {preview}{suffix}"
+                f"{len(missing)} Check.wz quests have no {kind} section: {preview(missing)}"
             )
 
-    # Also inventory data present outside Check.wz. These can be historical or
-    # event leftovers, so they are review-only until classified.
     orphan_section_counts: dict[str, int] = {}
     for kind in ("act", "say", "info"):
         extras = sorted(set(quest_sets.get(kind, {})) - check_ids, key=int)
         orphan_section_counts[kind] = len(extras)
         if extras:
-            preview = ", ".join(extras[:20])
-            suffix = " ..." if len(extras) > 20 else ""
             reviews.append(
-                f"{len(extras)} {kind} sections have no Check.wz quest: {preview}{suffix}"
+                f"{len(extras)} {kind} sections have no Check.wz quest: {preview(extras)}"
             )
 
     owner_counter = Counter(npc for refs in owner_refs.values() for npc in refs)
     prereq_edge_count = sum(len(refs) for refs in prereq_refs.values())
     payload = {
         "questCounts": {kind: len(nodes) for kind, nodes in quest_sets.items()},
+        "activeMapCount": active_map_count,
+        "activeNpcCount": len(active_npcs),
+        "activeQuestCount": len(active_quests),
         "uniqueOwnerNpcs": len(owner_counter),
         "ownerReferenceCount": sum(owner_counter.values()),
         "prerequisiteEdgeCount": prereq_edge_count,
-        "missingOwnerNpcs": [
-            {"quest": qid, "npc": npc} for qid, npc in missing_npcs
+        "activeMissingOwnerNpcs": [
+            {"quest": qid, "npc": npc} for qid, npc in active_missing_npcs
         ],
-        "missingPrerequisites": [
-            {"quest": qid, "prerequisite": required} for qid, required in missing_prereqs
+        "dormantMissingOwnerNpcs": [
+            {"quest": qid, "npc": npc} for qid, npc in dormant_missing_npcs
+        ],
+        "activeMissingPrerequisites": [
+            {"quest": qid, "prerequisite": required}
+            for qid, required in active_missing_prereqs
+        ],
+        "dormantMissingPrerequisites": [
+            {"quest": qid, "prerequisite": required}
+            for qid, required in dormant_missing_prereqs
         ],
         "missingSectionCounts": section_missing_counts,
         "orphanSectionCounts": orphan_section_counts,
@@ -193,6 +265,10 @@ def main() -> int:
             "Global quest integrity audit: "
             f"Check={counts.get('check', 0)} Act={counts.get('act', 0)} "
             f"Say={counts.get('say', 0)} Info={counts.get('info', 0)}"
+        )
+        print(
+            f"Active world: {active_map_count} maps / {len(active_npcs)} NPCs / "
+            f"{len(active_quests)} reachable quest records"
         )
         print(
             f"Quest owners: {payload['uniqueOwnerNpcs']} unique NPCs / "
