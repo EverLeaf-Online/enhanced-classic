@@ -53,8 +53,15 @@ def patch_merchant() -> None:
             PlayerShopItem pItem = items.get(item);
             Item newItem = pItem.getItem().copy();
 """
-    text, did = replace_once(text, old_buy, new_buy, "validate client merchant slot before dereference")
-    changed |= did
+    slot_guard = "if (item < 0 || item >= items.size())"
+    if slot_guard in text:
+        print("OK already fixed: validate client merchant slot before dereference")
+    elif old_buy in text:
+        text = text.replace(old_buy, new_buy, 1)
+        changed = True
+        print("FIXED: validate client merchant slot before dereference")
+    else:
+        raise SystemExit("ERROR expected merchant recovery snippet not found: validate client merchant slot before dereference")
 
     old_price = """            int price = (int) Math.min((float) pItem.getPrice() * quantity, Integer.MAX_VALUE);
             if (c.getPlayer().getMeso() >= price) {
