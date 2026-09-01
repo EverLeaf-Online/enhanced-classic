@@ -1,0 +1,52 @@
+name: Analyze v83 exact race setters
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/analyze-v83-race-setters.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 335d4fbb74e713a01f63163c39c941865401d24a
+          sparse-checkout: Localhosts.zip
+          sparse-checkout-cone-mode: false
+      - name: Locate race setter byte patterns
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "096e21e155ca1a06a3132a6ad6f7feda5cd986928f415bab15a3b67fee412527  Localhosts.zip" | sha256sum --check
+          mkdir source
+          unzip -q Localhosts.zip -d source
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct
+          data=Path('source/Localhost.exe').read_bytes()
+          image_base=0x400000
+          # Exact c7 86 [esi+214], imm32 setters.
+          for value in range(4):
+              pat=b'\xc7\x86\x14\x02\x00\x00'+struct.pack('<I',value)
+              pos=0; hits=[]
+              while True:
+                  off=data.find(pat,pos)
+                  if off<0: break
+                  hits.append(off); pos=off+1
+              print('C7_ESI_214',value,'count',len(hits),[hex(image_base+x) for x in hits])
+              for off in hits:
+                  print(' ',hex(image_base+off),data[max(0,off-48):off+len(pat)+48].hex(' '))
+
+          # Broader: immediate 2 near any 14 02 00 00 displacement in login region.
+          start=0x1f0000; end=0x210000
+          for off in range(start,min(end,len(data)-16)):
+              chunk=data[off:off+16]
+              if b'\x14\x02\x00\x00' in chunk and (b'\x02\x00\x00\x00' in chunk or b'\x6a\x02' in chunk):
+                  print('NEAR2',hex(image_base+off),chunk.hex(' '))
+          PY
