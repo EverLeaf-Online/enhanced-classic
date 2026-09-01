@@ -29,6 +29,14 @@ static void PrintChildren(const std::string& label, wz::WzImageProperty* prop) {
   }
 }
 
+static void PrintImageChildren(const std::string& label, wz::WzImage* image) {
+  std::cout << "### " << label << "\n";
+  if (!image || !Parse(image)) { std::cout << "MISSING_OR_UNPARSEABLE\n"; return; }
+  for (auto* child : *image->WzProperties()) {
+    std::cout << "PROP " << child->Name() << " type=" << static_cast<int>(child->PropertyType()) << "\n";
+  }
+}
+
 static void CheckPath(const std::string& label, wz::WzImage* image, const std::string& path) {
   std::cout << "CHECK " << label << " " << (image && image->GetFromPath(path) ? "PRESENT" : "MISSING") << "\n";
 }
@@ -83,6 +91,6 @@ int main(int argc, char** argv) {
   }
   auto* basic=ur->GetImageByName("Basic.img");
   std::cout << "CHECK UI/Basic.img " << (basic?"PRESENT":"MISSING") << "\n";
-  if (Parse(basic)) PrintChildren("UI Basic top-level children", reinterpret_cast<wz::WzImageProperty*>(nullptr));
+  PrintImageChildren("UI Basic top-level children", basic);
   return 0;
 }
