@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstdint>
 #include <filesystem>
@@ -208,11 +210,58 @@ void SaveSingleImageCategory(const fs::path& output,
             "saved donor WZ is empty: " + output.string());
 }
 
+void VerifyDonorDirectory(const fs::path& donorDir) {
+    struct ExpectedFile {
+        const char* filename;
+        const char* image;
+        const char* directory;
+    };
+    const ExpectedFile expected[] = {
+        {"Skill.wz", "2001.img", "Dragon"},
+        {"Character.wz", "00002000.img", "Dragon"},
+        {"UI.wz", "Basic.img", nullptr},
+        {"String.wz", "Skill.img", nullptr},
+    };
+
+    for (const auto& item : expected) {
+        const fs::path path = donorDir / item.filename;
+        Require(fs::is_regular_file(path) && fs::file_size(path) > 0,
+                "missing donor WZ during verification: " + path.string());
+        wz::WzFile file(path.string(), 84, wz::WzMapleVersion::GMS);
+        const auto status = file.ParseWzFile();
+        Require(status == wz::WzFileParseStatus::Success,
+                "could not reparse generated donor WZ: " + path.string());
+        auto* root = file.GetWzDirectory();
+        Require(root->GetImageByName(item.image) != nullptr,
+                std::string("generated donor is missing expected image: ") + item.image);
+        if (item.directory) {
+            auto* nested = root->GetDirectoryByName(item.directory);
+            Require(nested != nullptr,
+                    std::string("generated donor is missing expected directory: ") + item.directory);
+            Require(nested->CountImages() > 0,
+                    std::string("generated donor directory is empty: ") + item.directory);
+        }
+        std::cout << "Verified generated donor: " << item.filename << "\n";
+    }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
+    if (argc == 3 && std::string(argv[1]) == "--verify") {
+        try {
+            VerifyDonorDirectory(fs::absolute(argv[2]));
+            std::cout << "EverLeaf Evan XML donor round-trip verification: PASS\n";
+            return 0;
+        } catch (const std::exception& ex) {
+            std::cerr << "Evan XML donor verification failed: " << ex.what() << "\n";
+            return 1;
+        }
+    }
+
     if (argc != 3) {
-        std::cerr << "Usage: everleaf-evan-xml-donor-builder <extracted-Evan-dir> <output-dir>\n";
+        std::cerr << "Usage: everleaf-evan-xml-donor-builder <extracted-Evan-dir> <output-dir>\n"
+                  << "       everleaf-evan-xml-donor-builder --verify <donor-dir>\n";
         return 2;
     }
 
@@ -244,6 +293,7 @@ int main(int argc, char** argv) {
                                 tempDir);
 
         fs::remove_all(tempDir);
+        VerifyDonorDirectory(outputDir);
         std::cout << "EverLeaf Evan XML donor build: PASS\n";
         return 0;
     } catch (const std::exception& ex) {
