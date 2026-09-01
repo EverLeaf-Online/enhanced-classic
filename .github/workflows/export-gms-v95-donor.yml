@@ -1,12 +1,13 @@
 name: Export GMS v95 donor XML
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - Stage GMS v95 donor
+    types:
+      - completed
     branches:
       - release-dev
-    paths:
-      - '.github/workflows/export-gms-v95-donor.yml'
-      - 'tools/wz-donor/exporter/**'
   workflow_dispatch:
 
 permissions:
@@ -18,11 +19,14 @@ env:
 
 jobs:
   export:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: windows-2025
     timeout-minutes: 120
     steps:
       - name: Checkout EverLeaf
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
@@ -58,7 +62,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $keyPath = Join-Path $HOME '.ssh/id_everleaf'
           ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" `
-            "cd /opt/everleaf/private/wz-donors && tar -czf /tmp/gms-v95-raw.tgz gms-v95-raw && sha256sum /tmp/gms-v95-raw.tgz"
+            "cd /opt/everleaf/private/wz-donors && test -f gms-v95-raw/PROVENANCE.txt && test -f gms-v95-raw/SHA256SUMS && (cd gms-v95-raw && sha256sum -c SHA256SUMS) && tar -czf /tmp/gms-v95-raw.tgz gms-v95-raw && sha256sum /tmp/gms-v95-raw.tgz"
           scp -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/tmp/gms-v95-raw.tgz" "$env:RUNNER_TEMP/gms-v95-raw.tgz"
           New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/gms-v95" | Out-Null
           tar -xzf "$env:RUNNER_TEMP/gms-v95-raw.tgz" -C "$env:RUNNER_TEMP/gms-v95"
