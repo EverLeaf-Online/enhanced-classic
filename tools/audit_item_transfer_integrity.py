@@ -2,7 +2,6 @@
 """Release-facing audit for EverLeaf stack and transfer integrity."""
 from __future__ import annotations
 
-import re
 import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
