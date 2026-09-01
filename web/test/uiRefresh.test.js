@@ -8,16 +8,20 @@ const read = file => fs.readFileSync(path.join(root,file),"utf8");
 const header = read("src/views/partials/header.ejs");
 const footer = read("src/views/partials/footer.ejs");
 const home = read("src/views/home.ejs");
-const design = read("public/css/design-v2.css");
-const homeCss = read("public/css/home-v2.css");
-const cmsCss = read("public/css/cms-v2.css");
+const remaster = read("public/css/maple-remaster.css");
+const pages = read("public/css/maple-remaster-pages.css");
+const admin = read("public/css/maple-remaster-admin.css");
 
-test("global navigation loads the complete responsive design system",()=>{
-  assert.match(header,/design-v2\.css/);
-  assert.match(header,/home-v2\.css/);
-  assert.match(header,/cms-v2\.css/);
+test("global navigation loads the unified Maple remaster design system",()=>{
+  assert.match(header,/maple-remaster\.css/);
+  assert.match(header,/maple-remaster-pages\.css/);
+  assert.match(header,/maple-remaster-admin\.css/);
+  assert.doesNotMatch(header,/design-v2\.css/);
+  assert.doesNotMatch(header,/home-v2\.css/);
+  assert.doesNotMatch(header,/cms-v2\.css/);
   assert.match(header,/mobileMenu/);
   assert.match(header,/siteBanner/);
+  assert.match(header,/worldRibbon/);
 });
 
 test("footer exposes useful site navigation",()=>{
@@ -27,18 +31,22 @@ test("footer exposes useful site navigation",()=>{
   assert.match(footer,/\/recover/);
 });
 
-test("homepage uses a materially different EverLeaf layout while preserving brand art",()=>{
-  assert.match(home,/everleaf-logo\.webp/);
+test("homepage uses a materially different EverLeaf Maple layout while preserving local world art",()=>{
+  assert.match(home,/everleaf-remaster\.svg/);
   assert.match(home,/homeV2Hero/);
   assert.match(home,/homeV2Status/);
   assert.match(home,/homeFeatureGrid/);
   assert.match(home,/homeCta/);
-  assert.match(homeCss,/hero-forest\.webp/);
+  assert.match(home,/hero-left\.webp/);
+  assert.match(home,/hero-right\.webp/);
+  assert.match(remaster,/hero-forest\.webp/);
 });
 
-test("v2 styles cover public pages, authentication, CMS and mobile layouts",()=>{
-  for (const token of [".lightPage",".pageHeroGrid",".newsList",".accountShell",".authWrap",".adminShell","@media(max-width:720px)"]) assert.match(design,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));
-  assert.match(cmsCss,/\.cmsManagerNav/);
-  assert.match(cmsCss,/\.cmsWorkspace/);
-  assert.match(cmsCss,/@media\(max-width:620px\)/);
+test("remaster styles cover public pages, authentication, CMS and mobile layouts",()=>{
+  for (const token of [".lightPage",".pageHeroGrid",".newsList",".authWrap","@media(max-width:820px)"]) assert.match(remaster,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));
+  assert.match(pages,/\.accountShell/);
+  assert.match(pages,/\.helpGrid/);
+  assert.match(admin,/\.cmsManagerNav/);
+  assert.match(admin,/\.cmsWorkspace/);
+  assert.match(admin,/@media\(max-width:600px\)/);
 });
