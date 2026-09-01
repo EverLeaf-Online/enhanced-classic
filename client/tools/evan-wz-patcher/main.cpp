@@ -185,14 +185,19 @@ static bool ReplaceProperty(wz::WzDirectory* base, wz::WzDirectory* donor, const
         !EnsureParsed(donorImage, "donor/" + imageName)) return false;
 
     auto sourceResult = donorImage->GetPropertyByName(propertyName);
-    if (!sourceResult) {
+    if (!sourceResult || sourceResult.value() == nullptr) {
         std::cerr << "Donor is missing required property: " << spec << "\n";
         return false;
     }
     auto* source = sourceResult.value();
 
     auto existing = baseImage->GetPropertyByName(propertyName);
-    if (existing) {
+    if (!existing) {
+        std::cerr << "Could not inspect existing base property " << spec << ": "
+                  << existing.error().message() << "\n";
+        return false;
+    }
+    if (existing.value() != nullptr) {
         auto removed = baseImage->RemoveProperty(existing.value());
         if (!removed) {
             std::cerr << "Could not remove existing base property " << spec << ": "
