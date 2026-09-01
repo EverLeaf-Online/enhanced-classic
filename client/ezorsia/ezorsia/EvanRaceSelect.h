@@ -18,6 +18,13 @@ inline constexpr DWORD kCLoginUpdateAddress = 0x005F4C16;
 inline constexpr DWORD kCLoginChangeStepAddress = 0x005F53C0;
 inline constexpr DWORD kCLoginSendNewCharPacketAddress = 0x005F7E7A;
 
+// CLogin::Update starts with `mov eax, 0x00A97712` in the verified unpacked
+// EverLeaf v83 executable. Wait for that signature before detouring so Themida
+// packed bytes are never treated as the real function body.
+inline constexpr unsigned char kCLoginUpdateReadySignature[] = {
+    0xB8, 0x12, 0x77, 0xA9, 0x00
+};
+
 using CLoginUpdate_t = void(__thiscall*)(void*);
 using CLoginChangeStep_t = void(__thiscall*)(void*, int);
 using CLoginSendNewCharPacket_t = void(__thiscall*)(void*);
@@ -29,6 +36,7 @@ inline CLoginSendNewCharPacket_t g_CLoginSendNewCharPacket = reinterpret_cast<CL
 inline void* g_login = nullptr;
 inline HWND g_button = nullptr;
 inline bool g_evanCreationActive = false;
+inline bool g_installed = false;
 inline ATOM g_buttonClass = 0;
 
 inline int& LoginStep(void* login) {
@@ -203,8 +211,8 @@ inline void __fastcall CLoginSendNewCharPacketHook(void* pThis, void*) {
 }
 
 inline bool Install() {
-    // These functions are hooked only after Themida has unpacked the executable,
-    // matching the rest of Ezorsia's v83 hooks.
+    if (g_installed) return true;
+
     const bool update = Memory::SetHook(
         true,
         reinterpret_cast<void**>(&g_CLoginUpdate),
@@ -219,8 +227,40 @@ inline bool Install() {
         return false;
     }
 
+    g_installed = true;
     std::cout << "EverLeaf Evan race selector: enabled v83 fourth-race bridge (race 3)." << std::endl;
     return true;
 }
+
+inline bool CLoginIsUnpacked() {
+    return std::memcmp(
+        reinterpret_cast<const void*>(kCLoginUpdateAddress),
+        kCLoginUpdateReadySignature,
+        sizeof(kCLoginUpdateReadySignature)) == 0;
+}
+
+inline DWORD WINAPI DeferredInstallThread(LPVOID) {
+    // Mirror the unpack-readiness discipline used by existing Ezorsia hooks, but
+    // do it off the loader thread. Give the packed client ample time to expose
+    // the verified CLogin::Update body and fail closed if it never does.
+    for (int i = 0; i < 15000; ++i) {
+        if (CLoginIsUnpacked()) {
+            Install();
+            return 0;
+        }
+        Sleep(1);
+    }
+    std::cerr << "EverLeaf Evan race selector: CLogin::Update never reached the verified unpacked signature; hooks not installed." << std::endl;
+    return 1;
+}
+
+struct AutoInstall {
+    AutoInstall() {
+        HANDLE thread = CreateThread(nullptr, 0, DeferredInstallThread, nullptr, 0, nullptr);
+        if (thread) CloseHandle(thread);
+    }
+};
+
+inline AutoInstall g_autoInstall;
 
 } // namespace EverLeafEvanRaceSelect
