@@ -155,7 +155,10 @@ public sealed class PatchService : IDisposable
         var current = Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable);
         var legacy = Path.Combine(_gameDirectory, LauncherConfiguration.LegacyGameExecutable);
         if (File.Exists(current) && File.Exists(legacy))
+        {
+            MakeWritable(legacy);
             File.Delete(legacy);
+        }
     }
 
     internal async Task<IReadOnlySet<PatchEntry>> BuildRepairPlanAsync(
@@ -248,6 +251,7 @@ public sealed class PatchService : IDisposable
             if (!await HashMatchesAsync(temporary, file.Sha256, cancellationToken))
                 throw new InvalidOperationException($"Downloaded file failed verification: {file.Path}");
 
+            MakeWritable(destination);
             File.Move(temporary, destination, true);
         }
         finally
@@ -380,9 +384,22 @@ public sealed class PatchService : IDisposable
         }
     }
 
+    private static void MakeWritable(string path)
+    {
+        if (!File.Exists(path)) return;
+        var attributes = File.GetAttributes(path);
+        if ((attributes & FileAttributes.ReadOnly) != 0)
+            File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);
+    }
+
     private static void TryDelete(string path)
     {
-        try { if (File.Exists(path)) File.Delete(path); }
+        try
+        {
+            if (!File.Exists(path)) return;
+            MakeWritable(path);
+            File.Delete(path);
+        }
         catch { }
     }
 

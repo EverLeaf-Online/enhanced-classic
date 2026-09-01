@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
@@ -78,6 +79,15 @@ public partial class MainWindow : Window
         SetBusy(false);
 
         if (!gameExists) return;
+
+        if (Process.GetProcessesByName("EverLeaf").Any(process => process.Id != Environment.ProcessId))
+        {
+            ErrorText.Text = "EverLeaf is currently running. Close the game before checking or repairing client files.";
+            PatchStatusText.Text = "Close EverLeaf before repair";
+            _clientReady = true;
+            SetBusy(false);
+            return;
+        }
 
         try
         {
