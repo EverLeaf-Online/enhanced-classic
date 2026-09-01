@@ -37,7 +37,7 @@ jobs:
           for asset in warrior magician bowman thief pirate cygnus aran evan; do
             test -f "public/assets/jobs/${asset}.svg"
           done
-          for asset in launcher patch tool; do
+          for asset in launcher patch tool trophy journal community account recovery; do
             test -f "public/assets/ui/${asset}.svg"
           done
           grep -q 'maple-remaster.css' src/views/partials/header.ejs
@@ -46,6 +46,8 @@ jobs:
           grep -q 'mapleHero' src/views/home.ejs
           grep -q 'mapleJobsGrid' src/views/home.ejs
           grep -q 'mapleSpecialJobs' src/views/home.ejs
+          grep -q '/assets/ui/trophy.svg' src/views/home.ejs
+          grep -q '/assets/ui/recovery.svg' src/views/help.ejs
           grep -q 'rankingTable' src/views/rankings.ejs
           grep -q 'characterCards' src/views/account.ejs
           grep -q '/assets/ui/launcher.svg' src/views/downloads.ejs
