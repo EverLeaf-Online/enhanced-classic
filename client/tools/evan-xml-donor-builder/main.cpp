@@ -28,6 +28,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
+// Final-head CI marker: the trusted client gate must compile and round-trip this exact source.
 std::size_t g_pngCounter = 0;
 
 std::vector<std::uint8_t> DecodeBase64(const std::string& input) {
