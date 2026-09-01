@@ -1,0 +1,5 @@
+# EverLeaf v83 Evan UI.wz donor merge.
+# Preserve existing EverLeaf UI and import only Evan-required properties.
+property:Basic.img/Tab8
+property:UIWindow.img/SkillEx
+property:UIWindow.img/SkillMacroEx
