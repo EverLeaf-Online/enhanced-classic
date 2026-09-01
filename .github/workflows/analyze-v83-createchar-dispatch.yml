@@ -1,0 +1,86 @@
+name: Analyze v83 create-character dispatch
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/analyze-v83-createchar-dispatch.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 335d4fbb74e713a01f63163c39c941865401d24a
+          sparse-checkout: Localhosts.zip
+          sparse-checkout-cone-mode: false
+      - run: python3 -m pip install --user pefile capstone
+      - name: Trace SendNewCharPacket and race-field writers
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "096e21e155ca1a06a3132a6ad6f7feda5cd986928f415bab15a3b67fee412527  Localhosts.zip" | sha256sum --check
+          mkdir source
+          unzip -q Localhosts.zip -d source
+          cp source/Localhost.exe v83.exe
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, re
+          import pefile
+          from capstone import *
+          from capstone.x86 import *
+
+          data=Path('v83.exe').read_bytes(); pe=pefile.PE('v83.exe'); base=pe.OPTIONAL_HEADER.ImageBase
+          md=Cs(CS_ARCH_X86,CS_MODE_32); md.detail=True
+          target=0x005F7E7A
+          off=pe.get_offset_from_rva(target-base)
+          blob=data[off:off+0x900]
+          ins=list(md.disasm(blob,target))
+          lines=[f'{i.address:08X}: {i.mnemonic:<7} {i.op_str}' for i in ins]
+          print('--- SendNewCharPacket ---')
+          for line in lines: print(line)
+
+          # Candidate this-object displacements used in the function. We care about
+          # fields read immediately before Encode1/Encode4-style calls and branches.
+          disps={}
+          for i in ins:
+              for op in i.operands:
+                  if op.type==X86_OP_MEM and op.mem.base in (X86_REG_ECX,X86_REG_ESI,X86_REG_EDI,X86_REG_EBX):
+                      d=op.mem.disp
+                      if 0 < d < 0x1000:
+                          disps[d]=disps.get(d,0)+1
+          print('CANDIDATE_DISPS',json.dumps({hex(k):v for k,v in sorted(disps.items())},sort_keys=True))
+
+          # Scan executable sections for writes of small immediates 0..3 to object
+          # fields. These are high-value candidates for the v83 race selector.
+          writes=[]
+          for sec in pe.sections:
+              if not (sec.Characteristics & 0x20000000): continue
+              code=sec.get_data(); va0=base+sec.VirtualAddress
+              section_ins=list(md.disasm(code,va0))
+              for idx,i in enumerate(section_ins):
+                  if i.mnemonic != 'mov' or len(i.operands)!=2: continue
+                  dst,src=i.operands
+                  if dst.type!=X86_OP_MEM or src.type!=X86_OP_IMM: continue
+                  if src.imm not in (0,1,2,3): continue
+                  d=dst.mem.disp
+                  if d not in disps: continue
+                  # Capture nearby instructions to distinguish selector paths.
+                  lo=max(0,idx-8); hi=min(len(section_ins),idx+9)
+                  ctx=[f'{x.address:08X}: {x.mnemonic:<7} {x.op_str}' for x in section_ins[lo:hi]]
+                  writes.append({'address':hex(i.address),'disp':hex(d),'value':src.imm,'context':ctx})
+          print('--- candidate small-immediate writers ---')
+          for w in writes:
+              print(json.dumps(w))
+          Path('v83-createchar-dispatch.json').write_text(json.dumps({'function':lines,'disps':{hex(k):v for k,v in disps.items()},'writers':writes},indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v83-createchar-dispatch
+          path: v83-createchar-dispatch.json
+          retention-days: 7
