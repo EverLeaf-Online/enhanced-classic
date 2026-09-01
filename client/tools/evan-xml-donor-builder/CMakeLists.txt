@@ -23,7 +23,8 @@ add_subdirectory("${LIBWZ_SOURCE}" "${CMAKE_BINARY_DIR}/libwz")
 # libwz correctly builds itself with exceptions disabled, but publishes that
 # switch to consumers. The XML wrapper uses exceptions only for its own
 # fail-closed parsing/diagnostics, so remove the inherited switch without
-# changing how the pinned libwz target itself is compiled.
+# changing how the pinned libwz target itself is compiled. This target is
+# validated by the round-trip WZ CI fixture before merge.
 if(NOT MSVC)
   get_target_property(_wz_interface_options wz INTERFACE_COMPILE_OPTIONS)
   if(_wz_interface_options)
