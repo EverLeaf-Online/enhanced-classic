@@ -25,6 +25,20 @@ class EquipmentRequirementsTest {
     }
 
     @Test
+    void legacyAllFamilySentinelAllowsCombatFamiliesOnly() {
+        int allFamilies = EquipmentRequirements.ALL_COMBAT_FAMILIES;
+        assertTrue(EquipmentRequirements.canEquipForJob(Job.HERO, allFamilies));
+        assertTrue(EquipmentRequirements.canEquipForJob(Job.BISHOP, allFamilies));
+        assertTrue(EquipmentRequirements.canEquipForJob(Job.BOWMASTER, allFamilies));
+        assertTrue(EquipmentRequirements.canEquipForJob(Job.NIGHTLORD, allFamilies));
+        assertTrue(EquipmentRequirements.canEquipForJob(Job.CORSAIR, allFamilies));
+        assertTrue(EquipmentRequirements.canEquipForJob(Job.EVAN10, allFamilies));
+        assertFalse(EquipmentRequirements.canEquipForJob(Job.BEGINNER, allFamilies));
+        assertFalse(EquipmentRequirements.canEquipForJob(Job.NOBLESSE, allFamilies));
+        assertFalse(EquipmentRequirements.canEquipForJob(Job.LEGEND, allFamilies));
+    }
+
+    @Test
     void extendedClassesMapToTheirCombatFamily() {
         assertTrue(EquipmentRequirements.canEquipForJob(Job.DAWNWARRIOR4, 1));
         assertTrue(EquipmentRequirements.canEquipForJob(Job.ARAN4, 1));
@@ -46,5 +60,6 @@ class EquipmentRequirementsTest {
     void gmJobsBypassRequirements() {
         assertTrue(EquipmentRequirements.canEquipForJob(Job.GM, 1));
         assertTrue(EquipmentRequirements.canEquipForJob(Job.SUPERGM, 16));
+        assertTrue(EquipmentRequirements.canEquipForJob(Job.GM, EquipmentRequirements.ALL_COMBAT_FAMILIES));
     }
 }
