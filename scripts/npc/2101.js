@@ -8,8 +8,7 @@
     it under the terms of the GNU Affero General Public License as
     published by the Free Software Foundation version 3 as published by
     the Free Software Foundation. You may not use, modify or distribute
-    this program under any other version of the GNU Affero General Public
-    License.
+    this program under any other version of the GNU Affero General Public License.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -37,8 +36,16 @@ function isFreshBeginner() {
 }
 
 function finishEvanConversion() {
-    cm.changeJobById(EVAN_BEGINNER_JOB);
+    // Move the Beginner before sending the Evan job-change packet. On this v83
+    // client the reverse order can leave the character converted but stranded.
     cm.warp(MAP_EVAN_START, 0);
+    if (cm.getPlayer().getMapId() != MAP_EVAN_START) {
+        cm.sendOk("EverLeaf could not move you to the Evan starting area. No job change was made. Please try again.");
+        cm.dispose();
+        return;
+    }
+
+    cm.changeJobById(EVAN_BEGINNER_JOB);
 
     try {
         var guideCount = cm.itemQuantity(BEGINNERS_GUIDE);
@@ -46,7 +53,7 @@ function finishEvanConversion() {
             cm.gainItem(BEGINNERS_GUIDE, -guideCount);
         }
     } catch (cleanupError) {
-        // Non-critical cleanup must not strand a converted Evan on Maple Island.
+        // Non-critical cleanup must not interrupt the conversion.
     }
 
     try {
