@@ -2,6 +2,7 @@
 <%
 const jobArt=(name='')=>{
   const n=String(name).toLowerCase();
+  if(/beginner/.test(n)) return '/assets/jobs/beginner/beginner.png';
   if(/aran/.test(n)) return '/assets/jobs/special/aran.png';
   if(/evan/.test(n)) return '/assets/jobs/special/evan.png';
   if(/dawn warrior/.test(n)) return '/assets/jobs/cygnus/dawn-warrior.png';
