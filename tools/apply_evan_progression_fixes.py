@@ -3,6 +3,8 @@
 
 Restores and protects the v83 Evan growth model:
 - Evan mastery stages automatically advance at 10/20/30/40/50/60/80/100/120/160.
+- Advancement is catch-up safe: an Evan above a missed threshold advances through every
+  mastery stage their current level qualifies for.
 - Evan growth stages receive magician-style HP/MP growth on level-up.
 - Automatic Evan mastery changes reuse the canonical Character.changeJob path
   without also receiving the generic manual job-change SP grant.
@@ -105,31 +107,36 @@ def main() -> int:
     }
 
     private void advanceEvanGrowthStage() {
-        Job nextJob = null;
-        if (level == 10 && job == Job.EVAN) {
-            nextJob = Job.EVAN1;
-        } else if (level == 20 && job == Job.EVAN1) {
-            nextJob = Job.EVAN2;
-        } else if (level == 30 && job == Job.EVAN2) {
-            nextJob = Job.EVAN3;
-        } else if (level == 40 && job == Job.EVAN3) {
-            nextJob = Job.EVAN4;
-        } else if (level == 50 && job == Job.EVAN4) {
-            nextJob = Job.EVAN5;
-        } else if (level == 60 && job == Job.EVAN5) {
-            nextJob = Job.EVAN6;
-        } else if (level == 80 && job == Job.EVAN6) {
-            nextJob = Job.EVAN7;
-        } else if (level == 100 && job == Job.EVAN7) {
-            nextJob = Job.EVAN8;
-        } else if (level == 120 && job == Job.EVAN8) {
-            nextJob = Job.EVAN9;
-        } else if (level == 160 && job == Job.EVAN9) {
-            nextJob = Job.EVAN10;
-        }
+        while (true) {
+            Job nextJob = null;
+            if (level >= 10 && job == Job.EVAN) {
+                nextJob = Job.EVAN1;
+            } else if (level >= 20 && job == Job.EVAN1) {
+                nextJob = Job.EVAN2;
+            } else if (level >= 30 && job == Job.EVAN2) {
+                nextJob = Job.EVAN3;
+            } else if (level >= 40 && job == Job.EVAN3) {
+                nextJob = Job.EVAN4;
+            } else if (level >= 50 && job == Job.EVAN4) {
+                nextJob = Job.EVAN5;
+            } else if (level >= 60 && job == Job.EVAN5) {
+                nextJob = Job.EVAN6;
+            } else if (level >= 80 && job == Job.EVAN6) {
+                nextJob = Job.EVAN7;
+            } else if (level >= 100 && job == Job.EVAN7) {
+                nextJob = Job.EVAN8;
+            } else if (level >= 120 && job == Job.EVAN8) {
+                nextJob = Job.EVAN9;
+            } else if (level >= 160 && job == Job.EVAN9) {
+                nextJob = Job.EVAN10;
+            }
 
-        if (nextJob != null) {
+            if (nextJob == null) {
+                return;
+            }
+
             changeJob(nextJob, false);
+            yellowMessage("Your bond with Mir has deepened. Evan mastery automatically advanced to " + GameConstants.getJobName(nextJob.getId()) + ".");
         }
     }
 
@@ -174,12 +181,14 @@ def main() -> int:
         "private synchronized void changeJob(Job newJob, boolean grantJobChangeSp)",
         "if (grantJobChangeSp)",
         "private boolean isEvanGrowthJob()",
-        "level == 10 && job == Job.EVAN",
-        "level == 160 && job == Job.EVAN9",
+        "while (true)",
+        "level >= 10 && job == Job.EVAN",
+        "level >= 160 && job == Job.EVAN9",
         "nextJob = Job.EVAN10;",
         "changeJob(nextJob, false);",
         "advanceEvanGrowthStage();\n        levelUpGainSp();",
         "job.isA(Job.BLAZEWIZARD1) || isEvanGrowthJob()",
+        "Your bond with Mir has deepened.",
     )
     final = CHARACTER.read_text(encoding="utf-8")
     for fragment in required:
@@ -189,13 +198,15 @@ def main() -> int:
     forbidden = (
         "levelUpGainSp();\n        advanceEvanGrowthStage();",
         "changeJob(nextJob);",
+        "level == 10 && job == Job.EVAN",
+        "level == 160 && job == Job.EVAN9",
     )
     for fragment in forbidden:
         if fragment in final:
-            raise SystemExit(f"ERROR stale Evan duplicate-SP path remains: {fragment}")
+            raise SystemExit(f"ERROR stale Evan progression path remains: {fragment}")
 
     print("EverLeaf Evan progression fixes: PASS")
-    print("  milestone mastery change: before normal level-up SP")
+    print("  milestone mastery change: catch-up safe and before normal level-up SP")
     print("  automatic Evan changeJob: generic job-change SP disabled")
     return 0
 
