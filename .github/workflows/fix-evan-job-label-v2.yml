@@ -1,0 +1,239 @@
+name: Fix Evan beginner job label v2
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - '.github/workflows/fix-evan-job-label-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  patch-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: client-dev
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'test -s /opt/everleaf/patches/files/EverLeaf.exe && test -s /opt/everleaf/patches/managed-client-baseline.json && test -s /opt/everleaf/patches/manifest.json'
+
+      - name: Retrieve production client
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/EverLeaf.exe" EverLeaf.exe
+          test -s EverLeaf.exe
+          sha256sum EverLeaf.exe
+
+      - name: Locate and patch encrypted StringPool dynamically
+        shell: python
+        run: |
+          from pathlib import Path
+          import hashlib, struct
+
+          src = bytearray(Path('EverLeaf.exe').read_bytes())
+
+          def u16(p): return struct.unpack_from('<H', src, p)[0]
+          def u32(p): return struct.unpack_from('<I', src, p)[0]
+          if src[:2] != b'MZ': raise RuntimeError('Not a PE executable')
+          pe = u32(0x3c)
+          if bytes(src[pe:pe+4]) != b'PE\0\0': raise RuntimeError('Invalid PE signature')
+          sections_count = u16(pe + 6)
+          optional_size = u16(pe + 20)
+          opt = pe + 24
+          magic = u16(opt)
+          if magic != 0x10b: raise RuntimeError(f'Expected PE32, got 0x{magic:04x}')
+          image_base = u32(opt + 28)
+          sec = opt + optional_size
+          sections=[]
+          for i in range(sections_count):
+              p=sec+i*40
+              name=bytes(src[p:p+8]).split(b'\0',1)[0].decode('ascii','replace')
+              vsize=u32(p+8); va=u32(p+12); rawsize=u32(p+16); raw=u32(p+20)
+              sections.append((name,va,vsize,rawsize,raw))
+          print('image_base', hex(image_base), 'sections', sections)
+
+          def va_to_file(va):
+              rva=va-image_base
+              for name,sva,vsize,rawsize,raw in sections:
+                  span=max(vsize,rawsize)
+                  if sva <= rva < sva+span:
+                      delta=rva-sva
+                      if delta >= rawsize:
+                          raise RuntimeError(f'VA 0x{va:X} falls in unbacked virtual tail of {name}')
+                      pos=raw+delta
+                      if pos >= len(src): raise RuntimeError(f'VA 0x{va:X} maps past EOF')
+                      return pos
+              if 0 <= rva < len(src): return rva
+              raise RuntimeError(f'VA 0x{va:X} is not file-backed')
+
+          pattern_text = (
+            '8B 86 ?? ?? ?? 00 0F BE 00 6A 04 B9 ?? ?? ?? 00 '
+            '89 45 F0 E8 EB ?? ?? ?? 8B C8 89 4D 0C 85 C9 C6 '
+            '45 FC 01 74 1A 8B 86 ?? ?? ?? 00 83 21 00 40 6A '
+            'FF 50 E8 C4 ?? ?? ?? ?? 45 0C 89 45 0C EB 04 83 '
+            '65 0C 00 FF 75 F0 80 65 FC 00 FF 35 ?? ?? ?? 00 '
+            '68 ?? ?? ?? 00 FF 75 0C E8 ?? ?? 00 00'
+          )
+          toks=pattern_text.split()
+          patt=[None if x=='??' else int(x,16) for x in toks]
+          hits=[]
+          plen=len(patt)
+          for p in range(0,len(src)-plen+1):
+              ok=True
+              for j,want in enumerate(patt):
+                  if want is not None and src[p+j] != want:
+                      ok=False; break
+              if ok: hits.append(p)
+          print('StringPool signature hits:', [hex(x) for x in hits])
+          if len(hits) != 1:
+              raise RuntimeError(f'Expected exactly one StringPool signature, found {len(hits)}')
+          p=hits[0]
+
+          # Match STREDIT's reads relative to its masked signature.
+          strings_va=u32(p+2)
+          key_size_va=u32(p+2+0x44+2)
+          key_va=u32(p+2+0x44+2+4+1)
+          count_va=key_size_va+4
+          print('resolved VAs', hex(strings_va), hex(key_size_va), hex(key_va), hex(count_va))
+
+          key_size=struct.unpack_from('<i',src,va_to_file(key_size_va))[0]
+          string_count=u32(va_to_file(count_va))
+          if not 1 <= key_size <= 64: raise RuntimeError(f'Invalid key size {key_size}')
+          if not 1000 <= string_count <= 100000: raise RuntimeError(f'Invalid string count {string_count}')
+          kp=va_to_file(key_va)
+          key=bytes(src[kp:kp+key_size])
+          if len(key)!=key_size: raise RuntimeError('Truncated StringPool key')
+          table=va_to_file(strings_va)
+          if table + string_count*4 > len(src): raise RuntimeError('StringPool pointer table exceeds file')
+
+          def rotate(value, shift_signed):
+              length=len(value); shift=shift_signed & 0xffffffff; v=bytearray(value)
+              if shift >= 8:
+                  n=(shift>>3)%length
+                  if n: v=bytearray(value[(i+n)%length] for i in range(length))
+              bits=shift & 7
+              if bits:
+                  carry=(v[0]>>(8-bits)) if length>1 else 0
+                  for i in range(length):
+                      nxt=(v[i+1]>>(8-bits)) if i!=length-1 else 0
+                      v[i]=((v[i]<<bits)&0xff)|nxt
+                  v[-1]|=carry
+              return bytes(v)
+
+          def decode(index):
+              ptr=u32(table+index*4)
+              q=va_to_file(ptr)
+              shift=struct.unpack_from('<b',src,q)[0]; q+=1
+              rk=rotate(key,shift); out=bytearray(); positions=[]; i=0
+              while q < len(src):
+                  b=src[q]
+                  if b==0: return out.decode('latin1'),positions,q,rk
+                  k=rk[i%key_size]
+                  out.append(k if b==k else b^k)
+                  positions.append(q); q+=1; i+=1
+                  if i>65536: raise RuntimeError(f'Entry {index} is unterminated')
+              raise RuntimeError(f'Entry {index} exceeds file')
+
+          matches=[]; nearby=[]
+          for i in range(string_count):
+              try: value,positions,term,rk=decode(i)
+              except Exception: continue
+              if value.startswith('Evan'): nearby.append((i,value))
+              if value=='Evan0': matches.append((i,positions,rk))
+          print('decoded Evan entries:', nearby)
+          if len(matches)!=1: raise RuntimeError(f'Expected exactly one Evan0 entry; found {len(matches)}')
+          index,positions,rk=matches[0]
+          replacement=b'Evan'
+          if len(positions)<5: raise RuntimeError('Evan0 allocation unexpectedly short')
+          for i,plain in enumerate(replacement):
+              k=rk[i%key_size]; enc=plain if plain==k else plain^k
+              if enc==0: raise RuntimeError('Encoded replacement contains a null byte')
+              src[positions[i]]=enc
+          src[positions[len(replacement)]]=0
+          check,*_=decode(index)
+          if check!='Evan': raise RuntimeError(f'Post-patch decode failed: {check!r}')
+          before=hashlib.sha256(Path('EverLeaf.exe').read_bytes()).hexdigest()
+          after=hashlib.sha256(src).hexdigest()
+          if before==after: raise RuntimeError('Executable hash unchanged')
+          Path('EverLeaf-patched.exe').write_bytes(src)
+          print(f'Patched StringPool index {index}: Evan0 -> Evan')
+          print('before',before); print('after',after)
+
+      - name: Publish patched executable and manifest atomically
+        shell: bash
+        run: |
+          set -euo pipefail
+          stamp="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          scp -i ~/.ssh/id_everleaf EverLeaf-patched.exe web/scripts/build-patch-manifest.js \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/tmp/"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "STAMP='$stamp' bash -s" <<'REMOTE'
+          set -euo pipefail
+          live=/opt/everleaf/patches
+          stage="/opt/everleaf/evan-label-stage-$STAMP"
+          backup="/opt/everleaf/evan-label-backup-$STAMP"
+          mkdir -p "$stage/files" "$backup"
+          cp -a "$live/files"/. "$stage/files/"
+          cp -a "$live/managed-client-baseline.json" "$stage/managed-client-baseline.json"
+          cp -a "$live/files/EverLeaf.exe" "$backup/EverLeaf.exe"
+          cp -a "$live/manifest.json" "$backup/manifest.json"
+          install -m 644 /tmp/EverLeaf-patched.exe "$stage/files/EverLeaf.exe"
+          LAUNCHER_PATCH_ROOT="$stage" LAUNCHER_BASELINE_PATH="$stage/managed-client-baseline.json" \
+            LAUNCHER_MANIFEST_PATH="$stage/manifest.json" node /tmp/build-patch-manifest.js
+          python3 - "$stage/manifest.json" "$stage/files/EverLeaf.exe" <<'PY'
+          import hashlib,json,pathlib,sys
+          m=json.load(open(sys.argv[1])); p=pathlib.Path(sys.argv[2]); h=hashlib.sha256(p.read_bytes()).hexdigest()
+          e=[x for x in m['files'] if x['path'].lower()=='everleaf.exe']
+          assert len(e)==1 and e[0]['sha256']==h
+          print('manifest validated',h)
+          PY
+          install -m 644 "$stage/files/EverLeaf.exe" "$live/files/EverLeaf.exe"
+          install -m 644 "$stage/manifest.json" "$live/manifest.json"
+          if ! sudo systemctl restart everleaf-web || ! sleep 2 || ! curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null; then
+            install -m 644 "$backup/EverLeaf.exe" "$live/files/EverLeaf.exe"
+            install -m 644 "$backup/manifest.json" "$live/manifest.json"
+            sudo systemctl restart everleaf-web || true
+            exit 1
+          fi
+          printf '%s\n' "$STAMP" > /opt/everleaf/.evan-job-label-release
+          rm -rf "$stage" /tmp/EverLeaf-patched.exe /tmp/build-patch-manifest.js
+          echo "Evan job label published: $STAMP"
+          REMOTE
+
+      - name: Verify public manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(sha256sum EverLeaf-patched.exe | awk '{print $1}')"
+          actual="$(curl -fsS https://everleafms.online/v1/launcher/manifest | python3 -c 'import json,sys; m=json.load(sys.stdin); print(next(x["sha256"] for x in m["files"] if x["path"].lower()=="everleaf.exe"))')"
+          test "$actual" = "$expected"
+          echo "Public patched EverLeaf.exe verified: $actual"
