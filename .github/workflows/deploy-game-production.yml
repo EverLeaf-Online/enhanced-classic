@@ -1,4 +1,4 @@
-# Manual production deployment trigger: infra-db-security-hardening-112
+# Manual production deployment trigger: evan-mastery-sp-124
 name: Deploy EverLeaf Game Production
 
 on:
