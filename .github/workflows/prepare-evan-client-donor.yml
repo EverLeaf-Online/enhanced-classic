@@ -15,10 +15,14 @@ on:
   workflow_dispatch:
     inputs:
       prepare_donor:
-        description: Build and install the private Evan donor WZ set
+        description: Build/install private Evan donor WZs and publish the Evan-ready full baseline
         required: true
         default: false
         type: boolean
+
+concurrency:
+  group: everleaf-evan-client-private-publish
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -50,7 +54,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.prepare_donor) ||
       github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v5
 
@@ -74,42 +78,54 @@ jobs:
           ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'echo EverLeaf Evan source SSH OK'
 
-      - name: Preflight exact private Evan source archive
-        id: source
+      - name: Preflight private Evan client state
+        id: state
         shell: bash
         run: |
           set -euo pipefail
-          remote=/opt/everleaf/private/evan/Evan.zip
+          source_path=/opt/everleaf/private/evan/Evan.zip
+          donor_path=/opt/everleaf/private/evan-wz-donor
+          published_marker=/opt/everleaf/private/evan-client-published.sha256
+
           actual="$(ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "test -s '$remote' && sha256sum '$remote' | awk '{print \$1}'" 2>/dev/null || true)"
-          if [ "$actual" = "$EVAN_SOURCE_SHA256" ]; then
-            echo 'ready=true' >> "$GITHUB_OUTPUT"
-            echo "Exact authorized Evan source is present: $actual"
-          else
-            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            "test -s '$source_path' && sha256sum '$source_path' | awk '{print \$1}'" 2>/dev/null || true)"
+          if [ "$actual" != "$EVAN_SOURCE_SHA256" ]; then
+            echo 'source_ready=false' >> "$GITHUB_OUTPUT"
+            echo 'donor_ready=false' >> "$GITHUB_OUTPUT"
+            echo 'published=false' >> "$GITHUB_OUTPUT"
             if [ -n "$actual" ]; then
-              echo "Evan source archive exists but SHA differs; preparation skipped. actual=$actual expected=$EVAN_SOURCE_SHA256"
+              echo "Evan source exists but SHA differs; no action. actual=$actual expected=$EVAN_SOURCE_SHA256"
             else
-              echo "Exact Evan source archive is not present at $remote; preparation skipped safely."
+              echo "Exact Evan source is absent at $source_path; no action."
             fi
+            exit 0
           fi
 
-      - name: Verify client workflow dispatch route
-        if: github.event_name == 'push'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          gh workflow run build-everleaf-client.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref client-dev \
-            -f publish_patch=false \
-            -f publish_full_baseline=false
-          echo 'Client workflow dry dispatch request accepted.'
+          echo 'source_ready=true' >> "$GITHUB_OUTPUT"
+          echo "Exact authorized Evan source present: $actual"
+
+          donor_source="$(ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "for wz in Skill Character UI String; do test -s '$donor_path/'\$wz.wz || exit 1; done; cat '$donor_path/source.sha256' 2>/dev/null" 2>/dev/null || true)"
+          if [ "$donor_source" = "$EVAN_SOURCE_SHA256" ]; then
+            echo 'donor_ready=true' >> "$GITHUB_OUTPUT"
+            echo 'Private Evan donor set already matches the exact source archive.'
+          else
+            echo 'donor_ready=false' >> "$GITHUB_OUTPUT"
+            echo 'Private Evan donor set is absent/stale and will be rebuilt.'
+          fi
+
+          published_source="$(ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "awk 'NR==1 {print \$1}' '$published_marker' 2>/dev/null" || true)"
+          if [ "$published_source" = "$EVAN_SOURCE_SHA256" ]; then
+            echo 'published=true' >> "$GITHUB_OUTPUT"
+            echo 'Evan-ready full client baseline is already marked published for this source.'
+          else
+            echo 'published=false' >> "$GITHUB_OUTPUT"
+            echo 'Evan-ready full client baseline still requires publication.'
+          fi
 
       - name: Retrieve exact private Evan source archive
-        if: steps.source.outputs.ready == 'true'
+        if: steps.state.outputs.source_ready == 'true' && steps.state.outputs.donor_ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -120,7 +136,7 @@ jobs:
           printf '%s  Evan.zip\n' "$EVAN_SOURCE_SHA256" | sha256sum --check --strict
 
       - name: Build donor WZ set from Evan source
-        if: steps.source.outputs.ready == 'true'
+        if: steps.state.outputs.source_ready == 'true' && steps.state.outputs.donor_ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -132,7 +148,7 @@ jobs:
           done
 
       - name: Stage generated donor set on Oracle
-        if: steps.source.outputs.ready == 'true'
+        if: steps.state.outputs.source_ready == 'true' && steps.state.outputs.donor_ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -145,12 +161,12 @@ jobs:
             "chmod 600 '$remote_stage'/*.wz && test -s '$remote_stage/Skill.wz' && test -s '$remote_stage/Character.wz' && test -s '$remote_stage/UI.wz' && test -s '$remote_stage/String.wz'"
 
       - name: Atomically publish private donor set
-        if: steps.source.outputs.ready == 'true'
+        if: steps.state.outputs.source_ready == 'true' && steps.state.outputs.donor_ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "RUN_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE'
+            "RUN_ID='$GITHUB_RUN_ID' SOURCE_SHA='$EVAN_SOURCE_SHA256' bash -s" <<'REMOTE'
           set -euo pipefail
           private=/opt/everleaf/private
           incoming="/tmp/everleaf-evan-donor-$RUN_ID"
@@ -167,6 +183,8 @@ jobs:
             sudo install -o ubuntu -g ubuntu -m 600 "$incoming/$wz.wz" "$release/$wz.wz"
             test -s "$release/$wz.wz"
           done
+          printf '%s\n' "$SOURCE_SHA" > "$release/source.sha256"
+          chmod 600 "$release/source.sha256"
 
           if [ -e "$link" ] && [ ! -L "$link" ]; then
             legacy="$private/evan-wz-donor.legacy.$(date -u +%Y%m%dT%H%M%SZ)"
@@ -179,20 +197,89 @@ jobs:
           for wz in Skill Character UI String; do
             test -s "$link/$wz.wz"
           done
+          test "$(cat "$link/source.sha256")" = "$SOURCE_SHA"
           rm -rf "$incoming"
           echo "EverLeaf Evan donor release active: $(readlink -f "$link")"
           REMOTE
 
       - name: Record donor hashes
-        if: steps.source.outputs.ready == 'true'
+        if: steps.state.outputs.source_ready == 'true' && steps.state.outputs.donor_ready != 'true'
         shell: bash
         run: |
           set -euo pipefail
           sha256sum evan-donor/*.wz
 
-      - name: Report source prerequisite
-        if: steps.source.outputs.ready != 'true'
+      - name: Publish Evan-ready full client baseline
+        if: steps.state.outputs.source_ready == 'true' && steps.state.outputs.published != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mapfile -t before_ids < <(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow build-everleaf-client.yml \
+            --branch client-dev \
+            --event workflow_dispatch \
+            --limit 30 \
+            --json databaseId \
+            --jq '.[].databaseId')
+
+          gh workflow run build-everleaf-client.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref client-dev \
+            -f publish_patch=true \
+            -f publish_full_baseline=true
+
+          run_id=''
+          for attempt in $(seq 1 30); do
+            mapfile -t current_ids < <(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow build-everleaf-client.yml \
+              --branch client-dev \
+              --event workflow_dispatch \
+              --limit 30 \
+              --json databaseId \
+              --jq '.[].databaseId')
+            for candidate in "${current_ids[@]}"; do
+              seen=false
+              for old in "${before_ids[@]}"; do
+                if [ "$candidate" = "$old" ]; then
+                  seen=true
+                  break
+                fi
+              done
+              if [ "$seen" = false ]; then
+                run_id="$candidate"
+                break 2
+              fi
+            done
+            sleep 2
+          done
+          test -n "$run_id" || { echo 'Could not identify dispatched client publication run.' >&2; exit 1; }
+          echo "Waiting for Evan full-baseline publication run $run_id"
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 10
+          echo "EVAN_CLIENT_PUBLISH_RUN=$run_id" >> "$GITHUB_ENV"
+
+      - name: Record successful Evan client publication
+        if: steps.state.outputs.source_ready == 'true' && steps.state.outputs.published != 'true'
         shell: bash
         run: |
-          echo 'Evan donor generation is ready, but the exact pinned private Evan.zip is not currently available on Oracle.'
-          echo 'No donor files were generated or changed.'
+          set -euo pipefail
+          test -n "${EVAN_CLIENT_PUBLISH_RUN:-}"
+          marker=/opt/everleaf/private/evan-client-published.sha256
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "printf '%s %s %s\n' '$EVAN_SOURCE_SHA256' '$EVAN_CLIENT_PUBLISH_RUN' '$(date -u +%FT%TZ)' > '$marker' && chmod 600 '$marker'"
+          echo "Recorded successful Evan client publication for $EVAN_SOURCE_SHA256"
+
+      - name: Report Evan client state
+        shell: bash
+        run: |
+          if [ "${{ steps.state.outputs.source_ready }}" != 'true' ]; then
+            echo 'WAITING: exact pinned private Evan.zip is not currently available on Oracle.'
+            echo 'No donor or client publication state was changed.'
+          elif [ "${{ steps.state.outputs.published }}" = 'true' ]; then
+            echo 'READY: Evan-ready full client baseline is already published for the exact source archive.'
+          else
+            echo 'READY: exact source was available and the Evan full client publication completed in this run.'
+          fi
