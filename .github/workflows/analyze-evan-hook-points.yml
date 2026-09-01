@@ -1,0 +1,29 @@
+name: Analyze Evan hook points
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/analyze-evan-hook-points.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: client-dev
+      - name: Inventory relevant hook points
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '--- StringPool / Evan action references ---'
+          grep -RniE 'StringPool|magicmissile|dragonAura|recoveryAura|dragonBreathe|dragonIceBreathe|magicRegistance' client/ezorsia/ezorsia || true
+          echo '--- login / race / create references ---'
+          grep -RniE 'RaceSelect|CreateChar|create char|CharSelect|BtSelect|aran|knight|normal' client/ezorsia/ezorsia || true
+          echo '--- hooks / codecaves near login ---'
+          grep -RniE 'CodeCave|Detour|Hook|CLogin|StringPool' client/ezorsia/ezorsia | head -n 500 || true
