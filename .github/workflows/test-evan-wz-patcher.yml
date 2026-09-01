@@ -57,6 +57,7 @@ jobs:
                       if line.strip() and not line.lstrip().startswith('#')]
 
           stages = ['2001','2200','2210','2211','2212','2213','2214','2215','2216','2217','2218']
+          string_stages = ['2200','2210','2211','2212','2213','2214','2215','2216','2217','2218']
 
           skill_expected = [f'image:{x}.img' for x in stages] + ['directory:Dragon']
           assert entries('Skill') == skill_expected, entries('Skill')
@@ -68,8 +69,9 @@ jobs:
               'property:UIWindow.img/SkillMacroEx',
           ]
           assert entries('UI') == ui_expected, entries('UI')
-          string_expected = [f'property:Skill.img/{x}' for x in stages]
+          string_expected = [f'property:Skill.img/{x}' for x in string_stages]
           assert entries('String') == string_expected, entries('String')
+          assert 'property:Skill.img/2001' not in entries('String')
 
           publisher = Path('.github/workflows/publish-evan-wz-assets.yml').read_text()
           required = [
