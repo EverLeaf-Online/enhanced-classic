@@ -32,10 +32,58 @@ jobs:
             raw="https://maplestory.io/api/wz/export/GMS/84/Map/Map/Map1/$id.img?rawImage=true"
             curl -fsSL --retry 1 --connect-timeout 10 --max-time 45 "$info" -o "donor/$id.json"
             curl -fsSL --retry 1 --connect-timeout 10 --max-time 45 "$raw" -o "donor/$id.img"
-            test -s "donor/$id.json"
-            test -s "donor/$id.img"
-            printf "%s json=%s img=%s\n" "$id" "$(stat -c %s donor/$id.json)" "$(stat -c %s donor/$id.img)"
+            test -s "donor/$id.json"; test -s "donor/$id.img"
           ' _ {}
+
+      - name: Inventory referenced Map.wz resource sets
+        shell: python
+        run: |
+          import concurrent.futures, json, urllib.request, urllib.parse, pathlib
+          ids=['100030100','100030101','100030102','100030103','100030200','100030300','100030310','100030400']
+          base='https://maplestory.io/api/wz/GMS/84/Map/Map/Map1/'
+          def get(path):
+              url=base+urllib.parse.quote(path, safe='/')
+              with urllib.request.urlopen(url, timeout=20) as r:
+                  return json.load(r)
+          refs={'Obj':set(),'Tile':set(),'Back':set()}
+          for mid in ids:
+              root=mid+'.img'
+              data=get(root)
+              children=set(data.get('children') or [])
+              print(mid,'root children',sorted(children))
+              # Tile-set names are stored once per visual layer.
+              for layer in map(str,range(8)):
+                  if layer not in children: continue
+                  try:
+                      info=get(f'{root}/{layer}/info')
+                  except Exception:
+                      info={'children':[]}
+                  if 'tS' in (info.get('children') or []):
+                      v=get(f'{root}/{layer}/info/tS').get('value')
+                      if v: refs['Tile'].add(v)
+                  try:
+                      obj=get(f'{root}/{layer}/obj')
+                  except Exception:
+                      obj={'children':[]}
+                  names=obj.get('children') or []
+                  def read_obj(n):
+                      try: return get(f'{root}/{layer}/obj/{n}/oS').get('value')
+                      except Exception: return None
+                  with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
+                      for v in ex.map(read_obj,names):
+                          if v: refs['Obj'].add(v)
+              if 'back' in children:
+                  back=get(f'{root}/back')
+                  names=back.get('children') or []
+                  def read_back(n):
+                      try: return get(f'{root}/back/{n}/bS').get('value')
+                      except Exception: return None
+                  with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
+                      for v in ex.map(read_back,names):
+                          if v: refs['Back'].add(v)
+          out={k:sorted(v) for k,v in refs.items()}
+          pathlib.Path('donor/dependencies.json').write_text(json.dumps(out,indent=2))
+          print(json.dumps(out,indent=2))
 
       - name: Validate donor responses
         shell: python
@@ -43,11 +91,12 @@ jobs:
           import json, pathlib
           ids=['100030100','100030101','100030102','100030103','100030200','100030300','100030310','100030400']
           for mid in ids:
-              jp=pathlib.Path('donor')/(mid+'.json')
+              d=json.loads((pathlib.Path('donor')/(mid+'.json')).read_text(encoding='utf-8'))
               ip=pathlib.Path('donor')/(mid+'.img')
-              d=json.loads(jp.read_text(encoding='utf-8'))
               print(mid, d.get('streetName'), '-', d.get('name'), 'img_bytes=',ip.stat().st_size)
-              assert ip.stat().st_size > 64, f'{mid} IMG unexpectedly small'
+              assert ip.stat().st_size > 64
+          deps=json.loads(pathlib.Path('donor/dependencies.json').read_text())
+          assert all(isinstance(deps[x],list) for x in ('Obj','Tile','Back'))
 
       - uses: actions/upload-artifact@v4
         with:
