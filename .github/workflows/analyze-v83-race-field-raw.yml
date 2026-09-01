@@ -1,0 +1,66 @@
+name: Analyze v83 race-field raw writes
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/analyze-v83-race-field-raw.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 335d4fbb74e713a01f63163c39c941865401d24a
+          sparse-checkout: Localhosts.zip
+          sparse-checkout-cone-mode: false
+      - run: python3 -m pip install --user pefile capstone
+      - name: Raw scan race discriminator instructions
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "096e21e155ca1a06a3132a6ad6f7feda5cd986928f415bab15a3b67fee412527  Localhosts.zip" | sha256sum --check
+          mkdir source
+          unzip -q Localhosts.zip -d source
+          cp source/Localhost.exe v83.exe
+          python3 - <<'PY'
+          from pathlib import Path
+          import pefile
+          from capstone import Cs, CS_ARCH_X86, CS_MODE_32
+
+          data=Path('v83.exe').read_bytes(); pe=pefile.PE('v83.exe'); base=pe.OPTIONAL_HEADER.ImageBase
+          md=Cs(CS_ARCH_X86,CS_MODE_32)
+          needle=b'\x14\x02\x00\x00'
+          pos=0; hits=[]
+          while True:
+              off=data.find(needle,pos)
+              if off<0: break
+              try: va=base+pe.get_rva_from_offset(off)
+              except Exception: pos=off+1; continue
+              sec=pe.get_section_by_rva(va-base)
+              if sec and (sec.Characteristics & 0x20000000):
+                  hits.append((off,va))
+              pos=off+1
+          print('RAW_EXEC_OCCURRENCES',len(hits))
+          for off,va in hits:
+              print(f'\n=== DISP at file 0x{off:X} VA 0x{va:X} ===')
+              print('HEX',data[max(0,off-32):off+40].hex(' '))
+              # Try every plausible instruction boundary up to 12 bytes before the displacement.
+              for back in range(1,13):
+                  start=off-back
+                  try: startva=base+pe.get_rva_from_offset(start)
+                  except: continue
+                  arr=list(md.disasm(data[start:off+16],startva))
+                  if not arr: continue
+                  # Keep candidates where an instruction spans the displacement bytes.
+                  for ins in arr[:3]:
+                      ioff=pe.get_offset_from_rva(ins.address-base)
+                      if ioff <= off < ioff+ins.size:
+                          print(f'BOUNDARY -{back}: {ins.address:08X}: {ins.mnemonic} {ins.op_str} bytes={bytes(ins.bytes).hex(" ")}')
+                          break
+          PY
