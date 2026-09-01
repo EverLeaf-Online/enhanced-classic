@@ -1,4 +1,4 @@
-# Manual production deployment trigger: evan-mastery-sp-124
+# Manual production deployment trigger: equipment-requirements-canonical-125
 name: Deploy EverLeaf Game Production
 
 on:
@@ -48,6 +48,7 @@ jobs:
           python3 tools/apply_evan_skill_data.py
           python3 tools/apply_evan_behavior_fixes.py
           python3 tools/apply_evan_progression_fixes.py
+          python3 tools/apply_equipment_requirement_fixes.py
 
       - name: Configure SSH
         env:
@@ -124,6 +125,7 @@ jobs:
           python3 tools/apply_evan_skill_data.py
           python3 tools/apply_evan_behavior_fixes.py
           python3 tools/apply_evan_progression_fixes.py
+          python3 tools/apply_equipment_requirement_fixes.py
           chmod +x mvnw || true
           ./mvnw -B -DskipTests clean package
           test -s target/everleaf-server-1.0-SNAPSHOT.jar
