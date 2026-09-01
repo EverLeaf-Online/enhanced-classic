@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIPULATOR = ROOT / "src/main/java/client/inventory/manipulator/InventoryManipulator.java"
 INTERACTIONS = ROOT / "src/main/java/net/server/channel/handlers/PlayerInteractionHandler.java"
 DUEY = ROOT / "src/main/java/client/processor/npc/DueyProcessor.java"
+STORAGE = ROOT / "src/main/java/client/processor/npc/StorageProcessor.java"
+PLAYER_SHOP = ROOT / "src/main/java/server/maps/PlayerShop.java"
+HIRED_MERCHANT = ROOT / "src/main/java/server/maps/HiredMerchant.java"
 ITEM = ROOT / "src/main/java/client/inventory/Item.java"
 ITEM_FACTORY = ROOT / "src/main/java/client/inventory/ItemFactory.java"
 ITEM_INFO = ROOT / "src/main/java/server/ItemInformationProvider.java"
@@ -37,11 +40,29 @@ def audit_stack_code() -> None:
         "ItemConstants.isPet(itemId) ? Long.MAX_VALUE : -1L",
         "eItem.getExpiration() == stackExpiration",
         "item.getExpiration() == eItem.getExpiration()",
+        "checkSpace(Client c, int itemid, int quantity, String owner, long expiration)",
     ):
         if fragment not in data:
             raise SystemExit(f"ERROR stack integrity invariant missing: {fragment}")
-    if data.count("if (slotMax <= 0)") < 2:
-        raise SystemExit("ERROR slotMax fail-closed guard is not present in both add paths")
+    if data.count("if (slotMax <= 0)") < 3:
+        raise SystemExit("ERROR slotMax fail-closed guard is not present in addById, addFromDrop, and checkSpace")
+
+    require(
+        PLAYER_SHOP,
+        "InventoryManipulator.checkSpace(c, newItem.getItemId(), newItem.getQuantity(), newItem.getOwner(), newItem.getExpiration())",
+    )
+    require(
+        HIRED_MERCHANT,
+        "InventoryManipulator.checkSpace(c, newItem.getItemId(), newItem.getQuantity(), newItem.getOwner(), newItem.getExpiration())",
+    )
+    require(
+        STORAGE,
+        "InventoryManipulator.checkSpace(c, item.getItemId(), item.getQuantity(), item.getOwner(), item.getExpiration())",
+    )
+    require(
+        DUEY,
+        "InventoryManipulator.checkSpace(c, dpItem.getItemId(), dpItem.getQuantity(), dpItem.getOwner(), dpItem.getExpiration())",
+    )
 
 
 def audit_transfer_code() -> None:
@@ -72,9 +93,6 @@ def audit_transfer_code() -> None:
         "KarmaManipulator.toggleKarmaFlagToUntradeable(item);",
     )
 
-    # ItemInformationProvider reads these flags through full WZ paths using
-    # getIntConvert(), not through a local `info` node. Gate the actual helper
-    # implementation so refactors cannot silently disconnect transfer policy.
     require(
         ITEM_INFO,
         'DataTool.getIntConvert("info/tradeBlock", data, 0)',
@@ -146,7 +164,8 @@ def main() -> int:
     print("  Karma-aware direct trade gate: retained")
     print("  expiration persistence: regular items + equips save/load wired")
     print("  stack merges: owner + flag + expiration compatible")
-    print("  malformed slotMax: add paths fail closed")
+    print("  capacity preflight: PlayerShop/HiredMerchant/Storage/Duey expiration-aware")
+    print("  malformed slotMax: add/preflight paths fail closed")
     print(f"  Item.wz XML files parsed: {files}")
     print(f"  explicit slotMax nodes validated: {slot_nodes}")
     print(f"  maximum explicit slotMax: {max_slot}")
