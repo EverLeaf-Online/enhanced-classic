@@ -3,18 +3,21 @@ using MapleLib.WzLib.Serializer;
 
 if (args.Length < 2)
 {
-    Console.Error.WriteLine("Usage: EverLeafWzExporter <input-directory> <output-directory> [--patch-version=N] [wz-file ...]");
+    Console.Error.WriteLine("Usage: EverLeafWzExporter <input-directory> <output-directory> [--patch-version=N] [--probe-patch-range=MIN:MAX] [wz-file ...]");
     return 2;
 }
 
 var inputDirectory = Path.GetFullPath(args[0]);
 var outputDirectory = Path.GetFullPath(args[1]);
 short patchVersion = -1;
+(short Min, short Max)? probePatchRange = null;
 var requestedFiles = new List<string>();
 
 foreach (var arg in args.Skip(2))
 {
     const string patchPrefix = "--patch-version=";
+    const string probePrefix = "--probe-patch-range=";
+
     if (arg.StartsWith(patchPrefix, StringComparison.OrdinalIgnoreCase))
     {
         var raw = arg[patchPrefix.Length..];
@@ -25,7 +28,30 @@ foreach (var arg in args.Skip(2))
         }
         continue;
     }
+
+    if (arg.StartsWith(probePrefix, StringComparison.OrdinalIgnoreCase))
+    {
+        var raw = arg[probePrefix.Length..];
+        var parts = raw.Split(':', 2);
+        if (parts.Length != 2 ||
+            !short.TryParse(parts[0], out var minVersion) ||
+            !short.TryParse(parts[1], out var maxVersion) ||
+            minVersion < 0 || maxVersion < minVersion)
+        {
+            Console.Error.WriteLine($"Invalid patch probe range: {raw}");
+            return 2;
+        }
+        probePatchRange = (minVersion, maxVersion);
+        continue;
+    }
+
     requestedFiles.Add(arg);
+}
+
+if (probePatchRange is not null && patchVersion < 0)
+{
+    Console.Error.WriteLine("--probe-patch-range requires --patch-version as the preferred version");
+    return 2;
 }
 
 if (!Directory.Exists(inputDirectory))
@@ -55,39 +81,160 @@ foreach (var path in files)
     }
 }
 
+static bool HasPlausibleRootNames(WzFile wzFile, out string summary)
+{
+    var names = wzFile.WzDirectory.WzDirectories.Select(directory => directory.Name)
+        .Concat(wzFile.WzDirectory.WzImages.Select(image => image.Name))
+        .Where(name => !string.IsNullOrEmpty(name))
+        .ToArray();
+
+    if (names.Length == 0)
+    {
+        summary = "root has no named directories or images";
+        return false;
+    }
+
+    var totalCharacters = names.Sum(name => name.Length);
+    var recognizedCharacters = names.Sum(name => name.Count(character => character >= 0x20 && character <= 0x7e));
+    var printableRatio = totalCharacters == 0 ? 0.0 : (double)recognizedCharacters / totalCharacters;
+    var imageNamesPlausible = wzFile.WzDirectory.WzImages.All(image => image.Name.EndsWith(".img", StringComparison.OrdinalIgnoreCase));
+
+    summary = $"rootEntries={names.Length}, printableRatio={printableRatio:F3}, imageNamesPlausible={imageNamesPlausible}";
+    return printableRatio >= 0.90 && imageNamesPlausible;
+}
+
+static WzFile? TryParseVersion(string path, short version, out string detail)
+{
+    WzFile? wzFile = null;
+    try
+    {
+        wzFile = new WzFile(path, version, WzMapleVersion.GMS);
+        var status = wzFile.ParseWzFile();
+        if (status != WzFileParseStatus.Success)
+        {
+            detail = $"parse status {status}";
+            wzFile.Dispose();
+            return null;
+        }
+
+        if (!HasPlausibleRootNames(wzFile, out var plausibility))
+        {
+            detail = $"parsed but failed plausibility check ({plausibility})";
+            wzFile.Dispose();
+            return null;
+        }
+
+        detail = $"success ({plausibility})";
+        return wzFile;
+    }
+    catch (Exception ex)
+    {
+        detail = $"{ex.GetType().Name}: {ex.Message}";
+        wzFile?.Dispose();
+        return null;
+    }
+}
+
+static IEnumerable<short> ProbeOrder(short preferred, (short Min, short Max) range)
+{
+    return Enumerable.Range(range.Min, range.Max - range.Min + 1)
+        .Select(value => (short)value)
+        .Where(value => value != preferred)
+        .OrderBy(value => Math.Abs(value - preferred))
+        .ThenBy(value => value);
+}
+
 var serializer = new WzClassicXmlSerializer(2, LineBreak.Windows, false);
 var failures = new List<string>();
 
 Console.WriteLine(patchVersion >= 0
-    ? $"[EverLeaf] Using explicit MapleStory patch version {patchVersion}"
+    ? $"[EverLeaf] Using preferred MapleStory patch version {patchVersion}"
     : "[EverLeaf] Using MapleLib patch-version auto-detection");
+if (probePatchRange is { } range)
+    Console.WriteLine($"[EverLeaf] Bounded fallback patch probe enabled: {range.Min}:{range.Max}");
 
 foreach (var path in files.OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
 {
     var name = Path.GetFileName(path);
     Console.WriteLine($"[EverLeaf] Parsing {name}");
 
-    try
-    {
-        using var wzFile = patchVersion >= 0
-            ? new WzFile(path, patchVersion, WzMapleVersion.GMS)
-            : new WzFile(path, WzMapleVersion.GMS);
-        var status = wzFile.ParseWzFile();
-        if (status != WzFileParseStatus.Success)
-        {
-            failures.Add($"{name}: parse status {status}");
-            Console.Error.WriteLine($"[EverLeaf] Failed to parse {name}: {status}");
-            continue;
-        }
+    WzFile? wzFile = null;
+    short? selectedVersion = null;
+    string failureDetail = "unknown parse failure";
 
-        var target = Path.Combine(outputDirectory, wzFile.Name);
-        Console.WriteLine($"[EverLeaf] Exporting {name} -> {target}");
-        serializer.SerializeFile(wzFile, target);
-    }
-    catch (Exception ex)
+    if (patchVersion >= 0)
     {
-        failures.Add($"{name}: {ex.GetType().Name}: {ex.Message}");
-        Console.Error.WriteLine($"[EverLeaf] Failed {name}: {ex}");
+        wzFile = TryParseVersion(path, patchVersion, out failureDetail);
+        if (wzFile is not null)
+        {
+            selectedVersion = patchVersion;
+        }
+        else if (probePatchRange is { } probeRange)
+        {
+            Console.WriteLine($"[EverLeaf] Preferred patch {patchVersion} failed for {name}: {failureDetail}");
+            foreach (var candidate in ProbeOrder(patchVersion, probeRange))
+            {
+                wzFile = TryParseVersion(path, candidate, out var candidateDetail);
+                Console.WriteLine($"[EverLeaf] Probe {name} patch {candidate}: {candidateDetail}");
+                if (wzFile is null)
+                    continue;
+
+                selectedVersion = candidate;
+                break;
+            }
+        }
+    }
+    else
+    {
+        try
+        {
+            wzFile = new WzFile(path, WzMapleVersion.GMS);
+            var status = wzFile.ParseWzFile();
+            if (status != WzFileParseStatus.Success)
+            {
+                failureDetail = $"parse status {status}";
+                wzFile.Dispose();
+                wzFile = null;
+            }
+            else if (!HasPlausibleRootNames(wzFile, out var plausibility))
+            {
+                failureDetail = $"parsed but failed plausibility check ({plausibility})";
+                wzFile.Dispose();
+                wzFile = null;
+            }
+            else
+            {
+                selectedVersion = wzFile.Version;
+            }
+        }
+        catch (Exception ex)
+        {
+            failureDetail = $"{ex.GetType().Name}: {ex.Message}";
+            wzFile?.Dispose();
+            wzFile = null;
+        }
+    }
+
+    if (wzFile is null)
+    {
+        failures.Add($"{name}: {failureDetail}");
+        Console.Error.WriteLine($"[EverLeaf] Failed {name}: {failureDetail}");
+        continue;
+    }
+
+    using (wzFile)
+    {
+        var target = Path.Combine(outputDirectory, wzFile.Name);
+        Console.WriteLine($"[EverLeaf] Exporting {name} with patch {selectedVersion} -> {target}");
+        try
+        {
+            serializer.SerializeFile(wzFile, target);
+        }
+        catch (Exception ex)
+        {
+            failures.Add($"{name}: serialization {ex.GetType().Name}: {ex.Message}");
+            Console.Error.WriteLine($"[EverLeaf] Failed to serialize {name}: {ex}");
+        }
     }
 }
 
