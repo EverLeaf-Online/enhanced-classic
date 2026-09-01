@@ -32,13 +32,20 @@ jobs:
           test -f public/css/maple-remaster-pages.css
           test -f public/css/maple-remaster-admin.css
           test -f public/css/maple-jobs.css
+          test -f public/css/maple-final.css
           test -f public/assets/everleaf-remaster.svg
-          test -f public/assets/jobs/warrior.svg
-          test -f public/assets/jobs/magician.svg
-          test -f public/assets/jobs/bowman.svg
-          test -f public/assets/jobs/thief.svg
-          test -f public/assets/jobs/pirate.svg
+          for asset in warrior magician bowman thief pirate cygnus aran evan; do
+            test -f "public/assets/jobs/${asset}.svg"
+          done
+          for asset in launcher patch tool; do
+            test -f "public/assets/ui/${asset}.svg"
+          done
           grep -q 'maple-remaster.css' src/views/partials/header.ejs
           grep -q 'maple-jobs.css' src/views/partials/header.ejs
+          grep -q 'maple-final.css' src/views/partials/header.ejs
           grep -q 'mapleHero' src/views/home.ejs
           grep -q 'mapleJobsGrid' src/views/home.ejs
+          grep -q 'mapleSpecialJobs' src/views/home.ejs
+          grep -q 'rankingTable' src/views/rankings.ejs
+          grep -q 'characterCards' src/views/account.ejs
+          grep -q '/assets/ui/launcher.svg' src/views/downloads.ejs
