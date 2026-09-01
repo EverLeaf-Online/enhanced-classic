@@ -3,6 +3,8 @@
 #include "Memory.h"
 #include <cstring>
 
+// EverLeaf v83 Evan selector bridge. This module keeps the stock v83
+// customization path stable while routing Evan creation as race type 3.
 namespace EverLeafEvanRaceSelect {
 
 #if defined(_M_IX86)
