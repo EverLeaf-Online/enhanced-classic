@@ -39,7 +39,7 @@ test("footer exposes useful site navigation",()=>{
   assert.match(footer,/\/recover/);
 });
 
-test("homepage uses authentic local Adventurer art without legacy circular badge markup",()=>{
+test("homepage uses authentic local class art without generic homepage emblems",()=>{
   assert.match(home,/everleaf-remaster\.svg/);
   assert.match(home,/homeV2Hero/);
   assert.match(home,/homeV2Status/);
@@ -50,18 +50,31 @@ test("homepage uses authentic local Adventurer art without legacy circular badge
   assert.match(remaster,/hero-forest\.webp/);
   assert.match(home,/mapleJobsGrid/);
   assert.match(home,/mapleSpecialJobs/);
-  for(const asset of ["cygnus","aran","evan"]) assert.match(home,new RegExp(`/assets/jobs/${asset}\\.svg`));
+
   for(const asset of ["warrior","magician","bowman","thief","pirate"]) {
     assert.match(home,new RegExp(`/assets/jobs/instructors/${asset}\\.png`));
     assert.ok(fs.statSync(path.join(root,`public/assets/jobs/instructors/${asset}.png`)).size>500);
     assert.doesNotMatch(home,new RegExp(`/assets/jobs/${asset}\\.svg`));
   }
   assert.doesNotMatch(home,/mapleJobBadge/);
+
+  for(const asset of ["cygnus","aran","evan"]) {
+    assert.match(home,new RegExp(`/assets/jobs/special/${asset}\\.png`));
+    assert.ok(fs.statSync(path.join(root,`public/assets/jobs/special/${asset}.png`)).size>5000);
+    assert.doesNotMatch(home,new RegExp(`/assets/jobs/${asset}\\.svg`));
+  }
+  assert.match(home,/mapleSpecialJobArt/);
+  assert.match(home,/mapleSpecialJobCopy/);
+  assert.match(jobs,/\.mapleSpecialJobArt/);
+
   assert.match(home,/Dances with Balrog/);
   assert.match(home,/Grendel the Really Old/);
   assert.match(home,/Athena Pierce/);
   assert.match(home,/Dark Lord/);
   assert.match(home,/Kyrin/);
+  assert.match(home,/Ereve · Knights of Cygnus/);
+  assert.match(home,/Rien · Legendary Polearm Warrior/);
+  assert.match(home,/Dragon Master · Mir/);
   for(const asset of ["launcher","trophy","journal","community","account"]) assert.match(home,new RegExp(`/assets/ui/${asset}\\.svg`));
 });
 
