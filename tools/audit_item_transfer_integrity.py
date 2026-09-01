@@ -72,12 +72,15 @@ def audit_transfer_code() -> None:
         "KarmaManipulator.toggleKarmaFlagToUntradeable(item);",
     )
 
+    # ItemInformationProvider reads these flags through full WZ paths using
+    # getIntConvert(), not through a local `info` node. Gate the actual helper
+    # implementation so refactors cannot silently disconnect transfer policy.
     require(
         ITEM_INFO,
-        'DataTool.getInt("tradeBlock", info, 0)',
-        'DataTool.getInt("accountSharable", info, 0)',
-        'DataTool.getInt("equipTradeBlock", info, 0)',
-        'DataTool.getInt("tradeAvailable", info, 0)',
+        'DataTool.getIntConvert("info/tradeBlock", data, 0)',
+        'DataTool.getIntConvert("info/accountSharable", data, 0)',
+        'DataTool.getIntConvert("info/equipTradeBlock", getItemData(itemId), 0)',
+        'DataTool.getIntConvert("info/tradeAvailable", getItemData(itemId), 0)',
     )
 
     factory = read(ITEM_FACTORY)
