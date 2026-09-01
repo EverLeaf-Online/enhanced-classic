@@ -1,0 +1,58 @@
+name: Test Evan WZ patcher
+
+on:
+  pull_request:
+    paths:
+      - "client/tools/evan-wz-patcher/**"
+      - "client/evan-wz/**"
+      - ".github/workflows/test-evan-wz-patcher.yml"
+  push:
+    branches: [client-dev]
+    paths:
+      - "client/tools/evan-wz-patcher/**"
+      - "client/evan-wz/**"
+      - ".github/workflows/test-evan-wz-patcher.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Checkout pinned libwz
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone https://github.com/toyobayashi/libwz.git "$RUNNER_TEMP/libwz"
+          git -C "$RUNNER_TEMP/libwz" checkout 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+          test "$(git -C "$RUNNER_TEMP/libwz" rev-parse HEAD)" = "41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f"
+
+      - name: Configure
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S client/tools/evan-wz-patcher -B "$RUNNER_TEMP/evan-wz-build" \
+            -DLIBWZ_SOURCE="$RUNNER_TEMP/libwz" \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        shell: bash
+        run: cmake --build "$RUNNER_TEMP/evan-wz-build" --config Release --parallel 2
+
+      - name: Verify Evan copy manifests
+        shell: python
+        run: |
+          from pathlib import Path
+          skill = Path('client/evan-wz/Skill.copy.txt').read_text().splitlines()
+          entries = [line.strip() for line in skill if line.strip() and not line.lstrip().startswith('#')]
+          expected = [f'image:{x}.img' for x in ['2001','2200','2210','2211','2212','2213','2214','2215','2216','2217','2218']]
+          expected.append('directory:Dragon')
+          assert entries == expected, (entries, expected)
+
+          character = [line.strip() for line in Path('client/evan-wz/Character.copy.txt').read_text().splitlines()
+                       if line.strip() and not line.lstrip().startswith('#')]
+          assert character == ['image:00002000.img', 'directory:Dragon'], character
+          print('Evan WZ copy manifests: PASS')
