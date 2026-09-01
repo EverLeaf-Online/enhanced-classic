@@ -27,6 +27,7 @@ ROOT_NAME_RE = re.compile(r'<imgdir\s+name="(01\d{6})\.img">')
 REQ_FIELDS = ("reqJob", "reqLevel", "reqSTR", "reqDEX", "reqINT", "reqLUK", "reqPOP")
 STAT_REQ_FIELDS = ("reqSTR", "reqDEX", "reqINT", "reqLUK")
 VALID_REQ_JOB_BITS = 0x1F
+LEGACY_ALL_COMBAT_FAMILIES = -1
 
 
 def read(path: Path) -> str:
@@ -102,8 +103,10 @@ def audit_canonical_requirement_guards() -> None:
     helper = read(EQUIP_REQUIREMENTS)
     for fragment in (
         "warrior=1, magician=2, bowman=4, thief=8, pirate=16",
+        "public static final int ALL_COMBAT_FAMILIES = -1;",
         "if (reqJobMask == 0)",
         "if (job == Job.GM || job == Job.SUPERGM)",
+        "if (reqJobMask == ALL_COMBAT_FAMILIES)",
         "int familyMask = 1 << (niche - 1);",
         "return (reqJobMask & familyMask) != 0;",
     ):
@@ -156,8 +159,10 @@ def parse_info_ints(path: Path) -> dict[str, int]:
 def audit_requirement_values(path: Path, values: dict[str, int], counts: Counter[str], maxima: dict[str, int]) -> None:
     relative = path.relative_to(ROOT)
     req_job = values.get("reqJob", 0)
-    if req_job < 0 or req_job & ~VALID_REQ_JOB_BITS:
-        raise SystemExit(f"ERROR invalid reqJob mask {req_job} in {relative}; expected only bits 1/2/4/8/16")
+    if req_job != LEGACY_ALL_COMBAT_FAMILIES and (req_job < 0 or req_job & ~VALID_REQ_JOB_BITS):
+        raise SystemExit(f"ERROR invalid reqJob mask {req_job} in {relative}; expected -1 or bits 1/2/4/8/16")
+    if req_job == LEGACY_ALL_COMBAT_FAMILIES:
+        counts["reqJobLegacyAll"] += 1
 
     req_level = values.get("reqLevel", 0)
     if req_level < 0 or req_level > 250:
@@ -242,6 +247,7 @@ def main() -> int:
     print("  scroll/equipment compatibility gate: present")
     print("  inventory type/drop quantity packet guards: present")
     print("  reqJob: packet boundary + canonical canWearEquipment enforcement")
+    print(f"  reqJob legacy -1 all-combat-family equips: {requirement_counts['reqJobLegacyAll']}")
     print("  reqLevel/STR/DEX/INT/LUK/POP: canonical enforcement present")
     print(f"  Character.wz equipment files indexed: {equipment_count}")
     print(f"  Character.wz equipment categories indexed: {category_count}")
