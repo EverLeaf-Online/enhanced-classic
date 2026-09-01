@@ -1,0 +1,65 @@
+name: Fix launcher repeat repair once
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/fix-launcher-repair-once.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+          fetch-depth: 0
+
+      - name: Patch launcher repair behavior
+        shell: python
+        run: |
+          from pathlib import Path
+          services = Path('launcher/EverLeaf.Launcher/LauncherServices.cs')
+          text = services.read_text()
+          old = '        if (File.Exists(current) && File.Exists(legacy))\n            File.Delete(legacy);'
+          new = '        if (File.Exists(current) && File.Exists(legacy))\n        {\n            MakeWritable(legacy);\n            File.Delete(legacy);\n        }'
+          if old not in text: raise SystemExit('legacy delete pattern not found')
+          text = text.replace(old, new, 1)
+          old = '            File.Move(temporary, destination, true);'
+          new = '            MakeWritable(destination);\n            File.Move(temporary, destination, true);'
+          if old not in text: raise SystemExit('replacement move pattern not found')
+          text = text.replace(old, new, 1)
+          old = '    private static void TryDelete(string path)\n    {\n        try { if (File.Exists(path)) File.Delete(path); }\n        catch { }\n    }'
+          new = '    private static void MakeWritable(string path)\n    {\n        if (!File.Exists(path)) return;\n        var attributes = File.GetAttributes(path);\n        if ((attributes & FileAttributes.ReadOnly) != 0)\n            File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);\n    }\n\n    private static void TryDelete(string path)\n    {\n        try\n        {\n            if (!File.Exists(path)) return;\n            MakeWritable(path);\n            File.Delete(path);\n        }\n        catch { }\n    }'
+          if old not in text: raise SystemExit('TryDelete pattern not found')
+          text = text.replace(old, new, 1)
+          services.write_text(text)
+
+          window = Path('launcher/EverLeaf.Launcher/MainWindow.xaml.cs')
+          text = window.read_text()
+          if 'using System.Diagnostics;' not in text:
+              text = text.replace('using System.ComponentModel;\n', 'using System.ComponentModel;\nusing System.Diagnostics;\n', 1)
+          old = '        if (!gameExists) return;\n\n        try\n        {\n            SetBusy(true);\n            await RepairInternalAsync();'
+          new = '        if (!gameExists) return;\n\n        if (Process.GetProcessesByName("EverLeaf").Any(process => process.Id != Environment.ProcessId))\n        {\n            ErrorText.Text = "EverLeaf is currently running. Close the game before checking or repairing client files.";\n            PatchStatusText.Text = "Close EverLeaf before repair";\n            _clientReady = true;\n            SetBusy(false);\n            return;\n        }\n\n        try\n        {\n            SetBusy(true);\n            await RepairInternalAsync();'
+          if old not in text: raise SystemExit('auto-repair pattern not found')
+          text = text.replace(old, new, 1)
+          window.write_text(text)
+
+      - name: Verify patch
+        run: |
+          grep -F 'MakeWritable(destination);' launcher/EverLeaf.Launcher/LauncherServices.cs
+          grep -F 'FileAttributes.ReadOnly' launcher/EverLeaf.Launcher/LauncherServices.cs
+          grep -F 'Process.GetProcessesByName("EverLeaf")' launcher/EverLeaf.Launcher/MainWindow.xaml.cs
+          git diff --check
+
+      - name: Commit launcher fix
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add launcher/EverLeaf.Launcher/LauncherServices.cs launcher/EverLeaf.Launcher/MainWindow.xaml.cs
+          git commit -m 'fix(launcher): make repeat repairs safe on Windows'
+          git push origin HEAD:release-dev
