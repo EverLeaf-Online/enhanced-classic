@@ -135,7 +135,7 @@ def patch_attack_handler() -> None:
         ),
         (
             """        boolean canCrit = chr.getJob().isA((Job.BOWMAN)) || chr.getJob().isA(Job.THIEF) || chr.getJob().isA(Job.NIGHTWALKER1) || chr.getJob().isA(Job.WINDARCHER1) || chr.getJob() == Job.ARAN3 || chr.getJob() == Job.ARAN4 || chr.getJob() == Job.MARAUDER || chr.getJob() == Job.BUCCANEER;\n\n        if (chr.getBuffEffect(BuffStat.SHARP_EYES) != null) {\n""",
-            """        boolean canCrit = chr.getJob().isA((Job.BOWMAN)) || chr.getJob().isA(Job.THIEF) || chr.getJob().isA(Job.NIGHTWALKER1) || chr.getJob().isA(Job.WINDARCHER1) || chr.getJob().isA(Job.WINDARCHER1) || chr.getJob() == Job.ARAN3 || chr.getJob() == Job.ARAN4 || chr.getJob() == Job.MARAUDER || chr.getJob() == Job.BUCCANEER;\n        int jobId = chr.getJob().getId();\n        if (jobId >= Job.EVAN1.getId() && jobId <= Job.EVAN10.getId() && chr.getSkillLevel(Evan.CRITICAL_MAGIC) > 0) {\n            canCrit = true;\n        }\n\n        if (chr.getBuffEffect(BuffStat.SHARP_EYES) != null) {\n""",
+            """        boolean canCrit = chr.getJob().isA((Job.BOWMAN)) || chr.getJob().isA(Job.THIEF) || chr.getJob().isA(Job.NIGHTWALKER1) || chr.getJob().isA(Job.WINDARCHER1) || chr.getJob() == Job.ARAN3 || chr.getJob() == Job.ARAN4 || chr.getJob() == Job.MARAUDER || chr.getJob() == Job.BUCCANEER;\n        int jobId = chr.getJob().getId();\n        if (jobId >= Job.EVAN1.getId() && jobId <= Job.EVAN10.getId() && chr.getSkillLevel(Evan.CRITICAL_MAGIC) > 0) {\n            canCrit = true;\n        }\n\n        if (chr.getBuffEffect(BuffStat.SHARP_EYES) != null) {\n""",
             "Evan Critical Magic damage-validation support",
         ),
     )
