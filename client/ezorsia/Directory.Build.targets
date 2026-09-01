@@ -1,0 +1,5 @@
+<Project>
+  <Target Name="ApplyEverLeafEvanActionAlias" BeforeTargets="ClCompile">
+    <Exec Command="python &quot;$(MSBuildThisFileDirectory)..\scripts\apply-evan-action-alias.py&quot;" />
+  </Target>
+</Project>
