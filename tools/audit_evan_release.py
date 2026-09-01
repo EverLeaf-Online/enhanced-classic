@@ -26,6 +26,13 @@ def require(path: str, *fragments: str) -> None:
             raise SystemExit(f"ERROR {path} missing Evan invariant: {fragment}")
 
 
+def forbid(path: str, *fragments: str) -> None:
+    data = text(path)
+    for fragment in fragments:
+        if fragment in data:
+            raise SystemExit(f"ERROR {path} retains forbidden Evan pattern: {fragment}")
+
+
 def audit_skill_data() -> None:
     expected_files = ["2001", "2200", *[str(i) for i in range(2210, 2219)]]
     ids: set[int] = set()
@@ -78,8 +85,12 @@ def main() -> int:
         "src/main/java/client/Character.java",
         "GameConstants.hasSPTable(newJob) && newJob.getId() != 2001",
         "createDragon();",
+        "changeJob(newJob, true);",
+        "private synchronized void changeJob(Job newJob, boolean grantJobChangeSp)",
+        "if (grantJobChangeSp)",
         "private boolean isEvanGrowthJob()",
-        "advanceEvanGrowthStage();",
+        "advanceEvanGrowthStage();\n        levelUpGainSp();",
+        "changeJob(nextJob, false);",
         "level == 10 && job == Job.EVAN",
         "level == 20 && job == Job.EVAN1",
         "level == 30 && job == Job.EVAN2",
@@ -91,6 +102,11 @@ def main() -> int:
         "level == 120 && job == Job.EVAN8",
         "level == 160 && job == Job.EVAN9",
         "job.isA(Job.BLAZEWIZARD1) || isEvanGrowthJob()",
+    )
+    forbid(
+        "src/main/java/client/Character.java",
+        "levelUpGainSp();\n        advanceEvanGrowthStage();",
+        "changeJob(nextJob);",
     )
 
     require(
@@ -110,8 +126,8 @@ def main() -> int:
     )
     require(
         "tools/apply_evan_progression_fixes.py",
-        "Evan automatic mastery advancement",
-        "Evan magician-style level-up HP/MP",
+        "Evan automatic mastery skips generic job-change SP",
+        "Evan mastery-before-SP ordering",
     )
     require(
         ".github/workflows/run-build.yml",
@@ -131,6 +147,7 @@ def main() -> int:
     print("EverLeaf Evan release audit: PASS")
     print("  fresh Evan creation: selector 3 -> job 2001, level 1, Utah's attic")
     print("  automatic mastery growth: 10/20/30/40/50/60/80/100/120/160")
+    print("  mastery SP: one normal level-up grant into newly unlocked book; no generic changeJob double grant")
     print("  job growth chain: 2001, 2200, 2210-2218")
     print("  Evan Skill.wz: 43/43 declared server skills")
     print("  Evan HP/MP: magician-style level-up growth")
