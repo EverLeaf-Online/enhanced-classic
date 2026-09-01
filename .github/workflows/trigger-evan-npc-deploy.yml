@@ -1,4 +1,4 @@
-# Trigger revision: disable-unsafe-evan-map-warp-20260901-2225
+# Trigger revision: evan-auto-advance-20260901-2245
 name: Trigger Evan NPC production deploy
 
 on:
