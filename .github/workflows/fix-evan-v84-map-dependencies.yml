@@ -1,0 +1,157 @@
+name: Fix Evan v84 Map Dependencies
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/fix-evan-v84-map-dependencies.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HOST: 132.145.141.79
+  USER: ubuntu
+  PUBLIC_HOST: everleafms.online
+  DONOR_RUN_ID: '33561502586'
+  LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+          fetch-depth: 1
+
+      - name: Download validated v84 donor
+        uses: actions/download-artifact@v4
+        with:
+          name: evan-v84-donor-production
+          path: donor
+          repository: iampolicy/enhanced-classic
+          run-id: ${{ env.DONOR_RUN_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build pinned subtree patcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --recurse-submodules https://github.com/toyobayashi/libwz "$RUNNER_TEMP/libwz"
+          git -C "$RUNNER_TEMP/libwz" checkout "$LIBWZ_COMMIT"
+          git -C "$RUNNER_TEMP/libwz" submodule update --init --recursive
+          cmake -S client/tools/wz-path-patcher -B "$RUNNER_TEMP/wz-build" -DLIBWZ_SOURCE="$RUNNER_TEMP/libwz" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/wz-build" --parallel 2
+          test -x "$RUNNER_TEMP/wz-build/everleaf-wz-path-patcher"
+
+      - name: Derive exact v84 dependency subtree spec
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          ids=['100030100','100030101','100030102','100030103','100030200','100030300','100030310','100030400']
+          root=Path('wz/Map.wz/Map/Map1')
+          entries=set()
+          for mid in ids:
+              tree=ET.parse(root/f'{mid}.img.xml')
+              r=tree.getroot()
+              # Objects: copy the whole top-level l0 branch from the donor image.
+              for obj in r.findall(".//imgdir[@name='obj']/imgdir"):
+                  vals={c.get('name'):c.get('value') for c in obj if c.tag in ('string','int')}
+                  os_,l0=vals.get('oS'),vals.get('l0')
+                  if os_ and l0:
+                      entries.add(f'property:Obj/{os_}.img/{l0}')
+              # Tiles: copy the referenced top-level u branch.
+              for tile in r.findall(".//imgdir[@name='tile']/imgdir"):
+                  vals={c.get('name'):c.get('value') for c in tile if c.tag in ('string','int')}
+                  ts,u=vals.get('tS'),vals.get('u')
+                  if ts and u:
+                      entries.add(f'property:Tile/{ts}.img/{u}')
+              # Backgrounds: copy only the used back/ani top-level branch.
+              backdir=r.find("./imgdir[@name='back']")
+              if backdir is not None:
+                  for bg in backdir.findall('./imgdir'):
+                      vals={c.get('name'):c.get('value') for c in bg if c.tag in ('string','int')}
+                      bs=vals.get('bS')
+                      if not bs: continue
+                      branch='ani' if vals.get('ani')=='1' else 'back'
+                      entries.add(f'property:Back/{bs}.img/{branch}')
+          Path('evan-deps.spec').write_text('\n'.join(sorted(entries))+'\n')
+          print(Path('evan-deps.spec').read_text())
+          if not entries: raise SystemExit('empty dependency spec')
+          PY
+
+      - name: Configure production SSH and fetch live Map.wz
+        shell: bash
+        env:
+          KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          KNOWN: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$KNOWN" ]; then printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" 'systemctl is-active --quiet everleaf.service && test -s /opt/everleaf/patches/files/Map.wz'
+          scp -i ~/.ssh/id_everleaf "$USER@$HOST:/opt/everleaf/patches/files/Map.wz" Map-live.wz
+
+      - name: Merge dependency subtrees and reparse
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/wz-build/everleaf-wz-path-patcher" Map-live.wz 83 donor/EvanMap-v84-donor.wz 84 evan-deps.spec Map-fixed.wz
+          FIXED_SHA=$(sha256sum Map-fixed.wz | cut -d' ' -f1)
+          echo "FIXED_SHA=$FIXED_SHA" >> "$GITHUB_ENV"
+          test -s Map-fixed.wz
+          echo "EVAN_DEPENDENCY_PATCH_OK $FIXED_SHA"
+
+      - name: Publish fixed Map.wz and signed manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGE="/tmp/evan-deps-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "rm -rf '$STAGE' && mkdir -p '$STAGE'"
+          scp -i ~/.ssh/id_everleaf Map-fixed.wz "$USER@$HOST:$STAGE/Map.wz"
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "STAGE='$STAGE' SHA='$FIXED_SHA' RELEASE='${GITHUB_SHA}' bash -s" <<'REMOTE'
+          set -euo pipefail
+          ROOT=/opt/everleaf/patches; FILES="$ROOT/files"
+          test "$(sha256sum "$STAGE/Map.wz" | cut -d' ' -f1)" = "$SHA"
+          cp "$FILES/Map.wz" "$STAGE/old-Map.wz"
+          cp "$ROOT/manifest.json" "$STAGE/old-manifest.json"
+          rollback(){ sudo install -m 644 "$STAGE/old-Map.wz" "$FILES/Map.wz"; sudo install -m 644 "$STAGE/old-manifest.json" "$ROOT/manifest.json"; echo ROLLED_BACK >&2; }
+          trap rollback ERR
+          sudo install -m 644 "$STAGE/Map.wz" "$FILES/Map.wz"
+          test "$(sha256sum "$FILES/Map.wz" | cut -d' ' -f1)" = "$SHA"
+          LAUNCHER_PATCH_ROOT="$ROOT" LAUNCHER_BASELINE_PATH="$ROOT/managed-client-baseline.json" LAUNCHER_MANIFEST_PATH="$STAGE/manifest.json" node /opt/everleaf/web/scripts/build-patch-manifest.js "$RELEASE"
+          SHA="$SHA" node - "$STAGE/manifest.json" <<'NODE'
+          const fs=require('fs'); const m=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          if(!Array.isArray(m.files)||m.files.length!==36) throw Error('invalid manifest');
+          const r=m.files.find(x=>x.path==='Map.wz');
+          if(!r||String(r.sha256).toLowerCase()!==process.env.SHA.toLowerCase()) throw Error('Map.wz hash mismatch');
+          NODE
+          sudo install -m 644 "$STAGE/manifest.json" "$ROOT/manifest.json"
+          trap - ERR
+          echo "MAP_DEPENDENCIES_PUBLISHED $SHA"
+          REMOTE
+
+      - name: Verify live delivery
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "EXPECTED='$FIXED_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          test "$(sha256sum /opt/everleaf/patches/files/Map.wz | cut -d' ' -f1)" = "$EXPECTED"
+          systemctl is-active --quiet everleaf.service
+          ss -lnt | grep -q ':8484 '
+          ss -lnt | grep -q ':7575 '
+          REMOTE
+          curl -fsS --max-time 30 "https://$PUBLIC_HOST/v1/launcher/manifest" >/dev/null
+          curl -fsSI --max-time 30 "https://$PUBLIC_HOST/patches/Map.wz" >/dev/null
+          echo "EVAN_MAP_DEPENDENCIES_LIVE $FIXED_SHA"
