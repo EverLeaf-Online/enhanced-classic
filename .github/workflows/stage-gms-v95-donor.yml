@@ -18,7 +18,7 @@ env:
 jobs:
   stage:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Configure SSH
         env:
@@ -58,22 +58,65 @@ jobs:
             Etc.wz
           )
 
+          declare -A minimums=(
+            [Character.wz]=6000000
+            [Item.wz]=20000000
+            [Map.wz]=700000000
+            [Mob.wz]=600000000
+            [Npc.wz]=50000000
+            [Quest.wz]=10000000
+            [Reactor.wz]=70000000
+            [Skill.wz]=160000000
+            [String.wz]=3000000
+            [Etc.wz]=1000000
+          )
+
           base='https://sourceforge.net/projects/maplestoryv95/files/MapleStory'
           for file in "${files[@]}"; do
             dest="$target/$file"
             part="$dest.part"
+            minimum="${minimums[$file]}"
+
             if [ -s "$dest" ]; then
-              echo "present: $file ($(stat -c%s "$dest") bytes)"
-              continue
+              size="$(stat -c%s "$dest")"
+              if [ "$size" -ge "$minimum" ]; then
+                echo "present: $file ($size bytes)"
+                continue
+              fi
+              echo "discarding undersized final file: $file ($size < $minimum)"
+              rm -f "$dest"
             fi
-            echo "fetching: $file"
-            rm -f "$part"
-            curl --fail --location --retry 5 --retry-delay 3 \
+
+            if [ -s "$part" ]; then
+              part_size="$(stat -c%s "$part")"
+              if [ "$part_size" -ge "$minimum" ]; then
+                echo "promoting completed partial: $file ($part_size bytes)"
+                mv "$part" "$dest"
+                continue
+              fi
+              echo "resuming: $file from $part_size bytes"
+            else
+              echo "fetching: $file"
+            fi
+
+            curl_rc=0
+            curl --fail --location --retry 8 --retry-delay 3 --retry-all-errors \
+              --continue-at - \
               --user-agent 'EverLeaf-WZ-Donor/1.0' \
               "$base/$file/download" \
-              --output "$part"
-            test -s "$part"
-            mv "$part" "$dest"
+              --output "$part" || curl_rc=$?
+
+            part_size="$(stat -c%s "$part" 2>/dev/null || echo 0)"
+            if [ "$part_size" -ge "$minimum" ]; then
+              if [ "$curl_rc" -ne 0 ]; then
+                echo "warning: curl exited $curl_rc after receiving a valid-size $file ($part_size bytes); accepting staged payload"
+              fi
+              mv "$part" "$dest"
+              continue
+            fi
+
+            echo "failed to stage $file: curl=$curl_rc size=$part_size minimum=$minimum" >&2
+            exit "${curl_rc:-1}"
           done
 
           (
