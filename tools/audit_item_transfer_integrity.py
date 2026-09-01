@@ -170,6 +170,7 @@ def main() -> int:
     print(f"  explicit slotMax nodes validated: {slot_nodes}")
     print(f"  maximum explicit slotMax: {max_slot}")
     print("  most common slotMax values: " + ", ".join(f"{value}={count}" for value, count in counts.most_common(8)))
+    print("  NOTE: Duey/merchant settlement atomicity remains a separate concurrency follow-up")
     return 0
 
 
