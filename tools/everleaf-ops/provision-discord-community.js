@@ -258,6 +258,11 @@ let currentStep = "startup";
   console.log("discord_existing_channels_deleted=0");
   console.log(`discord_legacy_status_messages_deleted=${cleanedStatusMessages}`);
 })().catch((error) => {
-  console.error(`discord_reconcile_failed step=${currentStep} ${error.message}`);
+  const safeMessage = String(error.message).replace(/[A-Za-z0-9_-]{32,}/g, "[redacted]");
+  const result = `discord_reconcile_failed step=${currentStep} ${safeMessage}`;
+  if (process.env.DISCORD_RECONCILE_RESULT_PATH) {
+    fs.writeFileSync(process.env.DISCORD_RECONCILE_RESULT_PATH, `${result}\n`, { mode: 0o600 });
+  }
+  console.error(result);
   process.exitCode = 1;
 });
