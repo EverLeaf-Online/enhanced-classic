@@ -17,12 +17,14 @@ const pages = read("public/css/maple-remaster-pages.css");
 const admin = read("public/css/maple-remaster-admin.css");
 const jobs = read("public/css/maple-jobs.css");
 const final = read("public/css/maple-final.css");
+const rankingsCss = read("public/css/rankings-remaster.css");
 
 test("global navigation loads the unified Maple remaster design system",()=>{
   assert.match(header,/maple-remaster\.css/);
   assert.match(header,/maple-remaster-pages\.css/);
   assert.match(header,/maple-jobs\.css/);
   assert.match(header,/maple-final\.css/);
+  assert.match(header,/rankings-remaster\.css/);
   assert.match(header,/maple-remaster-admin\.css/);
   assert.doesNotMatch(header,/design-v2\.css/);
   assert.doesNotMatch(header,/home-v2\.css/);
@@ -78,12 +80,22 @@ test("homepage uses authentic local class art without generic homepage emblems",
   for(const asset of ["launcher","trophy","journal","community","account"]) assert.match(home,new RegExp(`/assets/ui/${asset}\\.svg`));
 });
 
-test("rankings and account portal render local job identity",()=>{
-  assert.match(rankings,/rankingTable/);
-  assert.match(rankings,/jobCell/);
-  assert.match(rankings,/\/assets\/jobs\/cygnus\.svg/);
-  assert.match(rankings,/\/assets\/jobs\/aran\.svg/);
-  assert.match(rankings,/\/assets\/jobs\/evan\.svg/);
+test("rankings render a Maple-style leaderboard with local class artwork",()=>{
+  assert.match(rankings,/rankingPodium/);
+  assert.match(rankings,/rankingTableV2/);
+  assert.match(rankings,/rankPlayerIcon/);
+  assert.match(rankings,/rankingJobBadge/);
+  assert.match(rankings,/\/assets\/jobs\/special\/cygnus\.png/);
+  assert.match(rankings,/\/assets\/jobs\/special\/aran\.png/);
+  assert.match(rankings,/\/assets\/jobs\/special\/evan\.png/);
+  for(const asset of ["warrior","magician","bowman","thief","pirate"]) assert.match(rankings,new RegExp(`/assets/jobs/instructors/${asset}\\.png`));
+  for(const asset of ["cygnus","aran","evan"]) assert.doesNotMatch(rankings,new RegExp(`/assets/jobs/${asset}\\.svg`));
+  assert.match(rankingsCss,/\.rankingPodium/);
+  assert.match(rankingsCss,/\.rankPlayerIcon/);
+  assert.match(rankingsCss,/@media\(max-width:600px\)/);
+});
+
+test("account portal renders local job identity",()=>{
   assert.match(account,/characterCards/);
   assert.match(account,/characterJobIcon/);
   assert.match(account,/\/assets\/jobs\/warrior\.svg/);
