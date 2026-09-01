@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Apply deterministic Evan progression fixes to Character.java.
 
-Restores two pieces required by the v83 Evan backport:
+Restores and protects the v83 Evan growth model:
 - Evan mastery stages automatically advance at 10/20/30/40/50/60/80/100/120/160.
 - Evan growth stages receive magician-style HP/MP growth on level-up.
+- Automatic Evan mastery changes reuse the canonical Character.changeJob path
+  without also receiving the generic manual job-change SP grant.
+- Mastery advancement occurs before the normal level-up SP grant so the one
+  level-up grant lands in the newly unlocked Evan SP book.
 
-The advancement deliberately uses Character.changeJob so the existing SP-table,
-job packet, dragon recreation, guild/family update, and persistence paths remain
-canonical. The transition is exact-stage only, preventing skipped or repeated
-advancements if a character is edited or already past a milestone.
+Manual/scripted job changes still use the existing SP behavior through the
+public changeJob(Job) wrapper.
 """
 from __future__ import annotations
 
@@ -31,6 +33,59 @@ def replace_known(text: str, broken: str, fixed: str, label: str) -> tuple[str, 
 def main() -> int:
     text = CHARACTER.read_text(encoding="utf-8")
     changed = False
+
+    old_change_job = """    public synchronized void changeJob(Job newJob) {
+        if (newJob == null) {
+"""
+    new_change_job = """    public synchronized void changeJob(Job newJob) {
+        changeJob(newJob, true);
+    }
+
+    private synchronized void changeJob(Job newJob, boolean grantJobChangeSp) {
+        if (newJob == null) {
+"""
+    text, did = replace_known(text, old_change_job, new_change_job, "Evan no-extra-SP changeJob overload")
+    changed |= did
+
+    old_sp = """        int spGain = 1;
+        if (GameConstants.hasSPTable(newJob)) {
+            spGain += 2;
+        } else {
+            if (newJob.getId() % 10 == 2) {
+                spGain += 2;
+            }
+
+            if (YamlConfig.config.server.USE_ENFORCE_JOB_SP_RANGE) {
+                spGain = getChangedJobSp(newJob);
+            }
+        }
+
+        if (spGain > 0) {
+            gainSp(spGain, GameConstants.getSkillBook(newJob.getId()), true);
+        }
+"""
+    new_sp = """        int spGain = 0;
+        if (grantJobChangeSp) {
+            spGain = 1;
+            if (GameConstants.hasSPTable(newJob)) {
+                spGain += 2;
+            } else {
+                if (newJob.getId() % 10 == 2) {
+                    spGain += 2;
+                }
+
+                if (YamlConfig.config.server.USE_ENFORCE_JOB_SP_RANGE) {
+                    spGain = getChangedJobSp(newJob);
+                }
+            }
+        }
+
+        if (spGain > 0) {
+            gainSp(spGain, GameConstants.getSkillBook(newJob.getId()), true);
+        }
+"""
+    text, did = replace_known(text, old_sp, new_sp, "Evan automatic mastery skips generic job-change SP")
+    changed |= did
 
     old_mage = """        } else if (job.isA(Job.MAGICIAN) || job.isA(Job.BLAZEWIZARD1)) {
             improvingMaxMP = isCygnus() ? SkillFactory.getSkill(BlazeWizard.INCREASING_MAX_MP) : SkillFactory.getSkill(Magician.IMPROVED_MAX_MP_INCREASE);
@@ -74,7 +129,7 @@ def main() -> int:
         }
 
         if (nextJob != null) {
-            changeJob(nextJob);
+            changeJob(nextJob, false);
         }
     }
 
@@ -88,23 +143,42 @@ def main() -> int:
 
         effLock.lock();
 """
-    new_call = """        levelUpGainSp();
+    intermediate_call = """        levelUpGainSp();
         advanceEvanGrowthStage();
 
         effLock.lock();
 """
-    text, did = replace_known(text, old_call, new_call, "Evan automatic mastery advancement")
-    changed |= did
+    new_call = """        advanceEvanGrowthStage();
+        levelUpGainSp();
+
+        effLock.lock();
+"""
+    if new_call in text:
+        print("OK already fixed: Evan mastery-before-SP ordering")
+    elif intermediate_call in text:
+        text = text.replace(intermediate_call, new_call, 1)
+        changed = True
+        print("FIXED: Evan mastery-before-SP ordering")
+    elif old_call in text:
+        text = text.replace(old_call, new_call, 1)
+        changed = True
+        print("FIXED: Evan automatic mastery advancement + SP ordering")
+    else:
+        raise SystemExit("ERROR expected Evan level-up SP/mastery snippet not found")
 
     if changed:
         CHARACTER.write_text(text, encoding="utf-8")
 
     required = (
+        "changeJob(newJob, true);",
+        "private synchronized void changeJob(Job newJob, boolean grantJobChangeSp)",
+        "if (grantJobChangeSp)",
         "private boolean isEvanGrowthJob()",
         "level == 10 && job == Job.EVAN",
         "level == 160 && job == Job.EVAN9",
         "nextJob = Job.EVAN10;",
-        "advanceEvanGrowthStage();",
+        "changeJob(nextJob, false);",
+        "advanceEvanGrowthStage();\n        levelUpGainSp();",
         "job.isA(Job.BLAZEWIZARD1) || isEvanGrowthJob()",
     )
     final = CHARACTER.read_text(encoding="utf-8")
@@ -112,7 +186,17 @@ def main() -> int:
         if fragment not in final:
             raise SystemExit(f"ERROR Evan progression invariant missing after transform: {fragment}")
 
+    forbidden = (
+        "levelUpGainSp();\n        advanceEvanGrowthStage();",
+        "changeJob(nextJob);",
+    )
+    for fragment in forbidden:
+        if fragment in final:
+            raise SystemExit(f"ERROR stale Evan duplicate-SP path remains: {fragment}")
+
     print("EverLeaf Evan progression fixes: PASS")
+    print("  milestone mastery change: before normal level-up SP")
+    print("  automatic Evan changeJob: generic job-change SP disabled")
     return 0
 
 
