@@ -43,6 +43,7 @@ jobs:
           python3 tools/apply_duey_settlement_fixes.py
           python3 tools/apply_merchant_recovery_fixes.py
           python3 tools/apply_merchant_persistence_transaction.py
+          python3 tools/apply_merchant_credit_concurrency_fixes.py
       - name: Verify Duey transform idempotency
         shell: bash
         run: |
@@ -68,6 +69,7 @@ jobs:
           before="$(sha256sum "$merchant" "$fredrick" | sha256sum | awk '{print $1}')"
           python3 tools/apply_merchant_recovery_fixes.py
           python3 tools/apply_merchant_persistence_transaction.py
+          python3 tools/apply_merchant_credit_concurrency_fixes.py
           after="$(sha256sum "$merchant" "$fredrick" | sha256sum | awk '{print $1}')"
           test "$before" = "$after" || {
             echo 'Merchant transforms are not idempotent; a production second pass would mutate source again.' >&2
@@ -75,7 +77,8 @@ jobs:
           }
           python3 tools/audit_merchant_recovery_integrity.py
           python3 tools/audit_merchant_persistence_transaction.py
-          echo 'Merchant recovery/persistence transforms are repeat-safe.'
+          python3 tools/audit_merchant_credit_concurrency.py
+          echo 'Merchant recovery/persistence/credit transforms are repeat-safe.'
       - name: Audit economy and NX drops
         run: python3 tools/audit_economy_balance.py
       - name: Audit Gachapon and reward sources
@@ -108,6 +111,8 @@ jobs:
         run: python3 tools/audit_merchant_recovery_integrity.py
       - name: Audit merchant persistence transaction
         run: python3 tools/audit_merchant_persistence_transaction.py
+      - name: Audit merchant seller-credit concurrency
+        run: python3 tools/audit_merchant_credit_concurrency.py
       - name: Audit boss and PQ event-manager links
         run: python3 tools/audit_event_manager_links.py
       - name: Audit world data integrity
