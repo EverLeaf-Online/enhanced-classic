@@ -1,0 +1,154 @@
+name: Ingest EverLeaf Evan source
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+  push:
+    branches: [client-dev]
+    paths:
+      - '.github/workflows/ingest-evan-source.yml'
+
+concurrency:
+  group: everleaf-evan-source-ingest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVAN_SOURCE_SIZE: '61860666'
+  EVAN_SOURCE_SHA256: 961e0cbf826aca48efa619afec51fd12c2472a82e654e6e73542b5bf65a0e5ce
+  EVAN_CANONICAL_PATH: /opt/everleaf/private/evan/Evan.zip
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      source_ready: ${{ steps.ingest.outputs.source_ready }}
+      installed: ${{ steps.ingest.outputs.installed }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: client-dev
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY" || { echo 'EVERLEAF_SSH_PRIVATE_KEY is not configured.' >&2; exit 1; }
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Find and atomically install exact Evan source
+        id: ingest
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$(ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "EXPECTED_SIZE='$EVAN_SOURCE_SIZE' EXPECTED_SHA='$EVAN_SOURCE_SHA256' CANONICAL='$EVAN_CANONICAL_PATH' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          verify_exact() {
+            local path="$1"
+            test -f "$path" || return 1
+            test "$(stat -c '%s' "$path" 2>/dev/null || true)" = "$EXPECTED_SIZE" || return 1
+            test "$(sha256sum "$path" 2>/dev/null | awk '{print $1}')" = "$EXPECTED_SHA" || return 1
+            unzip -tq "$path" >/dev/null 2>&1 || return 1
+          }
+
+          if verify_exact "$CANONICAL"; then
+            sudo chmod 700 /opt/everleaf/private /opt/everleaf/private/evan 2>/dev/null || true
+            chmod 600 "$CANONICAL"
+            echo 'SOURCE_READY=true'
+            echo 'INSTALLED=false'
+            echo "SOURCE_PATH=$CANONICAL"
+            exit 0
+          fi
+
+          # Search only bounded, operator-controlled staging roots. Never move or
+          # delete a candidate; the canonical copy is installed only after exact
+          # size, SHA-256 and ZIP-integrity verification.
+          candidate=''
+          while IFS= read -r path; do
+            if verify_exact "$path"; then
+              candidate="$path"
+              break
+            fi
+          done < <(
+            find /tmp /home/ubuntu /opt/everleaf \
+              -maxdepth 6 -type f \( -iname 'Evan.zip' -o -iname '*evan*.zip' \) \
+              ! -path "$CANONICAL" -print 2>/dev/null | sort
+          )
+
+          if [ -z "$candidate" ]; then
+            echo 'SOURCE_READY=false'
+            echo 'INSTALLED=false'
+            exit 0
+          fi
+
+          private=/opt/everleaf/private
+          target_dir="$private/evan"
+          incoming="$target_dir/.Evan.zip.$$.incoming"
+          sudo install -d -o ubuntu -g ubuntu -m 700 "$private" "$target_dir"
+          install -m 600 "$candidate" "$incoming"
+          verify_exact "$incoming"
+          mv -f "$incoming" "$CANONICAL"
+          chmod 600 "$CANONICAL"
+          verify_exact "$CANONICAL"
+
+          echo 'SOURCE_READY=true'
+          echo 'INSTALLED=true'
+          echo "SOURCE_PATH=$CANONICAL"
+          echo "SOURCE_RECOVERED_FROM=$candidate"
+          REMOTE
+          )"
+
+          printf '%s\n' "$result"
+          ready="$(printf '%s\n' "$result" | awk -F= '$1=="SOURCE_READY" {print $2}' | tail -1)"
+          installed="$(printf '%s\n' "$result" | awk -F= '$1=="INSTALLED" {print $2}' | tail -1)"
+          echo "source_ready=${ready:-false}" >> "$GITHUB_OUTPUT"
+          echo "installed=${installed:-false}" >> "$GITHUB_OUTPUT"
+
+      - name: Report waiting state
+        if: steps.ingest.outputs.source_ready != 'true'
+        shell: bash
+        run: |
+          echo 'WAITING: no exact Evan source archive exists in the approved Oracle staging roots.'
+          echo 'No server/client/patch state was changed.'
+
+      - name: Confirm canonical source contract
+        if: steps.ingest.outputs.source_ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "test \"\$(stat -c '%s' '$EVAN_CANONICAL_PATH')\" = '$EVAN_SOURCE_SIZE' && test \"\$(sha256sum '$EVAN_CANONICAL_PATH' | awk '{print \$1}')\" = '$EVAN_SOURCE_SHA256' && test \"\$(stat -c '%a' '$EVAN_CANONICAL_PATH')\" = 600"
+          echo 'Canonical private Evan source contract: PASS'
+
+      - name: Trigger donor build and full-client publication
+        if: steps.ingest.outputs.source_ready == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run prepare-evan-client-donor.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref client-dev \
+            -f prepare_donor=true
+          echo 'Triggered exact-source Evan donor/full-client preparation.'
