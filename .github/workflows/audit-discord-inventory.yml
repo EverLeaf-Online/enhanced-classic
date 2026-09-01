@@ -1,0 +1,53 @@
+name: Audit EverLeaf Discord inventory
+
+on:
+  push:
+    branches:
+      - improve-discord-community
+    paths:
+      - tools/everleaf-ops/audit-discord-inventory.js
+      - .github/workflows/audit-discord-inventory.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check inventory tool
+        run: node --check tools/everleaf-ops/audit-discord-inventory.js
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Read live Discord structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_file="/tmp/everleaf-discord-inventory-$GITHUB_RUN_ID.js"
+          trap 'ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -f \"$remote_file\"" >/dev/null 2>&1 || true' EXIT
+          scp -i ~/.ssh/id_everleaf tools/everleaf-ops/audit-discord-inventory.js \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$remote_file"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "sudo node '$remote_file' /etc/everleaf/discord-bot.env"
