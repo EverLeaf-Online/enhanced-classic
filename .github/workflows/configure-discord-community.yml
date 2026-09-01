@@ -80,14 +80,14 @@ jobs:
             }
             trap cleanup EXIT
 
-            test -s /etc/everleaf/discord-bot.env
-            test "$(stat -c '%a' /etc/everleaf/discord-bot.env)" = '600'
+            sudo test -s /etc/everleaf/discord-bot.env
+            sudo test "$(sudo stat -c '%a' /etc/everleaf/discord-bot.env)" = '600'
             result_file="$discord_dir/reconcile-result.txt"
             reconcile_status=0
             sudo env DISCORD_RECONCILE_RESULT_PATH="$result_file" \
               node "$discord_dir/provision-discord-community.js" /etc/everleaf/discord-bot.env \
               || reconcile_status=$?
-            if [ -s "$result_file" ]; then
+            if sudo test -s "$result_file"; then
               sudo cat "$result_file"
             fi
             if [ "$reconcile_status" -ne 0 ]; then
