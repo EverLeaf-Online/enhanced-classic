@@ -179,6 +179,7 @@
       <FileType>CppHeader</FileType>
     </ClInclude>
     <ClInclude Include="Client.h" />
+    <ClInclude Include="EvanRaceSelectPatch.h" />
     <ClInclude Include="dinput8.h" />
     <ClInclude Include="MainMain.h" />
     <ClInclude Include="MapleClientCollectionTypes\winhook_types.h" />
@@ -214,6 +215,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Client.cpp" />
+    <ClCompile Include="EvanRaceSelectPatch.cpp" />
     <ClCompile Include="dinput8.cpp" />
     <ClCompile Include="MainMain.cpp" />
     <ClCompile Include="ZAllocEx.cpp" />

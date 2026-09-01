@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "AddyLocations.h"
 #include "codecaves.h"
+#include "EvanRaceSelectPatch.h"
 
 int Client::m_nGameHeight = 720;
 int Client::m_nGameWidth = 1280;
@@ -13,6 +14,8 @@ int Client::speedMovementCap = 140;
 std::string Client::ServerIP_AddressFromINI = "132.145.141.79";
 
 void Client::UpdateGameStartup() {
+
+	EverLeafEvanRaceSelect::Apply(); // Evan selector and CREATE_CHAR type 3 bridge
 
 	Memory::CodeCave(cc0x00A63FF3, dw0x00A63FF3, dw0x00A63FF3Nops); //fix start @0x00A63FF3, may be unnecessary, but dump of vanilla client showed broken code here
 
