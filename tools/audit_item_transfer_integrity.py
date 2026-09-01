@@ -78,11 +78,23 @@ def audit_transfer_code() -> None:
     interactions = read(INTERACTIONS)
     direct_runtime = "if (item.isUntradeable())"
     direct_wz = "if (ii.isDropRestricted(item.getItemId()))"
-    shop_runtime = "if (ivItem == null || ivItem.isUntradeable())"
-    shop_wz = "ItemInformationProvider.getInstance().isUnmerchable(ivItem.getItemId())"
-    for fragment in (direct_runtime, direct_wz, shop_runtime, shop_wz):
+    for fragment in (direct_runtime, direct_wz):
         if fragment not in interactions:
             raise SystemExit(f"ERROR PlayerInteractionHandler transfer invariant missing: {fragment}")
+
+    shop_runtime_variants = (
+        "if (ivItem == null || ivItem.isUntradeable())",
+        "if (sourceItem == null || sourceItem.isUntradeable())",
+    )
+    shop_wz_variants = (
+        "ItemInformationProvider.getInstance().isUnmerchable(ivItem.getItemId())",
+        "ItemInformationProvider.getInstance().isUnmerchable(sourceItem.getItemId())",
+    )
+    if not any(fragment in interactions for fragment in shop_runtime_variants):
+        raise SystemExit("ERROR PlayerInteractionHandler shop runtime untradeable gate missing")
+    if not any(fragment in interactions for fragment in shop_wz_variants):
+        raise SystemExit("ERROR PlayerInteractionHandler shop WZ unmerchable gate missing")
+
     if interactions.index(direct_runtime) > interactions.index("if (quantity < 1 || quantity > item.getQuantity())"):
         raise SystemExit("ERROR direct trade runtime untradeable check occurs after quantity processing")
 
