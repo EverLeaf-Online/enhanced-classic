@@ -36,6 +36,7 @@ jobs:
           python3 tools/apply_evan_skill_data.py
           python3 tools/apply_evan_behavior_fixes.py
           python3 tools/apply_evan_dragon_fury_fixes.py
+          python3 tools/apply_evan_magic_resistance_fixes.py
           python3 tools/apply_evan_progression_fixes.py
           python3 tools/apply_equipment_requirement_fixes.py
           python3 tools/apply_item_stack_integrity_fixes.py
@@ -63,6 +64,24 @@ jobs:
           }
           python3 tools/audit_evan_dragon_fury.py
           echo 'Evan Dragon Fury transform is repeat-safe.'
+      - name: Verify Evan Magic Resistance transform idempotency
+        shell: bash
+        run: |
+          set -euo pipefail
+          targets=(
+            'src/main/java/server/life/MobAttackInfo.java'
+            'src/main/java/server/life/MobAttackInfoFactory.java'
+            'src/main/java/net/server/channel/handlers/TakeDamageHandler.java'
+          )
+          before="$(sha256sum "${targets[@]}" | sha256sum | awk '{print $1}')"
+          python3 tools/apply_evan_magic_resistance_fixes.py
+          after="$(sha256sum "${targets[@]}" | sha256sum | awk '{print $1}')"
+          test "$before" = "$after" || {
+            echo 'Evan Magic Resistance transform is not idempotent; a production second pass would mutate source again.' >&2
+            exit 1
+          }
+          python3 tools/audit_evan_magic_resistance.py
+          echo 'Evan Magic Resistance transform is repeat-safe.'
       - name: Verify Duey transform idempotency
         shell: bash
         run: |
@@ -140,6 +159,8 @@ jobs:
         run: python3 tools/audit_evan_release.py
       - name: Audit Evan Dragon Fury
         run: python3 tools/audit_evan_dragon_fury.py
+      - name: Audit Evan Magic Resistance
+        run: python3 tools/audit_evan_magic_resistance.py
       - name: Audit items and equipment integrity
         run: python3 tools/audit_items_equipment.py
       - name: Audit item transfer and stack integrity
