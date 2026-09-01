@@ -1,0 +1,65 @@
+name: Fetch Evan v84 map donor
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/fetch-evan-v84-map-donor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Fetch v84 Evan maps from MapleStory.io
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p donor
+          ids=(100030100 100030101 100030102 100030103 100030200 100030300 100030310 100030400)
+          for id in "${ids[@]}"; do
+            info="https://maplestory.io/api/GMS/84/map/$id"
+            raw="https://maplestory.io/api/wz/export/GMS/84/Map/Map/Map1/$id.img?rawImage=true"
+            echo "=== $id info ==="
+            curl -fL --retry 3 --connect-timeout 15 --max-time 60 "$info" -o "donor/$id.json"
+            python3 - "$id" "donor/$id.json" <<'PY'
+          import json,sys
+          mid=sys.argv[1]
+          data=json.load(open(sys.argv[2], encoding='utf-8'))
+          print('map', mid, 'name=', data.get('name'), 'street=', data.get('streetName'))
+          for key in ('portals','npcs','mobs'):
+              val=data.get(key)
+              print(key, len(val) if isinstance(val,list) else type(val).__name__)
+          PY
+            echo "=== $id raw IMG ==="
+            curl -fL --retry 3 --connect-timeout 15 --max-time 120 "$raw" -o "donor/$id.img"
+            test -s "donor/$id.img"
+            file "donor/$id.img" || true
+            stat -c '%n %s bytes' "donor/$id.img"
+          done
+
+      - name: Summarize map dependencies
+        shell: python
+        run: |
+          import json, pathlib
+          for p in sorted(pathlib.Path('donor').glob('*.json')):
+              d=json.loads(p.read_text())
+              print('\n###',p.stem,d.get('streetName'),'-',d.get('name'))
+              for k in ('portals','npcs','mobs'):
+                  v=d.get(k)
+                  if isinstance(v,list):
+                      print(k, v[:12])
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evan-v84-map-donor
+          path: donor/
+          if-no-files-found: error
