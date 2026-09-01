@@ -78,8 +78,8 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
 .mapleHeroShade {
   background: linear-gradient(90deg, rgba(16,55,50,.82) 0%, rgba(16,55,50,.64) 38%, rgba(16,55,50,.22) 66%, rgba(16,55,50,.08) 100%) !important;
 }
-.mapleHeroInner { min-height: 650px; grid-template-columns: minmax(0, 1fr) 340px; gap: 68px; }
-.mapleHeroCopy { max-width: 700px; margin-left: 92px; }
+.mapleHeroInner { min-height: 650px; grid-template-columns: minmax(0, 1fr) 340px; gap: 48px; }
+.mapleHeroCopy { max-width: 650px; margin-left: 190px; }
 .mapleHeroCopy .heroBrand { width: 250px; margin-bottom: 22px; }
 .mapleHeroTag { padding: 8px 12px; font-size: 11px; letter-spacing: .11em; }
 .mapleHeroCopy h1 { margin: 14px 0 20px; font-size: clamp(60px, 5.4vw, 82px); line-height: .94; }
@@ -87,7 +87,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
 .mapleHeroActions { gap: 12px; margin-top: 26px; }
 .mapleHeroActions .btn { min-height: 48px; padding-inline: 20px; }
 .mapleHeroFacts { margin-top: 24px; gap: 10px 22px; font-size: 11px; }
-.mapleHeroCharacters .left { left: -62px; }
+.mapleHeroCharacters .left { left: -220px; }
 .mapleHeroCharacters .right { right: -44px; }
 .mapleLive { border-radius: 16px; box-shadow: var(--ui-shadow); }
 .mapleLiveHead { padding: 16px 18px; }
