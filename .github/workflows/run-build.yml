@@ -46,6 +46,7 @@ jobs:
           python3 tools/apply_merchant_credit_concurrency_fixes.py
           python3 tools/apply_merchant_purchase_quantity_fixes.py
           python3 tools/apply_merchant_snapshot_consistency.py
+          python3 tools/apply_playershop_transaction_integrity.py
       - name: Verify Duey transform idempotency
         shell: bash
         run: |
@@ -85,6 +86,20 @@ jobs:
           python3 tools/audit_merchant_purchase_quantity.py
           python3 tools/audit_merchant_snapshot_consistency.py
           echo 'Merchant recovery/persistence/credit/quantity/snapshot transforms are repeat-safe.'
+      - name: Verify PlayerShop transform idempotency
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='src/main/java/server/maps/PlayerShop.java'
+          before="$(sha256sum "$target" | awk '{print $1}')"
+          python3 tools/apply_playershop_transaction_integrity.py
+          after="$(sha256sum "$target" | awk '{print $1}')"
+          test "$before" = "$after" || {
+            echo 'PlayerShop transform is not idempotent; a production second pass would mutate source again.' >&2
+            exit 1
+          }
+          python3 tools/audit_playershop_transaction_integrity.py
+          echo 'PlayerShop transaction transform is repeat-safe.'
       - name: Audit economy and NX drops
         run: python3 tools/audit_economy_balance.py
       - name: Audit Gachapon and reward sources
@@ -123,6 +138,8 @@ jobs:
         run: python3 tools/audit_merchant_purchase_quantity.py
       - name: Audit merchant snapshot consistency
         run: python3 tools/audit_merchant_snapshot_consistency.py
+      - name: Audit PlayerShop transaction integrity
+        run: python3 tools/audit_playershop_transaction_integrity.py
       - name: Audit boss and PQ event-manager links
         run: python3 tools/audit_event_manager_links.py
       - name: Audit world data integrity
