@@ -1,4 +1,4 @@
-# Operations marker: re-check pinned Evan source state on Oracle.
+# Operations marker: exact pinned Evan source installed on Oracle 2026-09-01.
 name: Prepare Evan client donor
 
 on:
