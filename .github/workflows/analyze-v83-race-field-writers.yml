@@ -1,0 +1,62 @@
+name: Analyze v83 race-field writers
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/analyze-v83-race-field-writers.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 335d4fbb74e713a01f63163c39c941865401d24a
+          sparse-checkout: Localhosts.zip
+          sparse-checkout-cone-mode: false
+      - run: python3 -m pip install --user pefile capstone
+      - name: Locate all CLogin race discriminator accesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "096e21e155ca1a06a3132a6ad6f7feda5cd986928f415bab15a3b67fee412527  Localhosts.zip" | sha256sum --check
+          mkdir source
+          unzip -q Localhosts.zip -d source
+          cp source/Localhost.exe v83.exe
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, pefile
+          from capstone import *
+          from capstone.x86 import *
+
+          pe=pefile.PE('v83.exe'); base=pe.OPTIONAL_HEADER.ImageBase
+          md=Cs(CS_ARCH_X86,CS_MODE_32); md.detail=True
+          hits=[]
+          for sec in pe.sections:
+              if not (sec.Characteristics & 0x20000000): continue
+              arr=list(md.disasm(sec.get_data(),base+sec.VirtualAddress))
+              for idx,ins in enumerate(arr):
+                  matched=False
+                  for op in ins.operands:
+                      if op.type==X86_OP_MEM and op.mem.disp==0x214:
+                          matched=True
+                  if not matched: continue
+                  lo=max(0,idx-18); hi=min(len(arr),idx+19)
+                  ctx=[f'{x.address:08X}: {x.mnemonic:<7} {x.op_str}' for x in arr[lo:hi]]
+                  rec={'address':hex(ins.address),'instruction':f'{ins.mnemonic} {ins.op_str}','context':ctx}
+                  hits.append(rec)
+                  print('\n===',rec['address'],rec['instruction'],'===')
+                  for line in ctx: print(line)
+          print('\nTOTAL_HITS',len(hits))
+          Path('v83-race-field-writers.json').write_text(json.dumps(hits,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v83-race-field-writers
+          path: v83-race-field-writers.json
+          retention-days: 7
