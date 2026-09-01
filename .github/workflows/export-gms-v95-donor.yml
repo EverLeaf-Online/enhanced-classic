@@ -2,7 +2,11 @@ name: Export GMS v95 donor XML
 
 on:
   workflow_call:
-  workflow_dispatch:
+    inputs:
+      known_hosts:
+        description: Verified SSH known_hosts content from the Linux staging job
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -33,19 +37,16 @@ jobs:
         shell: pwsh
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+          SSH_KNOWN_HOSTS: ${{ inputs.known_hosts }}
         run: |
           $ErrorActionPreference = 'Stop'
+          if (-not $env:SSH_KNOWN_HOSTS) { throw 'Linux staging did not provide verified SSH host keys' }
           $sshDir = Join-Path $HOME '.ssh'
           New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
           $keyPath = Join-Path $sshDir 'id_everleaf'
           [IO.File]::WriteAllText($keyPath, ($env:SSH_PRIVATE_KEY -replace "`r", "") + "`n")
           $knownHosts = Join-Path $sshDir 'known_hosts'
-          if ($env:SSH_KNOWN_HOSTS) {
-            [IO.File]::WriteAllText($knownHosts, ($env:SSH_KNOWN_HOSTS -replace "`r", "") + "`n")
-          } else {
-            ssh-keyscan -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Out-File -Encoding ascii $knownHosts
-          }
+          [IO.File]::WriteAllText($knownHosts, ($env:SSH_KNOWN_HOSTS -replace "`r", "") + "`n")
 
       - name: Fetch staged raw v95 donor from Oracle
         shell: pwsh
