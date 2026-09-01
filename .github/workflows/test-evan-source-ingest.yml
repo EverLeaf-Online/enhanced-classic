@@ -1,0 +1,72 @@
+name: Test Evan source ingest
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/ingest-evan-source.yml'
+      - '.github/workflows/test-evan-source-ingest.yml'
+  push:
+    branches: [client-dev]
+    paths:
+      - '.github/workflows/ingest-evan-source.yml'
+      - '.github/workflows/test-evan-source-ingest.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Parse workflow YAML
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet PyYAML
+          python3 - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          path = Path('.github/workflows/ingest-evan-source.yml')
+          data = yaml.safe_load(path.read_text())
+          assert isinstance(data, dict) and data.get('jobs'), 'workflow YAML did not parse as a job-bearing mapping'
+          print('Evan source ingest YAML parse: PASS')
+          PY
+
+      - name: Verify fail-closed ingest contract
+        shell: python
+        run: |
+          from pathlib import Path
+
+          text = Path('.github/workflows/ingest-evan-source.yml').read_text()
+          required = [
+              "EVAN_SOURCE_SIZE: '61860666'",
+              'EVAN_SOURCE_SHA256: 961e0cbf826aca48efa619afec51fd12c2472a82e654e6e73542b5bf65a0e5ce',
+              'EVAN_CANONICAL_PATH: /opt/everleaf/private/evan/Evan.zip',
+              'find /tmp /home/ubuntu /opt/everleaf',
+              '-maxdepth 6 -type f',
+              "-iname 'Evan.zip'",
+              'stat -c \'%s\'',
+              'sha256sum "$path"',
+              'unzip -tq "$path"',
+              'install -m 600 "$candidate" "$incoming"',
+              'mv -f "$incoming" "$CANONICAL"',
+              'chmod 600 "$CANONICAL"',
+              'gh workflow run prepare-evan-client-donor.yml',
+              '-f prepare_donor=true',
+              "cron: '17 * * * *'",
+          ]
+          for marker in required:
+              assert marker in text, f'Missing Evan ingest invariant: {marker}'
+
+          forbidden = [
+              'rm -f "$candidate"',
+              'mv "$candidate" "$CANONICAL"',
+              'find / -',
+          ]
+          for marker in forbidden:
+              assert marker not in text, f'Unsafe Evan ingest behavior present: {marker}'
+
+          print('Evan source ingest fail-closed contract: PASS')
