@@ -1,0 +1,104 @@
+name: Audit Evan WZ publishing readiness
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/audit-evan-wz-readiness.yml"
+      - ".github/workflows/publish-evan-wz-assets.yml"
+      - "client/evan-wz/**"
+      - "client/tools/evan-wz-patcher/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_EVAN_DONOR_DIR: /opt/everleaf/private-assets/evan-wz-donor
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate repository-side Evan publisher
+        shell: python
+        run: |
+          from pathlib import Path
+          required = [
+              'client/evan-wz/Skill.copy.txt',
+              'client/evan-wz/Character.copy.txt',
+              'client/evan-wz/UI.copy.txt',
+              'client/evan-wz/String.copy.txt',
+              'client/tools/evan-wz-patcher/CMakeLists.txt',
+              'client/tools/evan-wz-patcher/main.cpp',
+              '.github/workflows/publish-evan-wz-assets.yml',
+          ]
+          for path in required:
+              assert Path(path).is_file(), f'Missing Evan publisher component: {path}'
+          print('Repository-side Evan publishing components: PASS')
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Audit production WZ and donor readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "DONOR='$EVERLEAF_EVAN_DONOR_DIR' bash -s" <<'REMOTE'
+          set -euo pipefail
+          echo '--- managed production WZ ---'
+          missing_base=0
+          for name in Skill.wz Character.wz UI.wz String.wz; do
+            if test -s "/opt/everleaf/patches/files/$name"; then
+              stat -c '%n %s bytes' "/opt/everleaf/patches/files/$name"
+            else
+              echo "MISSING production WZ: $name"
+              missing_base=1
+            fi
+          done
+          test "$missing_base" -eq 0
+          test -s /opt/everleaf/patches/managed-client-baseline.json
+          test -s /opt/everleaf/patches/manifest.json
+
+          echo '--- authorized Evan donor ---'
+          donor_ready=1
+          if ! test -d "$DONOR"; then
+            donor_ready=0
+            echo "DONOR_DIRECTORY_MISSING=$DONOR"
+          else
+            for name in Skill.wz Character.wz UI.wz String.wz; do
+              if test -s "$DONOR/$name"; then
+                stat -c '%n %s bytes' "$DONOR/$name"
+              else
+                echo "DONOR_FILE_MISSING=$DONOR/$name"
+                donor_ready=0
+              fi
+            done
+          fi
+
+          if test "$donor_ready" -eq 1; then
+            echo 'EVAN_WZ_DONOR_READY=true'
+          else
+            echo 'EVAN_WZ_DONOR_READY=false'
+          fi
+          REMOTE
