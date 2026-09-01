@@ -1,4 +1,4 @@
-# Operations marker: exact pinned Evan source installed on Oracle 2026-09-01.
+# Operations marker: retry Evan baseline after null-property fix 2026-09-01.
 name: Prepare Evan client donor
 
 on:
