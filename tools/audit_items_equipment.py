@@ -119,7 +119,8 @@ def audit_canonical_requirement_guards() -> None:
     if "Really hard check, and not really needed in this one" in provider:
         raise SystemExit("ERROR stale collection reqJob bypass remains")
 
-    for field in ("reqLevel", "reqDEX", "reqSTR", "reqLUK", "reqINT", "reqPOP"):
+    require_fragment(provider, "getEquipLevelReq(equip.getItemId())", "ItemInformationProvider reqLevel")
+    for field in ("reqDEX", "reqSTR", "reqLUK", "reqINT", "reqPOP"):
         require_fragment(provider, f'get("{field}")', f"ItemInformationProvider {field}")
 
 
