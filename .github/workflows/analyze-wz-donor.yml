@@ -95,23 +95,34 @@ jobs:
             --donor-id "$DONOR_ID" \
             --output "$RUNNER_TEMP/wz-donor-diff.json"
 
+      - name: Build disabled import manifest
+        run: |
+          python3 tools/wz-donor/build_import_manifest.py \
+            "$RUNNER_TEMP/wz-donor-diff.json" \
+            --output "$RUNNER_TEMP/wz-import-manifest.json"
+
       - name: Print summary
         run: |
           python3 - <<'PY'
           import json, os
           from pathlib import Path
-          report = json.loads((Path(os.environ['RUNNER_TEMP'])/'wz-donor-diff.json').read_text())
+          root = Path(os.environ['RUNNER_TEMP'])
+          report = json.loads((root/'wz-donor-diff.json').read_text())
+          manifest = json.loads((root/'wz-import-manifest.json').read_text())
           print(json.dumps(report['totals'], indent=2))
           deps = report.get('dependencies', {})
           print('missing high-confidence dependencies:', deps.get('missingReferenceCount', 'n/a'))
+          print('candidate risk counts:', manifest['riskCounts'])
           for category, data in report['categories'].items():
               print(f"{category}: new={len(data['newIds'])} collisions={len(data['collisionIds'])} changed={len(data['changedCollisionIds'])}")
           PY
 
-      - name: Upload donor delta report
+      - name: Upload donor analysis artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: wz-donor-diff-${{ inputs.donor_id }}-${{ github.sha }}
-          path: ${{ runner.temp }}/wz-donor-diff.json
+          name: wz-donor-analysis-${{ inputs.donor_id }}-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/wz-donor-diff.json
+            ${{ runner.temp }}/wz-import-manifest.json
           retention-days: 14
           if-no-files-found: error
