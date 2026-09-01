@@ -96,10 +96,15 @@ def patch_fredrick() -> None:
 
                     if (deleteFredrickItems(chr.getId())) {
 """
-    new_withdraw = """                    if (deleteFredrickItems(chr.getId())) {
-"""
-    text, did = replace_once(text, old_withdraw, new_withdraw, "defer merchant meso withdrawal until item recovery succeeds")
-    changed |= did
+    if old_withdraw in text:
+        text = text.replace(old_withdraw, """                    if (deleteFredrickItems(chr.getId())) {
+""", 1)
+        changed = True
+        print("FIXED: defer merchant meso withdrawal until item recovery succeeds")
+    elif "chr.withdrawMerchantMesos();\n                        chr.sendPacket(PacketCreator.fredrickMessage((byte) 0x1E));" in text:
+        print("OK already fixed: defer merchant meso withdrawal until item recovery succeeds")
+    else:
+        raise SystemExit("ERROR expected merchant recovery snippet not found: defer merchant meso withdrawal until item recovery succeeds")
 
     old_loop_end = """                        for (Pair<Item, InventoryType> it : items) {
                             Item item = it.getLeft();
@@ -160,6 +165,9 @@ def main() -> int:
     for data, fragment in required:
         if fragment not in data:
             raise SystemExit(f"ERROR merchant recovery invariant missing: {fragment}")
+    if old_withdraw_marker := "chr.withdrawMerchantMesos();\n\n                    if (deleteFredrickItems(chr.getId()))":
+        if old_withdraw_marker in fredrick:
+            raise SystemExit("ERROR merchant mesos are still withdrawn before Fredrick item recovery")
 
     print("EverLeaf merchant recovery hardening: PASS")
     print("  Hired Merchant buy slot validated before dereference")
