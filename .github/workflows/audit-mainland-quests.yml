@@ -1,0 +1,31 @@
+name: Audit classic mainland quests
+
+on:
+  push:
+    branches:
+      - master
+      - release-dev
+    paths:
+      - 'wz/Quest.wz/**'
+      - 'wz/Npc.wz/**'
+      - 'wz/Map.wz/Map/**'
+      - 'tools/audit_mainland_quests.py'
+      - '.github/workflows/audit-mainland-quests.yml'
+  pull_request:
+    branches:
+      - master
+      - release-dev
+    paths:
+      - 'wz/Quest.wz/**'
+      - 'wz/Npc.wz/**'
+      - 'wz/Map.wz/Map/**'
+      - 'tools/audit_mainland_quests.py'
+      - '.github/workflows/audit-mainland-quests.yml'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Audit classic mainland quest regions
+        run: python3 tools/audit_mainland_quests.py
