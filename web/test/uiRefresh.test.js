@@ -35,6 +35,7 @@ test("global navigation loads the unified Maple remaster design system",()=>{
   assert.match(header,/maple-final\.css/);
   assert.match(header,/rankings-remaster\.css/);
   assert.match(header,/home-polish\.css/);
+  assert.match(header,/wiki-remaster\.css/);
   assert.match(header,/maple-remaster-admin\.css/);
   assert.doesNotMatch(header,/design-v2\.css/);
   assert.doesNotMatch(header,/home-v2\.css/);
@@ -104,12 +105,13 @@ test("homepage class guide uses clean centered local artwork",()=>{
   for(const asset of ["launcher","trophy","journal","community","account"]) assert.match(home,new RegExp(`/assets/ui/${asset}\\.svg`));
 });
 
-test("wiki placeholder is wired for future database work",()=>{
+test("wiki is a searchable library-backed knowledge database",()=>{
   assert.match(wiki,/EVERLEAF WIKI/);
-  assert.match(wiki,/Jobs & Skills/);
-  assert.match(wiki,/World Database/);
-  assert.match(wiki,/Server Guide/);
-  assert.match(homePolish,/\.wikiHeroCard/);
+  assert.match(wiki,/wikiSearch/);
+  assert.match(wiki,/Browse database/);
+  assert.match(wiki,/Library-backed/);
+  assert.match(wiki,/entry\.source/);
+  assert.doesNotMatch(wiki,/Wiki is being built/);
 });
 
 test("rankings render a Maple-style leaderboard with individual local Cygnus and clean Beginner artwork",()=>{
