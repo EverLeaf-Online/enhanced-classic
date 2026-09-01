@@ -1,16 +1,19 @@
-# Re-run marker: lifecycle-hardening-v1
-name: Apply Boss PQ Hardening Branch
+name: Apply Boss PQ Hardening
 
 on:
   push:
     branches:
-      - fix-boss-pq-hardening-pass
+      - release-dev
     paths:
       - 'tools/apply_boss_pq_hardening.py'
       - '.github/workflows/boss-pq-hardening-apply.yml'
 
 permissions:
   contents: write
+
+concurrency:
+  group: boss-pq-hardening-release-dev
+  cancel-in-progress: false
 
 jobs:
   apply:
@@ -19,23 +22,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: fix-boss-pq-hardening-pass
+          ref: release-dev
           fetch-depth: 0
-      - name: Apply hardening
+      - name: Apply Boss/PQ hardening
         run: python3 tools/apply_boss_pq_hardening.py
       - name: Verify idempotency
         shell: bash
         run: |
           set -euo pipefail
-          before="$(sha256sum src/main/java/scripting/event/EventManager.java src/main/java/scripting/event/EventInstanceManager.java src/main/java/server/expeditions/Expedition.java scripts/npc/2101014.js | sha256sum | awk '{print $1}')"
+          targets=(
+            src/main/java/scripting/event/EventManager.java
+            src/main/java/scripting/event/EventInstanceManager.java
+            src/main/java/server/expeditions/Expedition.java
+            scripts/npc/2101014.js
+          )
+          before="$(sha256sum "${targets[@]}" | sha256sum | awk '{print $1}')"
           python3 tools/apply_boss_pq_hardening.py
-          after="$(sha256sum src/main/java/scripting/event/EventManager.java src/main/java/scripting/event/EventInstanceManager.java src/main/java/server/expeditions/Expedition.java scripts/npc/2101014.js | sha256sum | awk '{print $1}')"
-          test "$before" = "$after"
-      - name: Compile server
+          after="$(sha256sum "${targets[@]}" | sha256sum | awk '{print $1}')"
+          test "$before" = "$after" || {
+            echo 'Boss/PQ hardening transform is not idempotent.' >&2
+            exit 1
+          }
+      - name: Compile transformed server
         run: |
           chmod +x mvnw
           ./mvnw -B -DskipTests package
-      - name: Commit hardened sources
+      - name: Commit verified lifecycle changes
         shell: bash
         run: |
           set -euo pipefail
@@ -45,6 +57,9 @@ jobs:
                   src/main/java/scripting/event/EventInstanceManager.java \
                   src/main/java/server/expeditions/Expedition.java \
                   scripts/npc/2101014.js
-          git diff --cached --quiet && exit 0
+          if git diff --cached --quiet; then
+            echo 'Boss/PQ lifecycle sources are already hardened.'
+            exit 0
+          fi
           git commit -m 'fix(events): harden boss and PQ lifecycle'
-          git push origin HEAD:fix-boss-pq-hardening-pass
+          git push origin HEAD:release-dev
