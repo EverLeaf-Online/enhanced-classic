@@ -1,0 +1,65 @@
+name: Wire Evan selector source v2
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/wire-evan-selector-source-v2.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: client-dev
+          fetch-depth: 0
+      - name: Wire selector into Windows client project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          client = Path('client/ezorsia/ezorsia/Client.cpp')
+          b = client.read_bytes()
+          nl = b'\r\n' if b'\r\n' in b else b'\n'
+          if b'#include "EvanRaceSelectPatch.h"' not in b:
+              anchor = b'#include "codecaves.h"' + nl
+              if anchor not in b: raise SystemExit('Client include anchor missing')
+              b = b.replace(anchor, anchor + b'#include "EvanRaceSelectPatch.h"' + nl, 1)
+          if b'EverLeafEvanRaceSelect::Apply();' not in b:
+              anchor = b'void Client::UpdateGameStartup() {' + nl
+              if anchor not in b: raise SystemExit('Client startup anchor missing')
+              b = b.replace(anchor, anchor + nl + b'\tEverLeafEvanRaceSelect::Apply(); // Evan selector and CREATE_CHAR type 3 bridge' + nl, 1)
+          client.write_bytes(b)
+
+          proj = Path('client/ezorsia/ezorsia/ezorsia.vcxproj')
+          b = proj.read_bytes()
+          nl = b'\r\n' if b'\r\n' in b else b'\n'
+          if b'<ClInclude Include="EvanRaceSelectPatch.h" />' not in b:
+              anchor = b'    <ClInclude Include="Client.h" />' + nl
+              if anchor not in b: raise SystemExit('vcxproj include anchor missing')
+              b = b.replace(anchor, anchor + b'    <ClInclude Include="EvanRaceSelectPatch.h" />' + nl, 1)
+          if b'<ClCompile Include="EvanRaceSelectPatch.cpp" />' not in b:
+              anchor = b'    <ClCompile Include="Client.cpp" />' + nl
+              if anchor not in b: raise SystemExit('vcxproj compile anchor missing')
+              b = b.replace(anchor, anchor + b'    <ClCompile Include="EvanRaceSelectPatch.cpp" />' + nl, 1)
+          proj.write_bytes(b)
+          PY
+          grep -q 'EvanRaceSelectPatch.h' client/ezorsia/ezorsia/Client.cpp
+          grep -q 'EverLeafEvanRaceSelect::Apply' client/ezorsia/ezorsia/Client.cpp
+          grep -q 'EvanRaceSelectPatch.cpp' client/ezorsia/ezorsia/ezorsia.vcxproj
+      - name: Commit source wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Policy'
+          git config user.email '173628847+iampolicy@users.noreply.github.com'
+          git add client/ezorsia/ezorsia/Client.cpp client/ezorsia/ezorsia/ezorsia.vcxproj
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat(client): wire Evan character selector'
+          git push origin HEAD:client-dev
