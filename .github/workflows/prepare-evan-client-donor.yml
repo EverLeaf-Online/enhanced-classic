@@ -45,7 +45,9 @@ jobs:
 
   prepare:
     needs: validate
-    if: github.event_name == 'workflow_dispatch' && inputs.prepare_donor
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.prepare_donor) ||
+      github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -71,7 +73,28 @@ jobs:
           ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'echo EverLeaf Evan source SSH OK'
 
+      - name: Preflight exact private Evan source archive
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote=/opt/everleaf/private/evan/Evan.zip
+          actual="$(ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "test -s '$remote' && sha256sum '$remote' | awk '{print \$1}'" 2>/dev/null || true)"
+          if [ "$actual" = "$EVAN_SOURCE_SHA256" ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+            echo "Exact authorized Evan source is present: $actual"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            if [ -n "$actual" ]; then
+              echo "Evan source archive exists but SHA differs; preparation skipped. actual=$actual expected=$EVAN_SOURCE_SHA256"
+            else
+              echo "Exact Evan source archive is not present at $remote; preparation skipped safely."
+            fi
+          fi
+
       - name: Retrieve exact private Evan source archive
+        if: steps.source.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -82,6 +105,7 @@ jobs:
           printf '%s  Evan.zip\n' "$EVAN_SOURCE_SHA256" | sha256sum --check --strict
 
       - name: Build donor WZ set from Evan source
+        if: steps.source.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -93,6 +117,7 @@ jobs:
           done
 
       - name: Stage generated donor set on Oracle
+        if: steps.source.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -105,6 +130,7 @@ jobs:
             "chmod 600 '$remote_stage'/*.wz && test -s '$remote_stage/Skill.wz' && test -s '$remote_stage/Character.wz' && test -s '$remote_stage/UI.wz' && test -s '$remote_stage/String.wz'"
 
       - name: Atomically publish private donor set
+        if: steps.source.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -143,7 +169,15 @@ jobs:
           REMOTE
 
       - name: Record donor hashes
+        if: steps.source.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
           sha256sum evan-donor/*.wz
+
+      - name: Report source prerequisite
+        if: steps.source.outputs.ready != 'true'
+        shell: bash
+        run: |
+          echo 'Evan donor generation is ready, but the exact pinned private Evan.zip is not currently available on Oracle.'
+          echo 'No donor files were generated or changed.'
