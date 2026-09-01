@@ -1,0 +1,149 @@
+name: Prepare Evan client donor
+
+on:
+  pull_request:
+    paths:
+      - "client/scripts/build-evan-donor-from-zip.sh"
+      - "client/tools/evan-xml-donor-builder/**"
+      - ".github/workflows/prepare-evan-client-donor.yml"
+  push:
+    branches: [client-dev]
+    paths:
+      - "client/scripts/build-evan-donor-from-zip.sh"
+      - "client/tools/evan-xml-donor-builder/**"
+      - ".github/workflows/prepare-evan-client-donor.yml"
+  workflow_dispatch:
+    inputs:
+      prepare_donor:
+        description: Build and install the private Evan donor WZ set
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVAN_SOURCE_SHA256: 961e0cbf826aca48efa619afec51fd12c2472a82e654e6e73542b5bf65a0e5ce
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate source preparation scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n client/scripts/build-evan-donor-from-zip.sh
+          grep -F "$EVAN_SOURCE_SHA256" client/scripts/build-evan-donor-from-zip.sh
+          test -f client/tools/evan-xml-donor-builder/CMakeLists.txt
+          test -f client/tools/evan-xml-donor-builder/main.cpp
+          echo 'Evan donor preparation wiring: PASS'
+
+  prepare:
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && inputs.prepare_donor
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'echo EverLeaf Evan source SSH OK'
+
+      - name: Retrieve exact private Evan source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/private/evan/Evan.zip" \
+            Evan.zip
+          test -s Evan.zip
+          printf '%s  Evan.zip\n' "$EVAN_SOURCE_SHA256" | sha256sum --check --strict
+
+      - name: Build donor WZ set from Evan source
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x client/scripts/build-evan-donor-from-zip.sh
+          client/scripts/build-evan-donor-from-zip.sh Evan.zip evan-donor
+          rm -f Evan.zip
+          for wz in Skill Character UI String; do
+            test -s "evan-donor/$wz.wz"
+          done
+
+      - name: Stage generated donor set on Oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_stage="/tmp/everleaf-evan-donor-$GITHUB_RUN_ID"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "rm -rf '$remote_stage' && install -d -m 700 '$remote_stage'"
+          scp -i ~/.ssh/id_everleaf evan-donor/*.wz \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$remote_stage/"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "chmod 600 '$remote_stage'/*.wz && test -s '$remote_stage/Skill.wz' && test -s '$remote_stage/Character.wz' && test -s '$remote_stage/UI.wz' && test -s '$remote_stage/String.wz'"
+
+      - name: Atomically publish private donor set
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "RUN_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE'
+          set -euo pipefail
+          private=/opt/everleaf/private
+          incoming="/tmp/everleaf-evan-donor-$RUN_ID"
+          releases="$private/evan-wz-donor-releases"
+          release="$releases/$RUN_ID"
+          link="$private/evan-wz-donor"
+          next="$private/.evan-wz-donor.next"
+
+          sudo install -d -o ubuntu -g ubuntu -m 700 "$private" "$releases"
+          sudo rm -rf "$release"
+          sudo install -d -o ubuntu -g ubuntu -m 700 "$release"
+          for wz in Skill Character UI String; do
+            test -s "$incoming/$wz.wz"
+            sudo install -o ubuntu -g ubuntu -m 600 "$incoming/$wz.wz" "$release/$wz.wz"
+            test -s "$release/$wz.wz"
+          done
+
+          if [ -e "$link" ] && [ ! -L "$link" ]; then
+            legacy="$private/evan-wz-donor.legacy.$(date -u +%Y%m%dT%H%M%SZ)"
+            sudo mv "$link" "$legacy"
+            echo "Preserved legacy donor directory at $legacy"
+          fi
+
+          sudo ln -sfn "$release" "$next"
+          sudo mv -Tf "$next" "$link"
+          for wz in Skill Character UI String; do
+            test -s "$link/$wz.wz"
+          done
+          rm -rf "$incoming"
+          echo "EverLeaf Evan donor release active: $(readlink -f "$link")"
+          REMOTE
+
+      - name: Record donor hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum evan-donor/*.wz
