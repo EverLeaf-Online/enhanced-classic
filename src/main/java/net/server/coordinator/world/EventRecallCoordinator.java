@@ -44,13 +44,17 @@ public class EventRecallCoordinator {
         return eim != null && !eim.isEventDisposed() && !eim.isEventCleared();
     }
 
+    private static boolean isRecallablePlayer(int characterId, EventInstanceManager eim) {
+        return isRecallableEvent(eim) && eim.getPlayerById(characterId) != null;
+    }
+
     public EventInstanceManager recallEventInstance(int characterId) {
         EventInstanceManager eim = eventHistory.remove(characterId);
-        return isRecallableEvent(eim) ? eim : null;
+        return isRecallablePlayer(characterId, eim) ? eim : null;
     }
 
     public void storeEventInstance(int characterId, EventInstanceManager eim) {
-        if (YamlConfig.config.server.USE_ENABLE_RECALL_EVENT && isRecallableEvent(eim)) {
+        if (YamlConfig.config.server.USE_ENABLE_RECALL_EVENT && isRecallablePlayer(characterId, eim)) {
             eventHistory.put(characterId, eim);
         }
     }
@@ -60,7 +64,7 @@ public class EventRecallCoordinator {
             List<Integer> toRemove = new LinkedList<>();
 
             for (Entry<Integer, EventInstanceManager> eh : eventHistory.entrySet()) {
-                if (!isRecallableEvent(eh.getValue())) {
+                if (!isRecallablePlayer(eh.getKey(), eh.getValue())) {
                     toRemove.add(eh.getKey());
                 }
             }
