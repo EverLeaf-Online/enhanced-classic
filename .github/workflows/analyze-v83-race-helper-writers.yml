@@ -1,0 +1,50 @@
+name: Analyze v83 race helper writers
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/analyze-v83-race-helper-writers.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 335d4fbb74e713a01f63163c39c941865401d24a
+          sparse-checkout: Localhosts.zip
+          sparse-checkout-cone-mode: false
+      - run: python3 -m pip install --user pefile capstone
+      - name: Inspect race helper writers
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "096e21e155ca1a06a3132a6ad6f7feda5cd986928f415bab15a3b67fee412527  Localhosts.zip" | sha256sum --check
+          mkdir source
+          unzip -q Localhosts.zip -d source
+          cp source/Localhost.exe v83.exe
+          python3 - <<'PY'
+          from pathlib import Path
+          import pefile
+          from capstone import Cs, CS_ARCH_X86, CS_MODE_32
+
+          data=Path('v83.exe').read_bytes(); pe=pefile.PE('v83.exe'); base=pe.OPTIONAL_HEADER.ImageBase
+          md=Cs(CS_ARCH_X86,CS_MODE_32)
+          for start_va,end_va,label in [
+              (0x006172B0,0x006173B0,'writer_617348'),
+              (0x0067F100,0x0067F220,'writer_67F181'),
+              (0x005F3D60,0x005F3E20,'writer_5F3DBE'),
+              (0x005F5680,0x005F5820,'selector_setters'),
+          ]:
+              print('\n===== '+label+' =====')
+              start=pe.get_offset_from_rva(start_va-base); end=pe.get_offset_from_rva(end_va-base)
+              for i in md.disasm(data[start:end],start_va):
+                  mark=''
+                  if b'\x14\x02\x00\x00' in bytes(i.bytes): mark=' <<< RACE'
+                  print(f'{i.address:08X}: {bytes(i.bytes).hex(" "):<30} {i.mnemonic:<7} {i.op_str}{mark}')
+          PY
