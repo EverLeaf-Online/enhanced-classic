@@ -81,6 +81,7 @@ jobs:
             trap cleanup EXIT
 
             sudo test -s /etc/everleaf/discord-bot.env
+            sudo chmod 600 /etc/everleaf/discord-bot.env
             sudo test "$(sudo stat -c '%a' /etc/everleaf/discord-bot.env)" = '600'
             result_file="$discord_dir/reconcile-result.txt"
             reconcile_status=0
