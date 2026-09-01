@@ -101,6 +101,14 @@ jobs:
             "$RUNNER_TEMP/wz-donor-diff.json" \
             --output "$RUNNER_TEMP/wz-import-manifest.json"
 
+      - name: Render review report
+        run: |
+          python3 tools/wz-donor/render_review_report.py \
+            "$RUNNER_TEMP/wz-donor-diff.json" \
+            "$RUNNER_TEMP/wz-import-manifest.json" \
+            --output "$RUNNER_TEMP/wz-donor-review.md"
+          cat "$RUNNER_TEMP/wz-donor-review.md" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Print summary
         run: |
           python3 - <<'PY'
@@ -124,5 +132,6 @@ jobs:
           path: |
             ${{ runner.temp }}/wz-donor-diff.json
             ${{ runner.temp }}/wz-import-manifest.json
+            ${{ runner.temp }}/wz-donor-review.md
           retention-days: 14
           if-no-files-found: error
