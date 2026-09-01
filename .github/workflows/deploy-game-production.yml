@@ -1,4 +1,4 @@
-# Manual production deployment trigger: merchant-snapshot-consistency
+# Manual production deployment trigger: playershop-transaction-integrity
 name: Deploy EverLeaf Game Production
 
 on:
@@ -58,6 +58,7 @@ jobs:
           python3 tools/apply_merchant_credit_concurrency_fixes.py
           python3 tools/apply_merchant_purchase_quantity_fixes.py
           python3 tools/apply_merchant_snapshot_consistency.py
+          python3 tools/apply_playershop_transaction_integrity.py
 
       - name: Configure SSH
         env:
@@ -144,6 +145,7 @@ jobs:
           python3 tools/apply_merchant_credit_concurrency_fixes.py
           python3 tools/apply_merchant_purchase_quantity_fixes.py
           python3 tools/apply_merchant_snapshot_consistency.py
+          python3 tools/apply_playershop_transaction_integrity.py
           chmod +x mvnw || true
           ./mvnw -B -DskipTests clean package
           test -s target/everleaf-server-1.0-SNAPSHOT.jar
