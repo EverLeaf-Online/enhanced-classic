@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Audit Quest.wz scripted quest handlers against scripts/quest.
 
-This mirrors the server's classic quest tooling and runtime contract. A direct
-start/end requirement field whose name contains ``script`` marks that phase as
-scripted. Active scripted phases must have a quest JS exposing the matching
-start/end function; medal quests may use medalQuest.js.
+The runtime maps only the exact Quest.wz requirement names ``startscript`` and
+``endscript`` to QuestRequirementType.SCRIPT. ScriptRequirement enables the
+handler only when that node's string value is non-empty. Active scripted phases
+must therefore resolve to a quest JS exposing the matching start/end function;
+medal quests may use medalQuest.js.
 """
 from __future__ import annotations
 
@@ -61,17 +62,12 @@ def phase_script_requirement(node: ET.Element, phase_name: str) -> bool:
     if phase is None:
         return False
 
-    # Mirror tools.mapletools.QuestlineFetcher: at the direct requirement level,
-    # any field whose *name contains* "script" denotes scripted quest handling.
-    # Do not require the field to be named exactly "script" and do not coerce
-    # its value to an integer.
-    for child in phase:
-        if child.tag == "imgdir":
-            continue
-        name = (child.attrib.get("name") or "").lower()
-        if "script" in name:
-            return True
-    return False
+    # QuestRequirementType.getByWZName maps only startscript/endscript to
+    # SCRIPT, and ScriptRequirement.processData enables it only for a non-empty
+    # string value. The phase determines whether start(...) or end(...) is used.
+    expected_name = "startscript" if phase_name == "0" else "endscript"
+    value = direct_value(phase, expected_name)
+    return value is not None and value.strip() != ""
 
 
 def owners(node: ET.Element) -> set[str]:
@@ -156,16 +152,25 @@ def main() -> int:
             if fallback:
                 continue
             message = f"Quest {qid} requires scripted {','.join(sorted(phases))} phase(s) but {qid}.js is missing"
-            (failures if is_active else reviews).append(message if is_active else "Dormant " + message.lower())
+            if is_active:
+                failures.append(message)
+            else:
+                reviews.append("Dormant " + message.lower())
             continue
 
         has_start, has_end = script_contract(script_path)
         if "start" in phases and not has_start:
             message = f"Quest {qid} has scripted start requirement but {qid}.js has no start(...) function"
-            (failures if is_active else reviews).append(message if is_active else "Dormant " + message.lower())
+            if is_active:
+                failures.append(message)
+            else:
+                reviews.append("Dormant " + message.lower())
         if "end" in phases and not has_end:
             message = f"Quest {qid} has scripted end requirement but {qid}.js has no end(...) function"
-            (failures if is_active else reviews).append(message if is_active else "Dormant " + message.lower())
+            if is_active:
+                failures.append(message)
+            else:
+                reviews.append("Dormant " + message.lower())
 
     numeric_scripts = {
         norm(match.group(1))
