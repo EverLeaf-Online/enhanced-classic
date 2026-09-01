@@ -1,0 +1,47 @@
+name: Wake Evan client publisher
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/wake-evan-client-publisher.yml'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: everleaf-evan-client-wake
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate target workflow registration
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow view prepare-evan-client-donor.yml --repo "$GITHUB_REPOSITORY" >/dev/null
+          echo 'Evan client wake target is registered.'
+
+  wake:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch private Evan preparation/publish state machine
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run prepare-evan-client-donor.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref client-dev \
+            -f prepare_donor=true
+          echo 'Evan client preparation/publish wake request accepted.'
