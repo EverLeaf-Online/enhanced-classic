@@ -16,11 +16,10 @@
 .mapleJobPortrait{height:132px;position:relative;display:flex;align-items:flex-end;justify-content:center;margin:0 -16px 10px;padding:9px 12px 8px;z-index:1}
 .mapleJobPortrait>img{position:relative;z-index:2;display:block;max-width:112px;max-height:122px;width:auto;height:auto;object-fit:contain;image-rendering:auto;filter:drop-shadow(0 4px 2px rgba(38,65,49,.18))}
 .mapleJobPortrait.piratePortrait>img{max-width:126px;max-height:126px}
-.mapleJobBadge{position:absolute;right:12px;top:10px;width:34px;height:34px;display:grid;place-items:center;border-radius:50%;border:1px solid rgba(70,108,74,.25);background:rgba(255,254,246,.9);z-index:3}
-.mapleJobBadge img{width:25px;height:25px;object-fit:contain}
+.mapleJobBadge{display:none!important}
 .mapleJobTitle{position:relative;z-index:2;min-height:44px}.mapleJobTitle h3{font-size:20px;margin:0 0 2px}.mapleJobTitle small{display:block;color:#71847f;font-size:8px;font-weight:800;line-height:1.3}
 .mapleJobMeta{margin:6px 0 10px}.mapleJobPath{min-height:50px}.mapleJobFoot{margin-top:11px}
 .mapleSpecialJobs{margin-top:16px}
 @media(max-width:980px){.mapleJobPortrait{height:146px}.mapleJobPortrait>img{max-height:136px}.mapleJobTitle h3{font-size:21px}}
-@media(max-width:680px){.mapleJobs{padding:20px 16px}.mapleJobsHead h2{font-size:29px}.mapleJobCard{display:grid;grid-template-columns:112px 1fr;column-gap:14px;padding:0 15px 14px}.mapleJobCard:before{height:100%;width:112px;border-bottom:0;border-right:1px solid #dce3cf}.mapleJobPortrait{grid-row:1/5;height:150px;margin:0;padding:8px;align-self:center}.mapleJobPortrait>img{max-width:100px;max-height:140px}.mapleJobBadge{right:2px;top:8px}.mapleJobTitle{padding-top:15px}.mapleJobPath{min-height:0}.mapleJobFoot{margin-top:7px}}
+@media(max-width:680px){.mapleJobs{padding:20px 16px}.mapleJobsHead h2{font-size:29px}.mapleJobCard{display:grid;grid-template-columns:112px 1fr;column-gap:14px;padding:0 15px 14px}.mapleJobCard:before{height:100%;width:112px;border-bottom:0;border-right:1px solid #dce3cf}.mapleJobPortrait{grid-row:1/5;height:150px;margin:0;padding:8px;align-self:center}.mapleJobPortrait>img{max-width:100px;max-height:140px}.mapleJobTitle{padding-top:15px}.mapleJobPath{min-height:0}.mapleJobFoot{margin-top:7px}}
 @media(max-width:760px){.characterCards{grid-template-columns:1fr}.characterCard{border-right:0}.rankingBoardHead,.rosterHead{align-items:flex-start;flex-direction:column}.rankingTable th:nth-child(3),.rankingTable td:nth-child(3){display:none}.characterCard{grid-template-columns:52px 1fr auto}.characterJobIcon{width:48px;height:48px}.jobCell img{width:28px;height:28px}.mapleQuickIcon img{width:38px;height:38px}}
