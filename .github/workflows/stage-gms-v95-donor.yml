@@ -3,7 +3,7 @@ name: Stage GMS v95 donor
 on:
   push:
     branches:
-      - wz/donor-pipeline-v1
+      - release-dev
     paths:
       - '.github/workflows/stage-gms-v95-donor.yml'
   workflow_dispatch:
