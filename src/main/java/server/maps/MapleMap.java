@@ -2073,7 +2073,14 @@ public class MapleMap {
                     if (mist.makeChanceResult()) {
                         Character chr = (Character) mo;
                         if (mist.getOwner().getId() == chr.getId() || mist.getOwner().getParty() != null && mist.getOwner().getParty().containsMembers(chr.getMPC())) {
-                            chr.addMP(mist.getSourceSkill().getEffect(chr.getSkillLevel(mist.getSourceSkill().getId())).getX() * chr.getMp() / 100);
+                            StatEffect recoveryEffect = mist.getSourceSkill().getEffect(
+                                    mist.getOwner().getSkillLevel(mist.getSourceSkill().getId()));
+                            int recoveryInterval = 2500;
+                            int recoveryDuration = Math.max(1, recoveryEffect.getDuration());
+                            int recoveryAmount = (int) Math.floor(
+                                    chr.getMaxMp() * (recoveryEffect.getX() / 100.0)
+                                            * recoveryInterval / recoveryDuration);
+                            chr.addMP(Math.max(1, recoveryAmount));
                         }
                     }
                 }
