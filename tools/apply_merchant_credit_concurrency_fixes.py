@@ -8,6 +8,26 @@ TARGET = ROOT / "src/main/java/server/maps/HiredMerchant.java"
 
 def main() -> int:
     text = TARGET.read_text(encoding="utf-8")
+
+    if "import org.slf4j.Logger;" not in text:
+        anchor = "import net.server.Server;\n"
+        if anchor not in text:
+            raise SystemExit("ERROR HiredMerchant logger import anchor not found")
+        text = text.replace(anchor, anchor + "import org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\n", 1)
+        print("FIXED: HiredMerchant logger imports")
+    else:
+        print("OK already fixed: HiredMerchant logger imports")
+
+    logger = "    private static final Logger log = LoggerFactory.getLogger(HiredMerchant.class);\n"
+    if logger not in text:
+        anchor = "public class HiredMerchant extends AbstractMapObject {\n"
+        if anchor not in text:
+            raise SystemExit("ERROR HiredMerchant logger field anchor not found")
+        text = text.replace(anchor, anchor + logger, 1)
+        print("FIXED: HiredMerchant logger field")
+    else:
+        print("OK already fixed: HiredMerchant logger field")
+
     old = '''                    } else {
                         try (Connection con = DatabaseConnection.getConnection()) {
                             long merchantMesos = 0;
@@ -50,13 +70,16 @@ def main() -> int:
         print("OK already fixed: atomic offline merchant credit increment")
     elif old in text:
         text = text.replace(old, new, 1)
-        TARGET.write_text(text, encoding="utf-8")
         print("FIXED: atomic offline merchant credit increment")
     else:
         raise SystemExit("ERROR expected offline merchant credit read/modify/write block not found")
 
+    TARGET.write_text(text, encoding="utf-8")
     final = TARGET.read_text(encoding="utf-8")
     required = (
+        "import org.slf4j.Logger;",
+        "import org.slf4j.LoggerFactory;",
+        "private static final Logger log = LoggerFactory.getLogger(HiredMerchant.class);",
         "UPDATE characters SET MerchantMesos = LEAST(CAST(COALESCE(MerchantMesos, 0) AS SIGNED) + ?, ?) WHERE id = ?",
         "if (ps.executeUpdate() != 1)",
         "log.error(\"Failed to credit offline Hired Merchant owner {} with {} mesos",
