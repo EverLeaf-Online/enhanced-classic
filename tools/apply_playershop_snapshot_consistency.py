@@ -2,6 +2,8 @@
 """Make PlayerShop public list snapshots structurally detached from live mutable state."""
 from pathlib import Path
 
+from apply_shop_listing_source_integrity import main as apply_listing_source_integrity
+
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "src/main/java/server/maps/PlayerShop.java"
 
@@ -56,10 +58,14 @@ def main() -> int:
         if fragment in final:
             raise SystemExit(f"ERROR live PlayerShop list view remains: {fragment}")
 
+    if apply_listing_source_integrity() != 0:
+        raise SystemExit("ERROR shop listing source integrity transform failed")
+
     print("EverLeaf PlayerShop snapshot consistency hardening: PASS")
     print("  getItems returns a detached list structure captured under lock")
     print("  getSold returns a detached list structure captured under lock")
     print("  readers cannot structurally iterate the live mutable backing lists after lock release")
+    print("  shop listing source integrity transform composed into PlayerShop production chain")
     return 0
 
 
