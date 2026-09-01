@@ -9,11 +9,12 @@
 #include "wz/WzEnums.h"
 #include "wz/WzFile.h"
 #include "wz/WzImage.h"
+#include "wz/WzImageProperty.h"
 
 namespace fs = std::filesystem;
 
 struct CopyEntry {
-    enum class Kind { Image, Directory };
+    enum class Kind { Image, Directory, Property };
     Kind kind;
     std::string name;
 };
@@ -44,6 +45,12 @@ static bool ParseSpec(const fs::path& path, std::vector<CopyEntry>& entries) {
             entries.push_back({CopyEntry::Kind::Image, name});
         } else if (type == "directory") {
             entries.push_back({CopyEntry::Kind::Directory, name});
+        } else if (type == "property") {
+            if (name.find('/') == std::string::npos) {
+                std::cerr << "Property spec must be Image.img/Property on line " << lineNo << "\n";
+                return false;
+            }
+            entries.push_back({CopyEntry::Kind::Property, name});
         } else {
             std::cerr << "Unknown spec type on line " << lineNo << ": " << type << "\n";
             return false;
@@ -68,19 +75,23 @@ static bool ParseAllImages(wz::WzDirectory* dir) {
 }
 
 static void MarkAllImagesChanged(wz::WzDirectory* dir) {
-    for (auto* image : dir->WzImages()) {
-        image->SetChanged(true);
-    }
-    for (auto* child : dir->WzDirectories()) {
-        MarkAllImagesChanged(child);
-    }
+    for (auto* image : dir->WzImages()) image->SetChanged(true);
+    for (auto* child : dir->WzDirectories()) MarkAllImagesChanged(child);
 }
 
 static void RetargetDirectory(wz::WzDirectory* dir, wz::WzFile* targetFile) {
     dir->SetWzFile(targetFile);
-    for (auto* child : dir->WzDirectories()) {
-        RetargetDirectory(child, targetFile);
+    for (auto* child : dir->WzDirectories()) RetargetDirectory(child, targetFile);
+}
+
+static bool EnsureParsed(wz::WzImage* image, const std::string& label) {
+    if (!image) return false;
+    auto parsed = image->ParseImage();
+    if (!parsed || !parsed.value()) {
+        std::cerr << "Could not parse WZ image: " << label << "\n";
+        return false;
     }
+    return true;
 }
 
 static bool ReplaceImage(wz::WzDirectory* base, wz::WzDirectory* donor, const std::string& name) {
@@ -89,12 +100,7 @@ static bool ReplaceImage(wz::WzDirectory* base, wz::WzDirectory* donor, const st
         std::cerr << "Donor is missing required image: " << name << "\n";
         return false;
     }
-
-    auto parsed = source->ParseImage();
-    if (!parsed || !parsed.value()) {
-        std::cerr << "Could not parse donor image: " << name << "\n";
-        return false;
-    }
+    if (!EnsureParsed(source, "donor/" + name)) return false;
     source->SetChanged(true);
 
     if (auto* existing = base->GetImageByName(name)) {
@@ -160,6 +166,60 @@ static bool ReplaceDirectory(wz::WzDirectory* base, wz::WzDirectory* donor, cons
     return true;
 }
 
+static bool ReplaceProperty(wz::WzDirectory* base, wz::WzDirectory* donor, const std::string& spec) {
+    const auto slash = spec.find('/');
+    const std::string imageName = spec.substr(0, slash);
+    const std::string propertyName = spec.substr(slash + 1);
+    if (propertyName.empty() || propertyName.find('/') != std::string::npos) {
+        std::cerr << "Only top-level image properties are supported: " << spec << "\n";
+        return false;
+    }
+
+    auto* baseImage = base->GetImageByName(imageName);
+    auto* donorImage = donor->GetImageByName(imageName);
+    if (!baseImage || !donorImage) {
+        std::cerr << "Base or donor is missing property parent image: " << imageName << "\n";
+        return false;
+    }
+    if (!EnsureParsed(baseImage, "base/" + imageName) ||
+        !EnsureParsed(donorImage, "donor/" + imageName)) return false;
+
+    auto sourceResult = donorImage->GetPropertyByName(propertyName);
+    if (!sourceResult) {
+        std::cerr << "Donor is missing required property: " << spec << "\n";
+        return false;
+    }
+    auto* source = sourceResult.value();
+
+    auto existing = baseImage->GetPropertyByName(propertyName);
+    if (existing) {
+        auto removed = baseImage->RemoveProperty(existing.value());
+        if (!removed) {
+            std::cerr << "Could not remove existing base property " << spec << ": "
+                      << removed.error().message() << "\n";
+            return false;
+        }
+    }
+
+    auto moved = donorImage->RemoveProperty(source);
+    if (!moved) {
+        std::cerr << "Could not detach donor property " << spec << ": "
+                  << moved.error().message() << "\n";
+        return false;
+    }
+    auto added = baseImage->AddProperty(std::move(moved.value()));
+    if (!added) {
+        std::cerr << "Could not add donor property " << spec << " to base: "
+                  << added.error().message() << "\n";
+        return false;
+    }
+
+    baseImage->SetChanged(true);
+    donorImage->SetChanged(true);
+    std::cout << "Replaced property: " << spec << "\n";
+    return true;
+}
+
 int main(int argc, char** argv) {
     if (argc != 7) {
         std::cerr << "Usage: everleaf-evan-wz-patcher <base.wz> <base-version> <donor.wz> <donor-version> <copy-spec.txt> <output.wz>\n";
@@ -202,9 +262,18 @@ int main(int argc, char** argv) {
     auto* base = baseFile.GetWzDirectory();
     auto* donor = donorFile.GetWzDirectory();
     for (const auto& entry : entries) {
-        bool ok = entry.kind == CopyEntry::Kind::Image
-            ? ReplaceImage(base, donor, entry.name)
-            : ReplaceDirectory(base, donor, entry.name);
+        bool ok = false;
+        switch (entry.kind) {
+            case CopyEntry::Kind::Image:
+                ok = ReplaceImage(base, donor, entry.name);
+                break;
+            case CopyEntry::Kind::Directory:
+                ok = ReplaceDirectory(base, donor, entry.name);
+                break;
+            case CopyEntry::Kind::Property:
+                ok = ReplaceProperty(base, donor, entry.name);
+                break;
+        }
         if (!ok) return 8;
     }
 
