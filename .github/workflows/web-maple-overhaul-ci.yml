@@ -1,0 +1,35 @@
+name: Web Maple Overhaul CI
+
+on:
+  push:
+    branches: [web/maple-overhaul]
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-maple-overhaul-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install web dependencies
+        run: npm install
+      - name: Run existing web tests
+        run: npm test
+      - name: Verify overhaul assets
+        run: |
+          test -f public/css/maple-overhaul.css
+          test -f public/css/maple-inner.css
+          test -f public/css/maple-admin.css
+          grep -q 'maple-overhaul.css' src/views/partials/header.ejs
+          grep -q 'mapleHero' src/views/home.ejs
