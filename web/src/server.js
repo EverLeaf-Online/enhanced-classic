@@ -96,6 +96,7 @@ app.use("/",require("./routes/vote"));
 app.use("/",require("./routes/recovery"));
 app.use("/",require("./routes/wiki"));
 app.use("/",require("./routes/public"));
+app.use("/admin",require("./routes/admin-knowledge"));
 app.use("/admin",require("./routes/admin-content"));
 app.use("/admin",require("./routes/admin"));
 
