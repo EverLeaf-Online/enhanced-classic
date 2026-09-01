@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const {
   StabilityGate,
+  buildComponents,
   buildEmbed,
   normalizeApiStatus,
 } = require("./discord-status-bot");
@@ -59,4 +60,10 @@ test("updates the existing Discord message without creating alert posts", () => 
   const source = fs.readFileSync(require.resolve("./discord-status-bot"), "utf8");
   assert.doesNotMatch(source, /method:\s*["']POST["']/);
   assert.match(source, /method:\s*["']PATCH["']/);
+});
+
+test("adds safe official navigation buttons to the status post", () => {
+  const components = buildComponents()[0].components;
+  assert.deepEqual(components.map((button) => button.label), ["Website", "Download", "Account", "Vote"]);
+  assert.ok(components.every((button) => button.style === 5 && button.url.startsWith("https://everleafms.online")));
 });

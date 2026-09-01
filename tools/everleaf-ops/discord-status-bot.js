@@ -162,6 +162,18 @@ function buildEmbed(status) {
   };
 }
 
+function buildComponents() {
+  return [{
+    type: 1,
+    components: [
+      { type: 2, style: 5, label: "Website", url: "https://everleafms.online" },
+      { type: 2, style: 5, label: "Download", url: "https://everleafms.online/downloads" },
+      { type: 2, style: 5, label: "Account", url: "https://everleafms.online/account" },
+      { type: 2, style: 5, label: "Vote", url: "https://everleafms.online/vote" },
+    ],
+  }];
+}
+
 async function run() {
   const botToken = requireEnv("DISCORD_BOT_TOKEN");
   const channelId = process.env.DISCORD_STATUS_CHANNEL_ID || DEFAULT_CHANNEL_ID;
@@ -204,7 +216,12 @@ async function run() {
             Authorization: `Bot ${botToken}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ content: "", embeds: [embed], allowed_mentions: { parse: [] } }),
+          body: JSON.stringify({
+            content: "",
+            embeds: [embed],
+            components: buildComponents(),
+            allowed_mentions: { parse: [] },
+          }),
         },
       );
       if (!response.ok) throw new Error(`Discord status update failed: ${response.status}.`);
@@ -233,4 +250,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { StabilityGate, buildEmbed, healthSignature, normalizeApiStatus, offlineStatus };
+module.exports = { StabilityGate, buildComponents, buildEmbed, healthSignature, normalizeApiStatus, offlineStatus };
