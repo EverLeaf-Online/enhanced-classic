@@ -26,7 +26,14 @@ jobs:
           python-version: '3.12'
 
       - name: Compile donor tooling
-        run: python -m py_compile tools/wz-donor/wz_diff.py tools/wz-donor/test_wz_diff.py
+        run: >-
+          python -m py_compile
+          tools/wz-donor/wz_diff.py
+          tools/wz-donor/build_import_manifest.py
+          tools/wz-donor/test_wz_diff.py
+          tools/wz-donor/test_import_manifest.py
 
       - name: Run donor regression tests
-        run: python tools/wz-donor/test_wz_diff.py
+        run: |
+          python tools/wz-donor/test_wz_diff.py
+          python tools/wz-donor/test_import_manifest.py
