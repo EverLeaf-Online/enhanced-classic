@@ -27,12 +27,35 @@ var MAP_MUSHROOM_TOWN = 10000;
 var MAP_EVAN_START = 100030100; // Utah's House - Small Attic
 var MAP_NORMAL_TRAINING_EXIT = 40000;
 var BEGINNERS_GUIDE = 4161001;
+var EVAN_BEGINNER_JOB = 2001;
 
 function isFreshBeginner() {
     return cm.getPlayer().getMapId() == MAP_MUSHROOM_TOWN
         && cm.getJobId() == 0
         && cm.getPlayer().getLevel() == 1
         && cm.getPlayer().getExp() == 0;
+}
+
+function finishEvanConversion() {
+    cm.changeJobById(EVAN_BEGINNER_JOB);
+    cm.warp(MAP_EVAN_START, 0);
+
+    try {
+        var guideCount = cm.itemQuantity(BEGINNERS_GUIDE);
+        if (guideCount > 0) {
+            cm.gainItem(BEGINNERS_GUIDE, -guideCount);
+        }
+    } catch (cleanupError) {
+        // Non-critical cleanup must not strand a converted Evan on Maple Island.
+    }
+
+    try {
+        cm.getPlayer().saveCharToDB(false);
+    } catch (saveError) {
+        // Normal autosave/logout persistence remains as a fallback.
+    }
+
+    cm.dispose();
 }
 
 function start() {
@@ -92,28 +115,13 @@ function action(mode, type, selection) {
             return;
         }
 
-        // Re-check every eligibility condition immediately before mutation so
-        // stale/replayed NPC responses cannot convert progressed characters.
         if (!isFreshBeginner()) {
             cm.sendOk("Only a brand-new Level 1 Beginner with no EXP can choose the Evan path here.");
             cm.dispose();
             return;
         }
 
-        const Job = Java.type('client.Job');
-        cm.changeJob(Job.EVAN);
-
-        // Explorer Beginners receive this guide at creation; native Evans do not.
-        var guideCount = cm.itemQuantity(BEGINNERS_GUIDE);
-        if (guideCount > 0) {
-            cm.gainItem(BEGINNERS_GUIDE, -guideCount);
-        }
-
-        // Persist both the class conversion and the destination immediately.
-        cm.getPlayer().saveCharToDB(false);
-        cm.warp(MAP_EVAN_START, 0);
-        cm.getPlayer().saveCharToDB(false);
-        cm.dispose();
+        finishEvanConversion();
         return;
     }
 
