@@ -18,7 +18,7 @@ class RenderReviewReportTest(unittest.TestCase):
     def test_renders_risk_breakdown_and_samples(self) -> None:
         diff = {
             "donorId": "gms-v95",
-            "totals": {"newIds": 4, "collisionIds": 2, "changedCollisionIds": 1},
+            "totals": {"baseline": 100, "donor": 104, "new": 4, "collisions": 2, "changed": 1},
             "dependencies": {"missingReferenceCount": 1},
         }
         manifest = {
@@ -58,6 +58,9 @@ class RenderReviewReportTest(unittest.TestCase):
         text = render_review_report.render(diff, manifest)
         self.assertIn("# EverLeaf WZ donor review — gms-v95", text)
         self.assertIn("Candidates: **3**", text)
+        self.assertIn("New IDs: **4**", text)
+        self.assertIn("Collisions: **2**", text)
+        self.assertIn("Changed collisions: **1**", text)
         self.assertIn("| items | 1 | 0 | 0 | 0 | 1 |", text)
         self.assertIn("`maps:200000000` — npcs:9000000", text)
         self.assertIn("[ ] `items:2000000`", text)
