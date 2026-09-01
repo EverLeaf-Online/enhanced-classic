@@ -37,15 +37,12 @@ app.use(helmet({
   referrerPolicy:{policy:"strict-origin-when-cross-origin"}
 }));
 app.use(compression());
-// Provider signatures must be verified against the exact request bytes.
 app.use("/webhooks",require("./routes/webhooks"));
 app.use(express.urlencoded({extended:false,limit:"50kb"}));
 app.use(express.json({limit:"50kb"}));
 app.use(express.static(path.join(__dirname,"../public"),{maxAge:env.nodeEnv==="production"?"1h":0}));
 app.use(rateLimit({windowMs:60_000,max:120,standardHeaders:true,legacyHeaders:false}));
 
-// Authentication and recovery endpoints receive a much tighter POST-only limiter than the
-// general site. Successful browsing never consumes this budget.
 const authLimiter=rateLimit({
   windowMs:15*60_000,
   max:12,
@@ -56,8 +53,6 @@ const authLimiter=rateLimit({
 });
 app.use(["/login","/register","/recover","/admin/login"],authLimiter);
 
-// Launcher endpoints are intentionally session-free. The manifest is signed and
-// patch payloads are SHA-256 verified by the launcher before replacement.
 app.use("/v1/launcher",require("./routes/launcher"));
 app.use("/patches",express.static(env.launcher.filesRoot,{
   fallthrough:false,
@@ -85,7 +80,6 @@ app.use(session({
   }
 }));
 
-// Never let account/admin/auth/recovery responses become shared browser/proxy cache entries.
 app.use((req,res,next)=>{
   const sensitive=req.path==="/login"||req.path==="/register"||req.path==="/recover"||req.path.startsWith("/account")||req.path.startsWith("/admin");
   if(sensitive) res.set("Cache-Control","no-store");
@@ -100,6 +94,7 @@ app.use(require("./middleware/viewLocals"));
 
 app.use("/",require("./routes/vote"));
 app.use("/",require("./routes/recovery"));
+app.use("/",require("./routes/wiki"));
 app.use("/",require("./routes/public"));
 app.use("/admin",require("./routes/admin-content"));
 app.use("/admin",require("./routes/admin"));
