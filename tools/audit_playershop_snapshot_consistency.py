@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from audit_shop_listing_source_integrity import main as audit_listing_source_integrity
+from audit_merchant_listing_persistence_compensation import main as audit_listing_persistence_compensation
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "src/main/java/server/maps/PlayerShop.java"
@@ -28,12 +29,14 @@ def main() -> int:
 
     if audit_listing_source_integrity() != 0:
         raise SystemExit("FAIL shop listing source integrity audit")
+    if audit_listing_persistence_compensation() != 0:
+        raise SystemExit("FAIL merchant listing persistence compensation audit")
 
     print("EverLeaf PlayerShop snapshot consistency audit: PASS")
     print("  item-list readers use a detached structural snapshot")
     print("  sold-list readers use a detached structural snapshot")
     print("  structural mutation cannot race unlocked external iteration")
-    print("  listing source validation/rollback invariants are also enforced")
+    print("  listing source + persistence compensation invariants are enforced")
     return 0
 
 

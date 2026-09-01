@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from apply_shop_listing_source_integrity import main as apply_listing_source_integrity
+from apply_merchant_listing_persistence_compensation import main as apply_listing_persistence_compensation
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "src/main/java/server/maps/PlayerShop.java"
@@ -60,12 +61,14 @@ def main() -> int:
 
     if apply_listing_source_integrity() != 0:
         raise SystemExit("ERROR shop listing source integrity transform failed")
+    if apply_listing_persistence_compensation() != 0:
+        raise SystemExit("ERROR merchant listing persistence compensation transform failed")
 
     print("EverLeaf PlayerShop snapshot consistency hardening: PASS")
     print("  getItems returns a detached list structure captured under lock")
     print("  getSold returns a detached list structure captured under lock")
     print("  readers cannot structurally iterate the live mutable backing lists after lock release")
-    print("  shop listing source integrity transform composed into PlayerShop production chain")
+    print("  shop listing source integrity + persistence compensation are composed into production")
     return 0
 
 
