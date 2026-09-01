@@ -86,11 +86,13 @@ def audit_transfer_code() -> None:
     if interactions.index(direct_runtime) > interactions.index("if (quantity < 1 || quantity > item.getQuantity())"):
         raise SystemExit("ERROR direct trade runtime untradeable check occurs after quantity processing")
 
-    require(
-        DUEY,
-        "item.isUntradeable() || ii.isUnmerchable(item.getItemId())",
-        "KarmaManipulator.toggleKarmaFlagToUntradeable(item);",
-    )
+    duey = read(DUEY)
+    legacy_gate = "item.isUntradeable() || ii.isUnmerchable(item.getItemId())"
+    hardened_gate = "sourceItem.isUntradeable() || ii.isUnmerchable(sourceItem.getItemId())"
+    if legacy_gate not in duey and hardened_gate not in duey:
+        raise SystemExit("ERROR Duey runtime/unmerchable transfer gate is missing")
+    if "KarmaManipulator.toggleKarmaFlagToUntradeable(item);" not in duey and "KarmaManipulator.toggleKarmaFlagToUntradeable(packageItem);" not in duey:
+        raise SystemExit("ERROR Duey Karma transition is missing")
 
     require(
         ITEM_INFO,
@@ -160,7 +162,7 @@ def main() -> int:
     print("EverLeaf item transfer/stack integrity audit: PASS")
     print("  runtime UNTRADEABLE: direct trade + player shop + Duey gated")
     print("  WZ tradeBlock/accountSharable/equipTradeBlock/tradeAvailable: wired")
-    print("  Karma-aware direct trade gate: retained")
+    print("  Karma-aware direct trade/Duey transitions: retained")
     print("  expiration persistence: regular items + equips save/load wired")
     print("  stack merges: owner + flag + expiration compatible")
     print("  capacity preflight: PlayerShop/HiredMerchant/Storage/Duey expiration-aware")
@@ -169,7 +171,6 @@ def main() -> int:
     print(f"  explicit slotMax nodes validated: {slot_nodes}")
     print(f"  maximum explicit slotMax: {max_slot}")
     print("  most common slotMax values: " + ", ".join(f"{value}={count}" for value, count in counts.most_common(8)))
-    print("  NOTE: Duey/merchant settlement atomicity remains a separate concurrency follow-up")
     return 0
 
 
