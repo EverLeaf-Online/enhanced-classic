@@ -117,6 +117,12 @@ def main() -> int:
         "src/main/java/net/server/channel/handlers/CancelBuffHandler.java",
         "Evan.ICE_BREATH", "Evan.FIRE_BREATH",
     )
+    require(
+        "src/main/java/net/server/channel/handlers/TakeDamageHandler.java",
+        "Integer magicShield = chr.getBuffedValue(BuffStat.MAGIC_SHIELD);",
+        "int absorptionPercent = Math.max(0, Math.min(100, magicShield));",
+        "damage = Math.max(0, damage - (int) Math.floor(damage * (absorptionPercent / 100.0)));",
+    )
 
     require(
         "tools/apply_evan_behavior_fixes.py",
@@ -151,6 +157,7 @@ def main() -> int:
     print("  job growth chain: 2001, 2200, 2210-2218")
     print("  Evan Skill.wz: 43/43 declared server skills")
     print("  Evan HP/MP: magician-style level-up growth")
+    print("  Magic Shield: WZ x-percent damage absorption consumed by TakeDamageHandler")
     print("  extended SP, dragon object/movement, charged Breath: wired")
     print("  Evan behavior + progression transforms: CI + production wired")
     return 0
