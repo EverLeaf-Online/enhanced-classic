@@ -5,6 +5,7 @@ on:
     paths:
       - "client/tools/evan-wz-patcher/**"
       - "client/tools/evan-xml-donor-builder/**"
+      - "client/scripts/build-evan-donor-from-zip.sh"
       - "client/evan-wz/**"
       - ".github/workflows/publish-evan-wz-assets.yml"
       - ".github/workflows/test-evan-wz-patcher.yml"
@@ -13,6 +14,7 @@ on:
     paths:
       - "client/tools/evan-wz-patcher/**"
       - "client/tools/evan-xml-donor-builder/**"
+      - "client/scripts/build-evan-donor-from-zip.sh"
       - "client/evan-wz/**"
       - ".github/workflows/publish-evan-wz-assets.yml"
       - ".github/workflows/test-evan-wz-patcher.yml"
@@ -47,7 +49,7 @@ jobs:
         shell: bash
         run: cmake --build "$RUNNER_TEMP/evan-wz-build" --config Release --parallel 2
 
-      - name: Verify Evan copy manifests and archive publisher wiring
+      - name: Verify Evan copy manifests and exact archive publisher wiring
         shell: python
         run: |
           from pathlib import Path
@@ -73,15 +75,32 @@ jobs:
           assert entries('String') == string_expected, entries('String')
           assert 'property:Skill.img/2001' not in entries('String')
 
+          source_sha = '961e0cbf826aca48efa619afec51fd12c2472a82e654e6e73542b5bf65a0e5ce'
+          source_size = '61860666'
+          source_builder = Path('client/scripts/build-evan-donor-from-zip.sh').read_text()
+          for marker in (
+              source_sha,
+              "assert len(expected) == 45",
+              "assert canvas_count == 8400",
+              "supported_tags = {'imgdir', 'canvas', 'int', 'short', 'string', 'vector', 'uol'}",
+              'sha256sum --check --strict',
+          ):
+              assert marker in source_builder, f'Missing strict Evan source-builder invariant: {marker}'
+
           publisher = Path('.github/workflows/publish-evan-wz-assets.yml').read_text()
           required = [
               'EVERLEAF_EVAN_ARCHIVE: /opt/everleaf/private/evan/Evan.zip',
-              'Verify authorized Evan archive and production baseline',
-              'Retrieve Evan archive and current managed WZ files',
-              'Build pinned Evan XML donor builder and WZ patcher',
-              'client/tools/evan-xml-donor-builder',
-              'Reconstruct verified donor WZs from Evan XML archive',
-              'everleaf-evan-xml-donor-builder',
+              f'VERLEAF_EVAN_ARCHIVE_SIZE: "{source_size}"'.replace('VERLEAF', 'EVERLEAF'),
+              f'EVERLEAF_EVAN_ARCHIVE_SHA256: {source_sha}',
+              'Verify exact authorized Evan archive and production baseline',
+              'stat -c \'%s\' "$ARCHIVE"',
+              'sha256sum "$ARCHIVE"',
+              'unzip -tq "$ARCHIVE"',
+              'Retrieve and re-verify Evan archive and current managed WZ files',
+              'printf \'%s  evan-source.zip\\n\' "$EVERLEAF_EVAN_ARCHIVE_SHA256" | sha256sum --check --strict',
+              'Reconstruct strictly validated donor WZs from Evan archive',
+              'client/scripts/build-evan-donor-from-zip.sh evan-source.zip donor',
+              'Build pinned Evan WZ patcher',
               'client/evan-wz/Skill.copy.txt',
               'client/evan-wz/Character.copy.txt',
               'client/evan-wz/UI.copy.txt',
@@ -92,6 +111,14 @@ jobs:
           ]
           for marker in required:
               assert marker in publisher, f'Missing Evan publisher invariant: {marker}'
-          assert 'EVERLEAF_EVAN_DONOR_DIR' not in publisher, 'Publisher regressed to prebuilt donor directory'
+
+          forbidden = [
+              'EVERLEAF_EVAN_DONOR_DIR',
+              'unzip -q evan-source.zip -d evan-source',
+              'builder="$RUNNER_TEMP/evan-xml-build/everleaf-evan-xml-donor-builder"',
+          ]
+          for marker in forbidden:
+              assert marker not in publisher, f'Evan publisher regressed to weaker/duplicate source path: {marker}'
+
           assert 'if: inputs.publish' in publisher
-          print('Evan WZ copy manifests + archive publisher wiring: PASS')
+          print('Evan WZ copy manifests + exact archive publisher contract: PASS')
