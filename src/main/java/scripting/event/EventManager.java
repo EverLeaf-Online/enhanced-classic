@@ -351,8 +351,40 @@ public class EventManager {
         }
     }
 
+    private void rollbackFailedSetup(Set<String> existingInstanceNames) {
+        List<EventInstanceManager> leakedInstances = new ArrayList<>();
+        synchronized (instances) {
+            Iterator<Map.Entry<String, EventInstanceManager>> iterator = instances.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, EventInstanceManager> entry = iterator.next();
+                if (!existingInstanceNames.contains(entry.getKey())) {
+                    leakedInstances.add(entry.getValue());
+                    iterator.remove();
+                }
+            }
+        }
+
+        for (EventInstanceManager leaked : leakedInstances) {
+            leaked.dispose(true);
+        }
+    }
+
     private EventInstanceManager createInstance(String name, Object... args) throws ScriptException, NoSuchMethodException {
-        return (EventInstanceManager) iv.invokeFunction(name, args);
+        Set<String> existingInstanceNames;
+        synchronized (instances) {
+            existingInstanceNames = new HashSet<>(instances.keySet());
+        }
+
+        try {
+            EventInstanceManager created = (EventInstanceManager) iv.invokeFunction(name, args);
+            if (created == null) {
+                rollbackFailedSetup(existingInstanceNames);
+            }
+            return created;
+        } catch (ScriptException | NoSuchMethodException ex) {
+            rollbackFailedSetup(existingInstanceNames);
+            throw ex;
+        }
     }
 
     private void registerEventInstance(String eventName, int lobbyId) {
@@ -369,12 +401,18 @@ public class EventManager {
     }
 
     public boolean startInstance(int lobbyId, Expedition exped) {
+        if (exped == null || exped.getLeader() == null) {
+            return false;
+        }
         return startInstance(lobbyId, exped, exped.getLeader());
     }
 
     //Expedition method: starts an expedition
     public boolean startInstance(int lobbyId, Expedition exped, Character leader) {
-        if (this.isDisposed()) {
+        if (this.isDisposed() || exped == null || leader == null || exped.getLeader() == null
+                || exped.getLeader().getId() != leader.getId() || !exped.contains(leader)
+                || leader.getMapId() != exped.getRecruitingMap().getId()
+                || exped.getActiveMembers().size() < exped.getMinSize()) {
             return false;
         }
 
@@ -420,6 +458,10 @@ public class EventManager {
                         eim.startEvent();
                     } catch (ScriptException | NoSuchMethodException ex) {
                         log.error("Event script startInstance", ex);
+                        if (lobbyId > -1) {
+                            setLockLobby(lobbyId, false);
+                        }
+                        return false;
                     }
 
                     return true;
@@ -430,6 +472,7 @@ public class EventManager {
                 }
             }
         } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
             playerPermit.remove(leader.getId());
         }
 
@@ -442,11 +485,14 @@ public class EventManager {
     }
 
     public boolean startInstance(int lobbyId, Character leader) {
+        if (leader == null) {
+            return false;
+        }
         return startInstance(lobbyId, leader, leader, 1);
     }
 
     public boolean startInstance(int lobbyId, Character chr, Character leader, int difficulty) {
-        if (this.isDisposed()) {
+        if (this.isDisposed() || leader == null || !leader.isLoggedinWorld()) {
             return false;
         }
 
@@ -492,6 +538,10 @@ public class EventManager {
                         eim.startEvent();
                     } catch (ScriptException | NoSuchMethodException ex) {
                         log.error("Event script startInstance", ex);
+                        if (lobbyId > -1) {
+                            setLockLobby(lobbyId, false);
+                        }
+                        return false;
                     }
 
                     return true;
@@ -502,6 +552,7 @@ public class EventManager {
                 }
             }
         } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
             playerPermit.remove(leader.getId());
         }
 
@@ -514,11 +565,17 @@ public class EventManager {
     }
 
     public boolean startInstance(int lobbyId, Party party, MapleMap map) {
+        if (party == null || party.getLeader() == null || party.getLeader().getPlayer() == null) {
+            return false;
+        }
         return startInstance(lobbyId, party, map, party.getLeader().getPlayer());
     }
 
     public boolean startInstance(int lobbyId, Party party, MapleMap map, Character leader) {
-        if (this.isDisposed()) {
+        if (this.isDisposed() || party == null || map == null || leader == null
+                || party.getLeader() == null || party.getLeaderId() != leader.getId()
+                || leader.getParty() != party || party.getEligibleMembers() == null
+                || party.getEligibleMembers().isEmpty() || map.getCharacterById(leader.getId()) == null) {
             return false;
         }
 
@@ -564,6 +621,10 @@ public class EventManager {
                         eim.startEvent();
                     } catch (ScriptException | NoSuchMethodException ex) {
                         log.error("Event script startInstance", ex);
+                        if (lobbyId > -1) {
+                            setLockLobby(lobbyId, false);
+                        }
+                        return false;
                     }
 
                     return true;
@@ -574,6 +635,7 @@ public class EventManager {
                 }
             }
         } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
             playerPermit.remove(leader.getId());
         }
 
@@ -586,11 +648,17 @@ public class EventManager {
     }
 
     public boolean startInstance(int lobbyId, Party party, MapleMap map, int difficulty) {
+        if (party == null || party.getLeader() == null || party.getLeader().getPlayer() == null) {
+            return false;
+        }
         return startInstance(lobbyId, party, map, difficulty, party.getLeader().getPlayer());
     }
 
     public boolean startInstance(int lobbyId, Party party, MapleMap map, int difficulty, Character leader) {
-        if (this.isDisposed()) {
+        if (this.isDisposed() || party == null || map == null || leader == null
+                || party.getLeader() == null || party.getLeaderId() != leader.getId()
+                || leader.getParty() != party || party.getEligibleMembers() == null
+                || party.getEligibleMembers().isEmpty() || map.getCharacterById(leader.getId()) == null) {
             return false;
         }
 
@@ -636,6 +704,10 @@ public class EventManager {
                         eim.startEvent();
                     } catch (ScriptException | NoSuchMethodException ex) {
                         log.error("Event script startInstance", ex);
+                        if (lobbyId > -1) {
+                            setLockLobby(lobbyId, false);
+                        }
+                        return false;
                     }
 
                     return true;
@@ -646,6 +718,7 @@ public class EventManager {
                 }
             }
         } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
             playerPermit.remove(leader.getId());
         }
 
@@ -662,11 +735,14 @@ public class EventManager {
     }
 
     public boolean startInstance(int lobbyId, EventInstanceManager eim, String ldr) {
-        return startInstance(-1, eim, ldr, eim.getEm().getChannelServer().getPlayerStorage().getCharacterByName(ldr));  // things they make me do...
+        if (eim == null || eim.getEm() == null || ldr == null) {
+            return false;
+        }
+        return startInstance(lobbyId, eim, ldr, eim.getEm().getChannelServer().getPlayerStorage().getCharacterByName(ldr));  // things they make me do...
     }
 
     public boolean startInstance(int lobbyId, EventInstanceManager eim, String ldr, Character leader) {
-        if (this.isDisposed()) {
+        if (this.isDisposed() || eim == null || leader == null || ldr == null || !leader.isLoggedinWorld()) {
             return false;
         }
 
@@ -703,6 +779,9 @@ public class EventManager {
                         eim.startEvent();
                     } catch (ScriptException | NoSuchMethodException ex) {
                         log.error("Event script startInstance", ex);
+                        freeLobbyInstance(eim.getName());
+                        eim.dispose(true);
+                        return false;
                     }
 
                     return true;
@@ -713,6 +792,7 @@ public class EventManager {
                 }
             }
         } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
             playerPermit.remove(leader.getId());
         }
 
@@ -723,6 +803,7 @@ public class EventManager {
         if (party == null) {
             return new ArrayList<>();
         }
+        party.setEligibleMembers(null);
         try {
             Object o = iv.invokeFunction("getEligibleParty", party.getPartyMembersOnline());
 

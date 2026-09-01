@@ -288,6 +288,11 @@ public class EventInstanceManager {
     }
 
     public void startEventTimer(long time) {
+        if (event_schedule != null) {
+            event_schedule.cancel(false);
+            event_schedule = null;
+        }
+        time = Math.max(1L, time);
         timeStarted = System.currentTimeMillis();
         eventTime = time;
 
@@ -309,8 +314,9 @@ public class EventInstanceManager {
     public void addEventTimer(long time) {
         if (event_schedule != null) {
             if (event_schedule.cancel(false)) {
-                long nextTime = getTimeLeft() + time;
-                eventTime += time;
+                long nextTime = Math.max(1L, getTimeLeft() + time);
+                eventTime = nextTime;
+                timeStarted = System.currentTimeMillis();
 
                 event_schedule = TimerManager.getInstance().schedule(() -> {
                     dismissEventTimer();
@@ -351,7 +357,10 @@ public class EventInstanceManager {
     }
 
     public long getTimeLeft() {
-        return eventTime - (System.currentTimeMillis() - timeStarted);
+        if (!isTimerStarted()) {
+            return 0L;
+        }
+        return Math.max(0L, eventTime - (System.currentTimeMillis() - timeStarted));
     }
 
     public void registerParty(Character chr) {

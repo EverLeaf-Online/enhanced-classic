@@ -163,6 +163,8 @@ function enterArena(arenaPlayers) {
         cm.sendOk("This Ariant Coliseum lobby is full. Choose another arena or try another channel.");
     } else if (playerAdd == 2) {
         cm.sendOk("The arena leader is not accepting your entry.");
+    } else if (playerAdd == 4) {
+        cm.sendOk("You have reached the entry-attempt limit for Ariant Coliseum. Try again after the limit resets.");
     } else {
         cm.sendOk("Your arena entry could not be completed. Please try again; if this continues, report it in EverLeaf's bug-report channel.");
     }
