@@ -24,25 +24,63 @@ unzip -q "$source_zip" -d "$extract_dir"
 
 python3 - "$extract_dir" <<'PY'
 from pathlib import Path
+from collections import Counter
 import sys
+import xml.etree.ElementTree as ET
+
 root = Path(sys.argv[1])
-files = sorted(p for p in root.rglob('*') if p.is_file())
-assert len(files) == 45, f'Expected 45 Evan source files, found {len(files)}'
-expected = [
+actual = {
+    p.relative_to(root).as_posix()
+    for p in root.rglob('*')
+    if p.is_file()
+}
+
+skill_stages = ['2001', '2200', '2210', '2211', '2212', '2213', '2214', '2215', '2216', '2217', '2218']
+dragon_skill_stages = ['2200', '2210', '2211', '2212', '2213', '2214', '2215', '2216', '2217', '2218']
+dragon_character_ids = [
+    f'019{family}{variant:03d}'
+    for family in (42, 52, 62, 72)
+    for variant in range(5)
+]
+
+expected = {
     'Evan/Character/00002000.img.xml',
-    'Evan/Skill/2001.img.xml',
-    'Evan/Skill/2200.img.xml',
-    'Evan/Skill/2218.img.xml',
+    *{f'Evan/Character/Dragon/{image}.img.xml' for image in dragon_character_ids},
+    *{f'Evan/Skill/{stage}.img.xml' for stage in skill_stages},
+    *{f'Evan/Skill/Dragon/{stage}.img.xml' for stage in dragon_skill_stages},
     'Evan/String/Skill.img.xml',
     'Evan/UI/Basic.img.xml',
     'Evan/UI/UIWindow.img.xml',
-]
-for relative in expected:
+}
+
+assert len(expected) == 45, f'Internal Evan source contract is wrong: expected set has {len(expected)} files'
+assert actual == expected, (
+    'Evan source archive layout differs from the pinned contract: '
+    f'missing={sorted(expected - actual)} extra={sorted(actual - expected)}'
+)
+
+supported_tags = {'imgdir', 'canvas', 'int', 'short', 'string', 'vector', 'uol'}
+tag_counts = Counter()
+canvas_count = 0
+missing_basedata = []
+
+for relative in sorted(expected):
     path = root / relative
-    assert path.is_file() and path.stat().st_size > 0, f'Missing Evan source entry: {relative}'
-assert len(list((root / 'Evan/Character/Dragon').glob('*.xml'))) == 20
-assert len(list((root / 'Evan/Skill/Dragon').glob('*.xml'))) == 10
-print('Authorized Evan source archive layout: PASS')
+    assert path.stat().st_size > 0, f'Empty Evan source entry: {relative}'
+    xml_root = ET.parse(path).getroot()
+    assert xml_root.tag == 'imgdir', f'Unexpected XML root in {relative}: {xml_root.tag}'
+    for node in xml_root.iter():
+        tag_counts[node.tag] += 1
+        assert node.tag in supported_tags, f'Unsupported Evan XML tag {node.tag!r} in {relative}'
+        if node.tag == 'canvas':
+            canvas_count += 1
+            if not node.get('basedata'):
+                missing_basedata.append(relative)
+
+assert canvas_count == 8400, f'Expected 8400 Evan canvases, found {canvas_count}'
+assert not missing_basedata, f'Canvas nodes missing basedata: {sorted(set(missing_basedata))}'
+print('Authorized Evan source archive layout/schema: PASS')
+print(f'Evan source files={len(actual)} canvases={canvas_count} tags={dict(sorted(tag_counts.items()))}')
 PY
 
 if [[ ! -d "$libwz_dir/.git" ]]; then
