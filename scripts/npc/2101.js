@@ -23,7 +23,6 @@ var status = -1;
 var route = "";
 
 var MAP_MUSHROOM_TOWN = 10000;
-var MAP_EVAN_START = 100030100; // Utah's House - Small Attic
 var MAP_NORMAL_TRAINING_EXIT = 40000;
 var BEGINNERS_GUIDE = 4161001;
 var EVAN_BEGINNER_JOB = 2001;
@@ -36,32 +35,18 @@ function isFreshBeginner() {
 }
 
 function finishEvanConversion() {
-    // Move the Beginner before sending the Evan job-change packet. On this v83
-    // client the reverse order can leave the character converted but stranded.
-    cm.warp(MAP_EVAN_START, 0);
-    if (cm.getPlayer().getMapId() != MAP_EVAN_START) {
-        cm.sendOk("EverLeaf could not move you to the Evan starting area. No job change was made. Please try again.");
-        cm.dispose();
-        return;
-    }
-
+    // Safety: keep the new Evan on a known-good v83 map until the v84 Evan
+    // starter maps are fully backported. This prevents crash-on-login loops.
     cm.changeJobById(EVAN_BEGINNER_JOB);
 
     try {
         var guideCount = cm.itemQuantity(BEGINNERS_GUIDE);
-        if (guideCount > 0) {
-            cm.gainItem(BEGINNERS_GUIDE, -guideCount);
-        }
-    } catch (cleanupError) {
-        // Non-critical cleanup must not interrupt the conversion.
-    }
+        if (guideCount > 0) cm.gainItem(BEGINNERS_GUIDE, -guideCount);
+    } catch (cleanupError) { }
 
-    try {
-        cm.getPlayer().saveCharToDB(false);
-    } catch (saveError) {
-        // Normal autosave/logout persistence remains as a fallback.
-    }
+    try { cm.getPlayer().saveCharToDB(false); } catch (saveError) { }
 
+    cm.sendOk("You are now an #bEvan#k. EverLeaf is temporarily keeping new Evans on Maple Island while the original Evan starter maps are being made v83-safe.");
     cm.dispose();
 }
 
@@ -81,25 +66,19 @@ function start() {
 }
 
 function action(mode, type, selection) {
-    if (mode == -1) {
-        cm.dispose();
-        return;
-    }
+    if (mode == -1) { cm.dispose(); return; }
 
     status++;
 
     if (route == "menu") {
-        if (mode != 1) {
-            cm.dispose();
-            return;
-        }
+        if (mode != 1) { cm.dispose(); return; }
 
         if (selection == 0) {
             route = "evan";
             cm.sendYesNo(
-                "You will become an #bEvan#k and begin the Dragon Master story at Utah's House. "
+                "You will become an #bEvan#k. For safety, you will remain on Maple Island until the Evan starter-map backport is fully v83-compatible. "
                 + "This choice is permanent for this character.\r\n\r\n"
-                + "Do you want to begin your Evan journey?"
+                + "Do you want to become an Evan?"
             );
             return;
         }
@@ -116,18 +95,8 @@ function action(mode, type, selection) {
     }
 
     if (route == "evan") {
-        if (mode != 1) {
-            cm.sendOk("No problem. Your character has not been changed.");
-            cm.dispose();
-            return;
-        }
-
-        if (!isFreshBeginner()) {
-            cm.sendOk("Only a brand-new Level 1 Beginner with no EXP can choose the Evan path here.");
-            cm.dispose();
-            return;
-        }
-
+        if (mode != 1) { cm.sendOk("No problem. Your character has not been changed."); cm.dispose(); return; }
+        if (!isFreshBeginner()) { cm.sendOk("Only a brand-new Level 1 Beginner with no EXP can choose the Evan path here."); cm.dispose(); return; }
         finishEvanConversion();
         return;
     }
@@ -138,16 +107,13 @@ function action(mode, type, selection) {
             cm.dispose();
             return;
         }
-
         route = "leaveWarp";
         cm.sendNext("Then, I will send you out from here. Good job.");
         return;
     }
 
     if (route == "leaveWarp") {
-        if (mode == 1) {
-            cm.warp(MAP_NORMAL_TRAINING_EXIT, 0);
-        }
+        if (mode == 1) cm.warp(MAP_NORMAL_TRAINING_EXIT, 0);
         cm.dispose();
     }
 }
