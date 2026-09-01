@@ -9,6 +9,9 @@ DUEY = ROOT / "src/main/java/client/processor/npc/DueyProcessor.java"
 def main() -> int:
     text = DUEY.read_text(encoding="utf-8", errors="replace")
     required = (
+        "con.setAutoCommit(false);",
+        "con.rollback();",
+        "con.commit();",
         "if (invTypeId <= 0)",
         "sourceItem == null || amount < 1 || sourceItem.getQuantity() < amount",
         "short transferAmount = ItemConstants.isRechargeable(sourceItem.getItemId())",
@@ -24,6 +27,17 @@ def main() -> int:
     for fragment in required:
         if fragment not in text:
             raise SystemExit(f"ERROR Duey settlement invariant missing: {fragment}")
+
+    trusted_start = text.index("private static void removePackageFromDB")
+    owned_start = text.index("private static boolean removeOwnedPackageFromDB")
+    package_load_start = text.index("private static DueyPackage getPackageFromDB")
+    trusted = text[trusted_start:owned_start]
+    owned = text[owned_start:package_load_start]
+    for label, block in (("trusted", trusted), ("receiver-bound", owned)):
+        if "con.setAutoCommit(false);" not in block or "con.commit();" not in block or "con.rollback();" not in block:
+            raise SystemExit(f"ERROR {label} package deletion is not transaction-protected")
+        if block.index("deletePackageFromInventoryDB") < block.index("DELETE FROM dueypackages"):
+            raise SystemExit(f"ERROR {label} package payload delete precedes package-row delete unexpectedly")
 
     helper_start = text.index("private static int addPackageItemFromInventory")
     send_start = text.index("public static void dueySendItem")
@@ -42,6 +56,7 @@ def main() -> int:
         raise SystemExit("ERROR failed Duey package cleanup occurs after sender charging")
 
     print("EverLeaf Duey settlement audit: PASS")
+    print("  package row + stored payload deletion: one SQL transaction")
     print("  payload persistence precedes sender item removal")
     print("  failed sends clean incomplete package headers")
     print("  mesos and Quick Delivery ticket charge only after settlement")
