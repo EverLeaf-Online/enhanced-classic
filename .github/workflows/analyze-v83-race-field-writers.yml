@@ -20,7 +20,7 @@ jobs:
           sparse-checkout: Localhosts.zip
           sparse-checkout-cone-mode: false
       - run: python3 -m pip install --user pefile capstone
-      - name: Locate all CLogin race discriminator accesses
+      - name: Locate all CLogin race discriminator accesses and native setter callers
         shell: bash
         run: |
           set -euo pipefail
@@ -36,24 +36,32 @@ jobs:
 
           pe=pefile.PE('v83.exe'); base=pe.OPTIONAL_HEADER.ImageBase
           md=Cs(CS_ARCH_X86,CS_MODE_32); md.detail=True
-          hits=[]
+          sections=[]; hits=[]
           for sec in pe.sections:
               if not (sec.Characteristics & 0x20000000): continue
-              arr=list(md.disasm(sec.get_data(),base+sec.VirtualAddress))
+              arr=list(md.disasm(sec.get_data(),base+sec.VirtualAddress)); sections.append(arr)
               for idx,ins in enumerate(arr):
-                  matched=False
-                  for op in ins.operands:
-                      if op.type==X86_OP_MEM and op.mem.disp==0x214:
-                          matched=True
-                  if not matched: continue
+                  if not any(op.type==X86_OP_MEM and op.mem.disp==0x214 for op in ins.operands): continue
                   lo=max(0,idx-18); hi=min(len(arr),idx+19)
                   ctx=[f'{x.address:08X}: {x.mnemonic:<7} {x.op_str}' for x in arr[lo:hi]]
                   rec={'address':hex(ins.address),'instruction':f'{ins.mnemonic} {ins.op_str}','context':ctx}
                   hits.append(rec)
                   print('\n===',rec['address'],rec['instruction'],'===')
                   for line in ctx: print(line)
-          print('\nTOTAL_HITS',len(hits))
-          Path('v83-race-field-writers.json').write_text(json.dumps(hits,indent=2))
+
+          target=0x00617348
+          callers=[]
+          for arr in sections:
+              for idx,ins in enumerate(arr):
+                  if ins.mnemonic!='call' or not ins.operands or ins.operands[0].type!=X86_OP_IMM or ins.operands[0].imm!=target:
+                      continue
+                  lo=max(0,idx-30); hi=min(len(arr),idx+31)
+                  ctx=[f'{x.address:08X}: {bytes(x.bytes).hex(" "):<24} {x.mnemonic:<7} {x.op_str}' for x in arr[lo:hi]]
+                  callers.append({'address':hex(ins.address),'context':ctx})
+                  print('\n=== CALLER OF 0x617348 AT',hex(ins.address),'===')
+                  for line in ctx: print(line)
+          print('\nTOTAL_HITS',len(hits),'SETTER_CALLERS',len(callers))
+          Path('v83-race-field-writers.json').write_text(json.dumps({'hits':hits,'setter_callers':callers},indent=2))
           PY
       - uses: actions/upload-artifact@v4
         with:
