@@ -1,0 +1,56 @@
+name: Reset asdf to Beginner v2
+
+on:
+  push:
+    branches: [release-dev]
+    paths: ['.github/workflows/reset-asdf-beginner-v2.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HOST: 132.145.141.79
+  USER: ubuntu
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Configure SSH
+        shell: bash
+        env:
+          KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          KNOWN: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$KNOWN" ]; then printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Reset character and verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          sudo mysql --batch --skip-column-names cosmic -e "SELECT CONCAT('BEFORE ',id,' ',name,' level=',level,' job=',job,' exp=',exp,' map=',map,' spawn=',spawnpoint) FROM characters WHERE BINARY name='asdf';"
+          count=$(sudo mysql --batch --skip-column-names cosmic -e "SELECT COUNT(*) FROM characters WHERE BINARY name='asdf';")
+          test "$count" = 1
+          sudo mysql cosmic -e "UPDATE characters SET level=1, job=0, exp=0, map=10000, spawnpoint=0 WHERE BINARY name='asdf';"
+          sudo mysql cosmic -e "DELETE s FROM skills s JOIN characters c ON c.id=s.characterid WHERE BINARY c.name='asdf';"
+          sudo mysql cosmic -e "UPDATE accounts a JOIN characters c ON c.accountid=a.id SET a.loggedin=0 WHERE BINARY c.name='asdf';"
+          sudo systemctl restart everleaf.service
+          for i in $(seq 1 20); do
+            if systemctl is-active --quiet everleaf.service && ss -lnt | grep -q ':8484 ' && ss -lnt | grep -q ':7575 '; then break; fi
+            sleep 1
+          done
+          systemctl is-active --quiet everleaf.service
+          ss -lnt | grep -q ':8484 '
+          ss -lnt | grep -q ':7575 '
+          sudo mysql --batch --skip-column-names cosmic -e "SELECT CONCAT('AFTER ',id,' ',name,' level=',level,' job=',job,' exp=',exp,' map=',map,' spawn=',spawnpoint) FROM characters WHERE BINARY name='asdf';"
+          sudo mysql --batch --skip-column-names cosmic -e "SELECT CONCAT('SKILLS=',COUNT(*)) FROM skills WHERE characterid=(SELECT id FROM characters WHERE BINARY name='asdf' LIMIT 1);"
+          REMOTE
