@@ -14,34 +14,36 @@ function isFreshBeginner() {
         && cm.getPlayer().getExp() == 0;
 }
 
+function isStrandedEvan() {
+    return cm.getPlayer().getMapId() == MAP_MUSHROOM_TOWN
+        && cm.getJobId() == EVAN_BEGINNER_JOB
+        && cm.getPlayer().getLevel() == 1;
+}
+
 function finishEvanConversion() {
-    // Keep the critical path minimal: once the job changes, move the player to
-    // the native Evan start map immediately. Cleanup/save must never strand a
-    // converted Evan on Maple Island if a secondary operation fails.
     cm.changeJobById(EVAN_BEGINNER_JOB);
     cm.warp(MAP_EVAN_START, 0);
-
     try {
         var guideCount = cm.itemQuantity(BEGINNERS_GUIDE);
-        if (guideCount > 0) {
-            cm.gainItem(BEGINNERS_GUIDE, -guideCount);
-        }
-    } catch (cleanupError) {
-        // Non-critical cleanup. The character is already an Evan in the correct map.
-    }
+        if (guideCount > 0) cm.gainItem(BEGINNERS_GUIDE, -guideCount);
+    } catch (cleanupError) { }
+    try { cm.getPlayer().saveCharToDB(false); } catch (saveError) { }
+    cm.dispose();
+}
 
-    try {
-        cm.getPlayer().saveCharToDB(false);
-    } catch (saveError) {
-        // Normal channel autosave/logout persistence remains as a fallback.
-    }
-
+function recoverStrandedEvan() {
+    cm.warp(MAP_EVAN_START, 0);
+    try { cm.getPlayer().saveCharToDB(false); } catch (saveError) { }
     cm.dispose();
 }
 
 function start() {
     status = -1;
-
+    if (isStrandedEvan()) {
+        route = "evanRecovery";
+        cm.sendYesNo("Your Evan journey is ready. Would you like to continue to #bUtah's House#k now?");
+        return;
+    }
     if (isFreshBeginner()) {
         route = "fresh";
         cm.sendSimple(
@@ -52,25 +54,22 @@ function start() {
         );
         return;
     }
-
     route = "skip";
     cm.sendYesNo("Would you like to skip the tutorials and head straight to Lith Harbor?");
 }
 
 function action(mode, type, selection) {
-    if (mode == -1) {
+    if (mode == -1) { cm.dispose(); return; }
+    status++;
+
+    if (route == "evanRecovery") {
+        if (mode == 1 && isStrandedEvan()) { recoverStrandedEvan(); return; }
         cm.dispose();
         return;
     }
 
-    status++;
-
     if (route == "fresh") {
-        if (mode != 1) {
-            cm.dispose();
-            return;
-        }
-
+        if (mode != 1) { cm.dispose(); return; }
         if (selection == 0) {
             route = "evanConfirm";
             cm.sendYesNo(
@@ -80,39 +79,21 @@ function action(mode, type, selection) {
             );
             return;
         }
-
-        if (selection == 1) {
-            cm.warp(MAP_LITH_HARBOR, 0);
-            cm.dispose();
-            return;
-        }
-
+        if (selection == 1) { cm.warp(MAP_LITH_HARBOR, 0); cm.dispose(); return; }
         cm.sendOk("Enjoy the Maple Island tutorial. If you change your mind while you are still a fresh Level 1 Beginner with no EXP, speak with Heena before progressing.");
         cm.dispose();
         return;
     }
 
     if (route == "evanConfirm") {
-        if (mode != 1) {
-            cm.sendOk("No changes were made to your character.");
-            cm.dispose();
-            return;
-        }
-
-        if (!isFreshBeginner()) {
-            cm.sendOk("Only a brand-new Level 1 Beginner with no EXP can choose the Evan path here.");
-            cm.dispose();
-            return;
-        }
-
+        if (mode != 1) { cm.sendOk("No changes were made to your character."); cm.dispose(); return; }
+        if (!isFreshBeginner()) { cm.sendOk("Only a brand-new Level 1 Beginner with no EXP can choose the Evan path here."); cm.dispose(); return; }
         finishEvanConversion();
         return;
     }
 
     if (route == "skip") {
-        if (mode == 1) {
-            cm.warp(MAP_LITH_HARBOR, 0);
-        }
+        if (mode == 1) cm.warp(MAP_LITH_HARBOR, 0);
         cm.dispose();
     }
 }
