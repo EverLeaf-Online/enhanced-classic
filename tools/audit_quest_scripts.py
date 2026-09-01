@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Audit release-facing Quest.wz scripted handlers against scripts/quest.
 
-Runtime semantics:
+Runtime semantics mirrored here:
 * only ``startscript``/``endscript`` map to QuestRequirementType.SCRIPT;
 * ScriptRequirement is enabled only by a non-empty string value;
 * classic QuestlineFetcher treats a start-phase ``end`` requirement as
-  limited/expired event content rather than normal release progression.
+  limited/expired event content rather than normal release progression;
+* QuestScriptManager falls back to medalQuest.js whenever QuestInfo.wz gives
+  that quest a non-zero ``viewMedalItem`` (not merely for one numeric range).
 
-Hard failures are therefore limited to non-limited quests whose owner NPC is
-spawned in the active world. Limited-time and unspawned quest scripts remain
-visible as review findings instead of blocking every release.
+Hard failures are limited to non-limited quests whose owner NPC is spawned in
+the active world and whose runtime script/fallback cannot be resolved.
 """
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECK = ROOT / "wz" / "Quest.wz" / "Check.img.xml"
+QUEST_INFO = ROOT / "wz" / "Quest.wz" / "QuestInfo.img.xml"
 MAP_ROOT = ROOT / "wz" / "Map.wz" / "Map"
 SCRIPT_ROOT = ROOT / "scripts" / "quest"
 NUMERIC_SCRIPT_RE = re.compile(r"^(\d+)\.js$")
@@ -54,14 +56,23 @@ def phase(node: ET.Element, phase_name: str) -> ET.Element | None:
     )
 
 
-def quest_nodes() -> dict[str, ET.Element]:
+def quest_nodes(path: Path = CHECK) -> dict[str, ET.Element]:
     result: dict[str, ET.Element] = {}
-    for node in parse(CHECK):
+    for node in parse(path):
         if node.tag != "imgdir":
             continue
         qid = norm(node.attrib.get("name"))
         if qid.isdigit():
             result[qid] = node
+    return result
+
+
+def medal_quests() -> set[str]:
+    result: set[str] = set()
+    for qid, node in quest_nodes(QUEST_INFO).items():
+        raw = norm(direct_value(node, "viewMedalItem"))
+        if raw.lstrip("-").isdigit() and int(raw) != 0:
+            result.add(qid)
     return result
 
 
@@ -110,10 +121,6 @@ def active_npcs() -> set[str]:
     return result
 
 
-def is_medal_fallback(qid: str) -> bool:
-    return qid.isdigit() and 29900 <= int(qid) <= 29999
-
-
 def script_contract(path: Path) -> tuple[bool, bool]:
     text = path.read_text(encoding="utf-8", errors="replace")
     return bool(START_RE.search(text)), bool(END_RE.search(text))
@@ -126,6 +133,7 @@ def main() -> int:
     try:
         quests = quest_nodes()
         spawned_npcs = active_npcs()
+        medals = medal_quests()
     except (ET.ParseError, OSError) as exc:
         print(f"ERROR scripted quest audit setup failed: {exc}")
         return 1
@@ -141,6 +149,7 @@ def main() -> int:
     active_scripted: dict[str, set[str]] = defaultdict(set)
     review_scripted: dict[str, set[str]] = defaultdict(set)
     limited_scripted: set[str] = set()
+    medal_fallback_quests: set[str] = set()
     required_script_ids: set[str] = set()
 
     for qid, node in quests.items():
@@ -164,10 +173,12 @@ def main() -> int:
                 limited_scripted.add(qid)
 
         script_path = SCRIPT_ROOT / f"{qid}.js"
-        fallback = is_medal_fallback(qid)
+        fallback = qid in medals
+        if fallback and not script_path.is_file():
+            medal_fallback_quests.add(qid)
+            continue
+
         if not script_path.is_file():
-            if fallback:
-                continue
             message = f"Quest {qid} requires scripted {','.join(sorted(phases))} phase(s) but {qid}.js is missing"
             if is_active:
                 failures.append(message)
@@ -212,6 +223,8 @@ def main() -> int:
         "activeScriptedQuestCount": len(active_scripted),
         "reviewScriptedQuestCount": len(review_scripted),
         "limitedScriptedQuestCount": len(limited_scripted),
+        "medalQuestCount": len(medals),
+        "medalFallbackQuestCount": len(medal_fallback_quests),
         "numericQuestScriptCount": len(numeric_scripts),
         "activeScripted": {qid: sorted(phases) for qid, phases in sorted(active_scripted.items(), key=lambda p: int(p[0]))},
         "reviewScripted": {qid: sorted(phases) for qid, phases in sorted(review_scripted.items(), key=lambda p: int(p[0]))},
@@ -226,7 +239,7 @@ def main() -> int:
         print(
             f"Quest script audit: {len(active_scripted)} release-facing / "
             f"{len(review_scripted)} review-only ({len(limited_scripted)} limited/event) / "
-            f"{len(numeric_scripts)} numeric JS files"
+            f"{len(medal_fallback_quests)} medal fallbacks / {len(numeric_scripts)} numeric JS files"
         )
         for line in reviews:
             print(f"[REVIEW] {line}")
