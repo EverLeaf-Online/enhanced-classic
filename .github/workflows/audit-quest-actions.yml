@@ -1,0 +1,32 @@
+name: Audit quest actions
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - 'wz/Quest.wz/**'
+      - 'wz/Skill.wz/**'
+      - 'wz/Item.wz/**'
+      - 'wz/Character.wz/**'
+      - 'wz/Map.wz/**'
+      - 'tools/audit_quest_actions.py'
+      - '.github/workflows/audit-quest-actions.yml'
+  pull_request:
+    branches: [release-dev]
+    paths:
+      - 'wz/Quest.wz/**'
+      - 'wz/Skill.wz/**'
+      - 'wz/Item.wz/**'
+      - 'wz/Character.wz/**'
+      - 'wz/Map.wz/**'
+      - 'tools/audit_quest_actions.py'
+      - '.github/workflows/audit-quest-actions.yml'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Audit Quest.wz actions and rewards
+        run: python3 tools/audit_quest_actions.py
