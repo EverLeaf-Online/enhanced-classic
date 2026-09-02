@@ -6,6 +6,7 @@ import client.command.Command;
 import soloMapling.ArtificialPlayer.BareBotAutopilot;
 import soloMapling.ArtificialPlayer.BareBotCombat;
 import soloMapling.ArtificialPlayer.BareBotFactory;
+import soloMapling.ArtificialPlayer.BareBotHunter;
 import soloMapling.ArtificialPlayer.BareBotMovement;
 import soloMapling.ArtificialPlayer.BareBotPortal;
 import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovement;
@@ -17,14 +18,14 @@ import java.sql.SQLException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** GM-only control surface for the first isolated SoloMapling smoke bot. */
+/** GM-only control surface for one isolated SoloMapling QA bot. */
 public class QaBotCommand extends Command {
     private static final int QA_WORLD = 0;
     private static final int QA_CHANNEL = 1;
     private static final Map<Integer, Character> spawnedByGm = new ConcurrentHashMap<>();
 
     {
-        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|status|nudge|move|gcmove|gcstop|strike|patrol|portal");
+        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|status|nudge|move|gcmove|gcstop|strike|hunt|patrol|portal");
     }
 
     @Override
@@ -49,6 +50,7 @@ public class QaBotCommand extends Command {
             case "gcmove" -> gcMove(c, params);
             case "gcstop" -> gcStop(c, params);
             case "strike" -> strike(c, params);
+            case "hunt" -> hunt(c, params);
             case "patrol" -> patrol(c, params);
             case "portal" -> portal(c, params);
             default -> usage(c);
@@ -64,8 +66,6 @@ public class QaBotCommand extends Command {
         }
 
         try {
-            // Clone the invoking GM's persisted character as the visual/stat template.
-            // This avoids SoloMapling upstream's hard-coded database character id 2.
             Character bot = BareBotFactory.createBareBot(
                     gmId,
                     c.getPlayer().getPosition(),
@@ -104,6 +104,7 @@ public class QaBotCommand extends Command {
                 "QA bot " + bot.getName() + " (" + bot.getId() + ") map=" + bot.getMapId()
                         + " pos=" + position.x + "," + position.y
                         + " GCMove=" + (GCMovement.isEnabled(bot) ? "ON" : "OFF")
+                        + " hunt=" + (BareBotHunter.isHunting(bot) ? "ON" : "OFF")
                         + " patrol=" + (BareBotAutopilot.isPatrolling(bot) ? "ON" : "OFF") + ".");
         c.getPlayer().yellowMessage(GCMovementDiagnostics.describe(bot));
     }
@@ -119,7 +120,7 @@ public class QaBotCommand extends Command {
         }
         try {
             int deltaX = Integer.parseInt(params[1]);
-            // Never allow the packet-path harness and GCMove to drive the same bot concurrently.
+            BareBotHunter.stop(bot);
             GCMovement.disable(bot);
             BareBotMovement.nudge(bot, deltaX);
             c.getPlayer().yellowMessage("Moved QA bot by " + deltaX + " X.");
@@ -142,6 +143,7 @@ public class QaBotCommand extends Command {
         try {
             int x = Integer.parseInt(params[1]);
             int y = Integer.parseInt(params[2]);
+            BareBotHunter.stop(bot);
             GCMovement.disable(bot);
             BareBotMovement.moveTo(bot, new Point(x, y));
             c.getPlayer().yellowMessage("Moved QA bot to " + x + ", " + y + ".");
@@ -165,8 +167,7 @@ public class QaBotCommand extends Command {
         try {
             int x = Integer.parseInt(params[1]);
             int y = Integer.parseInt(params[2]);
-            // GCMove owns the movement lock for its whole dynamic session; stop the
-            // simpler scheduled patrol before handing control over.
+            BareBotHunter.stop(bot);
             BareBotAutopilot.stop(bot);
             GCMovement.move(bot, x, y);
             c.getPlayer().yellowMessage("GCMove target set for QA bot: " + x + ", " + y + ".");
@@ -188,6 +189,7 @@ public class QaBotCommand extends Command {
             return;
         }
 
+        BareBotHunter.stop(bot);
         GCMovement.disable(bot);
         c.getPlayer().yellowMessage("GCMove disabled for QA bot.");
     }
@@ -222,6 +224,41 @@ public class QaBotCommand extends Command {
                         + result.damage() + (result.killed() ? " and killed it." : "; HP left " + result.remainingHp() + "."));
     }
 
+    private static void hunt(Client c, String[] params) {
+        if (params.length < 2 || params.length > 3) {
+            usage(c);
+            return;
+        }
+        Character bot = getBot(c);
+        if (bot == null) {
+            return;
+        }
+
+        switch (params[1].toLowerCase()) {
+            case "start" -> {
+                int damage = 250;
+                if (params.length == 3) {
+                    try {
+                        damage = Integer.parseInt(params[2]);
+                    } catch (NumberFormatException e) {
+                        c.getPlayer().yellowMessage("hunt damage must be an integer.");
+                        return;
+                    }
+                }
+                if (BareBotHunter.start(bot, damage)) {
+                    c.getPlayer().yellowMessage("QA bot autonomous hunt started (damage=" + damage + ").");
+                } else {
+                    c.getPlayer().yellowMessage("QA bot hunt could not start; damage must be 1..1000000.");
+                }
+            }
+            case "stop" -> {
+                BareBotHunter.stop(bot);
+                c.getPlayer().yellowMessage("QA bot autonomous hunt stopped.");
+            }
+            default -> usage(c);
+        }
+    }
+
     private static void patrol(Client c, String[] params) {
         if (params.length != 2) {
             usage(c);
@@ -234,6 +271,7 @@ public class QaBotCommand extends Command {
 
         switch (params[1].toLowerCase()) {
             case "start" -> {
+                BareBotHunter.stop(bot);
                 GCMovement.disable(bot);
                 if (BareBotAutopilot.startPatrol(bot)) {
                     c.getPlayer().yellowMessage("QA bot autonomous foothold patrol started.");
@@ -267,7 +305,6 @@ public class QaBotCommand extends Command {
             return;
         }
 
-        // Neither movement engine may race a map transition.
         stopAllMovement(bot);
         BareBotPortal.PortalResult result = BareBotPortal.enter(bot, portalId);
         if (result.success()) {
@@ -279,6 +316,7 @@ public class QaBotCommand extends Command {
     }
 
     private static void stopAllMovement(Character bot) {
+        BareBotHunter.stop(bot);
         BareBotAutopilot.stop(bot);
         GCMovement.disable(bot);
     }
@@ -298,6 +336,6 @@ public class QaBotCommand extends Command {
     }
 
     private static void usage(Client c) {
-        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|status|nudge <dx>|move <x> <y>|gcmove <x> <y>|gcstop|strike [damage]|patrol start|stop|portal <id>");
+        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|status|nudge <dx>|move <x> <y>|gcmove <x> <y>|gcstop|strike [damage]|hunt start [damage]|hunt stop|patrol start|stop|portal <id>");
     }
 }
