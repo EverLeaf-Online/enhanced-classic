@@ -1,0 +1,133 @@
+name: Maintenance branch consolidation audit
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/maintenance-branch-consolidation-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Fetch every branch
+        run: git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune
+      - name: Classify remote branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, re, subprocess
+          from pathlib import Path
+
+          canonical = ['master', 'release-dev', 'client-dev', 'content-dev']
+          explicit_excluded = {'Community-files', 'empress-dev'}
+          empress_re = re.compile(r'(^|[/_.-])empress([/_.-]|$)|cygnus.*empress', re.I)
+
+          def sh(*args, check=True):
+              p = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+              if check and p.returncode:
+                  raise RuntimeError(f"command failed ({p.returncode}): {' '.join(args)}\n{p.stderr}")
+              return p
+
+          def ref(branch):
+              return f'origin/{branch}'
+
+          def is_ancestor(a, b):
+              return sh('git', 'merge-base', '--is-ancestor', ref(a), ref(b), check=False).returncode == 0
+
+          branches = []
+          for line in sh('git', 'for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin').stdout.splitlines():
+              if line == 'origin/HEAD' or not line.startswith('origin/'):
+                  continue
+              branches.append(line[len('origin/'):])
+          branches = sorted(set(branches))
+
+          canonical_refs = [ref(x) for x in canonical]
+          rows = []
+          for branch in branches:
+              if branch in canonical:
+                  continue
+              excluded = branch in explicit_excluded or bool(empress_re.search(branch))
+              contained_by = [c for c in canonical if is_ancestor(branch, c)]
+              cmd = ['git', 'rev-list', '--count', ref(branch), '--not', *canonical_refs]
+              unique_count = int(sh(*cmd).stdout.strip() or '0')
+              unique_commits = []
+              unique_paths = []
+              empress_only = False
+              if unique_count:
+                  commit_out = sh('git', 'log', '--format=%H%x09%s', '--max-count=40', ref(branch), '--not', *canonical_refs).stdout
+                  unique_commits = [x for x in commit_out.splitlines() if x]
+                  path_out = sh('git', 'diff', '--name-only', *canonical_refs, ref(branch), check=False)
+                  # `git diff --not` is not a valid union-diff operation; derive paths from unique commits instead.
+                  paths = set()
+                  revs = sh('git', 'rev-list', ref(branch), '--not', *canonical_refs).stdout.splitlines()
+                  for commit in revs[:200]:
+                      for p in sh('git', 'diff-tree', '--no-commit-id', '--name-only', '-r', commit).stdout.splitlines():
+                          if p:
+                              paths.add(p)
+                  unique_paths = sorted(paths)
+                  if unique_paths:
+                      empress_only = all(empress_re.search(p) for p in unique_paths)
+              rows.append({
+                  'branch': branch,
+                  'excludedByPolicy': excluded,
+                  'containedBy': contained_by,
+                  'uniqueCommitCount': unique_count,
+                  'uniqueCommits': unique_commits,
+                  'uniquePaths': unique_paths,
+                  'uniquePathsEmpressOnly': empress_only,
+              })
+
+          report = {
+              'canonicalBranches': canonical,
+              'branchCount': len(branches),
+              'nonCanonicalBranchCount': len(rows),
+              'fullyContainedCount': sum(1 for r in rows if r['containedBy']),
+              'uniqueBranchCount': sum(1 for r in rows if r['uniqueCommitCount']),
+              'uniqueNonEmpressBranchCount': sum(1 for r in rows if r['uniqueCommitCount'] and not r['excludedByPolicy'] and not r['uniquePathsEmpressOnly']),
+              'rows': rows,
+          }
+          Path('branch-consolidation-audit.json').write_text(json.dumps(report, indent=2) + '\n')
+
+          actionable = [r for r in rows if r['uniqueCommitCount'] and not r['excludedByPolicy'] and not r['uniquePathsEmpressOnly']]
+          contained = [r for r in rows if r['containedBy']]
+          excluded = [r for r in rows if r['excludedByPolicy'] or r['uniquePathsEmpressOnly']]
+          lines = [
+              '# Branch consolidation audit', '',
+              f"- Remote branches: **{len(branches)}**",
+              f"- Non-canonical branches: **{len(rows)}**",
+              f"- Fully contained by a canonical branch: **{len(contained)}**",
+              f"- Branches with unique commits: **{report['uniqueBranchCount']}**",
+              f"- Unique non-Empress branches requiring review: **{len(actionable)}**",
+              '', '## Unique non-Empress branches requiring review', ''
+          ]
+          for r in actionable:
+              lines.append(f"- `{r['branch']}` — {r['uniqueCommitCount']} unique commit(s); {len(r['uniquePaths'])} path(s)")
+              for c in r['uniqueCommits'][:5]:
+                  lines.append(f"  - {c}")
+          lines += ['', '## Explicitly excluded / Empress-only', '']
+          for r in excluded:
+              if r['uniqueCommitCount'] or r['branch'] in explicit_excluded:
+                  lines.append(f"- `{r['branch']}` — {r['uniqueCommitCount']} unique commit(s)")
+          lines += ['', '## Safe cleanup candidates already contained', '']
+          for r in contained:
+              lines.append(f"- `{r['branch']}` → {', '.join(r['containedBy'])}")
+          Path('branch-consolidation-audit.md').write_text('\n'.join(lines) + '\n')
+          print('\n'.join(lines[:500]))
+          PY
+      - name: Upload branch audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: branch-consolidation-audit
+          path: |
+            branch-consolidation-audit.json
+            branch-consolidation-audit.md
+          if-no-files-found: error
