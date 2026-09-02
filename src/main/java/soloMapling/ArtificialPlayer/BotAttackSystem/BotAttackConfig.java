@@ -2,18 +2,26 @@ package soloMapling.ArtificialPlayer.BotAttackSystem;
 
 import client.Job;
 import client.inventory.WeaponType;
+import constants.skills.Aran;
 import constants.skills.Archer;
 import constants.skills.Bandit;
 import constants.skills.Bishop;
+import constants.skills.BlazeWizard;
 import constants.skills.Bowmaster;
+import constants.skills.Brawler;
+import constants.skills.Buccaneer;
 import constants.skills.ChiefBandit;
 import constants.skills.Cleric;
+import constants.skills.Corsair;
 import constants.skills.Crossbowman;
 import constants.skills.Crusader;
+import constants.skills.DawnWarrior;
 import constants.skills.DragonKnight;
+import constants.skills.Evan;
 import constants.skills.FPArchMage;
 import constants.skills.FPMage;
 import constants.skills.FPWizard;
+import constants.skills.Gunslinger;
 import constants.skills.Hermit;
 import constants.skills.Hero;
 import constants.skills.Hunter;
@@ -21,16 +29,22 @@ import constants.skills.ILArchMage;
 import constants.skills.ILMage;
 import constants.skills.ILWizard;
 import constants.skills.Magician;
+import constants.skills.Marauder;
 import constants.skills.Marksman;
 import constants.skills.NightLord;
+import constants.skills.NightWalker;
+import constants.skills.Outlaw;
 import constants.skills.Paladin;
+import constants.skills.Pirate;
 import constants.skills.Priest;
 import constants.skills.Ranger;
 import constants.skills.Rogue;
 import constants.skills.Shadower;
 import constants.skills.Sniper;
+import constants.skills.ThunderBreaker;
 import constants.skills.Warrior;
 import constants.skills.WhiteKnight;
+import constants.skills.WindArcher;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -85,6 +99,60 @@ public final class BotAttackConfig {
         put(Job.BANDIT, melee(Bandit.SAVAGE_BLOW, 6), null);
         put(Job.CHIEFBANDIT, null, meleeAoe(ChiefBandit.BAND_OF_THIEVES, 1));
         put(Job.SHADOWER, melee(Shadower.ASSASSINATE, 3), meleeAoe(Shadower.BOOMERANG_STEP, 2));
+
+        // Pirates: keep the same EverLeaf damage/death path as every other bot class.
+        put(Job.PIRATE, ranged(Pirate.DOUBLE_SHOT, 2), meleeAoe(Pirate.SOMERSAULT_KICK, 1));
+        put(Job.BRAWLER, melee(Brawler.DOUBLE_UPPERCUT, 2), meleeAoe(Brawler.BACK_SPIN_BLOW, 1));
+        put(Job.MARAUDER, null, meleeAoe(Marauder.ENERGY_BLAST, 1));
+        put(Job.BUCCANEER, melee(Buccaneer.BARRAGE, 6), meleeAoe(Buccaneer.DRAGON_STRIKE, 1));
+        put(Job.GUNSLINGER, ranged(Gunslinger.INVISIBLE_SHOT, 1), rangedAoe(Gunslinger.GRENADE, 1));
+        put(Job.OUTLAW, ranged(Pirate.DOUBLE_SHOT, 2), rangedAoe(Outlaw.FLAME_THROWER, 1));
+        put(Job.CORSAIR, ranged(Corsair.RAPID_FIRE, 1), rangedAoe(Corsair.AERIAL_STRIKE, 1));
+
+        // Cygnus Knights.
+        put(Job.DAWNWARRIOR1, melee(DawnWarrior.POWER_STRIKE, 1), meleeAoe(DawnWarrior.SLASH_BLAST, 1));
+        put(Job.DAWNWARRIOR2, null, meleeAoe(DawnWarrior.SOUL_BLADE, 1));
+        put(Job.DAWNWARRIOR3, melee(DawnWarrior.BRANDISH, 2), meleeAoe(DawnWarrior.SOUL_DRIVER, 1));
+        put(Job.DAWNWARRIOR4, melee(DawnWarrior.BRANDISH, 2), meleeAoe(DawnWarrior.SOUL_DRIVER, 1));
+
+        put(Job.BLAZEWIZARD1, magic(BlazeWizard.MAGIC_CLAW, 2), null);
+        put(Job.BLAZEWIZARD2, magic(BlazeWizard.FIRE_ARROW, 1), magicAoe(BlazeWizard.FIRE_PILLAR, 1));
+        put(Job.BLAZEWIZARD3, magic(BlazeWizard.FIRE_STRIKE, 1), null, magicAoe(BlazeWizard.METEOR_SHOWER, 1));
+        put(Job.BLAZEWIZARD4, magic(BlazeWizard.FIRE_STRIKE, 1), null, magicAoe(BlazeWizard.METEOR_SHOWER, 1));
+
+        put(Job.WINDARCHER1, ranged(WindArcher.DOUBLE_SHOT, 2), null);
+        put(Job.WINDARCHER2, null, rangedAoe(WindArcher.STORM_BREAK, 1));
+        put(Job.WINDARCHER3, ranged(WindArcher.STRAFE, 4), rangedAoe(WindArcher.ARROW_RAIN, 1));
+        put(Job.WINDARCHER4, ranged(WindArcher.HURRICANE, 1), rangedAoe(WindArcher.ARROW_RAIN, 1));
+
+        put(Job.NIGHTWALKER1, ranged(NightWalker.LUCKY_SEVEN, 2), null);
+        put(Job.NIGHTWALKER2, null, rangedAoe(NightWalker.VAMPIRE, 1));
+        put(Job.NIGHTWALKER3, ranged(NightWalker.TRIPLE_THROW, 3), rangedAoe(NightWalker.AVENGER, 1));
+        put(Job.NIGHTWALKER4, ranged(NightWalker.TRIPLE_THROW, 3), rangedAoe(NightWalker.AVENGER, 1));
+
+        put(Job.THUNDERBREAKER1, melee(ThunderBreaker.FIRST_STRIKE, 1), meleeAoe(ThunderBreaker.SOMERSAULT_KICK, 1));
+        put(Job.THUNDERBREAKER2, null, meleeAoe(ThunderBreaker.ENERGY_BLAST, 1));
+        put(Job.THUNDERBREAKER3, melee(ThunderBreaker.BARRAGE, 6), meleeAoe(ThunderBreaker.SHARK_WAVE, 1));
+        put(Job.THUNDERBREAKER4, melee(ThunderBreaker.BARRAGE, 6), meleeAoe(ThunderBreaker.SHARK_WAVE, 1));
+
+        // Aran. Combo-consumer finishers are deliberately avoided so the bot can exercise
+        // ordinary sustained combat without inventing combo state.
+        put(Job.ARAN1, melee(Aran.DOUBLE_SWING, 2), null);
+        put(Job.ARAN2, melee(Aran.TRIPLE_SWING, 3), null);
+        put(Job.ARAN3, melee(Aran.FULL_SWING, 3), meleeAoe(Aran.ROLLING_SPIN, 1));
+        put(Job.ARAN4, melee(Aran.OVER_SWING, 3), meleeAoe(Aran.ROLLING_SPIN, 1));
+
+        // Evan compatibility only; this does not touch the parked Evan content/progression work.
+        put(Job.EVAN1, magic(Evan.MAGIC_MISSILE, 1), null);
+        put(Job.EVAN2, magic(Evan.FIRE_CIRCLE, 1), magicAoe(Evan.FIRE_CIRCLE, 1));
+        put(Job.EVAN3, magic(Evan.LIGHTNING_BOLT, 1), null);
+        put(Job.EVAN4, magic(Evan.LIGHTNING_BOLT, 1), null);
+        put(Job.EVAN5, magic(Evan.ICE_BREATH, 1), magicAoe(Evan.ICE_BREATH, 1));
+        put(Job.EVAN6, magic(Evan.MAGIC_FLARE, 1), null);
+        put(Job.EVAN7, magic(Evan.MAGIC_FLARE, 1), magicAoe(Evan.DRAGON_THRUST, 1));
+        put(Job.EVAN8, magic(Evan.KILLER_WINGS, 1), magicAoe(Evan.FIRE_BREATH, 1));
+        put(Job.EVAN9, magic(Evan.PHANTOM_IMPRINT, 1), magicAoe(Evan.EARTHQUAKE, 1));
+        put(Job.EVAN10, magic(Evan.ILLUSION, 4), magicAoe(Evan.FLAME_WHEEL, 1), magicAoe(Evan.DARK_FOG, 1));
     }
 
     private BotAttackConfig() {}
@@ -98,10 +166,11 @@ public final class BotAttackConfig {
 
     public static double critChanceFor(Job job) {
         if (job == null) return 0.0;
-        if (job.isA(Job.ASSASSIN) || job.isA(Job.HERMIT) || job.isA(Job.NIGHTLORD)) return CRIT_THIEF;
-        if (job.isA(Job.BOWMAN)) return CRIT_BOWMAN;
-        if (job.isA(Job.WARRIOR)) return CRIT_WARRIOR;
-        if (job.isA(Job.MAGICIAN)) return CRIT_MAGE;
+        if (job.isA(Job.ASSASSIN) || job.isA(Job.HERMIT) || job.isA(Job.NIGHTLORD)
+                || job.isA(Job.NIGHTWALKER1)) return CRIT_THIEF;
+        if (job.isA(Job.BOWMAN) || job.isA(Job.WINDARCHER1)) return CRIT_BOWMAN;
+        if (job.isA(Job.WARRIOR) || job.isA(Job.DAWNWARRIOR1) || job.isA(Job.ARAN1)) return CRIT_WARRIOR;
+        if (job.isA(Job.MAGICIAN) || job.isA(Job.BLAZEWIZARD1) || job.isA(Job.EVAN1)) return CRIT_MAGE;
         return CRIT_DEFAULT;
     }
 
