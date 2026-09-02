@@ -83,23 +83,24 @@ jobs:
           '@ | Set-Content -Encoding utf8 (Join-Path $toolDir 'EverLeafWzExporter.csproj')
           dotnet build (Join-Path $toolDir 'EverLeafWzExporter.csproj') -c Release
 
-      - name: Export v95 WZ files to private-server XML
+      - name: Export proven v95 families to private-server XML
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $inputDir = Join-Path $env:RUNNER_TEMP 'gms-v95/gms-v95-raw'
-          $outputDir = Join-Path $env:RUNNER_TEMP 'gms-v95-export'
+          $outputDir = Join-Path $env:RUNNER_TEMP 'gms-v95-core7-export'
           $project = Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter/EverLeafWzExporter.csproj'
+          Write-Host 'Character.wz is intentionally deferred to the isolated Character diagnostic lane.'
           dotnet run --project $project -c Release --no-build -- `
-            $inputDir $outputDir --patch-version=95 --probe-patch-range=80:120 --try-zlz `
-            Character.wz Item.wz Map.wz Mob.wz Npc.wz Quest.wz Reactor.wz Skill.wz
+            $inputDir $outputDir --patch-version=95 `
+            Item.wz Map.wz Mob.wz Npc.wz Quest.wz Reactor.wz Skill.wz
 
-      - name: Validate XML export
+      - name: Validate core7 XML export
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $root = Join-Path $env:RUNNER_TEMP 'gms-v95-export'
-          $required = @('Character.wz','Item.wz','Map.wz','Mob.wz','Npc.wz','Quest.wz','Reactor.wz','Skill.wz')
+          $root = Join-Path $env:RUNNER_TEMP 'gms-v95-core7-export'
+          $required = @('Item.wz','Map.wz','Mob.wz','Npc.wz','Quest.wz','Reactor.wz','Skill.wz')
           foreach ($family in $required) {
             $dir = Join-Path $root $family
             if (-not (Test-Path $dir)) { throw "Missing exported family: $family" }
@@ -107,45 +108,47 @@ jobs:
             Write-Host "$family XML files: $count"
             if ($count -eq 0) { throw "No XML emitted for $family" }
           }
+          if (Test-Path (Join-Path $root 'Character.wz')) { throw 'Character.wz unexpectedly appeared in core7 export' }
           $total = (Get-ChildItem -Path $root -Filter '*.xml' -Recurse -File | Measure-Object).Count
-          Write-Host "Total XML files: $total"
-          if ($total -lt 1000) { throw "Export produced suspiciously few XML files: $total" }
+          Write-Host "Core7 total XML files: $total"
+          if ($total -lt 1000) { throw "Core7 export produced suspiciously few XML files: $total" }
 
-      - name: Compare v95 against EverLeaf v83
+      - name: Compare v95 core7 against EverLeaf v83
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $donor = Join-Path $env:RUNNER_TEMP 'gms-v95-export'
-          $diff = Join-Path $env:RUNNER_TEMP 'wz-gms-v95-diff.json'
-          $manifest = Join-Path $env:RUNNER_TEMP 'wz-gms-v95-import-manifest.json'
-          $review = Join-Path $env:RUNNER_TEMP 'wz-gms-v95-review.md'
-          python tools/wz-donor/wz_diff.py --baseline wz --donor $donor --donor-id gms-v95 --output $diff
+          $donor = Join-Path $env:RUNNER_TEMP 'gms-v95-core7-export'
+          $diff = Join-Path $env:RUNNER_TEMP 'wz-gms-v95-core7-diff.json'
+          $manifest = Join-Path $env:RUNNER_TEMP 'wz-gms-v95-core7-import-manifest.json'
+          $review = Join-Path $env:RUNNER_TEMP 'wz-gms-v95-core7-review.md'
+          python tools/wz-donor/wz_diff.py --baseline wz --donor $donor --donor-id gms-v95-core7 --output $diff
           python tools/wz-donor/build_import_manifest.py $diff --output $manifest
           python tools/wz-donor/render_review_report.py $diff $manifest --output $review
+          Add-Content $review "`n> **Deferred family:** Character.wz is excluded from this core7 report while its v95.4 archive-format anomaly is investigated independently."
           Get-Content $review | Add-Content $env:GITHUB_STEP_SUMMARY
           python -c "import json,sys; d=json.load(open(sys.argv[1])); m=json.load(open(sys.argv[2])); print('delta totals:',json.dumps(d['totals'],sort_keys=True)); print('missing dependencies:',d.get('dependencies',{}).get('missingReferenceCount')); print('risk counts:',json.dumps(m['riskCounts'],sort_keys=True))" $diff $manifest
 
-      - name: Package and return donor export to Oracle
+      - name: Package and return core7 donor export to Oracle
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $root = Join-Path $env:RUNNER_TEMP 'gms-v95-export'
-          $zip = Join-Path $env:RUNNER_TEMP 'gms-v95.zip'
+          $root = Join-Path $env:RUNNER_TEMP 'gms-v95-core7-export'
+          $zip = Join-Path $env:RUNNER_TEMP 'gms-v95-core7.zip'
           Compress-Archive -Path (Join-Path $root '*') -DestinationPath $zip -CompressionLevel Optimal
           Get-FileHash $zip -Algorithm SHA256
           $keyPath = Join-Path $HOME '.ssh/id_everleaf'
-          scp -i $keyPath $zip "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/private/wz-donors/gms-v95.zip.part"
+          scp -i $keyPath $zip "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/private/wz-donors/gms-v95-core7.zip.part"
           ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" `
-            "set -e; cd /opt/everleaf/private/wz-donors; unzip -t gms-v95.zip.part >/dev/null; mv gms-v95.zip.part gms-v95.zip; sha256sum gms-v95.zip; rm -f /tmp/gms-v95-raw.tgz"
+            "set -e; cd /opt/everleaf/private/wz-donors; unzip -t gms-v95-core7.zip.part >/dev/null; mv gms-v95-core7.zip.part gms-v95-core7.zip; sha256sum gms-v95-core7.zip; rm -f /tmp/gms-v95-raw.tgz"
 
-      - name: Upload v95 donor analysis
+      - name: Upload v95 core7 donor analysis
         uses: actions/upload-artifact@v4
         with:
-          name: gms-v95-donor-analysis-${{ github.sha }}
+          name: gms-v95-core7-donor-analysis-${{ github.sha }}
           path: |
-            ${{ runner.temp }}/wz-gms-v95-diff.json
-            ${{ runner.temp }}/wz-gms-v95-import-manifest.json
-            ${{ runner.temp }}/wz-gms-v95-review.md
+            ${{ runner.temp }}/wz-gms-v95-core7-diff.json
+            ${{ runner.temp }}/wz-gms-v95-core7-import-manifest.json
+            ${{ runner.temp }}/wz-gms-v95-core7-review.md
             ${{ runner.temp }}/MapleLib/WzExtract_Errors.txt
           retention-days: 14
           if-no-files-found: warn
