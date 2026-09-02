@@ -1,4 +1,4 @@
-# Manual production deployment trigger: quest-integrity-release-20260902
+# Manual production deployment trigger: quest-complete-20260902
 name: Deploy EverLeaf Game Production
 
 on:
