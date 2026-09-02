@@ -86,8 +86,20 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _semantic_element(node: ET.Element) -> tuple:
+    """Return a stable XML representation that ignores formatting whitespace."""
+    text = (node.text or "").strip()
+    return (
+        node.tag,
+        tuple(sorted(node.attrib.items())),
+        text,
+        tuple(_semantic_element(child) for child in list(node)),
+    )
+
+
 def sha256_element(node: ET.Element) -> str:
-    return hashlib.sha256(ET.tostring(node, encoding="utf-8")).hexdigest()
+    payload = json.dumps(_semantic_element(node), ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def normalize_stem(path: Path) -> str | None:
