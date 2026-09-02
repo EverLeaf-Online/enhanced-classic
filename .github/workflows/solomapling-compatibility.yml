@@ -2,6 +2,17 @@ name: SoloMapling compatibility probe
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - release-dev
+    paths:
+      - '.github/workflows/solomapling-compatibility.yml'
+      - 'src/main/java/client/BotClient.java'
+      - 'src/main/java/soloMapling/**'
+      - 'src/main/java/client/**'
+      - 'src/main/java/net/**'
+      - 'src/main/java/server/**'
+      - 'pom.xml'
 
 permissions:
   contents: read
