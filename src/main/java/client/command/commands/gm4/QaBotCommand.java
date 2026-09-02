@@ -3,6 +3,7 @@ package client.command.commands.gm4;
 import client.Character;
 import client.Client;
 import client.command.Command;
+import soloMapling.ArtificialPlayer.BareBotAutopilot;
 import soloMapling.ArtificialPlayer.BareBotCombat;
 import soloMapling.ArtificialPlayer.BareBotFactory;
 import soloMapling.ArtificialPlayer.BareBotMovement;
@@ -20,7 +21,7 @@ public class QaBotCommand extends Command {
     private static final Map<Integer, Character> spawnedByGm = new ConcurrentHashMap<>();
 
     {
-        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|nudge|move|strike");
+        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|nudge|move|strike|patrol");
     }
 
     @Override
@@ -42,6 +43,7 @@ public class QaBotCommand extends Command {
             case "nudge" -> nudge(c, params);
             case "move" -> move(c, params);
             case "strike" -> strike(c, params);
+            case "patrol" -> patrol(c, params);
             default -> usage(c);
         }
     }
@@ -50,6 +52,7 @@ public class QaBotCommand extends Command {
         int gmId = c.getPlayer().getId();
         Character previous = spawnedByGm.remove(gmId);
         if (previous != null) {
+            BareBotAutopilot.stop(previous);
             BareBotFactory.removeBareBot(previous);
         }
 
@@ -74,6 +77,7 @@ public class QaBotCommand extends Command {
             return;
         }
 
+        BareBotAutopilot.stop(bot);
         BareBotFactory.removeBareBot(bot);
         c.getPlayer().yellowMessage("Removed SoloMapling QA bot " + bot.getName() + ".");
     }
@@ -149,6 +153,32 @@ public class QaBotCommand extends Command {
                         + result.damage() + (result.killed() ? " and killed it." : "; HP left " + result.remainingHp() + "."));
     }
 
+    private static void patrol(Client c, String[] params) {
+        if (params.length != 2) {
+            usage(c);
+            return;
+        }
+        Character bot = getBot(c);
+        if (bot == null) {
+            return;
+        }
+
+        switch (params[1].toLowerCase()) {
+            case "start" -> {
+                if (BareBotAutopilot.startPatrol(bot)) {
+                    c.getPlayer().yellowMessage("QA bot autonomous foothold patrol started.");
+                } else {
+                    c.getPlayer().yellowMessage("QA bot patrol could not start.");
+                }
+            }
+            case "stop" -> {
+                BareBotAutopilot.stop(bot);
+                c.getPlayer().yellowMessage("QA bot autonomous foothold patrol stopped.");
+            }
+            default -> usage(c);
+        }
+    }
+
     private static boolean onQaChannel(Client c) {
         return c.getChannelServer() != null
                 && c.getChannelServer().getWorld() == QA_WORLD
@@ -164,6 +194,6 @@ public class QaBotCommand extends Command {
     }
 
     private static void usage(Client c) {
-        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|nudge <dx>|move <x> <y>|strike [damage]");
+        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|nudge <dx>|move <x> <y>|strike [damage]|patrol start|stop");
     }
 }
