@@ -56,7 +56,7 @@ jobs:
           python tools/wz-donor/profile_region_cluster.py \
             tools/wz-donor/clusters/gms-v95-ninja-castle-review.json \
             --donor "$RUNNER_TEMP/gms-v95-core7" \
-            --baseline wz \
+            --baseline . \
             --output "$RUNNER_TEMP/gms-v95-ninja-castle-cluster.json" \
             | tee "$RUNNER_TEMP/gms-v95-ninja-castle-cluster.txt"
           python - "$RUNNER_TEMP/gms-v95-ninja-castle-cluster.json" <<'PY' >> "$GITHUB_STEP_SUMMARY"
