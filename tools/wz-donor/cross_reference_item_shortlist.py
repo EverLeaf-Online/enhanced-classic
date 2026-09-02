@@ -78,17 +78,18 @@ def build_report(shortlist: dict, donor_root: Path, baseline_root: Path, sample_
 
     rows = []
     coupled_count = 0
+    quest_coupled_count = 0
     for candidate in candidates:
         content_id = str(candidate["contentId"])
         donor_result = donor[content_id]
         baseline_result = baseline[content_id]
-        donor_quest_refs = 0
-        for sample in donor_result["samples"]:
-            if sample["path"].startswith("Quest.wz/"):
-                donor_quest_refs += sample["matches"]
+        donor_quest_refs = donor_result["byRoot"].get("Quest.wz", 0)
         coupled = donor_result["referenceCount"] > 0 or baseline_result["referenceCount"] > 0
+        quest_coupled = donor_quest_refs > 0
         if coupled:
             coupled_count += 1
+        if quest_coupled:
+            quest_coupled_count += 1
         rows.append(
             {
                 "contentId": content_id,
@@ -96,7 +97,7 @@ def build_report(shortlist: dict, donor_root: Path, baseline_root: Path, sample_
                 "donorReferences": donor_result,
                 "baselineReferences": baseline_result,
                 "hasAnyCrossReference": coupled,
-                "hasSampledDonorQuestReference": donor_quest_refs > 0,
+                "hasDonorQuestReference": quest_coupled,
                 "approved": False,
                 "importAllowed": False,
             }
@@ -108,6 +109,7 @@ def build_report(shortlist: dict, donor_root: Path, baseline_root: Path, sample_
         "donorId": shortlist.get("donorId"),
         "candidateCount": len(rows),
         "crossReferencedCandidateCount": coupled_count,
+        "donorQuestReferencedCandidateCount": quest_coupled_count,
         "uncoupledCandidateCount": len(rows) - coupled_count,
         "scanScope": {
             "donorRoots": list(DONOR_FAMILIES),
@@ -137,13 +139,15 @@ def main() -> int:
 
     print(f"Candidates: {report['candidateCount']}")
     print(f"Cross-referenced: {report['crossReferencedCandidateCount']}")
+    print(f"Donor quest-referenced: {report['donorQuestReferencedCandidateCount']}")
     print(f"No scanned references: {report['uncoupledCandidateCount']}")
     for row in report["candidates"]:
         if row["hasAnyCrossReference"]:
             print(
                 f"{row['contentId']}\t{row.get('name') or ''}\t"
                 f"donor={row['donorReferences']['referenceCount']}\t"
-                f"baseline={row['baselineReferences']['referenceCount']}"
+                f"baseline={row['baselineReferences']['referenceCount']}\t"
+                f"quest={str(row['hasDonorQuestReference']).lower()}"
             )
     return 0
 
