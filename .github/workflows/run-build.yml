@@ -203,6 +203,10 @@ jobs:
         run: python3 tools/audit_quest_content_refs.py
       - name: Audit Victoria Island quests
         run: python3 tools/audit_victoria_quests.py
+      - name: Audit scripted quest handlers
+        run: python3 tools/audit_quest_scripts.py
+      - name: Audit quest actions and rewards
+        run: python3 tools/audit_quest_actions.py
       - name: Ensure Maven wrapper is executable
         run: chmod +x mvnw
       - name: Build with Maven (compile -> test -> package)
