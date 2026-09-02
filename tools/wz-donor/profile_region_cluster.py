@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse, json, re, xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
-ID_FILE_RE=re.compile(r"^(\d+)\.img\.xml$"); NUMERIC_RE=re.compile(r"^\d+$")
+ID_FILE_RE=re.compile(r"^(\d+)\.img\.xml$"); NUMERIC_RE=re.compile(r"^\d+$"); QUEST_ID_MIN=100
 
 def prop_map(node):
     return {c.attrib['name']:c.attrib['value'] for c in list(node) if 'name' in c.attrib and 'value' in c.attrib}
@@ -57,13 +57,18 @@ def quest_references(quest_root, selected_ids):
         if not pat.search(text): continue
         try: tree=ET.fromstring(text)
         except ET.ParseError: continue
-        def walk(node,stack):
-            name=node.attrib.get('name'); next_stack=stack+[name] if name and NUMERIC_RE.fullmatch(name) else stack
+        def walk(node,quest_id=None):
+            name=node.attrib.get('name')
+            # Quest.wz often nests data as phase/index -> questId -> numbered condition/action rows.
+            # Latch the first plausible quest id and never let deeper row indexes replace it.
+            next_quest=quest_id
+            if next_quest is None and name and NUMERIC_RE.fullmatch(name) and int(name)>=QUEST_ID_MIN:
+                next_quest=name
             matched=set(pat.findall(' '.join([node.attrib.get('value',''),node.text or ''])))
-            if matched: refs[next_stack[-1] if next_stack else path.stem].update(matched)
-            for child in list(node): walk(child,next_stack)
-        walk(tree,[])
-    return {q:sorted(v,key=int) for q,v in sorted(refs.items(),key=lambda kv:int(kv[0]) if kv[0].isdigit() else 10**12)}
+            if matched and next_quest is not None: refs[next_quest].update(matched)
+            for child in list(node): walk(child,next_quest)
+        walk(tree)
+    return {q:sorted(v,key=int) for q,v in sorted(refs.items(),key=lambda kv:int(kv[0]))}
 
 def baseline_script_exists(root, script):
     return any(p.is_file() for p in (root/'scripts'/'portal'/f'{script}.js',root/'scripts'/'portal'/script))
