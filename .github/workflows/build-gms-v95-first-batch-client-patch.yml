@@ -47,17 +47,23 @@ jobs:
           $keyPath = Join-Path $sshDir 'id_everleaf'
           [IO.File]::WriteAllText($keyPath, ($env:SSH_PRIVATE_KEY -replace "`r", "") + "`n")
           $knownHosts = Join-Path $sshDir 'known_hosts'
+          $gitKeyscan = 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe'
+          if (-not (Test-Path $gitKeyscan)) { throw "Git OpenSSH keyscan not found: $gitKeyscan" }
           if ($env:SSH_KNOWN_HOSTS) {
             [IO.File]::WriteAllText($knownHosts, ($env:SSH_KNOWN_HOSTS -replace "`r", "") + "`n")
           } else {
-            ssh-keyscan -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $knownHosts
+            & $gitKeyscan -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $knownHosts
+            if ($LASTEXITCODE -ne 0) { throw "Git ssh-keyscan failed with exit code $LASTEXITCODE" }
           }
+          if (-not (Test-Path $knownHosts) -or (Get-Item $knownHosts).Length -eq 0) { throw 'known_hosts is empty' }
 
       - name: Fetch exact live EverLeaf client WZ and private v95 donor copies
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $keyPath = Join-Path $HOME '.ssh/id_everleaf'
+          $sshExe = 'C:\Program Files\Git\usr\bin\ssh.exe'
+          $scpExe = 'C:\Program Files\Git\usr\bin\scp.exe'
           $sourceDir = Join-Path $env:RUNNER_TEMP 'everleaf-client-source'
           $donorDir = Join-Path $env:RUNNER_TEMP 'gms-v95-raw'
           New-Item -ItemType Directory -Force -Path $sourceDir,$donorDir | Out-Null
@@ -67,14 +73,19 @@ jobs:
           $remoteDonorItem = '/opt/everleaf/private/wz-donors/gms-v95-raw/Item.wz'
           $remoteDonorString = '/opt/everleaf/private/wz-donors/gms-v95-raw/String.wz'
 
-          $before = ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" `
+          $before = & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" `
             "set -e; test -f '$remoteLiveItem'; test -f '$remoteLiveString'; test -f '$remoteDonorItem'; test -f '$remoteDonorString'; sha256sum '$remoteLiveItem' '$remoteLiveString' '$remoteDonorItem' '$remoteDonorString'"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to hash Oracle source WZ files' }
           $before | Set-Content -Encoding ascii (Join-Path $env:RUNNER_TEMP 'REMOTE_SOURCE_HASHES_BEFORE.txt')
 
-          scp -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteLiveItem" (Join-Path $sourceDir 'Item.wz')
-          scp -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteLiveString" (Join-Path $sourceDir 'String.wz')
-          scp -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteDonorItem" (Join-Path $donorDir 'Item.wz')
-          scp -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteDonorString" (Join-Path $donorDir 'String.wz')
+          & $scpExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteLiveItem" (Join-Path $sourceDir 'Item.wz')
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to copy live Item.wz' }
+          & $scpExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteLiveString" (Join-Path $sourceDir 'String.wz')
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to copy live String.wz' }
+          & $scpExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteDonorItem" (Join-Path $donorDir 'Item.wz')
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to copy donor Item.wz' }
+          & $scpExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteDonorString" (Join-Path $donorDir 'String.wz')
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to copy donor String.wz' }
 
           Get-FileHash (Join-Path $sourceDir 'Item.wz') -Algorithm SHA256
           Get-FileHash (Join-Path $sourceDir 'String.wz') -Algorithm SHA256
@@ -126,12 +137,14 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $keyPath = Join-Path $HOME '.ssh/id_everleaf'
+          $sshExe = 'C:\Program Files\Git\usr\bin\ssh.exe'
           $remoteLiveItem = '/opt/everleaf/patches/files/Item.wz'
           $remoteLiveString = '/opt/everleaf/patches/files/String.wz'
           $remoteDonorItem = '/opt/everleaf/private/wz-donors/gms-v95-raw/Item.wz'
           $remoteDonorString = '/opt/everleaf/private/wz-donors/gms-v95-raw/String.wz'
-          $after = ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" `
+          $after = & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" `
             "set -e; sha256sum '$remoteLiveItem' '$remoteLiveString' '$remoteDonorItem' '$remoteDonorString'"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to re-hash Oracle source WZ files' }
           $before = Get-Content -Raw (Join-Path $env:RUNNER_TEMP 'REMOTE_SOURCE_HASHES_BEFORE.txt')
           $afterText = ($after -join "`n") + "`n"
           if ($before -ne $afterText) { throw 'Oracle source WZ hashes changed during candidate build' }
@@ -142,14 +155,19 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $keyPath = Join-Path $HOME '.ssh/id_everleaf'
+          $sshExe = 'C:\Program Files\Git\usr\bin\ssh.exe'
+          $scpExe = 'C:\Program Files\Git\usr\bin\scp.exe'
           $outputDir = Join-Path $env:RUNNER_TEMP 'gms-v95-consume-batch-001-client-candidate'
           $zip = Join-Path $env:RUNNER_TEMP 'gms-v95-consume-batch-001-client-candidate.zip'
           Compress-Archive -Path (Join-Path $outputDir '*') -DestinationPath $zip -CompressionLevel Optimal
           $remoteDir = "/opt/everleaf/private/wz-client-candidates/gms-v95-consume-batch-001/${{ github.sha }}"
-          ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "set -e; mkdir -p '$remoteDir'; test ! -e '$remoteDir/client-candidate.zip'"
-          scp -i $keyPath $zip "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteDir/client-candidate.zip.part"
-          ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" `
+          & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "set -e; mkdir -p '$remoteDir'; test ! -e '$remoteDir/client-candidate.zip'"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to prepare private Oracle candidate directory' }
+          & $scpExe -i $keyPath $zip "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteDir/client-candidate.zip.part"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to upload private client candidate' }
+          & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" `
             "set -e; cd '$remoteDir'; unzip -t client-candidate.zip.part >/dev/null; mv client-candidate.zip.part client-candidate.zip; sha256sum client-candidate.zip"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to validate private client candidate' }
 
       - name: Upload manifest only
         uses: actions/upload-artifact@v4
