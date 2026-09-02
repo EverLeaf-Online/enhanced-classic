@@ -39,7 +39,7 @@ def term_hits(text:str):
         elif term in low: hits.append(term)
     return sorted(set(hits))
 
-def numeric_node_matches(root:ET.Element,predicate):
+def numeric_node_matches(root:ET.Element,predicate,initial_numeric:str|None=None):
     out=[]
     def walk(node, numeric_ancestor=None):
         name=node.attrib.get('name','')
@@ -48,7 +48,7 @@ def numeric_node_matches(root:ET.Element,predicate):
         blob=node_blob(node)
         if current and predicate(blob): out.append((current,blob))
         for child in list(node): walk(child,current)
-    walk(root)
+    walk(root,initial_numeric)
     dedup={}
     for cid,blob in out: dedup[cid]=blob
     return dedup
@@ -113,9 +113,9 @@ def family_evidence(core:Path,family:str,anchors:set[str]):
     for path in iter_xml(base):
         root=read_xml(path)
         if root is None: continue
-        matches=numeric_node_matches(root,lambda b: bool(pat.search(b)) or bool(term_hits(b)))
         file_id=None; m=FILE_ID_RE.match(path.name)
         if m:file_id=m.group(1)
+        matches=numeric_node_matches(root,lambda b: bool(pat.search(b)) or bool(term_hits(b)),file_id)
         for cid,blob in matches.items():
             refs=sorted(set(pat.findall(blob)),key=lambda x:(len(x),x)); hits=term_hits(blob)
             if not refs and not hits:continue
