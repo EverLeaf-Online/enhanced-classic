@@ -70,12 +70,14 @@ jobs:
           $keyPath = Join-Path $HOME '.ssh/id_everleaf'
           $remoteTar = '/tmp/everleaf-community-core-wz.tgz'
           $remoteRoot = $env:COMMUNITY_WZ_ROOT
-          $families = @('Map.wz','Mob.wz','Npc.wz','Reactor.wz','String.wz')
-          $quoted = ($families | ForEach-Object { "'$_'" }) -join ' '
-          ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "set -euo pipefail; cd '$remoteRoot'; for f in $quoted; do test -s \"`$f\"; done; tar -czf '$remoteTar' $quoted; sha256sum '$remoteTar'"
+          $remoteCommand = "set -euo pipefail; cd '$remoteRoot'; test -s Map.wz; test -s Mob.wz; test -s Npc.wz; test -s Reactor.wz; test -s String.wz; tar -czf '$remoteTar' Map.wz Mob.wz Npc.wz Reactor.wz String.wz; sha256sum '$remoteTar'"
+          ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" $remoteCommand
+          if ($LASTEXITCODE -ne 0) { throw 'Remote donor packaging failed' }
           scp -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteTar" "$env:RUNNER_TEMP/community-core-wz.tgz"
+          if ($LASTEXITCODE -ne 0) { throw 'Donor transfer failed' }
           New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/community-core" | Out-Null
           tar -xzf "$env:RUNNER_TEMP/community-core-wz.tgz" -C "$env:RUNNER_TEMP/community-core"
+          if ($LASTEXITCODE -ne 0) { throw 'Donor extraction failed' }
           Get-ChildItem "$env:RUNNER_TEMP/community-core" -File | Select-Object Name,Length
 
       - name: Build MapleLib exporter
@@ -132,10 +134,14 @@ jobs:
           $xmlRoot = Join-Path $env:RUNNER_TEMP 'community-core-xml'
           $zip = Join-Path $env:RUNNER_TEMP 'community-repack-core.zip'
           Compress-Archive -Path (Join-Path $xmlRoot '*') -DestinationPath $zip -CompressionLevel Optimal
-          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $localHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Local XML archive SHA256: $localHash"
           $keyPath = Join-Path $HOME '.ssh/id_everleaf'
           scp -i $keyPath $zip "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/private/wz-donors/community-repack-core.zip.part"
-          ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "set -e; mkdir -p /opt/everleaf/private/wz-donors; cd /opt/everleaf/private/wz-donors; unzip -t community-repack-core.zip.part >/dev/null; test \"`$(sha256sum community-repack-core.zip.part | awk '{print `$1}')\" = '$hash'; mv community-repack-core.zip.part community-repack-core.zip; sha256sum community-repack-core.zip; rm -f /tmp/everleaf-community-core-wz.tgz"
+          if ($LASTEXITCODE -ne 0) { throw 'Private XML upload failed' }
+          $remoteCommand = "set -euo pipefail; cd /opt/everleaf/private/wz-donors; unzip -t community-repack-core.zip.part >/dev/null; mv community-repack-core.zip.part community-repack-core.zip; sha256sum community-repack-core.zip; rm -f /tmp/everleaf-community-core-wz.tgz"
+          ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" $remoteCommand
+          if ($LASTEXITCODE -ne 0) { throw 'Private XML verification failed' }
 
       - name: Upload review artifacts
         uses: actions/upload-artifact@v4
