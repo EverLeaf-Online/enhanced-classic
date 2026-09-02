@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "clusterId": "gms-v95-ninja-castle-review",
+  "donorId": "gms-v95-core7",
+  "mapPrefixes": ["800040"],
+  "mapIds": [],
+  "mobPrefixes": ["94004"],
+  "mobIds": [],
+  "itemIds": [
+    4000337,
+    4000338,
+    4000339,
+    4000340,
+    4000341,
+    4000342,
+    4000343,
+    4000344,
+    4000345,
+    4000346
+  ],
+  "approved": false,
+  "importAllowed": false,
+  "note": "Review scope only. Resolve map, mob, NPC, reactor, portal, quest, script, client, and drop dependencies before considering any import."
+}
