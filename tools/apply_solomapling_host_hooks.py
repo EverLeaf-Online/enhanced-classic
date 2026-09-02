@@ -11,6 +11,7 @@ from pathlib import Path
 CHARACTER = Path("src/main/java/client/Character.java")
 CLIENT = Path("src/main/java/client/Client.java")
 FOOTHOLD = Path("src/main/java/server/maps/Foothold.java")
+SERVER_CONFIG = Path("src/main/java/config/ServerConfig.java")
 
 
 def insert_before_once(text: str, anchor: str, addition: str, marker: str) -> str:
@@ -176,11 +177,28 @@ def patch_foothold() -> None:
     FOOTHOLD.write_text(text, encoding="utf-8")
 
 
+def patch_server_config() -> None:
+    text = SERVER_CONFIG.read_text(encoding="utf-8")
+    addition = """    // SoloMapling QA: opt-in only. EverLeaf keeps automatic bot population off
+    // until the isolated integration smoke suite explicitly enables it.
+    public boolean SPAWN_BOTS_ON_STARTUP;
+
+"""
+    text = insert_before_once(
+        text,
+        "    //Server Flags\n",
+        addition,
+        "public boolean SPAWN_BOTS_ON_STARTUP;",
+    )
+    SERVER_CONFIG.write_text(text, encoding="utf-8")
+
+
 def main() -> None:
     patch_character()
     patch_client()
     patch_foothold()
-    print("SoloMapling host hooks applied (Character, Client, Foothold).")
+    patch_server_config()
+    print("SoloMapling host hooks applied (Character, Client, Foothold, ServerConfig).")
 
 
 if __name__ == "__main__":
