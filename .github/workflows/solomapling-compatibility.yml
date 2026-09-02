@@ -41,11 +41,9 @@ jobs:
           target=src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem
 
           upstream_count=$(find "$upstream" -maxdepth 1 -type f -name '*.java' | wc -l)
-          target_count=$(find "$target" -maxdepth 1 -type f -name '*.java' | wc -l)
           test "$upstream_count" -eq 29
-          test "$target_count" -eq 29
 
-          # These seven files are deliberately EverLeaf-reconciled and are
+          # These seven upstream files are deliberately EverLeaf-reconciled and are
           # validated separately by tools/audit_solomapling_qa.py.
           reconciled='^(BotMovementProfile|BotMovementState|BotNavigationGraph|BotNavigationMapLoader|BotPlayerReaction|GCPortals|MovementPlan)\.java$'
 
@@ -61,6 +59,24 @@ jobs:
               diff -u "$file" "$target/$name" || true
               exit 1
             }
+          done
+
+          # EverLeaf may add narrowly-scoped QA helpers in this package, but the
+          # allowlist is explicit so an accidental extra GCMove runtime file fails closed.
+          for file in "$target"/*.java; do
+            name=$(basename "$file")
+            if [ -f "$upstream/$name" ]; then
+              continue
+            fi
+            case "$name" in
+              GCMovementDiagnostics.java)
+                echo "EverLeaf extension: $name"
+                ;;
+              *)
+                echo "Unexpected EverLeaf-only GCMove file: $name"
+                exit 1
+                ;;
+            esac
           done
 
       - name: Compile committed GCMove runtime against EverLeaf
