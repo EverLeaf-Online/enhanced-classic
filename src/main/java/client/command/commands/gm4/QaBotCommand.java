@@ -15,6 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** GM-only control surface for the first isolated SoloMapling smoke bot. */
 public class QaBotCommand extends Command {
+    private static final int QA_WORLD = 0;
+    private static final int QA_CHANNEL = 1;
     private static final Map<Integer, Character> spawnedByGm = new ConcurrentHashMap<>();
 
     {
@@ -29,6 +31,11 @@ public class QaBotCommand extends Command {
         }
 
         String action = params[0].toLowerCase();
+        if (!action.equals("remove") && !onQaChannel(c)) {
+            c.getPlayer().yellowMessage("SoloMapling QA smoke bots currently run only on world 0, channel 1.");
+            return;
+        }
+
         switch (action) {
             case "spawn" -> spawn(c);
             case "remove" -> remove(c);
@@ -140,6 +147,12 @@ public class QaBotCommand extends Command {
         c.getPlayer().yellowMessage(
                 "QA bot hit " + result.monsterName() + " (" + result.monsterId() + ") for "
                         + result.damage() + (result.killed() ? " and killed it." : "; HP left " + result.remainingHp() + "."));
+    }
+
+    private static boolean onQaChannel(Client c) {
+        return c.getChannelServer() != null
+                && c.getChannelServer().getWorld() == QA_WORLD
+                && c.getChannelServer().getId() == QA_CHANNEL;
     }
 
     private static Character getBot(Client c) {
