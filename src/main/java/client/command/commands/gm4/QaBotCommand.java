@@ -4,7 +4,10 @@ import client.Character;
 import client.Client;
 import client.command.Command;
 import soloMapling.ArtificialPlayer.BareBotFactory;
+import soloMapling.ArtificialPlayer.BareBotMovement;
+import tools.exceptions.EmptyMovementException;
 
+import java.awt.Point;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,27 +17,24 @@ public class QaBotCommand extends Command {
     private static final Map<Integer, Character> spawnedByGm = new ConcurrentHashMap<>();
 
     {
-        setDescription("Spawn/remove one isolated SoloMapling QA bot: !qabot spawn|remove");
+        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|nudge <dx>|move <x> <y>");
     }
 
     @Override
     public void execute(Client c, String[] params) {
-        if (params.length != 1) {
-            c.getPlayer().yellowMessage("Usage: !qabot spawn|remove");
+        if (params.length < 1) {
+            usage(c);
             return;
         }
 
         String action = params[0].toLowerCase();
-        if ("spawn".equals(action)) {
-            spawn(c);
-            return;
+        switch (action) {
+            case "spawn" -> spawn(c);
+            case "remove" -> remove(c);
+            case "nudge" -> nudge(c, params);
+            case "move" -> move(c, params);
+            default -> usage(c);
         }
-        if ("remove".equals(action)) {
-            remove(c);
-            return;
-        }
-
-        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove");
     }
 
     private static void spawn(Client c) {
@@ -64,5 +64,58 @@ public class QaBotCommand extends Command {
 
         BareBotFactory.removeBareBot(bot);
         c.getPlayer().yellowMessage("Removed SoloMapling QA bot " + bot.getName() + ".");
+    }
+
+    private static void nudge(Client c, String[] params) {
+        if (params.length != 2) {
+            usage(c);
+            return;
+        }
+        Character bot = getBot(c);
+        if (bot == null) {
+            return;
+        }
+        try {
+            int deltaX = Integer.parseInt(params[1]);
+            BareBotMovement.nudge(bot, deltaX);
+            c.getPlayer().yellowMessage("Moved QA bot by " + deltaX + " X.");
+        } catch (NumberFormatException e) {
+            c.getPlayer().yellowMessage("nudge requires an integer X offset.");
+        } catch (EmptyMovementException | RuntimeException e) {
+            c.getPlayer().yellowMessage("QA bot movement failed: " + e.getMessage());
+        }
+    }
+
+    private static void move(Client c, String[] params) {
+        if (params.length != 3) {
+            usage(c);
+            return;
+        }
+        Character bot = getBot(c);
+        if (bot == null) {
+            return;
+        }
+        try {
+            int x = Integer.parseInt(params[1]);
+            int y = Integer.parseInt(params[2]);
+            BareBotMovement.moveTo(bot, new Point(x, y));
+            c.getPlayer().yellowMessage("Moved QA bot to " + x + ", " + y + ".");
+        } catch (NumberFormatException e) {
+            c.getPlayer().yellowMessage("move requires integer X and Y coordinates.");
+        } catch (EmptyMovementException | RuntimeException e) {
+            c.getPlayer().yellowMessage("QA bot movement failed: " + e.getMessage());
+        }
+    }
+
+    private static Character getBot(Client c) {
+        Character bot = spawnedByGm.get(c.getPlayer().getId());
+        if (bot == null) {
+            c.getPlayer().yellowMessage("Spawn a QA bot first with !qabot spawn.");
+        }
+        return bot;
+    }
+
+    private static void usage(Client c) {
+        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|nudge <dx>|move <x> <y>");
     }
 }
