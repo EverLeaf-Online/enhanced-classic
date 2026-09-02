@@ -8,6 +8,7 @@ on:
       - '.github/workflows/profile-gms-v95-items.yml'
       - 'tools/wz-donor/profile_item_candidates.py'
       - 'tools/wz-donor/summarize_item_profile_shapes.py'
+      - 'tools/wz-donor/shortlist_etc_material_review.py'
       - 'tools/wz-donor/wz_diff.py'
       - 'tools/wz-donor/build_import_manifest.py'
   workflow_dispatch:
@@ -110,7 +111,7 @@ jobs:
               print(f"{p['contentId']}\t{p.get('name') or ''}\t{restore}\t{desc}")
           PY
 
-      - name: Summarize Etc structural shapes for next-batch review
+      - name: Summarize Etc structural shapes and build review-only shortlist
         run: |
           set -euo pipefail
           python tools/wz-donor/summarize_item_profile_shapes.py \
@@ -119,6 +120,10 @@ jobs:
             --sample-limit 10 \
             --output "$RUNNER_TEMP/wz-gms-v95-etc-shapes.json" \
             | tee "$RUNNER_TEMP/wz-gms-v95-etc-shapes.txt"
+          python tools/wz-donor/shortlist_etc_material_review.py \
+            "$RUNNER_TEMP/wz-gms-v95-item-profiles.json" \
+            --output "$RUNNER_TEMP/wz-gms-v95-etc-review-shortlist.json" \
+            | tee "$RUNNER_TEMP/wz-gms-v95-etc-review-shortlist.txt"
           {
             echo '## GMS v95 conservative item profile'
             echo
@@ -133,6 +138,13 @@ jobs:
             echo '```text'
             cat "$RUNNER_TEMP/wz-gms-v95-etc-shapes.txt"
             echo '```'
+            echo
+            echo '### Review-only ordinary-looking Etc shortlist'
+            echo '```text'
+            cat "$RUNNER_TEMP/wz-gms-v95-etc-review-shortlist.txt"
+            echo '```'
+            echo
+            echo 'This shortlist is not approved and does not authorize import.'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload item profile analysis
@@ -146,5 +158,7 @@ jobs:
             ${{ runner.temp }}/wz-gms-v95-simple-consume.txt
             ${{ runner.temp }}/wz-gms-v95-etc-shapes.json
             ${{ runner.temp }}/wz-gms-v95-etc-shapes.txt
+            ${{ runner.temp }}/wz-gms-v95-etc-review-shortlist.json
+            ${{ runner.temp }}/wz-gms-v95-etc-review-shortlist.txt
           retention-days: 14
           if-no-files-found: error
