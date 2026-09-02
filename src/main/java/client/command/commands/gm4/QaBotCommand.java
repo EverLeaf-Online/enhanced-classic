@@ -10,6 +10,7 @@ import soloMapling.ArtificialPlayer.BareBotHunter;
 import soloMapling.ArtificialPlayer.BareBotMovement;
 import soloMapling.ArtificialPlayer.BareBotPortal;
 import soloMapling.ArtificialPlayer.BotLootDriver;
+import soloMapling.ArtificialPlayer.BotQaProfile;
 import soloMapling.ArtificialPlayer.BotAttackSystem.BotAttackDriver;
 import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovement;
 import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovementDiagnostics;
@@ -27,7 +28,7 @@ public class QaBotCommand extends Command {
     private static final Map<Integer, Character> spawnedByGm = new ConcurrentHashMap<>();
 
     {
-        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|status|nudge|move|gcmove|gcstop|strike|attack|hunt|patrol|portal");
+        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|status|job|nudge|move|gcmove|gcstop|strike|attack|hunt|patrol|portal");
     }
 
     @Override
@@ -47,6 +48,7 @@ public class QaBotCommand extends Command {
             case "spawn" -> spawn(c);
             case "remove" -> remove(c);
             case "status" -> status(c);
+            case "job", "profile" -> profile(c, params);
             case "nudge" -> nudge(c, params);
             case "move" -> move(c, params);
             case "gcmove" -> gcMove(c, params);
@@ -94,8 +96,10 @@ public class QaBotCommand extends Command {
         Point position = bot.getPosition();
         BotLootDriver.RewardStats rewards = BotLootDriver.rewardStats(bot);
         c.getPlayer().yellowMessage(
-                "QA bot " + bot.getName() + " (" + bot.getId() + ") map=" + bot.getMapId()
-                        + " pos=" + position.x + "," + position.y
+                "QA bot " + bot.getName() + " (" + bot.getId() + ") job=" + bot.getJob().getId()
+                        + " map=" + bot.getMapId() + " pos=" + position.x + "," + position.y
+                        + " HP=" + bot.getHp() + "/" + bot.getMaxHp()
+                        + " MP=" + bot.getMp() + "/" + bot.getMaxMp()
                         + " GCMove=" + (GCMovement.isEnabled(bot) ? "ON" : "OFF")
                         + " hunt=" + (BareBotHunter.isHunting(bot) ? "ON" : "OFF")
                         + " patrol=" + (BareBotAutopilot.isPatrolling(bot) ? "ON" : "OFF") + ".");
@@ -107,6 +111,27 @@ public class QaBotCommand extends Command {
                         + " observedDrops=" + rewards.observedDrops()
                         + " pickedDrops=" + rewards.pickedDrops() + ".");
         c.getPlayer().yellowMessage(GCMovementDiagnostics.describe(bot));
+    }
+
+    private static void profile(Client c, String[] params) {
+        if (params.length != 2) { usage(c); return; }
+        Character bot = getBot(c);
+        if (bot == null) return;
+        int jobId;
+        try {
+            jobId = Integer.parseInt(params[1]);
+        } catch (NumberFormatException e) {
+            c.getPlayer().yellowMessage("job requires a MapleStory job id, e.g. 512, 1212, 2112, or 2218.");
+            return;
+        }
+        stopAll(bot);
+        BotQaProfile.ProfileResult result = BotQaProfile.apply(bot, jobId);
+        if (!result.applied()) {
+            c.getPlayer().yellowMessage("QA bot class profile failed: " + result.reason());
+            return;
+        }
+        c.getPlayer().yellowMessage("QA bot profile set to job " + result.job().getId()
+                + " with " + result.learnedSkills() + " QA combat/support skills maxed.");
     }
 
     private static void nudge(Client c, String[] params) {
@@ -169,7 +194,6 @@ public class QaBotCommand extends Command {
         c.getPlayer().yellowMessage("GCMove disabled for QA bot.");
     }
 
-    /** Legacy server-side damage smoke retained for host-path regression checks. */
     private static void strike(Client c, String[] params) {
         if (params.length > 2) { usage(c); return; }
         Character bot = getBot(c);
@@ -192,7 +216,6 @@ public class QaBotCommand extends Command {
                 + result.damage() + (result.killed() ? " and killed it." : "; HP left " + result.remainingHp() + "."));
     }
 
-    /** Direct visible/class-aware SoloMapling attack smoke. */
     private static void attack(Client c, String[] params) {
         if (params.length > 2) { usage(c); return; }
         Character bot = getBot(c);
@@ -222,11 +245,8 @@ public class QaBotCommand extends Command {
         if (bot == null) return;
         switch (params[1].toLowerCase()) {
             case "start" -> {
-                if (BareBotHunter.start(bot)) {
-                    c.getPlayer().yellowMessage("QA bot autonomous SoloMapling hunt started.");
-                } else {
-                    c.getPlayer().yellowMessage("QA bot hunt could not start.");
-                }
+                if (BareBotHunter.start(bot)) c.getPlayer().yellowMessage("QA bot autonomous SoloMapling hunt started.");
+                else c.getPlayer().yellowMessage("QA bot hunt could not start.");
             }
             case "stop" -> {
                 BareBotHunter.stop(bot);
@@ -295,6 +315,6 @@ public class QaBotCommand extends Command {
     }
 
     private static void usage(Client c) {
-        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|status|nudge <dx>|move <x> <y>|gcmove <x> <y>|gcstop|strike [damage]|attack [single|aoe|ult]|hunt start|stop|patrol start|stop|portal <id>");
+        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|status|job <jobId>|nudge <dx>|move <x> <y>|gcmove <x> <y>|gcstop|strike [damage]|attack [single|aoe|ult]|hunt start|stop|patrol start|stop|portal <id>");
     }
 }
