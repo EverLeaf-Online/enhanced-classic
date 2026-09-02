@@ -7,6 +7,7 @@ import soloMapling.ArtificialPlayer.BareBotAutopilot;
 import soloMapling.ArtificialPlayer.BareBotCombat;
 import soloMapling.ArtificialPlayer.BareBotFactory;
 import soloMapling.ArtificialPlayer.BareBotMovement;
+import soloMapling.ArtificialPlayer.BareBotPortal;
 import tools.exceptions.EmptyMovementException;
 
 import java.awt.Point;
@@ -21,7 +22,7 @@ public class QaBotCommand extends Command {
     private static final Map<Integer, Character> spawnedByGm = new ConcurrentHashMap<>();
 
     {
-        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|nudge|move|strike|patrol");
+        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|nudge|move|strike|patrol|portal");
     }
 
     @Override
@@ -44,6 +45,7 @@ public class QaBotCommand extends Command {
             case "move" -> move(c, params);
             case "strike" -> strike(c, params);
             case "patrol" -> patrol(c, params);
+            case "portal" -> portal(c, params);
             default -> usage(c);
         }
     }
@@ -179,6 +181,35 @@ public class QaBotCommand extends Command {
         }
     }
 
+    private static void portal(Client c, String[] params) {
+        if (params.length != 2) {
+            usage(c);
+            return;
+        }
+        Character bot = getBot(c);
+        if (bot == null) {
+            return;
+        }
+
+        int portalId;
+        try {
+            portalId = Integer.parseInt(params[1]);
+        } catch (NumberFormatException e) {
+            c.getPlayer().yellowMessage("portal requires an integer portal id.");
+            return;
+        }
+
+        // A scheduled patrol must not race a map transition.
+        BareBotAutopilot.stop(bot);
+        BareBotPortal.PortalResult result = BareBotPortal.enter(bot, portalId);
+        if (result.success()) {
+            c.getPlayer().yellowMessage("QA bot traversed portal " + portalId + ": "
+                    + result.fromMapId() + " -> " + result.toMapId() + ".");
+        } else {
+            c.getPlayer().yellowMessage("QA bot portal traversal failed: " + result.reason());
+        }
+    }
+
     private static boolean onQaChannel(Client c) {
         return c.getChannelServer() != null
                 && c.getChannelServer().getWorld() == QA_WORLD
@@ -194,6 +225,6 @@ public class QaBotCommand extends Command {
     }
 
     private static void usage(Client c) {
-        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|nudge <dx>|move <x> <y>|strike [damage]|patrol start|stop");
+        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|nudge <dx>|move <x> <y>|strike [damage]|patrol start|stop|portal <id>");
     }
 }
