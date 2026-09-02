@@ -16,21 +16,25 @@ def main()->int:
         write(core/'Quest.wz'/'Check.img.xml','<imgdir name="Check.img"><imgdir name="0"><imgdir name="22000"><int name="job" value="2210"/><int name="npc" value="1013000"/></imgdir></imgdir></imgdir>')
         write(core/'Npc.wz'/'1013000.img.xml','<imgdir name="1013000.img"><int name="quest" value="22000"/></imgdir>')
         write(core/'Map.wz'/'Map1'/'100000000.img.xml','<imgdir name="100000000.img"><imgdir name="life"><imgdir name="0"><string name="type" value="n"/><string name="id" value="1013000"/></imgdir></imgdir></imgdir>')
-        write(core/'Item.wz'/'Consume'/'0200.img.xml','<imgdir name="0200.img"><imgdir name="02001234"><int name="quest" value="22000"/></imgdir></imgdir>')
+        write(core/'Item.wz'/'Consume'/'0200.img.xml','<imgdir name="0200.img"><imgdir name="02001234"><int name="quest" value="22000"/></imgdir><imgdir name="02009999"><int name="quest" value="99999"/></imgdir></imgdir>')
         write(baseline/'scripts'/'npc'/'1013000.js','// Evan / Mir quest 22000')
         r=build(core,strings,baseline)
-    assert r['schemaVersion']==2
+    assert r['schemaVersion']==3
     assert '2210' in r['skillJobIds']
     assert '22101001' in r['skillIds']
     assert r['counts']['skillJobFiles']>=1
     assert r['counts']['quests']>=1
     assert r['counts']['npcNodes']>=1
     assert r['counts']['mapNodes']>=1
-    assert r['counts']['itemNodes']>=1
+    assert r['counts']['itemNodes']==1
     assert r['counts']['baselineFiles']>=1
     assert r['approved'] is False and r['importAllowed'] is False and r['automaticImport'] is False
     assert any(row['contentId']=='1013000' for row in r['strings'])
     assert any(row['questId']=='22000' for row in r['quests'])
+    item_rows=r['families']['Item.wz']
+    assert item_rows[0]['contentId']=='02001234'
+    assert all(row['contentId']!='0200' for row in item_rows)
+    assert all(row['contentId']!='02009999' for row in item_rows)
     print('Evan profile extractor regression: PASS')
     return 0
 if __name__=='__main__': raise SystemExit(main())
