@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "packageId": "community-empress-future-henesys-001",
+  "donorId": "community-repack-core",
+  "mode": "review-only",
+  "automaticImport": false,
+  "approved": false,
+  "source": {
+    "serverXmlArchive": "wz.zip",
+    "serverXmlSha256": "fd9d788d2b658f5e91877faf9e55d0fd841c735afaab60a15e6bf203b8b3ceaa",
+    "clientRoot": "/home/ubuntu/everleaf-staging/community-wz/extracted/Community Repack WZs"
+  },
+  "content": {
+    "maps": [
+      "271000000", "271000100", "271000200", "271000210", "271000300",
+      "271010000", "271010001", "271010100", "271010200", "271010300", "271010301", "271010400", "271010500",
+      "271020000", "271020100",
+      "271030000", "271030010", "271030100", "271030101", "271030102", "271030200", "271030201", "271030202", "271030203", "271030204", "271030205", "271030300", "271030310", "271030320", "271030400", "271030410", "271030500", "271030510", "271030520", "271030530", "271030540", "271030600",
+      "271040000", "271040100", "271040200", "271040210", "271040300"
+    ],
+    "mobs": [
+      "8600000", "8600001", "8600002", "8600003", "8600004", "8600005", "8600006",
+      "8610000", "8610001", "8610002", "8610003", "8610004", "8610005", "8610006", "8610007", "8610008", "8610009", "8610010", "8610011", "8610012", "8610013", "8610014",
+      "8850000", "8850001", "8850002", "8850003", "8850004", "8850005", "8850006", "8850007", "8850008", "8850009", "8850010", "8850011"
+    ],
+    "npcs": [
+      "2142000", "2142001", "2142002", "2142003", "2142004", "2142005", "2142006", "2142007", "2142008", "2142009", "2142010", "2143000", "2143001", "2143003", "2143004"
+    ]
+  },
+  "clientAssets": {
+    "bgm": ["Bgm18/QueensGarden", "Bgm25/CygnusGarden", "Bgm25/destructionTown", "Bgm25/knightsStronghold", "Bgm25/timeGate"],
+    "tiles": ["allblackTile", "darkEreb", "destructionField", "destructionTown1", "destructionTown2"],
+    "objects": ["acc14", "connect"],
+    "backgrounds": ["darkEreb", "destructionTown", "fakeDoors"]
+  },
+  "portalScripts": ["out_cygnusBackGarden", "back_cygnus"],
+  "activationGates": [
+    "Every selected map, mob and NPC is present in the community donor export",
+    "Classify each selected ID as donor-new, collision-identical or collision-changed against EverLeaf canonical v83",
+    "Matching client Map.wz, Mob.wz, Npc.wz, String.wz, Sound.wz and Effect/asset dependencies are staged",
+    "Required portal scripts are present and enforce intended encounter flow",
+    "Unsupported MobSkill behavior is reviewed",
+    "Empress and Chief Knight HP/reward tuning is reviewed; donor 2.1b HP values are not accepted blindly",
+    "Client/server parity is verified in isolated staging",
+    "Real-client staging smoke passes before any production release"
+  ]
+}
