@@ -1,14 +1,12 @@
 package soloMapling.ArtificialPlayer.GCMoveSystem;
 
+import server.maps.MapleMap;
+
 import java.awt.Point;
 import java.util.List;
 
 /**
  * Immutable analytic movement plan from SoloMapling's GCMove LOD layer.
- *
- * <p>The graph-search convenience constructor is intentionally deferred until
- * BotNavigationManager is integrated; the edge-list/time interpolation contract
- * is already complete and can be used by movement state safely.</p>
  */
 final class MovementPlan {
     enum Kind {
@@ -42,6 +40,26 @@ final class MovementPlan {
             acc += Math.max(0, edges.get(i).cost);
         }
         return new MovementPlan(Kind.IN_MAP, mapId, List.copyOf(edges), cumStart, acc);
+    }
+
+    /**
+     * Build an analytic in-map plan from the same live navigation graph/pathfinder
+     * used by the physics driver. Keeping this overload alongside the edge-list
+     * constructor preserves EverLeaf's staged interpolation contract while making
+     * the permanently vendored SoloMapling driver dependency-complete.
+     */
+    static MovementPlan inMap(BotNavigationGraph graph, MapleMap map, Point startPos, Point targetPos) {
+        if (graph == null || map == null || startPos == null || targetPos == null) {
+            return null;
+        }
+        int startRegion = graph.findRegionId(map, startPos);
+        int targetRegion = graph.findRegionId(map, targetPos);
+        if (startRegion < 0 || targetRegion < 0) {
+            return null;
+        }
+        List<BotNavigationGraph.Edge> edges =
+                BotNavigationManager.findPath(graph, map, startPos, startRegion, targetRegion, targetPos);
+        return inMap(map.getId(), edges);
     }
 
     boolean isComplete(long elapsedMs) {
