@@ -12,6 +12,7 @@ CHARACTER = Path("src/main/java/client/Character.java")
 CLIENT = Path("src/main/java/client/Client.java")
 FOOTHOLD = Path("src/main/java/server/maps/Foothold.java")
 SERVER_CONFIG = Path("src/main/java/config/ServerConfig.java")
+COMMANDS_EXECUTOR = Path("src/main/java/client/command/CommandsExecutor.java")
 
 
 def insert_before_once(text: str, anchor: str, addition: str, marker: str) -> str:
@@ -193,12 +194,25 @@ def patch_server_config() -> None:
     SERVER_CONFIG.write_text(text, encoding="utf-8")
 
 
+def patch_commands_executor() -> None:
+    text = COMMANDS_EXECUTOR.read_text(encoding="utf-8")
+    addition = "        addCommand(\"qabot\", 4, QaBotCommand.class);\n"
+    text = insert_before_once(
+        text,
+        "        addCommand(\"servermessage\", 4, ServerMessageCommand.class);\n",
+        addition,
+        "addCommand(\"qabot\", 4, QaBotCommand.class);",
+    )
+    COMMANDS_EXECUTOR.write_text(text, encoding="utf-8")
+
+
 def main() -> None:
     patch_character()
     patch_client()
     patch_foothold()
     patch_server_config()
-    print("SoloMapling host hooks applied (Character, Client, Foothold, ServerConfig).")
+    patch_commands_executor()
+    print("SoloMapling host hooks applied (Character, Client, Foothold, ServerConfig, QA command).")
 
 
 if __name__ == "__main__":
