@@ -38,8 +38,10 @@ jobs:
       - name: Inventory likely private client assets without modifying them
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' > "$RUNNER_TEMP/client-wz-inventory.txt" <<'REMOTE'
-          set -euo pipefail
+          report="$RUNNER_TEMP/client-wz-inventory.txt"
+          : > "$report"
+          if ! ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' > "$report" <<'REMOTE'
+          set -u
           echo '# EverLeaf private client WZ inventory'
           echo '# Read-only search; no files copied or modified.'
           echo
@@ -51,18 +53,31 @@ jobs:
             echo 'No expected private roots found.'
             exit 0
           fi
+
+          tmp_files="$(mktemp)"
+          tmp_archives="$(mktemp)"
+          trap 'rm -f "$tmp_files" "$tmp_archives"' EXIT
+
           find "${roots[@]}" -maxdepth 8 -type f \
             \( -iname 'Item.wz' -o -iname 'String.wz' -o -iname 'EverLeaf.exe' -o -iname 'MapleStory.exe' \) \
-            -printf '%p\t%s bytes\t%TY-%Tm-%Td %TH:%TM:%TS\n' 2>/dev/null | sort
+            -printf '%p\t%s bytes\t%TY-%Tm-%Td %TH:%TM:%TS\n' 2>/dev/null > "$tmp_files" || true
+          sort "$tmp_files" || true
+
           echo
           echo '# Candidate client/container archives'
           find "${roots[@]}" -maxdepth 8 -type f \
             \( -iname '*client*.zip' -o -iname '*client*.7z' -o -iname '*client*.rar' -o -iname '*everleaf*.zip' -o -iname '*everleaf*.7z' -o -iname '*everleaf*.rar' \) \
-            -printf '%p\t%s bytes\t%TY-%Tm-%Td %TH:%TM:%TS\n' 2>/dev/null | sort | head -n 200
+            -printf '%p\t%s bytes\t%TY-%Tm-%Td %TH:%TM:%TS\n' 2>/dev/null > "$tmp_archives" || true
+          sort "$tmp_archives" | sed -n '1,200p' || true
           REMOTE
-          cat "$RUNNER_TEMP/client-wz-inventory.txt"
+          then
+            echo '# Inventory SSH/search command returned nonzero; partial output follows.' >> "$report"
+          fi
+          cat "$report"
+          test -s "$report"
 
       - name: Upload inventory report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: private-client-wz-inventory-${{ github.sha }}
