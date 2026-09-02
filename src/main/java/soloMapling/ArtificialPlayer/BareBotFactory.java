@@ -16,21 +16,20 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * <p>This exists only to get the first controlled EverLeaf headless-bot smoke
  * test running without pulling in decoration, chatter, Free Market, party,
- * quest, or economy systems. Once the full upstream BotGeneration dependency
- * graph is reconciled, callers can move to that implementation.</p>
+ * quest, or economy systems. Unlike upstream's hard-coded character-id 2
+ * template, EverLeaf requires the caller to choose an existing persisted
+ * character explicitly, so no special database seed row is required.</p>
  */
 public final class BareBotFactory {
-    private static final int DEFAULT_BASE_CHARACTER_ID = 2;
     private static final AtomicInteger nextBotOffset = new AtomicInteger(100);
 
     private BareBotFactory() {
     }
 
-    public static Character createBareBot(Point position, MapleMap map) throws SQLException {
-        return createBareBot(DEFAULT_BASE_CHARACTER_ID, position, map);
-    }
-
-    public static Character createBareBot(int baseCharacterId, Point position, MapleMap map) throws SQLException {
+    public static Character createBareBot(int templateCharacterId, Point position, MapleMap map) throws SQLException {
+        if (templateCharacterId <= 0) {
+            throw new IllegalArgumentException("template character id must be positive");
+        }
         if (map == null) {
             throw new IllegalArgumentException("map must not be null");
         }
@@ -42,9 +41,9 @@ public final class BareBotFactory {
             BotClientHandler.initHeadlessBotClient();
         }
 
-        Character bot = Character.loadCharFromDB(baseCharacterId, BotClientHandler.getBotClient(), false);
+        Character bot = Character.loadCharFromDB(templateCharacterId, BotClientHandler.getBotClient(), false);
         if (bot == null) {
-            throw new IllegalStateException("Could not load SoloMapling base character " + baseCharacterId);
+            throw new IllegalStateException("Could not load QA bot template character " + templateCharacterId);
         }
 
         int botId = SoloMaplingConstants.GameConstants.BOT_BASE_ID + nextBotOffset.getAndIncrement();
