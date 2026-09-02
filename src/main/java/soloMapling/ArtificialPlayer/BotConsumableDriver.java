@@ -7,13 +7,15 @@ import client.inventory.Item;
 import server.ItemInformationProvider;
 import server.StatEffect;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /** Uses ordinary EverLeaf USE-inventory items for headless QA survival. */
 public final class BotConsumableDriver {
     private static final double HP_THRESHOLD = 0.50;
     private static final double MP_THRESHOLD = 0.35;
     private static final long USE_COOLDOWN_MS = 750L;
-
-    private static long lastUseAt;
+    private static final Map<Integer, Long> lastUseAt = new ConcurrentHashMap<>();
 
     private BotConsumableDriver() {}
 
@@ -22,7 +24,7 @@ public final class BotConsumableDriver {
             return UseResult.none("not-eligible");
         }
         long now = System.currentTimeMillis();
-        if (now - lastUseAt < USE_COOLDOWN_MS) {
+        if (now - lastUseAt.getOrDefault(bot.getId(), 0L) < USE_COOLDOWN_MS) {
             return UseResult.none("cooldown");
         }
 
@@ -49,11 +51,15 @@ public final class BotConsumableDriver {
             // consume exactly one item from the bot's real USE inventory on success.
             if (!effect.applyTo(bot)) continue;
             use.removeItem(item.getPosition(), (short) 1, false);
-            lastUseAt = now;
+            lastUseAt.put(bot.getId(), now);
             return new UseResult(true, item.getItemId(), wantsHp && restoresHp, wantsMp && restoresMp, "used");
         }
 
         return UseResult.none("out-of-potions");
+    }
+
+    public static void clearBot(int botId) {
+        lastUseAt.remove(botId);
     }
 
     public static record UseResult(boolean used, int itemId, boolean healedHp, boolean restoredMp, String reason) {
