@@ -1,6 +1,7 @@
 name: Audit classic mainland quests
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
