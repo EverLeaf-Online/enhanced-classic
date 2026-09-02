@@ -7,12 +7,16 @@ on:
     paths:
       - '.github/workflows/build-gms-v95-first-batch-client-patch.yml'
       - 'tools/wz-donor/client-patcher/Program.cs'
+      - 'tools/wz-donor/verify_client_server_parity.py'
+      - 'tools/wz-donor/batches/gms-v95-consume-batch-001-parity.json'
   push:
     branches:
       - release-dev
     paths:
       - '.github/workflows/build-gms-v95-first-batch-client-patch.yml'
       - 'tools/wz-donor/client-patcher/Program.cs'
+      - 'tools/wz-donor/verify_client_server_parity.py'
+      - 'tools/wz-donor/batches/gms-v95-consume-batch-001-parity.json'
   workflow_dispatch:
 
 permissions:
@@ -34,6 +38,11 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Configure SSH
         shell: pwsh
@@ -132,6 +141,17 @@ jobs:
             $outputDir
           Get-Content (Join-Path $outputDir 'CLIENT_PATCH_MANIFEST.json') | Add-Content $env:GITHUB_STEP_SUMMARY
 
+      - name: Verify pinned server-client semantic parity
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $outputDir = Join-Path $env:RUNNER_TEMP 'gms-v95-consume-batch-001-client-candidate'
+          python tools/wz-donor/verify_client_server_parity.py `
+            tools/wz-donor/batches/gms-v95-consume-batch-001-parity.json `
+            (Join-Path $outputDir 'CLIENT_PATCH_MANIFEST.json') `
+            --output (Join-Path $outputDir 'CLIENT_SERVER_PARITY_REPORT.json')
+          Get-Content (Join-Path $outputDir 'CLIENT_SERVER_PARITY_REPORT.json') | Add-Content $env:GITHUB_STEP_SUMMARY
+
       - name: Prove live Oracle client sources stayed byte-identical
         shell: pwsh
         run: |
@@ -175,10 +195,12 @@ jobs:
             "set -e; cd '$remoteDir'; unzip -t client-candidate.zip.part >/dev/null; mv client-candidate.zip.part client-candidate.zip; sha256sum client-candidate.zip"
           if ($LASTEXITCODE -ne 0) { throw 'Failed to validate private client candidate' }
 
-      - name: Upload manifest only
+      - name: Upload manifest and parity report only
         uses: actions/upload-artifact@v4
         with:
           name: gms-v95-consume-batch-001-client-manifest-${{ github.sha }}
-          path: ${{ runner.temp }}/gms-v95-consume-batch-001-client-candidate/CLIENT_PATCH_MANIFEST.json
+          path: |
+            ${{ runner.temp }}/gms-v95-consume-batch-001-client-candidate/CLIENT_PATCH_MANIFEST.json
+            ${{ runner.temp }}/gms-v95-consume-batch-001-client-candidate/CLIENT_SERVER_PARITY_REPORT.json
           retention-days: 14
           if-no-files-found: error
