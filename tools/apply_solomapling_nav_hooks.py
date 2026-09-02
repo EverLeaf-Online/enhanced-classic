@@ -3,7 +3,7 @@
 
 This keeps EverLeaf's map loader/map runtime authoritative and only adds the
 terrain data needed by SoloMapling: ropes/ladders, swim state, foothold speed,
-and forbid-fall-down foothold flags.
+portal enumeration, and forbid-fall-down foothold flags.
 """
 from pathlib import Path
 
@@ -28,12 +28,12 @@ def patch_maple_map() -> None:
         "private final List<Rope> ropes",
     )
 
-    methods = """    public void addRope(Rope rope) {\n        ropes.add(rope);\n    }\n\n    public List<Rope> getRopes() {\n        return ropes;\n    }\n\n    public float getFootholdSpeed() {\n        return footholdSpeed;\n    }\n\n    public void setFootholdSpeed(float footholdSpeed) {\n        this.footholdSpeed = footholdSpeed;\n    }\n\n    public boolean isSwim() {\n        return swim;\n    }\n\n    public void setSwim(boolean swim) {\n        this.swim = swim;\n    }\n\n"""
+    methods = """    public void addRope(Rope rope) {\n        ropes.add(rope);\n    }\n\n    public List<Rope> getRopes() {\n        return ropes;\n    }\n\n    public Collection<Portal> getPortals() {\n        return Collections.unmodifiableCollection(portals.values());\n    }\n\n    public float getFootholdSpeed() {\n        return footholdSpeed;\n    }\n\n    public void setFootholdSpeed(float footholdSpeed) {\n        this.footholdSpeed = footholdSpeed;\n    }\n\n    public boolean isSwim() {\n        return swim;\n    }\n\n    public void setSwim(boolean swim) {\n        this.swim = swim;\n    }\n\n"""
     text = replace_once(
         text,
         "    public void setMapPointBoundings(int px, int py, int h, int w) {\n",
         methods + "    public void setMapPointBoundings(int px, int py, int h, int w) {\n",
-        "public List<Rope> getRopes()",
+        "public Collection<Portal> getPortals()",
     )
     MAPLE_MAP.write_text(text, encoding="utf-8")
 
