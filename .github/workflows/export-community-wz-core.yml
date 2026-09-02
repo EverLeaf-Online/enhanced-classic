@@ -70,17 +70,62 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $keyPath = Join-Path $HOME '.ssh/id_everleaf'
-          $remoteTar = '/tmp/everleaf-community-core-wz.tgz'
+          $remoteBase = '/tmp/everleaf-community-core-wz'
+          $remoteTar = "$remoteBase.tar"
           $remoteRoot = $env:COMMUNITY_WZ_ROOT
-          $remoteCommand = "set -euo pipefail; cd '$remoteRoot'; test -s Map.wz; test -s Mob.wz; test -s Npc.wz; test -s Reactor.wz; test -s String.wz; tar -czf '$remoteTar' Map.wz Mob.wz Npc.wz Reactor.wz String.wz; sha256sum '$remoteTar'"
+          $remoteCommand = "set -euo pipefail; rm -f '$remoteBase'.tar '$remoteBase'.part.* '$remoteBase'.parts.sha256 '$remoteBase'.tar.sha256; cd '$remoteRoot'; test -s Map.wz; test -s Mob.wz; test -s Npc.wz; test -s Reactor.wz; test -s String.wz; tar -cf '$remoteTar' Map.wz Mob.wz Npc.wz Reactor.wz String.wz; sha256sum '$remoteTar' > '$remoteBase.tar.sha256'; split -b 64M -d -a 3 '$remoteTar' '$remoteBase.part.'; sha256sum '$remoteBase'.part.* > '$remoteBase.parts.sha256'; wc -c '$remoteTar'; cat '$remoteBase.tar.sha256'; wc -l '$remoteBase.parts.sha256'"
           ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" $remoteCommand
-          if ($LASTEXITCODE -ne 0) { throw 'Remote donor packaging failed' }
-          scp -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteTar" "$env:RUNNER_TEMP/community-core-wz.tgz"
-          if ($LASTEXITCODE -ne 0) { throw 'Donor transfer failed' }
+          if ($LASTEXITCODE -ne 0) { throw 'Remote donor packaging/chunking failed' }
+
+          $partManifest = Join-Path $env:RUNNER_TEMP 'community-core-parts.sha256'
+          $tarManifest = Join-Path $env:RUNNER_TEMP 'community-core-tar.sha256'
+          scp -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteBase.parts.sha256" $partManifest
+          if ($LASTEXITCODE -ne 0) { throw 'Part manifest transfer failed' }
+          scp -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteBase.tar.sha256" $tarManifest
+          if ($LASTEXITCODE -ne 0) { throw 'Tar manifest transfer failed' }
+
+          $chunksDir = Join-Path $env:RUNNER_TEMP 'community-core-chunks'
+          New-Item -ItemType Directory -Force -Path $chunksDir | Out-Null
+          $rows = Get-Content $partManifest | Where-Object { $_.Trim() }
+          foreach ($row in $rows) {
+            if ($row -notmatch '^([0-9a-f]{64})\s+(.+)$') { throw "Malformed chunk manifest row: $row" }
+            $expected = $matches[1]
+            $remotePath = $matches[2]
+            $name = Split-Path $remotePath -Leaf
+            $local = Join-Path $chunksDir $name
+            $ok = $false
+            for ($attempt = 1; $attempt -le 5 -and -not $ok; $attempt++) {
+              Write-Host "Fetching $name attempt $attempt/5"
+              Remove-Item -Force -ErrorAction SilentlyContinue $local
+              scp -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remotePath" $local
+              if ($LASTEXITCODE -ne 0 -or -not (Test-Path $local)) { Start-Sleep -Seconds 2; continue }
+              $actual = (Get-FileHash $local -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($actual -eq $expected) { $ok = $true } else { Write-Warning "$name hash mismatch"; Start-Sleep -Seconds 2 }
+            }
+            if (-not $ok) { throw "Failed to transfer verified chunk: $name" }
+          }
+
+          $tarPath = Join-Path $env:RUNNER_TEMP 'community-core-wz.tar'
+          $out = [IO.File]::Open($tarPath, [IO.FileMode]::Create, [IO.FileAccess]::Write)
+          try {
+            Get-ChildItem $chunksDir -File | Sort-Object Name | ForEach-Object {
+              $input = [IO.File]::OpenRead($_.FullName)
+              try { $input.CopyTo($out) } finally { $input.Dispose() }
+            }
+          } finally { $out.Dispose() }
+
+          $tarRow = (Get-Content $tarManifest | Select-Object -First 1)
+          if ($tarRow -notmatch '^([0-9a-f]{64})\s+') { throw 'Malformed tar manifest' }
+          $expectedTar = $matches[1]
+          $actualTar = (Get-FileHash $tarPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualTar -ne $expectedTar) { throw "Reassembled tar hash mismatch: $actualTar != $expectedTar" }
+
           New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/community-core" | Out-Null
-          tar -xzf "$env:RUNNER_TEMP/community-core-wz.tgz" -C "$env:RUNNER_TEMP/community-core"
+          tar -xf $tarPath -C "$env:RUNNER_TEMP/community-core"
           if ($LASTEXITCODE -ne 0) { throw 'Donor extraction failed' }
           Get-ChildItem "$env:RUNNER_TEMP/community-core" -File | Select-Object Name,Length
+
+          ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "rm -f '$remoteBase'.tar '$remoteBase'.part.* '$remoteBase'.parts.sha256 '$remoteBase'.tar.sha256"
 
       - name: Build MapleLib exporter
         shell: pwsh
@@ -156,7 +201,7 @@ jobs:
           $keyPath = Join-Path $HOME '.ssh/id_everleaf'
           scp -i $keyPath $zip "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/private/wz-donors/community-repack-core.zip.part"
           if ($LASTEXITCODE -ne 0) { throw 'Private XML upload failed' }
-          $remoteCommand = "set -euo pipefail; cd /opt/everleaf/private/wz-donors; unzip -t community-repack-core.zip.part >/dev/null; mv community-repack-core.zip.part community-repack-core.zip; sha256sum community-repack-core.zip; rm -f /tmp/everleaf-community-core-wz.tgz"
+          $remoteCommand = "set -euo pipefail; cd /opt/everleaf/private/wz-donors; unzip -t community-repack-core.zip.part >/dev/null; mv community-repack-core.zip.part community-repack-core.zip; sha256sum community-repack-core.zip"
           ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" $remoteCommand
           if ($LASTEXITCODE -ne 0) { throw 'Private XML verification failed' }
 
