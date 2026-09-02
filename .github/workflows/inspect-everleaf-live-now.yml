@@ -1,0 +1,48 @@
+name: Inspect EverLeaf live now
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/inspect-everleaf-live-now.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+          HOST: 132.145.141.79
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inspect live runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_everleaf ubuntu@132.145.141.79 'bash -s' <<'REMOTE'
+          set +e
+          echo '=== TIME ==='; date -Is
+          echo '=== CURRENT RELEASE ==='; readlink -f /opt/everleaf/current
+          echo '=== SERVICE ==='; systemctl is-active everleaf.service; systemctl --no-pager --full status everleaf.service | head -80
+          echo '=== RECENT JOURNAL ==='; journalctl -u everleaf.service --since '-20 min' --no-pager -n 200
+          echo '=== LISTENERS ==='; ss -ltnp | egrep ':(8484|7575|7576|7577|3000|80|443)\b' || true
+          echo '=== LOCAL WEB HEALTH ==='; curl -sS -o /tmp/manifest -w 'manifest_http=%{http_code}\n' http://127.0.0.1:3000/v1/launcher/manifest; head -c 300 /tmp/manifest; echo
+          echo '=== PATCH FILES ==='; sha256sum /opt/everleaf/patches/files/Item.wz /opt/everleaf/patches/files/String.wz; stat -c '%n %s %y' /opt/everleaf/patches/files/Item.wz /opt/everleaf/patches/files/String.wz
+          echo '=== CHAIR XML ==='; XML="$(readlink -f /opt/everleaf/current)/wz/Item.wz/Install/0301.img.xml"; test -s "$XML" && { grep -n '3010020\|3010021\|3010027' "$XML" | head -20; } || echo 'chair xml missing'
+          echo '=== DNS FROM VM ==='; getent hosts everleafms.online || true
+          echo '=== EXTERNAL HTTP FROM VM ==='; curl -kIsS --max-time 10 https://everleafms.online/ | head -20 || true
+          echo '=== MEMORY/DISK ==='; free -h; df -h / /opt/everleaf | tail -n +1
+          REMOTE
