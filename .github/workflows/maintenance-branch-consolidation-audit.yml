@@ -30,6 +30,7 @@ jobs:
           canonical = ['master', 'release-dev', 'client-dev']
           explicit_excluded = {'Community-files', 'empress-dev'}
           protected_workspaces = {'consolidation/master-promotion'}
+          protected_prefixes = ('wz/',)
           empress_re = re.compile(r'(^|[/_.-])empress([/_.-]|$)|cygnus.*empress', re.I)
           nonruntime_re = re.compile(r'^(?:\.github/|docs/|tools/)|(?:^|/)(?:tests?|testdata|fixtures?)/', re.I)
 
@@ -64,7 +65,7 @@ jobs:
           for branch in branches:
               if branch in canonical:
                   continue
-              protected = branch in protected_workspaces
+              protected = branch in protected_workspaces or branch.startswith(protected_prefixes)
               excluded = branch in explicit_excluded or bool(empress_re.search(branch))
               contained_by = [c for c in canonical if is_ancestor(branch, c)]
               revs = sh('git', 'rev-list', ref(branch), '--not', *canonical_refs).stdout.splitlines()
@@ -158,6 +159,7 @@ jobs:
           report = {
               'canonicalBranches': canonical,
               'protectedWorkspaces': sorted(protected_workspaces),
+              'protectedPrefixes': list(protected_prefixes),
               'branchCount': len(branches),
               'nonCanonicalBranchCount': len(rows),
               'fullyContainedCount': len(contained),
@@ -174,7 +176,7 @@ jobs:
               '# Branch consolidation audit', '',
               f"- Remote branches: **{len(branches)}**",
               f"- Non-canonical branches: **{len(rows)}**",
-              f"- Protected integration workspaces: **{len(protected)}**",
+              f"- Protected integration/WZ workspaces: **{len(protected)}**",
               f"- Fully contained: **{len(contained)}**",
               f"- Patch-equivalent diverged branches: **{len(patch_equivalent_only)}**",
               f"- Final tree effect already represented exactly: **{len(tree_effect_equivalent)}**",
@@ -204,7 +206,7 @@ jobs:
               reason = 'contained' if r['containedBy'] else ('patch-equivalent' if not r['missingPatchCommitCount'] else 'runtime tree-equivalent')
               lines.append(f"- `{r['branch']}` — {reason}")
 
-          lines += ['', '## Protected integration workspaces', '']
+          lines += ['', '## Protected integration/WZ workspaces', '']
           for r in protected:
               lines.append(f"- `{r['branch']}`")
 
