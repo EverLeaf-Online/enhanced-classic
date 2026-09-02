@@ -27,8 +27,9 @@ jobs:
           import json, re, subprocess
           from pathlib import Path
 
-          canonical = ['master', 'release-dev', 'client-dev', 'content-dev']
+          canonical = ['master', 'release-dev', 'client-dev']
           explicit_excluded = {'Community-files', 'empress-dev'}
+          protected_workspaces = {'consolidation/master-promotion'}
           empress_re = re.compile(r'(^|[/_.-])empress([/_.-]|$)|cygnus.*empress', re.I)
           nonruntime_re = re.compile(r'^(?:\.github/|docs/|tools/)|(?:^|/)(?:tests?|testdata|fixtures?)/', re.I)
 
@@ -54,12 +55,16 @@ jobs:
                   continue
               branches.append(line[len('origin/'):])
           branches = sorted(set(branches))
+          missing_canonical = [branch for branch in canonical if branch not in branches]
+          if missing_canonical:
+              raise RuntimeError(f"Missing canonical branch(es): {', '.join(missing_canonical)}")
           canonical_refs = [ref(x) for x in canonical]
 
           rows = []
           for branch in branches:
               if branch in canonical:
                   continue
+              protected = branch in protected_workspaces
               excluded = branch in explicit_excluded or bool(empress_re.search(branch))
               contained_by = [c for c in canonical if is_ancestor(branch, c)]
               revs = sh('git', 'rev-list', ref(branch), '--not', *canonical_refs).stdout.splitlines()
@@ -112,6 +117,7 @@ jobs:
 
               rows.append({
                   'branch': branch,
+                  'protectedWorkspace': protected,
                   'excludedByPolicy': excluded,
                   'containedBy': contained_by,
                   'uniqueCommitCount': unique_count,
@@ -140,16 +146,18 @@ jobs:
           ]
           runtime_actionable = [
               r for r in rows
-              if r['unrepresentedFunctionalPaths'] and not r['excludedByPolicy'] and not r['missingPathsEmpressOnly']
+              if r['unrepresentedFunctionalPaths'] and not r['excludedByPolicy'] and not r['protectedWorkspace'] and not r['missingPathsEmpressOnly']
           ]
           metadata_only = [
               r for r in rows
-              if r['missingPatchCommitCount'] and not r['functionalPaths'] and not r['excludedByPolicy']
+              if r['missingPatchCommitCount'] and not r['functionalPaths'] and not r['excludedByPolicy'] and not r['protectedWorkspace']
           ]
           excluded = [r for r in rows if r['excludedByPolicy'] or r['missingPathsEmpressOnly']]
+          protected = [r for r in rows if r['protectedWorkspace']]
 
           report = {
               'canonicalBranches': canonical,
+              'protectedWorkspaces': sorted(protected_workspaces),
               'branchCount': len(branches),
               'nonCanonicalBranchCount': len(rows),
               'fullyContainedCount': len(contained),
@@ -166,6 +174,7 @@ jobs:
               '# Branch consolidation audit', '',
               f"- Remote branches: **{len(branches)}**",
               f"- Non-canonical branches: **{len(rows)}**",
+              f"- Protected integration workspaces: **{len(protected)}**",
               f"- Fully contained: **{len(contained)}**",
               f"- Patch-equivalent diverged branches: **{len(patch_equivalent_only)}**",
               f"- Final tree effect already represented exactly: **{len(tree_effect_equivalent)}**",
@@ -187,13 +196,17 @@ jobs:
           lines += ['', '## Safe cleanup: runtime effect already represented', '']
           safe_runtime = []
           for r in rows:
-              if r['excludedByPolicy']:
+              if r['excludedByPolicy'] or r['protectedWorkspace']:
                   continue
               if r['containedBy'] or (r['uniqueCommitCount'] and not r['missingPatchCommitCount']) or (r['functionalPaths'] and not r['unrepresentedFunctionalPaths']):
                   safe_runtime.append(r)
           for r in safe_runtime:
               reason = 'contained' if r['containedBy'] else ('patch-equivalent' if not r['missingPatchCommitCount'] else 'runtime tree-equivalent')
               lines.append(f"- `{r['branch']}` — {reason}")
+
+          lines += ['', '## Protected integration workspaces', '']
+          for r in protected:
+              lines.append(f"- `{r['branch']}`")
 
           lines += ['', '## Explicitly excluded / Empress-only', '']
           for r in excluded:
