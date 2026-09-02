@@ -1,6 +1,6 @@
 # EverLeaf Master Development Checklist
 
-Repository-backed working checklist for the current non-Empress EverLeaf release line.
+Repository-backed working checklist for the current EverLeaf release line, with Empress/Stronghold endgame content deferred.
 
 Last synchronized: **2026-09-02** after repository consolidation, world-content hardening, reactor restoration, quest gameplay audits, and the current QoL/feature review.
 
@@ -9,7 +9,7 @@ Last synchronized: **2026-09-02** after repository consolidation, world-content 
 - Primary release path: `release-dev` → `master`.
 - Maintained client line: `client-dev`.
 - `Community-files` is archive/reference-only and excluded from completion status.
-- `empress-dev` and all Empress/Cygnus content are deferred/excluded.
+- `empress-dev` is reserved for deferred Empress/Stronghold endgame content. **Playable Cygnus Knights and their class progression remain fully in scope and must not be excluded with Empress/Stronghold content.**
 - All `wz/*` work, especially `wz/v95-*`, belongs to the separate updated-WZ modernization effort and is protected from routine cleanup or unrelated rewrites.
 - A repository/static audit can close structural integrity work, but live-client behavior remains `🟡` until tested in the packaged client/runtime.
 
@@ -88,6 +88,10 @@ Last synchronized: **2026-09-02** after repository consolidation, world-content 
 - ✅ Evan release-support auditing exists.
 - ✅ Evan Dragon Fury hardening exists.
 - ✅ Evan Magic Resistance hardening exists.
+- ✅ Explorer class family is in scope.
+- ✅ **Cygnus Knights are in scope as playable classes and are separate from deferred Empress/Stronghold endgame content.**
+- ✅ Aran is in scope.
+- ✅ Evan is in scope.
 - 🟡 Verify all intended v83-era classes/job branches live.
 - 🟡 Verify 1st/2nd/3rd/4th job advancement quests and NPCs live.
 - 🟡 Verify AP/SP assignment/reset behavior.
@@ -95,7 +99,7 @@ Last synchronized: **2026-09-02** after repository consolidation, world-content 
 - 🟡 Verify projectile/melee/magic/summon formulas.
 - 🟡 Verify skill/mastery books and 4th-job unlocks.
 - 🟡 Verify death, EXP loss, charms, resurrection, and revival interactions.
-- 🐛 Fix ranged-class melee/"whack" fallback damage/animation where the client falls back to a melee swing.
+- ✅ No Whack client combat fix is implemented; ranged basic attacks no longer use the unintended melee fallback behavior.
 
 # 6. Progression / Level Cap / EXP
 
@@ -214,7 +218,7 @@ Last synchronized: **2026-09-02** after repository consolidation, world-content 
 - 🟡 Verify expedition creation/signup/leader transfer/disconnect/rejoin/cleanup.
 - 🟡 Verify entry limits and cooldowns transactionally.
 - 🟡 Verify rewards cannot duplicate on reconnect/retry.
-- 🚫 Empress/Cygnus boss content excluded.
+- 🚫 Empress/Stronghold endgame boss content is deferred/excluded. **This does not exclude playable Cygnus Knights.**
 
 # 14. Party Quests
 
@@ -291,7 +295,7 @@ Last synchronized: **2026-09-02** after repository consolidation, world-content 
 - ✅ PlayerShop transaction/snapshot audits exist.
 - 🟡 Verify direct trade end-to-end.
 - 🟡 Verify trade cancellation/rollback/item/meso validation.
-- 🔧 Make the **Trade** button take players to the Free Market as planned.
+- ✅ **Trade** button → Free Market routing is implemented with server-side safety restrictions.
 - 🟡 Verify FM entrances/exits/channel behavior.
 - 🟡 Verify hired merchants/player shops live.
 - 🟡 Verify merchant persistence on disconnect/restart.
@@ -377,8 +381,8 @@ Last synchronized: **2026-09-02** after repository consolidation, world-content 
 
 # 29. QoL — Combat / Movement
 
-- 🔧 Attack while moving for eligible skills while preserving intentional cast/channel locks.
-- 🔧 No-breath-lock / remove unnecessary post-hit or weapon-swap friction without bypassing control states.
+- ✅ Attack while moving is implemented for eligible attacks while preserving intentional cast/channel restrictions.
+- ✅ No Breath is implemented, removing unnecessary legacy breath-lock friction without bypassing real control states.
 - 🔧 Flash Jump for every class with balanced unlock level/MP cost/animation/class exceptions.
 - 🔧 Infinite Throwing Stars for normal PvE once the relevant star type is owned/equipped, preserving star identity/damage.
 
@@ -432,7 +436,7 @@ Last synchronized: **2026-09-02** after repository consolidation, world-content 
 # 36. Client Bugs / Client QoL
 
 - 🔧 Complete known-client-bug sweep against MapleEzorsia v2 references/TODOs.
-- 🐛 Fix ranged whack/melee fallback visual behavior.
+- ✅ No Whack client patch is implemented and has been successfully published.
 - 🟡 Verify resolution/window/fullscreen behavior.
 - 🟡 Verify alt-tab/minimize/restore stability.
 - 🟡 Verify chat/whisper/buddy/party/guild/trade UI.
@@ -467,7 +471,7 @@ Last synchronized: **2026-09-02** after repository consolidation, world-content 
 
 # 39. Channels / World Capacity
 
-- 🔧 Target approximately **8 production channels**.
+- ✅ Production target/configuration is **20 channels (CH1–CH20)**.
 - 🟡 Verify server exposes configured channel count.
 - 🟡 Verify website reads live/configured channel count rather than stale hardcoded values.
 - 🟡 Verify channel change across all channels.
@@ -627,7 +631,7 @@ Last synchronized: **2026-09-02** after repository consolidation, world-content 
 - 🟡 Invite-only account flow works.
 - 🟡 Critical login/character persistence behavior verified.
 - 🟡 Normal advancement/combat/maps/NPCs/quests progression playthrough succeeds.
-- 🟡 Major non-Empress bosses/PQs playable or explicitly disabled.
+- 🟡 Major supported bosses/PQs playable or explicitly disabled; deferred Empress/Stronghold endgame content remains outside this gate.
 - 🟡 Backup/logging enabled live.
 - 🟡 Known-issues list published.
 - 🟡 QA agents run against staging/package.
@@ -674,7 +678,7 @@ Last synchronized: **2026-09-02** after repository consolidation, world-content 
 # Immediate Priority Queue
 
 1. **Live packaged-client world/content verification** — traversal, NPC placement/interaction, quest chains, boss/PQ teardown and reconnect behavior.
-2. **Client QoL + known client bugs** — especially ranged whack/melee fallback, movement/combat QoL, storage/shop QoL, boss timers/codex/reconnect.
+2. **Client QoL + known client bugs** — preserve completed No Whack/No Breath/movement-attack work; continue unfinished storage/shop QoL, boss timers/codex/reconnect, and remaining client issues.
 3. **Updated-WZ/client-server parity** — continue only in the protected updated-WZ workstream.
 4. **Full drop/economy/source-sink balance** — including explicit rare-scroll sources.
 5. **Trade/storage/Cash Shop concurrency and anti-dupe testing**.
