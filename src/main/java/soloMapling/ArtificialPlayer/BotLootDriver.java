@@ -45,7 +45,7 @@ public final class BotLootDriver {
         if (Math.abs(dx) > PICKUP_REACH_X || Math.abs(dy) > PICKUP_REACH_Y) {
             try {
                 GCMovement.move(bot, dropPos.x, dropPos.y);
-                return new LootResult(true, false, false, drop.getObjectId(), "moving-to-drop");
+                return new LootResult(true, true, false, drop.getObjectId(), "moving-to-drop");
             } catch (RuntimeException ex) {
                 defer(bot, drop);
                 return new LootResult(true, false, false, drop.getObjectId(), "loot-navigation-failed");
