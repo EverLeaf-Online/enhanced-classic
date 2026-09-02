@@ -1,0 +1,205 @@
+name: Deploy community item test live
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/deploy-community-item-test-live.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-community-item-live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_PUBLIC_HOST: everleafms.online
+  COMMUNITY_WZ_ROOT: /home/ubuntu/everleaf-staging/community-wz/extracted/Community Repack WZs
+
+jobs:
+  deploy:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+        with:
+          ref: release-dev
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          $key=Join-Path $sshDir 'id_everleaf'; [IO.File]::WriteAllText($key,($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if ($env:SSH_KNOWN_HOSTS) { [IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n") }
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 15
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Fetch live base and community donor WZ files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'community-item-live'; $base=Join-Path $root 'base'; $donor=Join-Path $root 'donor'
+          New-Item -ItemType Directory -Force -Path $base,$donor | Out-Null
+          $remote="set -e; test -s /opt/everleaf/patches/files/Item.wz; test -s /opt/everleaf/patches/files/String.wz; test -s '$env:COMMUNITY_WZ_ROOT/Item.wz'; test -s '$env:COMMUNITY_WZ_ROOT/String.wz'; sha256sum /opt/everleaf/patches/files/Item.wz /opt/everleaf/patches/files/String.wz '$env:COMMUNITY_WZ_ROOT/Item.wz' '$env:COMMUNITY_WZ_ROOT/String.wz'"
+          ssh everleaf-oracle $remote | Set-Content -Encoding ascii (Join-Path $root 'REMOTE_HASHES_BEFORE.txt')
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to validate live/donor WZ sources' }
+          scp 'everleaf-oracle:/opt/everleaf/patches/files/Item.wz' (Join-Path $base 'Item.wz'); if($LASTEXITCODE){throw 'live Item.wz copy failed'}
+          scp 'everleaf-oracle:/opt/everleaf/patches/files/String.wz' (Join-Path $base 'String.wz'); if($LASTEXITCODE){throw 'live String.wz copy failed'}
+          scp "everleaf-oracle`:$env:COMMUNITY_WZ_ROOT/Item.wz" (Join-Path $donor 'Item.wz'); if($LASTEXITCODE){throw 'donor Item.wz copy failed'}
+          scp "everleaf-oracle`:$env:COMMUNITY_WZ_ROOT/String.wz" (Join-Path $donor 'String.wz'); if($LASTEXITCODE){throw 'donor String.wz copy failed'}
+
+      - name: Build MapleLib patcher and exporter
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $patchDir=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafClientWzPatcher'; New-Item -ItemType Directory -Force -Path $patchDir | Out-Null
+          Copy-Item tools/wz-donor/client-patcher/Program.cs (Join-Path $patchDir 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup><ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup></Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $patchDir 'EverLeafClientWzPatcher.csproj')
+          $exportDir=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter'; New-Item -ItemType Directory -Force -Path $exportDir | Out-Null
+          Copy-Item tools/wz-donor/exporter/Program.cs (Join-Path $exportDir 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup><ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup></Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $exportDir 'EverLeafWzExporter.csproj')
+          dotnet build (Join-Path $patchDir 'EverLeafClientWzPatcher.csproj') -c Release
+          dotnet build (Join-Path $exportDir 'EverLeafWzExporter.csproj') -c Release
+
+      - name: Build selective two-item WZ candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'community-item-live'; $out=Join-Path $root 'candidate'
+          dotnet run --project "$env:RUNNER_TEMP/MapleLib/EverLeafClientWzPatcher/EverLeafClientWzPatcher.csproj" -c Release --no-build -- `
+            (Join-Path $root 'base/Item.wz') (Join-Path $root 'base/String.wz') (Join-Path $root 'donor/Item.wz') (Join-Path $root 'donor/String.wz') $out
+          if($LASTEXITCODE){throw 'Selective WZ merge failed'}
+          Get-Content (Join-Path $out 'CLIENT_PATCH_MANIFEST.json') | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Export before and after from binaries and prove exact item delta
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'community-item-live'; $exportProject="$env:RUNNER_TEMP/MapleLib/EverLeafWzExporter/EverLeafWzExporter.csproj"
+          foreach($label in @('base','candidate')) {
+            $input=Join-Path $root "$label-export-input"; $xml=Join-Path $root "$label-xml"; New-Item -ItemType Directory -Force -Path $input,$xml | Out-Null
+            Copy-Item (Join-Path $root "$label/Item.wz") (Join-Path $input 'Item.wz')
+            Copy-Item (Join-Path $root "$label/String.wz") (Join-Path $input 'String.wz')
+            dotnet run --project $exportProject -c Release --no-build -- $input $xml --patch-version=83 --probe-patch-range=1:250 Item.wz String.wz
+            if($LASTEXITCODE){throw "$label WZ export failed"}
+          }
+          python tools/wz-donor/wz_diff.py --baseline (Join-Path $root 'base-xml') --donor (Join-Path $root 'candidate-xml') --donor-id community-item-live-test --skip-dependencies --output (Join-Path $root 'exact-delta.json')
+          $script=@'
+          import json,sys,xml.etree.ElementTree as ET
+          from pathlib import Path
+          root=Path(sys.argv[1]); d=json.load(open(root/'exact-delta.json',encoding='utf-8'))['categories']['items']
+          assert set(map(str,d['newIds']))=={'2022711','2022712'}, d['newIds']
+          assert d['changedCollisionIds']==[], d['changedCollisionIds']
+          def children(path):
+              r=ET.parse(path).getroot(); return {c.attrib.get('name'):ET.tostring(c,encoding='unicode') for c in list(r)}
+          b=children(root/'base-xml'/'String.wz'/'Consume.img.xml'); c=children(root/'candidate-xml'/'String.wz'/'Consume.img.xml')
+          added=set(c)-set(b); changed={k for k in set(b)&set(c) if b[k]!=c[k]}
+          assert added=={'2022711','2022712'}, added
+          assert not changed, sorted(changed)[:20]
+          itemxml=root/'candidate-xml'/'Item.wz'/'Consume'/'0202.img.xml'
+          text=itemxml.read_text(encoding='utf-8')
+          assert '2022711' in text and '2022712' in text
+          print('Exact binary-derived delta verified: only 2022711 and 2022712 added to Item/String.')
+          '@
+          $script | Set-Content -Encoding utf8 (Join-Path $root 'verify.py')
+          python (Join-Path $root 'verify.py') $root
+
+      - name: Upload candidate to Oracle staging path
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'; $root=Join-Path $env:RUNNER_TEMP 'community-item-live'; $stage="/tmp/everleaf-community-item-$env:GITHUB_SHA"
+          ssh everleaf-oracle "rm -rf '$stage' && mkdir -p '$stage'"; if($LASTEXITCODE){throw 'remote stage prepare failed'}
+          scp (Join-Path $root 'candidate/Item.wz') "everleaf-oracle`:$stage/Item.wz"; if($LASTEXITCODE){throw 'candidate Item upload failed'}
+          scp (Join-Path $root 'candidate/String.wz') "everleaf-oracle`:$stage/String.wz"; if($LASTEXITCODE){throw 'candidate String upload failed'}
+          scp (Join-Path $root 'candidate-xml/Item.wz/Consume/0202.img.xml') "everleaf-oracle`:$stage/0202.img.xml"; if($LASTEXITCODE){throw 'fresh server XML upload failed'}
+          scp (Join-Path $root 'REMOTE_HASHES_BEFORE.txt') "everleaf-oracle`:$stage/REMOTE_HASHES_BEFORE.txt"; if($LASTEXITCODE){throw 'source hash record upload failed'}
+
+      - name: Deploy live with backup rollback and launcher manifest regeneration
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $remote=@'
+          set -euo pipefail
+          PATCH=/opt/everleaf/patches
+          FILES=$PATCH/files
+          CURRENT=$(readlink -f /opt/everleaf/current)
+          STAGE=/tmp/everleaf-community-item-__SHA__
+          XML=$CURRENT/wz/Item.wz/Consume/0202.img.xml
+          BACKUP=/opt/everleaf/backups/community-item-test-__SHA__
+          mkdir -p "$BACKUP"
+          test -s "$STAGE/Item.wz"; test -s "$STAGE/String.wz"; test -s "$STAGE/0202.img.xml"; test -s "$XML"
+          sha256sum "$FILES/Item.wz" "$FILES/String.wz" > "$STAGE/live-now.txt"
+          head -n 2 "$STAGE/REMOTE_HASHES_BEFORE.txt" > "$STAGE/live-before.txt"
+          cmp -s "$STAGE/live-now.txt" "$STAGE/live-before.txt"
+          cp "$FILES/Item.wz" "$BACKUP/Item.wz"
+          cp "$FILES/String.wz" "$BACKUP/String.wz"
+          cp "$PATCH/manifest.json" "$BACKUP/manifest.json"
+          cp "$XML" "$BACKUP/0202.img.xml"
+          rollback(){
+            echo 'Live item test failed; rolling back.' >&2
+            sudo install -m 644 "$BACKUP/Item.wz" "$FILES/Item.wz"
+            sudo install -m 644 "$BACKUP/String.wz" "$FILES/String.wz"
+            sudo install -m 644 "$BACKUP/manifest.json" "$PATCH/manifest.json"
+            sudo install -m 644 "$BACKUP/0202.img.xml" "$XML"
+            sudo systemctl restart everleaf.service || true
+          }
+          trap rollback ERR
+          sudo install -m 644 "$STAGE/Item.wz" "$FILES/Item.wz.new"
+          sudo install -m 644 "$STAGE/String.wz" "$FILES/String.wz.new"
+          sudo install -m 644 "$STAGE/0202.img.xml" "$XML.new"
+          sudo mv -f "$FILES/Item.wz.new" "$FILES/Item.wz"
+          sudo mv -f "$FILES/String.wz.new" "$FILES/String.wz"
+          sudo mv -f "$XML.new" "$XML"
+          GENERATED="$STAGE/manifest.json"
+          LAUNCHER_PATCH_ROOT="$PATCH" LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" LAUNCHER_MANIFEST_PATH="$GENERATED" LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" node /opt/everleaf/web/scripts/build-patch-manifest.js "community-item-test-__SHA__"
+          sudo install -m 644 "$GENERATED" "$PATCH/manifest.json.new"
+          sudo mv -f "$PATCH/manifest.json.new" "$PATCH/manifest.json"
+          grep -q '2022711' "$XML"; grep -q '2022712' "$XML"
+          sudo systemctl restart everleaf.service
+          for i in $(seq 1 30); do systemctl is-active --quiet everleaf.service && break; sleep 2; done
+          systemctl is-active --quiet everleaf.service
+          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
+          sha256sum "$FILES/Item.wz" "$FILES/String.wz" "$XML" "$PATCH/manifest.json"
+          trap - ERR
+          echo "LIVE_COMMUNITY_ITEM_TEST_DEPLOYED=2022711,2022712"
+          '@
+          $remote=$remote.Replace('__SHA__',$env:GITHUB_SHA)
+          ssh everleaf-oracle $remote
+          if($LASTEXITCODE){throw 'Live deployment failed or rolled back'}
+
+      - name: Verify public launcher manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $m=Invoke-RestMethod -Uri "https://$env:EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" -TimeoutSec 20
+          if(-not $m){throw 'Public launcher manifest unavailable'}
+          Write-Host "Public launcher manifest version: $($m.version)"
