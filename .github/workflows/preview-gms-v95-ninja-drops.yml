@@ -1,0 +1,95 @@
+name: Preview GMS v95 Ninja Castle production drops
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - 'tools/wz-donor/clusters/gms-v95-ninja-castle-quest-drops.json'
+      - 'tools/wz-donor/preview_drop_contract.py'
+      - '.github/workflows/preview-gms-v95-ninja-drops.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Configure verified Oracle SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY" || { echo 'EVERLEAF_SSH_PRIVATE_KEY is not configured.' >&2; exit 1; }
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'echo EverLeaf production SSH OK'
+
+      - name: Read current production drop rows
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "sudo mysql --batch --skip-column-names cosmic -e \"SELECT dropperid,itemid,minimum_quantity,maximum_quantity,questid,chance FROM drop_data WHERE dropperid IN (9400400,9400401,9400402,9400403,9400404,9400405,9400406,9400407,9400408,9400409,9400410) OR itemid IN (4000337,4000338,4000339,4000340,4000341,4000342,4000343,4000344,4000345,4000346) ORDER BY dropperid,itemid,id;\"" \
+            > out/production-drop-snapshot.tsv
+          echo "Read-only production rows: $(wc -l < out/production-drop-snapshot.tsv)"
+
+      - name: Build frozen drop preview
+        id: preview
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/wz-donor/preview_drop_contract.py \
+            tools/wz-donor/clusters/gms-v95-ninja-castle-quest-drops.json \
+            --snapshot out/production-drop-snapshot.tsv \
+            --output out/NINJA_DROP_PREVIEW.json \
+            --sql-output out/NINJA_DROP_PREVIEW.sql
+
+      - name: Upload read-only drop evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gms-v95-ninja-drop-preview-${{ github.sha }}
+          path: |
+            out/NINJA_DROP_PREVIEW.json
+            out/NINJA_DROP_PREVIEW.sql
+            out/production-drop-snapshot.tsv
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce fail-closed preview result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ steps.preview.outcome }}' = success || {
+            echo 'Drop preview found conflicts or unresolved production rows. No database writes were performed.' >&2
+            exit 1
+          }
+          echo 'Drop preview is conflict-free. No database writes were performed.'
