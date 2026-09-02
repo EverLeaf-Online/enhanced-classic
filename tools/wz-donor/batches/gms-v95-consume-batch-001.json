@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "batchId": "gms-v95-consume-batch-001",
+  "donorId": "gms-v95-core7",
+  "donorVersion": "95.4",
+  "mode": "review-only",
+  "automaticImport": false,
+  "approved": false,
+  "evidence": {
+    "profileWorkflowRunId": 33577682494,
+    "profileArtifactId": 9827258752,
+    "profileArtifactSha256": "23e970d33ce2a1d37c51703113af427de43604cbedb06094842c3c96cb364840",
+    "core7ArchiveSha256": "62e106f8437ce04443c797c0514e14d430fcc0a10ae4131f16567f540a8d5d3c",
+    "stringArchiveSha256": "f00b94fcfad3f95d438b4474b74d550ea68d8aee0a8c3e4c2d9fae548a6fe7ed",
+    "profileHeadSha": "14acb9fc826375811d4ab462a3dbbdbf1690ebf9"
+  },
+  "selectionRule": "Only dependency-clean Consume candidates classified simple-consume by the hardened profiler, with positive HP/MP-only restore behavior, no special/system flags, a v95 String.wz name, and no semantic duplicate in canonical v83 data.",
+  "requiredBeforeApproval": [
+    "Recompute donor diff and item profile from the pinned private archives",
+    "Verify each candidate sourcePath and sourceSha256 still match",
+    "Verify v95 String.wz name and description parity",
+    "Verify canonical v83 has no colliding item ID",
+    "Verify client Item.wz and String.wz nodes can be patched together",
+    "Verify server item loading and use behavior in isolated staging",
+    "Verify inventory stack, consume, trade, drop, storage, shop-sell and persistence behavior",
+    "Run real-client staging smoke before any production release"
+  ],
+  "candidates": [
+    {
+      "category": "items",
+      "contentId": "2022711",
+      "name": "Carbonated Drink",
+      "description": "A carbonated drink made by Surl. Perfect for a hot day! Recovers 1000 HP and 1000 MP.",
+      "sourcePath": "Item.wz/Consume/0202.img.xml",
+      "sourceSha256": "5a33950b7370b4930719e7c505ad42811221ada2c6917afc9fe15208a4c1f1d1",
+      "family": "Consume",
+      "classification": "simple-consume",
+      "manifestRisk": "low",
+      "restoreValues": {
+        "hp": 1000.0,
+        "mp": 1000.0
+      },
+      "infoProperties": [
+        "icon",
+        "iconraw"
+      ],
+      "specProperties": [
+        "hp",
+        "mp"
+      ],
+      "missingDependencies": [],
+      "duplicateOf": [],
+      "approved": false
+    },
+    {
+      "category": "items",
+      "contentId": "2022712",
+      "name": "Acorn",
+      "description": "An acorn that can be obtained from the Fruit Trees in Edelstein. Recovers 70 HP and 70 MP.",
+      "sourcePath": "Item.wz/Consume/0202.img.xml",
+      "sourceSha256": "8aac852735d90065e124e9c9a960ec3b95d5f2e5d82016036124be9ef1bab94a",
+      "family": "Consume",
+      "classification": "simple-consume",
+      "manifestRisk": "low",
+      "restoreValues": {
+        "hp": 70.0,
+        "mp": 70.0
+      },
+      "infoProperties": [
+        "icon",
+        "iconraw",
+        "price",
+        "slotmax"
+      ],
+      "specProperties": [
+        "hp",
+        "mp"
+      ],
+      "missingDependencies": [],
+      "duplicateOf": [],
+      "approved": false
+    }
+  ]
+}
