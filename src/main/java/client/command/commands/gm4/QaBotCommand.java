@@ -23,7 +23,7 @@ public class QaBotCommand extends Command {
     private static final Map<Integer, Character> spawnedByGm = new ConcurrentHashMap<>();
 
     {
-        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|nudge|move|gcmove|gcstop|strike|patrol|portal");
+        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|status|nudge|move|gcmove|gcstop|strike|patrol|portal");
     }
 
     @Override
@@ -42,6 +42,7 @@ public class QaBotCommand extends Command {
         switch (action) {
             case "spawn" -> spawn(c);
             case "remove" -> remove(c);
+            case "status" -> status(c, params);
             case "nudge" -> nudge(c, params);
             case "move" -> move(c, params);
             case "gcmove" -> gcMove(c, params);
@@ -85,6 +86,24 @@ public class QaBotCommand extends Command {
         stopAllMovement(bot);
         BareBotFactory.removeBareBot(bot);
         c.getPlayer().yellowMessage("Removed SoloMapling QA bot " + bot.getName() + ".");
+    }
+
+    private static void status(Client c, String[] params) {
+        if (params.length != 1) {
+            usage(c);
+            return;
+        }
+        Character bot = getBot(c);
+        if (bot == null) {
+            return;
+        }
+
+        Point position = bot.getPosition();
+        c.getPlayer().yellowMessage(
+                "QA bot " + bot.getName() + " (" + bot.getId() + ") map=" + bot.getMapId()
+                        + " pos=" + position.x + "," + position.y
+                        + " GCMove=" + (GCMovement.isEnabled(bot) ? "ON" : "OFF")
+                        + " patrol=" + (BareBotAutopilot.isPatrolling(bot) ? "ON" : "OFF") + ".");
     }
 
     private static void nudge(Client c, String[] params) {
@@ -277,6 +296,6 @@ public class QaBotCommand extends Command {
     }
 
     private static void usage(Client c) {
-        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|nudge <dx>|move <x> <y>|gcmove <x> <y>|gcstop|strike [damage]|patrol start|stop|portal <id>");
+        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|status|nudge <dx>|move <x> <y>|gcmove <x> <y>|gcstop|strike [damage]|patrol start|stop|portal <id>");
     }
 }
