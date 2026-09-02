@@ -6,6 +6,8 @@ on:
       - release-dev
     paths:
       - '.github/workflows/analyze-community-wz-pack.yml'
+      - 'tools/wz-donor/inventory_community_wz.sh'
+      - 'tools/wz-donor/compare_community_wz_inventory.py'
   workflow_dispatch:
 
 permissions:
@@ -14,8 +16,6 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
-  COMMUNITY_WZ_ROOT: /home/ubuntu/everleaf-staging/community-wz/extracted/Community Repack WZs
-  CURRENT_PATCH_ROOT: /opt/everleaf/patches/files
 
 jobs:
   analyze:
@@ -44,96 +44,18 @@ jobs:
       - name: Inventory community and current EverLeaf WZ files
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "COMMUNITY_WZ_ROOT='$COMMUNITY_WZ_ROOT' CURRENT_PATCH_ROOT='$CURRENT_PATCH_ROOT' bash -s" \
-            > "$RUNNER_TEMP/community-wz-inventory.txt" <<'REMOTE'
-          set -euo pipefail
-          echo '=== COMMUNITY WZ ROOT ==='
-          test -d "$COMMUNITY_WZ_ROOT"
-          find "$COMMUNITY_WZ_ROOT" -maxdepth 1 -type f -iname '*.wz' -printf '%f\t%s\n' | sort
-          echo
-          echo '=== COMMUNITY SHA256 ==='
-          find "$COMMUNITY_WZ_ROOT" -maxdepth 1 -type f -iname '*.wz' -print0 | sort -z | xargs -0 sha256sum
-          echo
-          echo '=== CURRENT LAUNCHER WZ FILES ==='
-          if [ -d "$CURRENT_PATCH_ROOT" ]; then
-            find "$CURRENT_PATCH_ROOT" -maxdepth 3 -type f -iname '*.wz' -printf '%p\t%s\n' | sort
-          fi
-          echo
-          echo '=== CURRENT LAUNCHER SHA256 ==='
-          if [ -d "$CURRENT_PATCH_ROOT" ]; then
-            find "$CURRENT_PATCH_ROOT" -maxdepth 3 -type f -iname '*.wz' -print0 | sort -z | xargs -0 -r sha256sum
-          fi
-          echo
-          echo '=== DISK ==='
-          df -h /
-REMOTE
+          scp -i ~/.ssh/id_everleaf tools/wz-donor/inventory_community_wz.sh "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/tmp/everleaf-inventory-community-wz.sh"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "chmod +x /tmp/everleaf-inventory-community-wz.sh && /tmp/everleaf-inventory-community-wz.sh" > "$RUNNER_TEMP/community-wz-inventory.txt"
           cat "$RUNNER_TEMP/community-wz-inventory.txt"
 
-      - name: Build WZ replacement comparison
+      - name: Build WZ comparison report
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import json, os, re
-
-          src = Path(os.environ['RUNNER_TEMP']) / 'community-wz-inventory.txt'
-          text = src.read_text(errors='replace').splitlines()
-          section = None
-          donor = {}
-          current = {}
-          for line in text:
-              if line.startswith('=== '):
-                  section = line
-                  continue
-              if not line.strip():
-                  continue
-              if section == '=== COMMUNITY SHA256 ===':
-                  m = re.match(r'([0-9a-f]{64})\s+(.+)$', line)
-                  if m:
-                      donor[Path(m.group(2)).name.lower()] = {'sha256': m.group(1), 'path': m.group(2)}
-              elif section == '=== CURRENT LAUNCHER SHA256 ===':
-                  m = re.match(r'([0-9a-f]{64})\s+(.+)$', line)
-                  if m:
-                      current.setdefault(Path(m.group(2)).name.lower(), []).append({'sha256': m.group(1), 'path': m.group(2)})
-
-          rows = []
-          for name in sorted(donor):
-              cur = current.get(name, [])
-              same = [x for x in cur if x['sha256'] == donor[name]['sha256']]
-              rows.append({
-                  'name': name,
-                  'donorSha256': donor[name]['sha256'],
-                  'currentCopies': cur,
-                  'status': 'identical' if same else ('different' if cur else 'missing-from-current-patch')
-              })
-
-          report = {
-              'donorCount': len(donor),
-              'currentDistinctWzNames': len(current),
-              'identical': sum(r['status']=='identical' for r in rows),
-              'different': sum(r['status']=='different' for r in rows),
-              'missingFromCurrentPatch': sum(r['status']=='missing-from-current-patch' for r in rows),
-              'files': rows,
-          }
-          out = Path(os.environ['RUNNER_TEMP']) / 'community-wz-comparison.json'
-          out.write_text(json.dumps(report, indent=2) + '\n')
-
-          md = Path(os.environ['RUNNER_TEMP']) / 'community-wz-review.md'
-          lines = [
-              '# Community WZ staging analysis', '',
-              f"- Donor WZ files: **{report['donorCount']}**",
-              f"- Identical to current launcher payload: **{report['identical']}**",
-              f"- Different from current launcher payload: **{report['different']}**",
-              f"- Missing from current launcher payload: **{report['missingFromCurrentPatch']}**",
-              '',
-              '| WZ | Status |', '|---|---|'
-          ]
-          for r in rows:
-              lines.append(f"| `{r['name']}` | {r['status']} |")
-          lines += ['', '> Analysis only. No live files are modified by this workflow.']
-          md.write_text('\n'.join(lines) + '\n')
-          print(md.read_text())
-          PY
+          set -euo pipefail
+          python3 tools/wz-donor/compare_community_wz_inventory.py \
+            "$RUNNER_TEMP/community-wz-inventory.txt" \
+            --json-output "$RUNNER_TEMP/community-wz-comparison.json" \
+            --markdown-output "$RUNNER_TEMP/community-wz-review.md"
+          cat "$RUNNER_TEMP/community-wz-review.md"
           cat "$RUNNER_TEMP/community-wz-review.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload analysis artifacts
