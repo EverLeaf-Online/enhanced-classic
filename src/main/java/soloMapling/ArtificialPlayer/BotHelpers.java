@@ -5,29 +5,24 @@ import net.server.Server;
 import net.server.channel.Channel;
 import server.maps.MapItem;
 import server.maps.MapObject;
+import soloMapling.server.SoloMaplingConstants;
 
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.util.List;
 import java.util.Random;
 
-/**
- * Dependency-light subset of SoloMapling's BotHelpers used by the staged
- * EverLeaf integration. Keep identity semantics compatible with upstream so
- * later framework slices can use the same bot detection rules.
- */
+/** EverLeaf-safe subset of SoloMapling bot helpers. */
 public final class BotHelpers {
-    private BotHelpers() {
-    }
+    private static final int BOT_ID_LIMIT_EXCLUSIVE = 1_000_000_000;
+
+    private BotHelpers() {}
 
     public static Character getCharFromChannelStorage(int cid) {
-        if (cid < 1000) {
-            cid += 20000;
-        }
-        Channel channel = Server.getInstance().getChannel(0, 1);
-        if (channel == null) {
-            return null;
-        }
+        Channel channel = Server.getInstance().getChannel(
+                SoloMaplingConstants.GameConstants.WORLD_SCANIA,
+                SoloMaplingConstants.GameConstants.CHANNEL_1);
+        if (channel == null) return null;
         Character character = channel.getPlayerStorage().getCharacterById(cid);
         return isBot(character) ? character : null;
     }
@@ -36,8 +31,13 @@ public final class BotHelpers {
         return character != null && isBot(character.getId());
     }
 
+    /**
+     * EverLeaf reserves 900,000,000..999,999,999 for in-memory artificial players.
+     * Do not use upstream's broad id > 20000 heuristic: legitimate persisted players can
+     * exceed that value on a long-running server.
+     */
     public static boolean isBot(int id) {
-        return id > 20000 || id == 999;
+        return id >= SoloMaplingConstants.GameConstants.BOT_BASE_ID && id < BOT_ID_LIMIT_EXCLUSIVE;
     }
 
     public static boolean blockingSleep(long milliseconds) {
@@ -70,9 +70,7 @@ public final class BotHelpers {
     }
 
     public static boolean checkSecondListInsideFirstList(List<MapObject> list1, List<MapObject> list2) {
-        if (list1.size() < list2.size()) {
-            return false;
-        }
+        if (list1.size() < list2.size()) return false;
         for (MapObject candidate : list2) {
             boolean found = false;
             for (MapObject existing : list1) {
@@ -81,20 +79,14 @@ public final class BotHelpers {
                     break;
                 }
             }
-            if (!found) {
-                return false;
-            }
+            if (!found) return false;
         }
         return true;
     }
 
     private static boolean areObjectsEqual(MapObject first, MapObject second) {
-        if (first == second) {
-            return true;
-        }
-        if (!(first instanceof MapItem left) || !(second instanceof MapItem right)) {
-            return false;
-        }
+        if (first == second) return true;
+        if (!(first instanceof MapItem left) || !(second instanceof MapItem right)) return false;
         return left.getItemId() == right.getItemId()
                 && left.getOwnerId() == right.getOwnerId()
                 && left.getItem().getQuantity() == right.getItem().getQuantity();
