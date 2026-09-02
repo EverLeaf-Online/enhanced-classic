@@ -130,28 +130,40 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $exe = Join-Path $env:CLIENT_DIR 'EverLeaf.exe'
+          $exe = [IO.Path]::GetFullPath((Join-Path $env:CLIENT_DIR 'EverLeaf.exe'))
           if (-not (Test-Path $exe -PathType Leaf)) { throw 'EverLeaf.exe missing from reconstructed client' }
           $exeHash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           $itemHash = (Get-FileHash (Join-Path $env:CLIENT_DIR 'Item.wz') -Algorithm SHA256).Hash.ToLowerInvariant()
           $stringHash = (Get-FileHash (Join-Path $env:CLIENT_DIR 'String.wz') -Algorithm SHA256).Hash.ToLowerInvariant()
           $startedAt = Get-Date
           $ruleName = "EverLeaf-v95-boot-smoke-$env:GITHUB_RUN_ID"
+          $launched = $null
+          $matching = @()
           try {
             New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Program $exe -Action Block -Profile Any | Out-Null
-            $process = Start-Process -FilePath $exe -WorkingDirectory $env:CLIENT_DIR -PassThru
+            $launched = Start-Process -FilePath $exe -WorkingDirectory $env:CLIENT_DIR -PassThru
             Start-Sleep -Seconds 15
-            $process.Refresh()
-            if ($process.HasExited) {
+
+            # Some EverLeaf/MapleStory launch paths exit the initial process with code 0
+            # after handing off to a second process. Track every surviving EverLeaf.exe
+            # instance whose executable path is exactly the isolated runner copy.
+            $matching = @(Get-CimInstance Win32_Process -Filter "Name='EverLeaf.exe'" -ErrorAction SilentlyContinue | Where-Object {
+              try { [IO.Path]::GetFullPath([string]$_.ExecutablePath) -eq $exe } catch { $false }
+            })
+
+            if ($matching.Count -eq 0) {
+              $launched.Refresh()
+              $exit = if ($launched.HasExited) { $launched.ExitCode } else { '<still-running-unresolved>' }
               $recentErrors = Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=$startedAt} -ErrorAction SilentlyContinue |
                 Where-Object { $_.LevelDisplayName -eq 'Error' -and $_.Message -match 'EverLeaf|MapleStory' } |
                 Select-Object -First 10 TimeCreated, Id, ProviderName, Message
               $errorText = ($recentErrors | Format-List | Out-String)
-              throw "EverLeaf.exe exited during isolated 15-second boot smoke with code $($process.ExitCode).`n$errorText"
+              throw "No isolated EverLeaf.exe process survived the 15-second boot smoke. Initial process exit=$exit.`n$errorText"
             }
 
+            $processIds = @($matching | ForEach-Object { [int]$_.ProcessId })
             $report = [ordered]@{
-              schemaVersion = 1
+              schemaVersion = 2
               kind = 'isolated-client-boot-smoke'
               batchId = 'gms-v95-consume-batch-001'
               candidateSha = $env:CANDIDATE_SHA
@@ -162,6 +174,9 @@ jobs:
               stringWzSha256 = $stringHash
               outboundNetworkBlocked = $true
               survivedSeconds = 15
+              survivingProcessCount = $matching.Count
+              survivingProcessIds = $processIds
+              launcherHandoffObserved = [bool]($launched.HasExited -and $launched.ExitCode -eq 0)
               processAliveAtEnd = $true
               productionFilesModified = $false
               approved = $false
@@ -171,7 +186,8 @@ jobs:
             Get-Content (Join-Path $env:RUNNER_TEMP 'CLIENT_BOOT_SMOKE_REPORT.json') | Add-Content $env:GITHUB_STEP_SUMMARY
           }
           finally {
-            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+            foreach ($proc in $matching) { Stop-Process -Id ([int]$proc.ProcessId) -Force -ErrorAction SilentlyContinue }
+            if ($launched -and -not $launched.HasExited) { Stop-Process -Id $launched.Id -Force -ErrorAction SilentlyContinue }
             Remove-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
           }
 
