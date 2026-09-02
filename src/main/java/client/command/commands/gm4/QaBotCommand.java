@@ -9,6 +9,7 @@ import soloMapling.ArtificialPlayer.BareBotFactory;
 import soloMapling.ArtificialPlayer.BareBotHunter;
 import soloMapling.ArtificialPlayer.BareBotMovement;
 import soloMapling.ArtificialPlayer.BareBotPortal;
+import soloMapling.ArtificialPlayer.BotLootDriver;
 import soloMapling.ArtificialPlayer.BotAttackSystem.BotAttackDriver;
 import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovement;
 import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovementDiagnostics;
@@ -91,12 +92,20 @@ public class QaBotCommand extends Command {
         Character bot = getBot(c);
         if (bot == null) return;
         Point position = bot.getPosition();
+        BotLootDriver.RewardStats rewards = BotLootDriver.rewardStats(bot);
         c.getPlayer().yellowMessage(
                 "QA bot " + bot.getName() + " (" + bot.getId() + ") map=" + bot.getMapId()
                         + " pos=" + position.x + "," + position.y
                         + " GCMove=" + (GCMovement.isEnabled(bot) ? "ON" : "OFF")
                         + " hunt=" + (BareBotHunter.isHunting(bot) ? "ON" : "OFF")
                         + " patrol=" + (BareBotAutopilot.isPatrolling(bot) ? "ON" : "OFF") + ".");
+        c.getPlayer().yellowMessage(
+                "QA rewards: level=" + bot.getLevel()
+                        + " exp=" + bot.getExp()
+                        + " mesos=" + bot.getMeso()
+                        + " ownedDrops=" + rewards.ownedDrops()
+                        + " observedDrops=" + rewards.observedDrops()
+                        + " pickedDrops=" + rewards.pickedDrops() + ".");
         c.getPlayer().yellowMessage(GCMovementDiagnostics.describe(bot));
     }
 
