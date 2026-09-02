@@ -33,7 +33,7 @@ jobs:
           ref: 47b61b5381118ebdc1064ddbd0b1c32f75778871
           path: .solomapling-upstream
 
-      - name: Overlay exact pinned GCMove sources
+      - name: Overlay pinned GCMove sources with EverLeaf QA policy
         shell: bash
         run: |
           set -euo pipefail
@@ -41,6 +41,10 @@ jobs:
           target=src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem
           mkdir -p "$target"
           cp "$upstream"/*.java "$target"/
+
+          # EverLeaf QA keeps ambient player chat/emote reactions disabled so
+          # automated movement/combat/travel tests remain deterministic.
+          git checkout HEAD -- "$target/BotPlayerReaction.java"
 
       - name: Compile full GCMove system against EverLeaf
         shell: bash
