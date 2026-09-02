@@ -35,14 +35,18 @@ jobs:
           fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Download original v95 WZ binaries to private staging
+      - name: Prepare private Oracle staging directory
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'mkdir -p /opt/everleaf/private/wz-binaries/gms-v95.4'
+
+      - name: Download v95 WZ binaries on runner and transfer to Oracle
+        run: |
           set -euo pipefail
-          target=/opt/everleaf/private/wz-binaries/gms-v95.4
-          mkdir -p "$target"
-          cd "$target"
+          stage="$RUNNER_TEMP/gms-v95.4"
+          mkdir -p "$stage"
+          cd "$stage"
 
           files=(
             Base.wz
@@ -63,57 +67,58 @@ jobs:
             TamingMob.wz
           )
 
-          base='https://downloads.sourceforge.net/project/maplestoryv95/MapleStory'
+          base='https://sourceforge.net/projects/maplestoryv95/files/MapleStory'
           for file in "${files[@]}"; do
-            if [ -s "$file" ]; then
-              echo "Keeping existing $file ($(stat -c '%s' "$file") bytes)"
-              continue
-            fi
-            tmp="${file}.part"
-            rm -f "$tmp"
-            echo "Downloading $file"
+            echo "Downloading $file on GitHub runner"
             curl --fail --location --retry 8 --retry-all-errors --retry-delay 5 --connect-timeout 30 \
-              --user-agent 'Wget/1.21.4' \
+              --user-agent 'Mozilla/5.0 EverLeaf-v95-archive' \
               --referer 'https://sourceforge.net/projects/maplestoryv95/files/MapleStory/' \
-              -o "$tmp" "$base/$file?download=1"
-            size=$(stat -c '%s' "$tmp")
+              -o "$file.part" "$base/$file/download"
+
+            size=$(stat -c '%s' "$file.part")
             if [ "$size" -lt 1024 ]; then
-              echo "Refusing suspiciously small download for $file: $size bytes" >&2
+              echo "Refusing suspiciously small payload for $file: $size bytes" >&2
               exit 1
             fi
             if [ "$file" != 'List.wz' ]; then
-              sig=$(head -c 4 "$tmp" || true)
+              sig=$(head -c 4 "$file.part" || true)
               if [ "$sig" != 'PKG1' ]; then
                 echo "Refusing non-WZ payload for $file (signature: $sig)" >&2
                 exit 1
               fi
             fi
-            mv -f "$tmp" "$file"
+            mv "$file.part" "$file"
+
+            echo "Transferring $file to Oracle"
+            scp -i ~/.ssh/id_everleaf "$file" \
+              "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/private/wz-binaries/gms-v95.4/$file.part"
+            ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+              "mv -f /opt/everleaf/private/wz-binaries/gms-v95.4/$file.part /opt/everleaf/private/wz-binaries/gms-v95.4/$file"
+            rm -f "$file"
           done
 
-          sha256sum -- "${files[@]}" > SHA256SUMS.txt
-          stat -c '%n\t%s' -- "${files[@]}" > SIZES.tsv
-          printf 'source\thttps://sourceforge.net/projects/maplestoryv95/files/MapleStory/\nversion\tv95.4\ncreated_utc\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > SOURCE.tsv
-          du -sh . > TOTAL_SIZE.txt
-
-          echo '=== staged files ==='
-          cat SIZES.tsv
-          echo '=== total ==='
-          cat TOTAL_SIZE.txt
-          echo '=== sha256 ==='
-          cat SHA256SUMS.txt
-          REMOTE
-
-      - name: Verify staged WZ headers and manifest remotely
+      - name: Build and verify Oracle manifest
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
           cd /opt/everleaf/private/wz-binaries/gms-v95.4
-          sha256sum -c SHA256SUMS.txt
+          files=(Base.wz Character.wz Effect.wz Etc.wz Item.wz List.wz Map.wz Mob.wz Morph.wz Npc.wz Quest.wz Reactor.wz Skill.wz Sound.wz String.wz TamingMob.wz)
           test "$(find . -maxdepth 1 -type f -name '*.wz' | wc -l)" -eq 16
-          for file in *.wz; do
+          for file in "${files[@]}"; do
             test -s "$file"
+            if [ "$file" != 'List.wz' ]; then
+              test "$(head -c 4 "$file")" = 'PKG1'
+            fi
           done
-          echo "v95 binary WZ staging verified"
+          sha256sum -- "${files[@]}" > SHA256SUMS.txt
+          stat -c '%n\t%s' -- "${files[@]}" > SIZES.tsv
+          printf 'source\thttps://sourceforge.net/projects/maplestoryv95/files/MapleStory/\nversion\tv95.4\ncreated_utc\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > SOURCE.tsv
+          du -sh . > TOTAL_SIZE.txt
+          sha256sum -c SHA256SUMS.txt
+          echo '=== staged files ==='
+          cat SIZES.tsv
+          echo '=== total ==='
+          cat TOTAL_SIZE.txt
+          echo 'v95 binary WZ staging verified'
           REMOTE
