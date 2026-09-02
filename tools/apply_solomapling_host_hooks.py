@@ -21,6 +21,16 @@ def insert_before_once(text: str, anchor: str, addition: str, marker: str) -> st
     return text.replace(anchor, addition + anchor, 1)
 
 
+def insert_before_class_close(text: str, addition: str, marker: str) -> str:
+    if marker in text:
+        return text
+    stripped = text.rstrip()
+    if not stripped.endswith("}"):
+        raise SystemExit("Expected Java class closing brace")
+    close_index = text.rfind("}")
+    return text[:close_index] + addition + text[close_index:]
+
+
 def replace_once(text: str, old: str, new: str, marker: str) -> str:
     if marker in text:
         return text
@@ -31,7 +41,37 @@ def replace_once(text: str, old: str, new: str, marker: str) -> str:
 
 def patch_character() -> None:
     text = CHARACTER.read_text(encoding="utf-8")
-    addition = """    // SoloMapling / GCMoveSystem: effective movement stats used to select\n    // the bot navigation profile without bypassing normal equipment/buff logic.\n    public int getTotalMoveSpeedStat() {\n        int total = 100;\n        for (Item item : getInventory(InventoryType.EQUIPPED)) {\n            if (item instanceof Equip equip) {\n                total += equip.getSpeed();\n            }\n        }\n        Integer speedBuff = getBuffedValue(BuffStat.SPEED);\n        if (speedBuff != null) {\n            total += speedBuff;\n        }\n        return Math.max(1, total);\n    }\n\n    public int getTotalJumpStat() {\n        int total = 100;\n        for (Item item : getInventory(InventoryType.EQUIPPED)) {\n            if (item instanceof Equip equip) {\n                total += equip.getJump();\n            }\n        }\n        Integer jumpBuff = getBuffedValue(BuffStat.JUMP);\n        if (jumpBuff != null) {\n            total += jumpBuff;\n        }\n        return Math.max(1, total);\n    }\n\n"""
+    addition = """    // SoloMapling / GCMoveSystem: effective movement stats used to select
+    // the bot navigation profile without bypassing normal equipment/buff logic.
+    public int getTotalMoveSpeedStat() {
+        int total = 100;
+        for (Item item : getInventory(InventoryType.EQUIPPED)) {
+            if (item instanceof Equip equip) {
+                total += equip.getSpeed();
+            }
+        }
+        Integer speedBuff = getBuffedValue(BuffStat.SPEED);
+        if (speedBuff != null) {
+            total += speedBuff;
+        }
+        return Math.max(1, total);
+    }
+
+    public int getTotalJumpStat() {
+        int total = 100;
+        for (Item item : getInventory(InventoryType.EQUIPPED)) {
+            if (item instanceof Equip equip) {
+                total += equip.getJump();
+            }
+        }
+        Integer jumpBuff = getBuffedValue(BuffStat.JUMP);
+        if (jumpBuff != null) {
+            total += jumpBuff;
+        }
+        return Math.max(1, total);
+    }
+
+"""
     text = insert_before_once(
         text,
         "    public int getTotalDex() {\n",
@@ -43,8 +83,16 @@ def patch_character() -> None:
 
 def patch_client() -> None:
     text = CLIENT.read_text(encoding="utf-8")
-    old = """    public synchronized void announceBossHpBar(Monster mm, final int mobHash, Packet packet) {\n        long timeNow = System.currentTimeMillis();\n"""
-    new = """    public synchronized void announceBossHpBar(Monster mm, final int mobHash, Packet packet) {\n        // Headless SoloMapling clients intentionally have no bound player.\n        if (player == null) {\n            return;\n        }\n        long timeNow = System.currentTimeMillis();\n"""
+    old = """    public synchronized void announceBossHpBar(Monster mm, final int mobHash, Packet packet) {
+        long timeNow = System.currentTimeMillis();
+"""
+    new = """    public synchronized void announceBossHpBar(Monster mm, final int mobHash, Packet packet) {
+        // Headless SoloMapling clients intentionally have no bound player.
+        if (player == null) {
+            return;
+        }
+        long timeNow = System.currentTimeMillis();
+"""
     text = replace_once(text, old, new, "Headless SoloMapling clients intentionally have no bound player")
     CLIENT.write_text(text, encoding="utf-8")
 
@@ -58,10 +106,70 @@ def patch_foothold() -> None:
         "private boolean forbidFallDown;",
     )
 
-    addition = """\n    // SoloMapling / GCMoveSystem terrain helpers.\n    public double slope() {\n        if (isWall()) {\n            return 0.0;\n        }\n        return (double) (p2.y - p1.y) / (double) (p2.x - p1.x);\n    }\n\n    public boolean isForbidFallDown() {\n        return forbidFallDown;\n    }\n\n    public void setForbidFallDown(boolean forbidFallDown) {\n        this.forbidFallDown = forbidFallDown;\n    }\n\n    public static boolean isCollidableWall(Foothold wall, java.util.Map<Integer, Foothold> footholdsById) {\n        if (wall == null || !wall.isWall()) {\n            return false;\n        }\n        Point lowerEndpoint = wall.getY1() >= wall.getY2() ? wall.p1 : wall.p2;\n        return linkedChainReachesGroundAtEndpoint(wall, wall.prev, false, lowerEndpoint, footholdsById)\n                || linkedChainReachesGroundAtEndpoint(wall, wall.next, true, lowerEndpoint, footholdsById);\n    }\n\n    private static boolean linkedChainReachesGroundAtEndpoint(\n            Foothold wall, int linkedId, boolean followNext, Point endpoint,\n            java.util.Map<Integer, Foothold> footholdsById) {\n        if (linkedId == 0) {\n            return false;\n        }\n        Foothold linked = footholdsById.get(linkedId);\n        if (linked == null || !touchesPoint(linked, endpoint)) {\n            return false;\n        }\n        return chainReachesGround(wall, followNext, footholdsById);\n    }\n\n    private static boolean chainReachesGround(\n            Foothold start, boolean followNext, java.util.Map<Integer, Foothold> footholdsById) {\n        int id = followNext ? start.next : start.prev;\n        int depth = 0;\n        while (id != 0 && depth < 10) {\n            Foothold fh = footholdsById.get(id);\n            if (fh == null) {\n                return false;\n            }\n            if (!fh.isWall()) {\n                return true;\n            }\n            id = followNext ? fh.next : fh.prev;\n            depth++;\n        }\n        return false;\n    }\n\n    private static boolean touchesPoint(Foothold foothold, Point point) {\n        return (foothold.getX1() == point.x && foothold.getY1() == point.y)\n                || (foothold.getX2() == point.x && foothold.getY2() == point.y);\n    }\n"""
-    text = insert_before_once(
+    addition = """
+    // SoloMapling / GCMoveSystem terrain helpers.
+    public double slope() {
+        if (isWall()) {
+            return 0.0;
+        }
+        return (double) (p2.y - p1.y) / (double) (p2.x - p1.x);
+    }
+
+    public boolean isForbidFallDown() {
+        return forbidFallDown;
+    }
+
+    public void setForbidFallDown(boolean forbidFallDown) {
+        this.forbidFallDown = forbidFallDown;
+    }
+
+    public static boolean isCollidableWall(Foothold wall, java.util.Map<Integer, Foothold> footholdsById) {
+        if (wall == null || !wall.isWall()) {
+            return false;
+        }
+        Point lowerEndpoint = wall.getY1() >= wall.getY2() ? wall.p1 : wall.p2;
+        return linkedChainReachesGroundAtEndpoint(wall, wall.prev, false, lowerEndpoint, footholdsById)
+                || linkedChainReachesGroundAtEndpoint(wall, wall.next, true, lowerEndpoint, footholdsById);
+    }
+
+    private static boolean linkedChainReachesGroundAtEndpoint(
+            Foothold wall, int linkedId, boolean followNext, Point endpoint,
+            java.util.Map<Integer, Foothold> footholdsById) {
+        if (linkedId == 0) {
+            return false;
+        }
+        Foothold linked = footholdsById.get(linkedId);
+        if (linked == null || !touchesPoint(linked, endpoint)) {
+            return false;
+        }
+        return chainReachesGround(wall, followNext, footholdsById);
+    }
+
+    private static boolean chainReachesGround(
+            Foothold start, boolean followNext, java.util.Map<Integer, Foothold> footholdsById) {
+        int id = followNext ? start.next : start.prev;
+        int depth = 0;
+        while (id != 0 && depth < 10) {
+            Foothold fh = footholdsById.get(id);
+            if (fh == null) {
+                return false;
+            }
+            if (!fh.isWall()) {
+                return true;
+            }
+            id = followNext ? fh.next : fh.prev;
+            depth++;
+        }
+        return false;
+    }
+
+    private static boolean touchesPoint(Foothold foothold, Point point) {
+        return (foothold.getX1() == point.x && foothold.getY1() == point.y)
+                || (foothold.getX2() == point.x && foothold.getY2() == point.y);
+    }
+"""
+    text = insert_before_class_close(
         text,
-        "}\n",
         addition,
         "public static boolean isCollidableWall",
     )
