@@ -14,6 +14,12 @@ on:
       - 'tools/wz-donor/profile_item_candidates.py'
       - 'tools/wz-donor/wz_diff.py'
       - 'tools/wz-donor/build_import_manifest.py'
+  pull_request:
+    branches:
+      - release-dev
+    paths:
+      - '.github/workflows/smoke-gms-v95-first-batch-server.yml'
+      - 'src/test/java/server/WzDonorStagingItemSmokeTest.java'
   workflow_dispatch:
 
 permissions:
@@ -113,6 +119,21 @@ jobs:
             --canonical wz \
             --patch "$RUNNER_TEMP/patch" \
             --staging "$RUNNER_TEMP/staging-wz"
+
+      - name: Isolate unrelated DB-backed card bootstrap for WZ-only smoke
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/main/java/server/ItemInformationProvider.java')
+          text = path.read_text(encoding='utf-8')
+          old = "    private ItemInformationProvider() {\n        loadCardIdData();"
+          new = "    private ItemInformationProvider() {\n        // WZ-only staging smoke: card data is DB-backed and unrelated to item WZ parsing."
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one ItemInformationProvider constructor card bootstrap')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
 
       - name: Run real ItemInformationProvider smoke against staged WZ
         run: |
