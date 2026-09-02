@@ -60,11 +60,8 @@ jobs:
           }
           NODE
 
-      - name: Test NX pingback integration
-        run: node scripts/test-vote-integration.js
-
-      - name: Test game-compatible account validation
-        run: node scripts/test-account-validation.js
+      - name: Run maintained CMS test suite
+        run: npm test
 
       - name: Initialize disposable CMS database
         env:
