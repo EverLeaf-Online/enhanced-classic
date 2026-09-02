@@ -34,6 +34,8 @@ def main() -> None:
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/BotMovementProfile.java", "record BotMovementProfile", "GCMove movement profile model present")
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/BotNavigationGraph.java", "final class BotNavigationGraph", "GCMove navigation graph model present")
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/BotNavigationGraph.java", "map.getFootholds().findBelow", "staged graph uses EverLeaf foothold lookup")
+    require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/BotNavigationMapLoader.java", "loadMapGeometry", "GCMove WZ geometry loader present")
+    require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/BotNavigationMapLoader.java", "map.addRope(new Rope", "GCMove loader imports rope geometry")
     require("src/main/java/client/command/commands/gm4/QaBotCommand.java", "case \"strike\" -> strike(c, params);", "GM-only combat smoke command present")
     require("src/main/java/client/command/commands/gm4/QaBotCommand.java", "case \"patrol\" -> patrol(c, params);", "GM-only autonomous patrol control present")
     require("src/main/java/client/command/commands/gm4/QaBotCommand.java", "case \"portal\" -> portal(c, params);", "GM-only portal smoke control present")
