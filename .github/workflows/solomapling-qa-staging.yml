@@ -5,6 +5,7 @@ on:
     branches:
       - feature/solomapling-qa-integration
     paths:
+      - 'Dockerfile'
       - 'src/main/java/soloMapling/**'
       - 'src/main/java/client/command/commands/gm4/QaBotCommand.java'
       - 'tools/apply_solomapling_*.py'
