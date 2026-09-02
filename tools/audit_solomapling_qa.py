@@ -40,7 +40,7 @@ def main() -> None:
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/MovementPlan.java", "Point positionAt", "GCMove coarse-plan interpolation present")
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/BotMovementState.java", "class BotMovementState", "GCMove per-bot state contract present")
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/BotMovementState.java", "BotNavigationGraph.Edge navEdge", "GCMove navigation state wired to graph model")
-    require(".github/workflows/solomapling-compatibility.yml", "Overlay missing pinned GCMove sources", "full pinned GCMove compatibility compile enabled")
+    require(".github/workflows/solomapling-compatibility.yml", "Overlay exact pinned GCMove sources", "full pinned GCMove compatibility compile enabled")
     require("src/main/java/client/command/commands/gm4/QaBotCommand.java", "case \"strike\" -> strike(c, params);", "GM-only combat smoke command present")
     require("src/main/java/client/command/commands/gm4/QaBotCommand.java", "case \"patrol\" -> patrol(c, params);", "GM-only autonomous patrol control present")
     require("src/main/java/client/command/commands/gm4/QaBotCommand.java", "case \"portal\" -> portal(c, params);", "GM-only portal smoke control present")
