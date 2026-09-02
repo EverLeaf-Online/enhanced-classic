@@ -3,8 +3,13 @@ package server;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import client.inventory.Inventory;
+import client.inventory.InventoryType;
+import client.inventory.Item;
+import constants.inventory.ItemConstants;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -44,19 +49,59 @@ class WzDonorStagingItemSmokeTest {
         assertEquals(0.0, acorn.getHpRate());
         assertEquals(0.0, acorn.getMpRate());
 
-        // The donor data intentionally omits a price for Carbonated Drink and explicitly sets Acorn to 10.
         assertEquals(-1, ii.getWholePrice(CARBONATED_DRINK));
         assertEquals(10, ii.getWholePrice(ACORN));
-
-        // Acorn explicitly declares slotMax=20. Null Client is safe for non-rechargeable consumables.
+        assertEquals(100, ii.getSlotMax(null, CARBONATED_DRINK));
         assertEquals(20, ii.getSlotMax(null, ACORN));
 
-        // Both candidates survived the profiler specifically because they carry no special transfer/system flags.
         for (int itemId : new int[] {CARBONATED_DRINK, ACORN}) {
+            assertEquals(InventoryType.USE, ItemConstants.getInventoryType(itemId));
+            assertTrue(ItemConstants.isConsumable(itemId), "candidate must route through ordinary consumable handling");
+            assertFalse(ItemConstants.isRechargeable(itemId), "candidate must not use throwing-star/bullet stack rules");
             assertFalse(ii.isQuestItem(itemId), "candidate must not become a quest item");
             assertFalse(ii.isPickupRestricted(itemId), "candidate must not become one-of-a-kind/pickup restricted");
             assertFalse(ii.isAccountRestricted(itemId), "candidate must not become account restricted");
             assertFalse(ii.isDropRestricted(itemId), "candidate must not become drop/trade restricted");
         }
+    }
+
+    @Test
+    void firstV95ConsumeBatchUsesGenericUseInventoryStackAndTransferSemantics() {
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
+        Inventory use = new Inventory(null, InventoryType.USE, (byte) 24);
+
+        Item acornA = new Item(ACORN, (short) 0, (short) 12);
+        Item acornB = new Item(ACORN, (short) 0, (short) 15);
+        assertEquals(InventoryType.USE, acornA.getInventoryType());
+        assertFalse(acornA.isUntradeable());
+        assertFalse(acornB.isUntradeable());
+        short acornSlotA = use.addItem(acornA);
+        short acornSlotB = use.addItem(acornB);
+        assertTrue(acornSlotA > 0);
+        assertTrue(acornSlotB > 0);
+
+        use.move(acornSlotB, acornSlotA, ii.getSlotMax(null, ACORN));
+        assertEquals(20, use.getItem(acornSlotA).getQuantity());
+        assertEquals(7, use.getItem(acornSlotB).getQuantity());
+        assertEquals(27, use.countById(ACORN));
+
+        use.removeItem(acornSlotA, (short) 3, false);
+        assertEquals(17, use.getItem(acornSlotA).getQuantity());
+        assertEquals(24, use.countById(ACORN));
+
+        Item persistedShape = use.getItem(acornSlotA).copy();
+        assertEquals(ACORN, persistedShape.getItemId());
+        assertEquals(17, persistedShape.getQuantity());
+        assertEquals(InventoryType.USE, persistedShape.getInventoryType());
+        assertFalse(persistedShape.isUntradeable());
+
+        Item drinkA = new Item(CARBONATED_DRINK, (short) 0, (short) 60);
+        Item drinkB = new Item(CARBONATED_DRINK, (short) 0, (short) 40);
+        short drinkSlotA = use.addItem(drinkA);
+        short drinkSlotB = use.addItem(drinkB);
+        use.move(drinkSlotB, drinkSlotA, ii.getSlotMax(null, CARBONATED_DRINK));
+        assertEquals(100, use.getItem(drinkSlotA).getQuantity());
+        assertNull(use.getItem(drinkSlotB), "fully merged ordinary stack must release the source slot");
+        assertEquals(100, use.countById(CARBONATED_DRINK));
     }
 }
