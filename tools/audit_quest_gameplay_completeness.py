@@ -9,9 +9,11 @@ remaining gameplay checklist:
 - start-phase rewards that deserve abandon/restart exploit review
 - active quest owner reachability classification
 
-This audit is deliberately conservative. Structural/runtime-impossible data is
-a hard failure. Potential abandon/restart reward surfaces are review findings
-because many retail quests intentionally restore quest items when restarted.
+This audit mirrors the actual v83 runtime semantics: ItemRequirement defaults a
+missing count to zero, and an interval of zero is an immediately repeatable
+quest. Those cases are therefore reviewable rather than structural failures.
+Potential abandon/restart reward surfaces are review findings because many
+retail quests intentionally restore quest items when restarted.
 """
 from __future__ import annotations
 
@@ -181,8 +183,10 @@ def main() -> int:
                 interval = parse_int(interval_node.attrib.get("value"))
                 if interval is None:
                     add(hard, review, release_facing, "invalid_repeat_interval", qid, phase_name, "interval is non-numeric")
-                elif interval <= 0:
-                    add(hard, review, release_facing, "nonpositive_repeat_interval", qid, phase_name, f"interval={interval} minutes")
+                elif interval < 0:
+                    add(hard, review, release_facing, "negative_repeat_interval", qid, phase_name, f"interval={interval} minutes")
+                elif interval == 0:
+                    review.append(Finding("REVIEW", "immediate_repeat_interval", qid, phase_name, "interval=0 minutes; runtime intentionally allows immediate repeat"))
                 elif interval > INT_MAX:
                     add(hard, review, release_facing, "repeat_interval_overflow", qid, phase_name, f"interval={interval} exceeds Java int")
 
@@ -194,7 +198,10 @@ def main() -> int:
                     if entry.tag != "imgdir":
                         continue
                     object_id = norm(direct_value(entry, "id"))
-                    count = parse_int(direct_value(entry, "count"))
+                    raw_count = direct_value(entry, "count")
+                    count = parse_int(raw_count)
+                    if group_name == "item" and raw_count is None:
+                        count = 0  # ItemRequirement uses DataTool.getInt(..., 0)
                     counts[f"{group_name}_counter_entries"] += 1
                     if not object_id.isdigit() or int(object_id) <= 0:
                         add(hard, review, release_facing, f"invalid_{group_name}_counter_id", qid, phase_name, f"id={object_id!r}")
@@ -204,7 +211,7 @@ def main() -> int:
                     if group_name == "mob" and object_id not in mob_ids:
                         add(hard, review, release_facing, "missing_mob_counter_asset", qid, phase_name, f"mob/group {object_id} is absent from Mob.wz")
                     if count is None:
-                        add(hard, review, release_facing, f"invalid_{group_name}_counter_count", qid, phase_name, f"{object_id} count is missing/non-numeric")
+                        add(hard, review, release_facing, f"invalid_{group_name}_counter_count", qid, phase_name, f"{object_id} count is non-numeric")
                     elif count < INT_MIN or count > INT_MAX:
                         add(hard, review, release_facing, f"{group_name}_counter_overflow", qid, phase_name, f"{object_id} count={count}")
                     elif group_name == "mob" and count <= 0:
@@ -225,7 +232,7 @@ def main() -> int:
                     item_id = norm(direct_value(entry, "id"))
                     count = parse_int(direct_value(entry, "count"))
                     if count is None:
-                        count = 1
+                        count = 1  # ItemAction uses DataTool.getInt(..., 1)
                     counts["item_action_entries"] += 1
                     if not item_id.isdigit() or int(item_id) <= 0:
                         add(hard, review, release_facing, "invalid_item_action_id", qid, phase_name, f"id={item_id!r}")
