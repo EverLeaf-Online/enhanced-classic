@@ -43,28 +43,35 @@ def iter_text_files(root: Path, relative_roots: tuple[str, ...]):
 
 
 def scan_references(ids: list[str], root: Path, relative_roots: tuple[str, ...], sample_limit: int) -> dict[str, dict]:
-    patterns = {content_id: re.compile(rf"(?<!\d){re.escape(content_id)}(?!\d)") for content_id in ids}
     results = {
         content_id: {"referenceCount": 0, "fileCount": 0, "byRoot": Counter(), "samples": []}
         for content_id in ids
     }
+    if not ids:
+        return results
+
+    alternation = "|".join(re.escape(content_id) for content_id in sorted(ids, key=len, reverse=True))
+    pattern = re.compile(rf"(?<!\d)(?:{alternation})(?!\d)")
+
     for path in iter_text_files(root, relative_roots):
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
+        matches = [match.group(0) for match in pattern.finditer(text)]
+        if not matches:
+            continue
         relative = path.relative_to(root).as_posix()
         top = relative.split("/", 1)[0]
-        for content_id, pattern in patterns.items():
-            matches = list(pattern.finditer(text))
-            if not matches:
-                continue
+        per_id = Counter(matches)
+        for content_id, count in per_id.items():
             result = results[content_id]
-            result["referenceCount"] += len(matches)
+            result["referenceCount"] += count
             result["fileCount"] += 1
-            result["byRoot"][top] += len(matches)
+            result["byRoot"][top] += count
             if len(result["samples"]) < sample_limit:
-                result["samples"].append({"path": relative, "matches": len(matches)})
+                result["samples"].append({"path": relative, "matches": count})
+
     for result in results.values():
         result["byRoot"] = dict(sorted(result["byRoot"].items()))
     return results
