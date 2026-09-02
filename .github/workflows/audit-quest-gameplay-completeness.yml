@@ -30,11 +30,20 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Run quest gameplay completeness audit
+        id: quest_audit
+        continue-on-error: true
         run: |
           mkdir -p build
           python3 tools/audit_quest_gameplay_completeness.py --json > build/quest-gameplay-completeness.json
       - name: Upload quest gameplay audit
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: quest-gameplay-completeness
           path: build/quest-gameplay-completeness.json
+      - name: Enforce quest gameplay audit
+        if: always()
+        env:
+          AUDIT_OUTCOME: ${{ steps.quest_audit.outcome }}
+        run: |
+          test "$AUDIT_OUTCOME" = success
