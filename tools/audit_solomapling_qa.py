@@ -46,6 +46,11 @@ def main() -> None:
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/BotMovementState.java", "BotNavigationGraph.Edge navEdge", "GCMove navigation state wired to graph model")
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/GCMovementDiagnostics.java", "public record Snapshot", "GCMove runtime diagnostic snapshot present")
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/GCMovementDiagnostics.java", "progressAgeMs", "GCMove progress-age diagnostic present")
+    require("src/main/java/soloMapling/ArtificialPlayer/DisposableQaSmokeRunner.java", "I_UNDERSTAND_DISPOSABLE_QA_ONLY", "disposable runtime smoke requires explicit arming token")
+    require("src/main/java/soloMapling/ArtificialPlayer/DisposableQaSmokeRunner.java", "QA_DB_HOST = \"qa-db\"", "disposable runtime smoke requires QA database host")
+    require("src/main/java/soloMapling/ArtificialPlayer/DisposableQaSmokeRunner.java", "a.name LIKE 'qa\\\\_%'", "disposable runtime smoke restricts template ownership to qa_ accounts")
+    require("src/main/java/soloMapling/ArtificialPlayer/DisposableQaSmokeRunner.java", "SOLOMAPLING_QA_SMOKE_RESULT PASS", "disposable runtime smoke emits machine-readable PASS evidence")
+    require("src/main/java/soloMapling/ArtificialPlayer/DisposableQaSmokeRunner.java", "BareBotFactory.removeBareBot(bot);", "disposable runtime smoke removes its synthetic bot")
     require("src/main/java/soloMapling/DebugUtilities.java", "public static void debugprint", "GCMove debug compatibility helper present")
     require("src/main/java/soloMapling/ArtificialPlayer/BotMovementSystem/MovementCommands.java", "tryAcquireMovementLock", "GCMove movement lock compatibility present")
     require("src/main/java/soloMapling/server/MapleVersionManager.java", "return true;", "EverLeaf-safe version policy present")
@@ -55,6 +60,7 @@ def main() -> None:
     require("src/main/java/soloMapling/server/BotPerfStats.java", "MOVEMENT_TICKS", "GCMove movement performance counter present")
     require("src/main/java/soloMapling/ArtificialPlayer/BotMapEntryResponder.java", "onBotArrivedObserved", "GCMove map-entry compatibility responder present")
     require("tools/apply_solomapling_nav_hooks.py", "public Collection<Portal> getPortals()", "GCMove portal enumeration hook present")
+    require("tools/apply_solomapling_bootstrap_hooks.py", "DisposableQaSmokeRunner.startIfRequested();", "post-channel bootstrap invokes only gated disposable smoke runner")
     require(".github/workflows/solomapling-compatibility.yml", "permissions:\n  contents: read", "GCMove compatibility workflow remains read-only")
     require(".github/workflows/solomapling-compatibility.yml", "Validate committed GCMove runtime against pinned upstream", "committed GCMove runtime drift validation enabled")
     require(".github/workflows/solomapling-compatibility.yml", "cmp -s \"$file\" \"$target/$name\"", "unreconciled GCMove files must match pinned upstream")
@@ -72,6 +78,7 @@ def main() -> None:
     require_count("src/main/java/server/maps/MapleMap.java", "// Headless bots do not maintain client-side ranged visibility state.", 2, "both ranged visibility paths exclude headless bots")
     require("src/main/java/server/life/Monster.java", "!BotHelpers.isBot(chr)", "headless monster-controller exclusion applied")
     require("src/main/java/net/server/Server.java", "BotClientHandler.initHeadlessBotClient();", "server initializes only shared headless client")
+    require("src/main/java/net/server/Server.java", "DisposableQaSmokeRunner.startIfRequested();", "server offers explicitly gated disposable runtime smoke")
 
     server = Path("src/main/java/net/server/Server.java").read_text(encoding="utf-8")
     if "EnvironmentManager::environmentLoadStartup" in server:
