@@ -1,6 +1,8 @@
 package soloMapling.ArtificialPlayer;
 
 import client.Character;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import server.TimerManager;
 import server.life.Monster;
 import soloMapling.ArtificialPlayer.BotAttackSystem.BotAttackDriver;
@@ -18,8 +20,8 @@ import java.util.concurrent.ScheduledFuture;
  * cooldowns and damage are delegated to BotAttackDriver.
  */
 public final class BareBotHunter {
+    private static final Logger log = LoggerFactory.getLogger(BareBotHunter.class);
     private static final long TICK_MS = 250;
-    private static final double SEEK_DISTANCE_SQ = 1_400.0 * 1_400.0;
     private static final int APPROACH_MARGIN = 20;
     private static final Map<Integer, Hunt> hunts = new ConcurrentHashMap<>();
 
@@ -61,6 +63,7 @@ public final class BareBotHunter {
         private final Character bot;
         private final int mapId;
         private volatile ScheduledFuture<?> task;
+        private long lastFailureLogAt;
 
         private Hunt(Character bot, int mapId) {
             this.bot = bot;
@@ -69,13 +72,33 @@ public final class BareBotHunter {
 
         @Override
         public void run() {
+            try {
+                tick();
+            } catch (Throwable t) {
+                // ScheduledExecutorService suppresses every future execution after an
+                // uncaught exception. A transient navigation/combat failure must never
+                // permanently kill an active QA hunt session.
+                long now = System.currentTimeMillis();
+                if (now - lastFailureLogAt >= 5_000L) {
+                    lastFailureLogAt = now;
+                    log.warn("SoloMapling QA hunter recovered from tick failure bot={} map={}",
+                            bot == null ? -1 : bot.getId(), mapId, t);
+                }
+            }
+        }
+
+        private void tick() {
             if (bot.getMap() == null || bot.getMapId() != mapId || !BotHelpers.isBot(bot)) {
                 stop(bot);
                 return;
             }
 
             Monster target = nearestMonster(bot);
-            if (target == null || target.getPosition() == null || bot.getPosition() == null) return;
+            if (target == null || target.getPosition() == null || bot.getPosition() == null) {
+                // Keep the scheduled hunt alive while a map is temporarily empty so
+                // respawns can be acquired without issuing !qabot hunt start again.
+                return;
+            }
 
             Point botPos = bot.getPosition();
             Point mobPos = target.getPosition();
@@ -108,9 +131,13 @@ public final class BareBotHunter {
     private static Monster nearestMonster(Character bot) {
         Point botPos = bot.getPosition();
         if (botPos == null) return null;
+
+        // Do not impose a short seek radius here. On sparse or partially cleared maps,
+        // the nearest living target may be across the map; GCMove is responsible for
+        // deciding how to traverse toward it. Keeping acquisition map-wide prevents a
+        // healthy hunt session from appearing to stop after clearing a local cluster.
         return bot.getMap().getAllMonsters().stream()
                 .filter(monster -> monster != null && monster.isAlive() && monster.getPosition() != null)
-                .filter(monster -> botPos.distanceSq(monster.getPosition()) <= SEEK_DISTANCE_SQ)
                 .min(Comparator.comparingDouble(monster -> botPos.distanceSq(monster.getPosition())))
                 .orElse(null);
     }
