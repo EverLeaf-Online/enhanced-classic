@@ -51,6 +51,14 @@ public final class BareBotFactory {
         bot.setID(botId);
         bot.setName("EverLeafQA" + botId);
         bot.setFame(botId);
+
+        // The persisted GM is only a visual/stat template. Do not let its cloned
+        // administrative or social state leak into the artificial player.
+        bot.setGMLevel(0);
+        bot.setParty(null);
+        bot.setMessenger(null);
+        bot.setGuildId(0);
+
         bot.setMap(map);
         bot.setPosition(position);
         bot.setStance(5);
