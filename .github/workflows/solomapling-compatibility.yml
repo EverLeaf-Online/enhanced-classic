@@ -33,20 +33,37 @@ jobs:
           ref: 47b61b5381118ebdc1064ddbd0b1c32f75778871
           path: .solomapling-upstream
 
-      - name: Overlay pinned GCMove sources with EverLeaf QA policy
+      - name: Validate committed GCMove runtime against pinned upstream
         shell: bash
         run: |
           set -euo pipefail
           upstream=.solomapling-upstream/src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem
           target=src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem
-          mkdir -p "$target"
-          cp "$upstream"/*.java "$target"/
 
-          # EverLeaf QA keeps ambient player chat/emote reactions disabled so
-          # automated movement/combat/travel tests remain deterministic.
-          git checkout HEAD -- "$target/BotPlayerReaction.java"
+          upstream_count=$(find "$upstream" -maxdepth 1 -type f -name '*.java' | wc -l)
+          target_count=$(find "$target" -maxdepth 1 -type f -name '*.java' | wc -l)
+          test "$upstream_count" -eq 29
+          test "$target_count" -eq 29
 
-      - name: Compile full GCMove system against EverLeaf
+          # These seven files are deliberately EverLeaf-reconciled and are
+          # validated separately by tools/audit_solomapling_qa.py.
+          reconciled='^(BotMovementProfile|BotMovementState|BotNavigationGraph|BotNavigationMapLoader|BotPlayerReaction|GCPortals|MovementPlan)\.java$'
+
+          for file in "$upstream"/*.java; do
+            name=$(basename "$file")
+            test -f "$target/$name"
+            if [[ "$name" =~ $reconciled ]]; then
+              echo "EverLeaf-reconciled: $name"
+              continue
+            fi
+            cmp -s "$file" "$target/$name" || {
+              echo "Unexpected drift from pinned SoloMapling v0.3: $name"
+              diff -u "$file" "$target/$name" || true
+              exit 1
+            }
+          done
+
+      - name: Compile committed GCMove runtime against EverLeaf
         shell: bash
         run: |
           set -euo pipefail
