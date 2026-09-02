@@ -23,7 +23,7 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
-  EVERLEAF_PUBLIC_HOST: everleafms.online
+  EVERLEAF_PUBLIC_HOST: everleafms.duckdns.org
 
 jobs:
   build:
