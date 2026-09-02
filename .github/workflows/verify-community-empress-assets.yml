@@ -1,0 +1,171 @@
+name: Verify community Empress client assets
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  COMMUNITY_WZ_ROOT: /home/ubuntu/everleaf-staging/community-wz/extracted/Community Repack WZs
+  PACKAGE: tools/wz-donor/batches/community-empress-future-henesys-001.json
+
+jobs:
+  prepare-ssh:
+    runs-on: ubuntu-24.04
+    outputs:
+      known_hosts_b64: ${{ steps.hostkeys.outputs.known_hosts_b64 }}
+    steps:
+      - id: hostkeys
+        name: Capture Oracle SSH host keys
+        run: |
+          set -euo pipefail
+          ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$RUNNER_TEMP/known_hosts"
+          test -s "$RUNNER_TEMP/known_hosts"
+          echo "known_hosts_b64=$(base64 -w0 "$RUNNER_TEMP/known_hosts")" >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: prepare-ssh
+    runs-on: windows-2025
+    timeout-minutes: 70
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS_B64: ${{ needs.prepare-ssh.outputs.known_hosts_b64 }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'), ($env:SSH_PRIVATE_KEY -replace "`r", "") + "`n")
+          [IO.File]::WriteAllBytes((Join-Path $sshDir 'known_hosts'), [Convert]::FromBase64String($env:KNOWN_HOSTS_B64))
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 15
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Fetch verified private core XML archive
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $remote='/opt/everleaf/private/wz-donors/community-repack-core.zip'
+          $hashLine=ssh everleaf-oracle "set -e; test -s '$remote'; unzip -t '$remote' >/dev/null; sha256sum '$remote'"
+          if ($LASTEXITCODE -ne 0 -or $hashLine -notmatch '^([0-9a-f]{64})\s+') { throw 'Private community core XML archive unavailable or invalid' }
+          $expected=$matches[1]
+          $zip=Join-Path $env:RUNNER_TEMP 'community-repack-core.zip'
+          $ok=$false
+          for ($attempt=1; $attempt -le 5 -and -not $ok; $attempt++) {
+            Remove-Item -Force -ErrorAction SilentlyContinue $zip
+            scp "everleaf-oracle`:$remote" $zip
+            if ($LASTEXITCODE -eq 0 -and (Test-Path $zip)) {
+              $actual=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($actual -eq $expected) { $ok=$true }
+            }
+            if (-not $ok) { Start-Sleep -Seconds (3*$attempt) }
+          }
+          if (-not $ok) { throw 'Unable to fetch verified core XML archive' }
+          $root=Join-Path $env:RUNNER_TEMP 'community-asset-xml'
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+      - name: Fetch community Sound.wz with chunk verification
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $remoteFile="$env:COMMUNITY_WZ_ROOT/Sound.wz"
+          $remoteBase='/tmp/everleaf-community-Sound_wz'
+          $prep="set -euo pipefail; test -s '$remoteFile'; rm -f '$remoteBase'.part.* '$remoteBase'.parts.sha256 '$remoteBase'.file.sha256; sha256sum '$remoteFile' > '$remoteBase.file.sha256'; split -b 32M -d -a 4 '$remoteFile' '$remoteBase.part.'; sha256sum '$remoteBase'.part.* > '$remoteBase.parts.sha256'"
+          ssh everleaf-oracle $prep
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to prepare Sound.wz' }
+          $chunks=Join-Path $env:RUNNER_TEMP 'sound-chunks'; New-Item -ItemType Directory -Force -Path $chunks | Out-Null
+          $parts=Join-Path $chunks 'parts.sha256'; $file=Join-Path $chunks 'file.sha256'
+          scp "everleaf-oracle`:$remoteBase.parts.sha256" $parts
+          if ($LASTEXITCODE -ne 0) { throw 'Sound chunk manifest transfer failed' }
+          scp "everleaf-oracle`:$remoteBase.file.sha256" $file
+          if ($LASTEXITCODE -ne 0) { throw 'Sound file manifest transfer failed' }
+          foreach ($row in (Get-Content $parts | Where-Object {$_.Trim()})) {
+            if ($row -notmatch '^([0-9a-f]{64})\s+(.+)$') { throw "Malformed Sound chunk manifest: $row" }
+            $expected=$matches[1]; $remotePath=$matches[2]; $name=Split-Path $remotePath -Leaf; $local=Join-Path $chunks $name; $ok=$false
+            for ($attempt=1; $attempt -le 6 -and -not $ok; $attempt++) {
+              Remove-Item -Force -ErrorAction SilentlyContinue $local
+              scp "everleaf-oracle`:$remotePath" $local
+              if ($LASTEXITCODE -eq 0 -and (Test-Path $local)) {
+                $actual=(Get-FileHash $local -Algorithm SHA256).Hash.ToLowerInvariant(); if ($actual -eq $expected) {$ok=$true}
+              }
+              if (-not $ok) { Start-Sleep -Seconds (2*$attempt) }
+            }
+            if (-not $ok) { throw "Failed verified Sound chunk transfer: $name" }
+          }
+          $inputDir=Join-Path $env:RUNNER_TEMP 'community-sound'; New-Item -ItemType Directory -Force -Path $inputDir | Out-Null
+          $destination=Join-Path $inputDir 'Sound.wz'
+          $out=[IO.File]::Open($destination,[IO.FileMode]::Create,[IO.FileAccess]::Write)
+          try {
+            Get-ChildItem $chunks -Filter 'everleaf-community-Sound_wz.part.*' -File | Sort-Object Name | ForEach-Object {
+              $stream=[IO.File]::OpenRead($_.FullName); try {$stream.CopyTo($out)} finally {$stream.Dispose()}
+            }
+          } finally {$out.Dispose()}
+          $fileRow=Get-Content $file | Select-Object -First 1
+          if ($fileRow -notmatch '^([0-9a-f]{64})\s+') { throw 'Malformed Sound file manifest' }
+          if ((Get-FileHash $destination -Algorithm SHA256).Hash.ToLowerInvariant() -ne $matches[1]) { throw 'Sound.wz reassembled hash mismatch' }
+          ssh everleaf-oracle "rm -f '$remoteBase'.part.* '$remoteBase'.parts.sha256 '$remoteBase'.file.sha256" | Out-Null
+
+      - name: Build MapleLib exporter
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $toolDir=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter'; New-Item -ItemType Directory -Force -Path $toolDir | Out-Null
+          Copy-Item 'tools/wz-donor/exporter/Program.cs' (Join-Path $toolDir 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup>
+            <ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $toolDir 'EverLeafWzExporter.csproj')
+          dotnet build (Join-Path $toolDir 'EverLeafWzExporter.csproj') -c Release
+
+      - name: Export Sound.wz and verify frozen package assets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $input=Join-Path $env:RUNNER_TEMP 'community-sound'; $soundXml=Join-Path $env:RUNNER_TEMP 'community-sound-xml'
+          $project=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter/EverLeafWzExporter.csproj'
+          New-Item -ItemType Directory -Force -Path $soundXml | Out-Null
+          & dotnet run --project $project -c Release --no-build -- $input $soundXml --patch-version=83 --probe-patch-range=1:250 Sound.wz
+          if ($LASTEXITCODE -ne 0) { throw 'Sound.wz export failed' }
+          $combined=Join-Path $env:RUNNER_TEMP 'community-asset-xml'
+          if (Test-Path (Join-Path $combined 'Sound.wz')) { Remove-Item -Recurse -Force (Join-Path $combined 'Sound.wz') }
+          Copy-Item -Recurse -Force (Join-Path $soundXml 'Sound.wz') (Join-Path $combined 'Sound.wz')
+          python tools/wz-donor/verify_package_assets.py "$env:PACKAGE" --donor $combined --output "$env:RUNNER_TEMP/community-empress-assets.json"
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen package asset verification reported missing assets' }
+          $report=Get-Content "$env:RUNNER_TEMP/community-empress-assets.json" -Raw | ConvertFrom-Json
+          if (-not $report.readyForAssetReview) { throw 'Asset review gate is false' }
+          Add-Content $env:GITHUB_STEP_SUMMARY "## Community Empress asset verification"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Checked: **$($report.checked)**"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Present: **$($report.present)**"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Missing: **$($report.missing)**"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Ready for asset review: **$($report.readyForAssetReview)**"
+
+      - name: Upload evidence only
+        uses: actions/upload-artifact@v4
+        with:
+          name: community-empress-asset-verification-${{ github.sha }}
+          path: ${{ runner.temp }}/community-empress-assets.json
+          retention-days: 14
+          if-no-files-found: error
