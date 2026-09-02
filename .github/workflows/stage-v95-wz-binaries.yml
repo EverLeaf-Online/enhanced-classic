@@ -1,4 +1,4 @@
-name: Stage v95 WZ binaries on Oracle
+name: Stage complete v95.4 client on Oracle
 
 on:
   push:
@@ -17,7 +17,7 @@ env:
 jobs:
   stage:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - name: Configure SSH
         env:
@@ -35,90 +35,168 @@ jobs:
           fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Prepare private Oracle staging directory
+      - name: Prepare private Oracle archive directory
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            'mkdir -p /opt/everleaf/private/wz-binaries/gms-v95.4'
+            'mkdir -p /opt/everleaf/private/client-archives/gms-v95.4'
 
-      - name: Download v95 WZ binaries on runner and transfer to Oracle
+      - name: Discover complete SourceForge client tree
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from urllib.parse import urljoin, urlparse, unquote
+          from urllib.request import Request, urlopen
+          from pathlib import PurePosixPath
+          import time
+
+          ROOT = 'https://sourceforge.net/projects/maplestoryv95/files/MapleStory/'
+          PREFIX = '/projects/maplestoryv95/files/MapleStory/'
+          UA = 'Mozilla/5.0 EverLeaf-v95-archive'
+
+          class Links(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.hrefs = []
+              def handle_starttag(self, tag, attrs):
+                  if tag != 'a':
+                      return
+                  for k, v in attrs:
+                      if k == 'href' and v:
+                          self.hrefs.append(v)
+
+          def fetch(url):
+              last = None
+              for attempt in range(6):
+                  try:
+                      req = Request(url, headers={'User-Agent': UA})
+                      with urlopen(req, timeout=30) as r:
+                          return r.read().decode('utf-8', 'replace')
+                  except Exception as e:
+                      last = e
+                      time.sleep(2 + attempt * 2)
+              raise last
+
+          queue = [ROOT]
+          seen_dirs = set()
+          files = set()
+          while queue:
+              current = queue.pop(0)
+              if current in seen_dirs:
+                  continue
+              seen_dirs.add(current)
+              parser = Links()
+              parser.feed(fetch(current))
+              current_path = urlparse(current).path
+              for href in parser.hrefs:
+                  absolute = urljoin('https://sourceforge.net', href)
+                  parsed = urlparse(absolute)
+                  path = unquote(parsed.path)
+                  if not path.startswith(PREFIX):
+                      continue
+                  if path.endswith('/download'):
+                      rel = path[len(PREFIX):-len('/download')].strip('/')
+                      if rel and '..' not in PurePosixPath(rel).parts:
+                          files.add(rel)
+                      continue
+                  if not path.endswith('/'):
+                      continue
+                  if '/download/' in path:
+                      continue
+                  rel_dir = path[len(PREFIX):].strip('/')
+                  if rel_dir and '..' in PurePosixPath(rel_dir).parts:
+                      continue
+                  # Only descend into this project subtree; visited-set prevents parent cycles.
+                  directory = 'https://sourceforge.net' + path
+                  if directory not in seen_dirs and directory not in queue:
+                      queue.append(directory)
+
+          if not files:
+              raise SystemExit('no SourceForge files discovered')
+          with open('/tmp/v95-files.txt', 'w', encoding='utf-8') as f:
+              for rel in sorted(files):
+                  f.write(rel + '\n')
+          print(f'Discovered {len(files)} files across {len(seen_dirs)} directories')
+          print('\n'.join(sorted(files)))
+          PY
+
+      - name: Download every v95.4 client file and transfer to Oracle
         run: |
           set -euo pipefail
           stage="$RUNNER_TEMP/gms-v95.4"
           mkdir -p "$stage"
-          cd "$stage"
-
-          files=(
-            Base.wz
-            Character.wz
-            Effect.wz
-            Etc.wz
-            Item.wz
-            List.wz
-            Map.wz
-            Mob.wz
-            Morph.wz
-            Npc.wz
-            Quest.wz
-            Reactor.wz
-            Skill.wz
-            Sound.wz
-            String.wz
-            TamingMob.wz
-          )
-
           base='https://sourceforge.net/projects/maplestoryv95/files/MapleStory'
-          for file in "${files[@]}"; do
-            echo "Downloading $file on GitHub runner"
+          remote_root='/opt/everleaf/private/client-archives/gms-v95.4'
+
+          while IFS= read -r rel; do
+            [ -n "$rel" ] || continue
+            mkdir -p "$stage/$(dirname "$rel")"
+            local_file="$stage/$rel"
+            remote_dir="$remote_root/$(dirname "$rel")"
+
+            # Skip files already safely present on Oracle so retries resume rather than restart.
+            if ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+                 "test -s '$remote_root/$rel'"; then
+              echo "Keeping existing Oracle file: $rel"
+              continue
+            fi
+
+            echo "Downloading $rel"
             curl --fail --location --retry 8 --retry-all-errors --retry-delay 5 --connect-timeout 30 \
               --user-agent 'Mozilla/5.0 EverLeaf-v95-archive' \
-              --referer 'https://sourceforge.net/projects/maplestoryv95/files/MapleStory/' \
-              -o "$file.part" "$base/$file/download"
+              --referer "https://sourceforge.net/projects/maplestoryv95/files/MapleStory/$(dirname "$rel")/" \
+              -o "$local_file.part" "$base/$rel/download"
 
-            size=$(stat -c '%s' "$file.part")
-            if [ "$size" -lt 1024 ]; then
-              echo "Refusing suspiciously small payload for $file: $size bytes" >&2
-              exit 1
-            fi
-            if [ "$file" != 'List.wz' ]; then
-              sig=$(head -c 4 "$file.part" || true)
-              if [ "$sig" != 'PKG1' ]; then
-                echo "Refusing non-WZ payload for $file (signature: $sig)" >&2
-                exit 1
-              fi
-            fi
-            mv "$file.part" "$file"
+            test -s "$local_file.part"
+            mv "$local_file.part" "$local_file"
 
-            echo "Transferring $file to Oracle"
-            scp -i ~/.ssh/id_everleaf "$file" \
-              "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/private/wz-binaries/gms-v95.4/$file.part"
+            # WZ files should carry the PKG1 container signature, except List.wz.
+            case "$rel" in
+              *.wz)
+                if [ "$(basename "$rel")" != 'List.wz' ]; then
+                  test "$(head -c 4 "$local_file")" = 'PKG1'
+                fi
+                ;;
+            esac
+
             ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-              "mv -f /opt/everleaf/private/wz-binaries/gms-v95.4/$file.part /opt/everleaf/private/wz-binaries/gms-v95.4/$file"
-            rm -f "$file"
-          done
+              "mkdir -p '$remote_dir'"
+            scp -i ~/.ssh/id_everleaf "$local_file" \
+              "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$remote_root/$rel.part"
+            ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+              "mv -f '$remote_root/$rel.part' '$remote_root/$rel'"
+            rm -f "$local_file"
+          done < /tmp/v95-files.txt
 
-      - name: Build and verify Oracle manifest
+      - name: Build complete archive manifest and verify WZ set
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
-          cd /opt/everleaf/private/wz-binaries/gms-v95.4
-          files=(Base.wz Character.wz Effect.wz Etc.wz Item.wz List.wz Map.wz Mob.wz Morph.wz Npc.wz Quest.wz Reactor.wz Skill.wz Sound.wz String.wz TamingMob.wz)
-          test "$(find . -maxdepth 1 -type f -name '*.wz' | wc -l)" -eq 16
-          for file in "${files[@]}"; do
+          root=/opt/everleaf/private/client-archives/gms-v95.4
+          cd "$root"
+
+          # Preserve a cryptographic inventory of every downloaded file.
+          find . -type f ! -name 'SHA256SUMS.txt' ! -name 'SIZES.tsv' ! -name 'SOURCE.tsv' ! -name 'TOTAL_SIZE.txt' \
+            -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          find . -type f ! -name 'SHA256SUMS.txt' ! -name 'SIZES.tsv' ! -name 'SOURCE.tsv' ! -name 'TOTAL_SIZE.txt' \
+            -print0 | sort -z | xargs -0 stat -c '%n\t%s' > SIZES.tsv
+          printf 'source\thttps://sourceforge.net/projects/maplestoryv95/files/MapleStory/\nversion\tv95.4\narchive_type\tcomplete-client-tree\ncreated_utc\t%s\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > SOURCE.tsv
+          du -sh . > TOTAL_SIZE.txt
+
+          expected_wz=(Base.wz Character.wz Effect.wz Etc.wz Item.wz List.wz Map.wz Mob.wz Morph.wz Npc.wz Quest.wz Reactor.wz Skill.wz Sound.wz String.wz TamingMob.wz)
+          for file in "${expected_wz[@]}"; do
             test -s "$file"
             if [ "$file" != 'List.wz' ]; then
               test "$(head -c 4 "$file")" = 'PKG1'
             fi
           done
-          sha256sum -- "${files[@]}" > SHA256SUMS.txt
-          stat -c '%n\t%s' -- "${files[@]}" > SIZES.tsv
-          printf 'source\thttps://sourceforge.net/projects/maplestoryv95/files/MapleStory/\nversion\tv95.4\ncreated_utc\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > SOURCE.tsv
-          du -sh . > TOTAL_SIZE.txt
+          test -s MapleStory.exe
+          test -d HShield
           sha256sum -c SHA256SUMS.txt
-          echo '=== staged files ==='
-          cat SIZES.tsv
-          echo '=== total ==='
+          echo "files=$(find . -type f | wc -l)"
           cat TOTAL_SIZE.txt
-          echo 'v95 binary WZ staging verified'
+          echo 'complete v95.4 client archive verified'
           REMOTE
