@@ -10,6 +10,13 @@ def require(path: str, needle: str, label: str) -> None:
     print(f"[PASS] {label}")
 
 
+def forbid(path: str, needle: str, label: str) -> None:
+    text = Path(path).read_text(encoding="utf-8")
+    if needle in text:
+        raise SystemExit(f"[FAIL] {label}: forbidden {needle!r} in {path}")
+    print(f"[PASS] {label}")
+
+
 def require_count(path: str, needle: str, count: int, label: str) -> None:
     text = Path(path).read_text(encoding="utf-8")
     actual = text.count(needle)
@@ -25,11 +32,32 @@ def main() -> None:
     require("src/main/java/soloMapling/ArtificialPlayer/BareBotFactory.java", "createBareBot", "single-bot factory present")
     require("src/main/java/soloMapling/ArtificialPlayer/BareBotFactory.java", "bot.setGMLevel(0);", "template clone loses GM privileges")
     require("src/main/java/soloMapling/ArtificialPlayer/BareBotFactory.java", "bot.setWorldRates();", "bot uses EverLeaf world rates")
+
+    require("src/main/java/soloMapling/server/SoloMaplingConstants.java", "BOT_BASE_ID = 900_000_000", "reserved synthetic bot id range configured")
+    require("src/main/java/soloMapling/ArtificialPlayer/BotHelpers.java", "id >= SoloMaplingConstants.GameConstants.BOT_BASE_ID", "bot identity starts at reserved range")
+    require("src/main/java/soloMapling/ArtificialPlayer/BotHelpers.java", "id < BOT_ID_LIMIT_EXCLUSIVE", "bot identity has reserved upper bound")
+    forbid("src/main/java/soloMapling/ArtificialPlayer/BotHelpers.java", "id > 20000", "legacy broad bot identity heuristic removed")
+
     require("src/main/java/soloMapling/ArtificialPlayer/BareBotMovement.java", "updatePositionBot", "headless movement executor present")
     require("src/main/java/soloMapling/ArtificialPlayer/BareBotAutopilot.java", "startPatrol", "bounded autonomous movement smoke present")
     require("src/main/java/soloMapling/ArtificialPlayer/BareBotAutopilot.java", "BareBotMovement.moveTo", "autopilot uses validated packet movement path")
     require("src/main/java/soloMapling/ArtificialPlayer/BareBotCombat.java", "strikeNearest", "headless combat smoke path present")
     require("src/main/java/soloMapling/ArtificialPlayer/BareBotPortal.java", "bot.changeMap(to, targetPortal);", "client-free portal traversal present")
+
+    require("src/main/java/soloMapling/ArtificialPlayer/BotAttackSystem/BotAttackConfig.java", "public final class BotAttackConfig", "SoloMapling class-aware attack registry present")
+    require("src/main/java/soloMapling/ArtificialPlayer/BotAttackSystem/BotAttackProfile.java", "public final class BotAttackProfile", "SoloMapling attack profile model present")
+    require("src/main/java/soloMapling/ArtificialPlayer/BotAttackSystem/BotDamageModel.java", "public final class BotDamageModel", "SoloMapling bot damage model present")
+    require("src/main/java/soloMapling/ArtificialPlayer/BotAttackSystem/BotAttackData.java", "public static int actionFor", "SoloMapling attack action mapping present")
+    require("src/main/java/soloMapling/ArtificialPlayer/BotAttackSystem/BotAttackEffects.java", "PacketCreator.closeRangeAttack", "visible melee bot attacks present")
+    require("src/main/java/soloMapling/ArtificialPlayer/BotAttackSystem/BotAttackEffects.java", "PacketCreator.rangedAttack", "visible ranged bot attacks present")
+    require("src/main/java/soloMapling/ArtificialPlayer/BotAttackSystem/BotAttackEffects.java", "PacketCreator.magicAttack", "visible magic bot attacks present")
+    require("src/main/java/soloMapling/ArtificialPlayer/BotAttackSystem/BotAttackEffects.java", "bot.getMap().damageMonster(bot, target, total);", "EverLeaf remains authoritative for bot kill/drop path")
+    require("src/main/java/soloMapling/ArtificialPlayer/BotAttackSystem/BotAttackDriver.java", "public static AttackResult botAttack", "SoloMapling attack driver present")
+    require("src/main/java/soloMapling/ArtificialPlayer/BotAttackSystem/BotAttackDriver.java", "BotAttackConfig.resolve", "attack driver resolves job and weapon profiles")
+    require("src/main/java/soloMapling/ArtificialPlayer/BotAttackSystem/BotAttackDriver.java", "BotAttackEffects.meleeStrike", "attack driver routes visible melee attacks")
+    require("src/main/java/soloMapling/ArtificialPlayer/BareBotHunter.java", "BotAttackDriver.botAttack(bot);", "autonomous hunt delegates combat to SoloMapling driver")
+    forbid("src/main/java/soloMapling/ArtificialPlayer/BareBotHunter.java", "BareBotCombat.strikeNearest", "autonomous hunt no longer uses fixed-damage stopgap")
+
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/GCMovement.java", "public final class GCMovement", "full GCMove runtime vendored")
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/GCPortals.java", "static boolean enter", "SoloMapling GCMove portal core vendored")
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/BotMovementProfile.java", "record BotMovementProfile", "GCMove movement profile model present")
@@ -46,6 +74,7 @@ def main() -> None:
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/BotMovementState.java", "BotNavigationGraph.Edge navEdge", "GCMove navigation state wired to graph model")
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/GCMovementDiagnostics.java", "public record Snapshot", "GCMove runtime diagnostic snapshot present")
     require("src/main/java/soloMapling/ArtificialPlayer/GCMoveSystem/GCMovementDiagnostics.java", "progressAgeMs", "GCMove progress-age diagnostic present")
+
     require("src/main/java/soloMapling/ArtificialPlayer/DisposableQaSmokeRunner.java", "I_UNDERSTAND_DISPOSABLE_QA_ONLY", "disposable runtime smoke requires explicit arming token")
     require("src/main/java/soloMapling/ArtificialPlayer/DisposableQaSmokeRunner.java", "QA_DB_HOST = \"qa-db\"", "disposable runtime smoke requires QA database host")
     require("src/main/java/soloMapling/ArtificialPlayer/DisposableQaSmokeRunner.java", "a.name LIKE 'qa\\\\_%'", "disposable runtime smoke restricts template ownership to qa_ accounts")
@@ -65,14 +94,21 @@ def main() -> None:
     require(".github/workflows/solomapling-compatibility.yml", "Validate committed GCMove runtime against pinned upstream", "committed GCMove runtime drift validation enabled")
     require(".github/workflows/solomapling-compatibility.yml", "cmp -s \"$file\" \"$target/$name\"", "unreconciled GCMove files must match pinned upstream")
     require(".github/workflows/solomapling-compatibility.yml", "Compile committed GCMove runtime against EverLeaf", "committed GCMove runtime compile checkpoint named")
-    require("src/main/java/client/command/commands/gm4/QaBotCommand.java", "case \"gcmove\" -> gcMove(c, params);", "GM-only GCMove smoke command present")
-    require("src/main/java/client/command/commands/gm4/QaBotCommand.java", "case \"gcstop\" -> gcStop(c, params);", "GM-only GCMove stop command present")
-    require("src/main/java/client/command/commands/gm4/QaBotCommand.java", "GCMovementDiagnostics.describe(bot)", "GM status exposes GCMove runtime diagnostics")
-    require("src/main/java/client/command/commands/gm4/QaBotCommand.java", "GCMovement.disable(bot);", "QA command explicitly tears down GCMove sessions")
-    require("src/main/java/client/command/commands/gm4/QaBotCommand.java", "case \"strike\" -> strike(c, params);", "GM-only combat smoke command present")
-    require("src/main/java/client/command/commands/gm4/QaBotCommand.java", "case \"patrol\" -> patrol(c, params);", "GM-only autonomous patrol control present")
-    require("src/main/java/client/command/commands/gm4/QaBotCommand.java", "case \"portal\" -> portal(c, params);", "GM-only portal smoke control present")
-    require("src/main/java/client/command/commands/gm4/QaBotCommand.java", "QA_CHANNEL = 1", "smoke bot constrained to headless client channel")
+
+    qa = "src/main/java/client/command/commands/gm4/QaBotCommand.java"
+    require(qa, "case \"gcmove\" -> gcMove(c, params);", "GM-only GCMove smoke command present")
+    require(qa, "case \"gcstop\" -> gcStop(c);", "GM-only GCMove stop command present")
+    require(qa, "GCMovementDiagnostics.describe(bot)", "GM status exposes GCMove runtime diagnostics")
+    require(qa, "GCMovement.disable(bot);", "QA command explicitly tears down GCMove sessions")
+    require(qa, "case \"strike\" -> strike(c, params);", "legacy server-side combat smoke retained")
+    require(qa, "case \"attack\" -> attack(c, params);", "GM-only visible SoloMapling attack command present")
+    require(qa, "case \"hunt\" -> hunt(c, params);", "GM-only autonomous SoloMapling hunt control present")
+    require(qa, "BotAttackDriver.forceSingle(bot)", "GM attack command uses SoloMapling attack driver")
+    require(qa, "BareBotHunter.start(bot)", "GM hunt command uses autonomous SoloMapling hunter")
+    require(qa, "case \"patrol\" -> patrol(c, params);", "GM-only autonomous patrol control present")
+    require(qa, "case \"portal\" -> portal(c, params);", "GM-only portal smoke control present")
+    require(qa, "QA_CHANNEL = 1", "smoke bot constrained to headless client channel")
+
     require("src/main/java/client/Character.java", "public void setID(int id)", "synthetic bot id hook applied")
     require("src/main/java/server/maps/MapleMap.java", "public void moveBot(Character player, Point newPosition)", "headless map movement hook applied")
     require_count("src/main/java/server/maps/MapleMap.java", "// Headless bots do not maintain client-side ranged visibility state.", 2, "both ranged visibility paths exclude headless bots")
@@ -82,7 +118,7 @@ def main() -> None:
 
     server = Path("src/main/java/net/server/Server.java").read_text(encoding="utf-8")
     if "EnvironmentManager::environmentLoadStartup" in server:
-        raise SystemExit("[FAIL] automatic SoloMapling EnvironmentManager startup must stay disabled during smoke integration")
+        raise SystemExit("[FAIL] automatic SoloMapling EnvironmentManager startup must stay disabled during QA integration")
     print("[PASS] EnvironmentManager auto-start absent")
     print("EverLeaf SoloMapling QA integration guardrails: PASS")
 
