@@ -1,0 +1,127 @@
+name: Deploy verified community chairs live
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/deploy-community-chair-staged-live.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-community-chair-live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_PUBLIC_HOST: everleafms.online
+  STAGE: /tmp/everleaf-community-chair-33658569220
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy already-verified three-chair candidate to live
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "STAGE='$STAGE' RELEASE_SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          PATCH=/opt/everleaf/patches
+          FILES="$PATCH/files"
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          XML="$CURRENT/wz/Item.wz/Install/0301.img.xml"
+          BACKUP="$STAGE/backup-live"
+          mkdir -p "$BACKUP"
+
+          test -s "$STAGE/Item.wz"
+          test -s "$STAGE/String.wz"
+          test -s "$STAGE/0301.img.xml"
+          test -s "$STAGE/CHAIR_PATCH_MANIFEST.json"
+          grep -q '3010020' "$STAGE/CHAIR_PATCH_MANIFEST.json"
+          grep -q '3010021' "$STAGE/CHAIR_PATCH_MANIFEST.json"
+          grep -q '3010027' "$STAGE/CHAIR_PATCH_MANIFEST.json"
+
+          cp "$FILES/Item.wz" "$BACKUP/Item.wz"
+          cp "$FILES/String.wz" "$BACKUP/String.wz"
+          cp "$PATCH/manifest.json" "$BACKUP/manifest.json"
+          cp "$XML" "$BACKUP/0301.img.xml"
+
+          rollback() {
+            echo 'Chair deployment failed; rolling back.' >&2
+            sudo install -m 644 "$BACKUP/Item.wz" "$FILES/Item.wz"
+            sudo install -m 644 "$BACKUP/String.wz" "$FILES/String.wz"
+            sudo install -m 644 "$BACKUP/manifest.json" "$PATCH/manifest.json"
+            sudo install -m 644 "$BACKUP/0301.img.xml" "$XML"
+            sudo systemctl restart everleaf.service || true
+          }
+          trap rollback ERR
+
+          sudo install -m 644 "$STAGE/Item.wz" "$FILES/Item.wz.new"
+          sudo install -m 644 "$STAGE/String.wz" "$FILES/String.wz.new"
+          sudo install -m 644 "$STAGE/0301.img.xml" "$XML.new"
+          sudo mv -f "$FILES/Item.wz.new" "$FILES/Item.wz"
+          sudo mv -f "$FILES/String.wz.new" "$FILES/String.wz"
+          sudo mv -f "$XML.new" "$XML"
+
+          GENERATED="$STAGE/manifest-live.json"
+          LAUNCHER_PATCH_ROOT="$PATCH" \
+          LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" \
+          LAUNCHER_MANIFEST_PATH="$GENERATED" \
+          LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" \
+          LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" \
+          node /opt/everleaf/web/scripts/build-patch-manifest.js "$RELEASE_SHA"
+          sudo install -m 644 "$GENERATED" "$PATCH/manifest.json.new"
+          sudo mv -f "$PATCH/manifest.json.new" "$PATCH/manifest.json"
+
+          sudo systemctl restart everleaf.service
+          for i in $(seq 1 30); do
+            if systemctl is-active --quiet everleaf.service; then break; fi
+            sleep 2
+          done
+          systemctl is-active --quiet everleaf.service
+
+          for f in Item.wz String.wz; do
+            expected="$(sha256sum "$FILES/$f" | awk '{print $1}')"
+            curl -fsS "http://127.0.0.1:3000/patches/$f" -o "$STAGE/live-$f"
+            actual="$(sha256sum "$STAGE/live-$f" | awk '{print $1}')"
+            test "$actual" = "$expected"
+          done
+          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
+          trap - ERR
+          echo COMMUNITY_CHAIRS_LIVE_OK
+          cat "$STAGE/CHAIR_PATCH_MANIFEST.json"
+          REMOTE
+
+      - name: Verify public launcher manifest
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 30 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" -o manifest.json
+          python3 - <<'PY'
+          import json
+          m=json.load(open('manifest.json',encoding='utf-8'))
+          names={x.get('path') or x.get('name') for x in m.get('files',[])}
+          assert 'Item.wz' in names, names
+          assert 'String.wz' in names, names
+          print('Public launcher manifest verified.')
+          PY
