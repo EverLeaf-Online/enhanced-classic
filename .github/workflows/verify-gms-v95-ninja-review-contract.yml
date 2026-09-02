@@ -1,0 +1,35 @@
+name: Verify GMS v95 Ninja Castle review contract
+
+on:
+  pull_request:
+    branches: [release-dev]
+    paths:
+      - 'tools/wz-donor/clusters/gms-v95-ninja-castle-implementation-review.json'
+      - 'tools/wz-donor/clusters/gms-v95-ninja-castle-quest-drops.json'
+      - 'tools/wz-donor/verify_ninja_review_contract.py'
+      - 'scripts/portal/ninja_Boss.js'
+      - '.github/workflows/verify-gms-v95-ninja-review-contract.yml'
+  push:
+    branches: [release-dev]
+    paths:
+      - 'tools/wz-donor/clusters/gms-v95-ninja-castle-implementation-review.json'
+      - 'tools/wz-donor/clusters/gms-v95-ninja-castle-quest-drops.json'
+      - 'tools/wz-donor/verify_ninja_review_contract.py'
+      - 'scripts/portal/ninja_Boss.js'
+      - '.github/workflows/verify-gms-v95-ninja-review-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile verifier
+        run: python -m py_compile tools/wz-donor/verify_ninja_review_contract.py
+      - name: Verify extraction-only review contract
+        run: python tools/wz-donor/verify_ninja_review_contract.py
