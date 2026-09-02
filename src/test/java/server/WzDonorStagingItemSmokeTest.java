@@ -10,6 +10,9 @@ import client.inventory.Inventory;
 import client.inventory.InventoryType;
 import client.inventory.Item;
 import constants.inventory.ItemConstants;
+import java.lang.reflect.Field;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -103,5 +106,33 @@ class WzDonorStagingItemSmokeTest {
         assertEquals(100, use.getItem(drinkSlotA).getQuantity());
         assertNull(use.getItem(drinkSlotB), "fully merged ordinary stack must release the source slot");
         assertEquals(100, use.countById(CARBONATED_DRINK));
+    }
+
+    @Test
+    void firstV95ConsumeBatchUsesGenericStorageMergeSemantics() throws Exception {
+        StorageInventory acornStorage = new StorageInventory(null, List.of(
+                new Item(ACORN, (short) 0, (short) 12),
+                new Item(ACORN, (short) 0, (short) 15)));
+        acornStorage.mergeItems();
+        Map<Short, Item> acornItems = storageItems(acornStorage);
+        assertEquals(2, acornItems.size());
+        assertEquals(20, acornItems.get((short) 1).getQuantity());
+        assertEquals(7, acornItems.get((short) 2).getQuantity());
+
+        StorageInventory drinkStorage = new StorageInventory(null, List.of(
+                new Item(CARBONATED_DRINK, (short) 0, (short) 60),
+                new Item(CARBONATED_DRINK, (short) 0, (short) 40)));
+        drinkStorage.mergeItems();
+        Map<Short, Item> drinkItems = storageItems(drinkStorage);
+        assertEquals(1, drinkItems.size(), "full storage merge must release the second slot");
+        assertEquals(100, drinkItems.get((short) 1).getQuantity());
+        assertFalse(drinkItems.get((short) 1).isUntradeable());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<Short, Item> storageItems(StorageInventory storage) throws Exception {
+        Field field = StorageInventory.class.getDeclaredField("inventory");
+        field.setAccessible(true);
+        return (Map<Short, Item>) field.get(storage);
     }
 }
