@@ -43,11 +43,11 @@
     }
   },
   "questDropContract": "tools/wz-donor/clusters/gms-v95-ninja-castle-quest-drops.json",
-  "unresolvedQuestDropItems": [4000339, 4000341, 4000343],
+  "unresolvedQuestDropItems": [4000343],
   "blockingReview": [
     "v95 donor mode is extraction-only; this contract must not be consumed by an automatic importer",
     "NPC 9110100 is a changed-ID collision and requires explicit replacement/remap approval before any WZ edit",
-    "quest-drop items 4000339, 4000341, and 4000343 remain unresolved and must not be synthesized",
+    "Toad Oil (4000343) remains unresolved and must not be synthesized",
     "client/server asset parity for the complete region has not been proven",
     "NPC scripts, quest actions/rewards, mob drop tables beyond the sourced quest rows, and live gameplay behavior still require review"
   ],
