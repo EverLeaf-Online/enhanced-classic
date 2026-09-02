@@ -79,6 +79,13 @@ public final class BareBotFactory {
         // EXP/meso/drop smoke tests use the same world multipliers as players.
         bot.setWorldRates();
 
+        // MapleMap.addPlayer() sends existing map objects to the joining client's
+        // player. A normal network client has this field populated by the login
+        // handler before map entry; the headless client does not. Attach the bot
+        // first so visibility checks such as sendSpawnData(client) can safely call
+        // client.getPlayer().gmLevel().
+        BotClientHandler.getBotClient().setPlayer(bot);
+
         channel.addPlayer(bot);
         world.getPlayerStorage().addPlayer(bot);
         map.addPlayer(bot);
@@ -119,6 +126,10 @@ public final class BareBotFactory {
         }
         if (world != null) {
             world.getPlayerStorage().removePlayer(bot.getId());
+        }
+
+        if (BotClientHandler.getBotClient() != null && BotClientHandler.getBotClient().getPlayer() == bot) {
+            BotClientHandler.getBotClient().setPlayer(null);
         }
     }
 }
