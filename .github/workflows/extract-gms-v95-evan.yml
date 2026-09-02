@@ -46,7 +46,7 @@ jobs:
           core_hash="$(ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "set -e; test -f '$core'; unzip -t '$core' >/dev/null; sha256sum '$core'" | awk '{print $1}')"
           string_hash="$(ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "set -e; test -f '$strings'; unzip -t '$strings' >/dev/null; sha256sum '$strings'" | awk '{print $1}')"
           test "$core_hash" = '62e106f8437ce04443c797c0514e14d430fcc0a10ae4131f16567f540a8d5d3c'
-          test "$string_hash" = 'f00b94fcdf8dc24a5348b55ec68a991a42c623b34bc09eefb85369dca67de7ed'
+          test "$string_hash" = 'f00b94fcfad3f95d438b4474b74d550ea68d8aee0a8c3e4c2d9fae548a6fe7ed'
           scp -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$core" "$RUNNER_TEMP/core7.zip"
           scp -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$strings" "$RUNNER_TEMP/string.zip"
           test "$(sha256sum "$RUNNER_TEMP/core7.zip" | awk '{print $1}')" = "$core_hash"
