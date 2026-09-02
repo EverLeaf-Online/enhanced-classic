@@ -32,14 +32,15 @@ def main() -> None:
 """
         text = text.replace(anchor, addition + anchor, 1)
 
-    marker = "// Headless bots do not maintain client-side ranged visibility state."
-    if marker not in text:
-        old = """                    if (chr.getPosition().distanceSq(mapobject.getPosition()) <= getRangedDistance()) {
+    # MapleMap has two ranged-object helpers (persistent add + transient spawn).
+    # Patch every still-unprotected copy; on a second transform pass none remain,
+    # making this idempotent while also preventing one path from being missed.
+    old = """                    if (chr.getPosition().distanceSq(mapobject.getPosition()) <= getRangedDistance()) {
                         inRangeCharacters.add(chr);
                         chr.addVisibleMapObject(mapobject);
                     }
 """
-        new = """                    if (chr.getPosition().distanceSq(mapobject.getPosition()) <= getRangedDistance()) {
+    new = """                    if (chr.getPosition().distanceSq(mapobject.getPosition()) <= getRangedDistance()) {
                         // Headless bots do not maintain client-side ranged visibility state.
                         if (!isBot(chr)) {
                             inRangeCharacters.add(chr);
@@ -47,12 +48,18 @@ def main() -> None:
                         }
                     }
 """
-        if old not in text:
-            raise SystemExit("Could not locate MapleMap ranged-object visibility anchor")
-        text = text.replace(old, new, 1)
+    replacements = text.count(old)
+    if replacements:
+        text = text.replace(old, new)
+
+    guarded_count = text.count("// Headless bots do not maintain client-side ranged visibility state.")
+    if guarded_count < 2:
+        raise SystemExit(
+            f"Expected both MapleMap ranged visibility paths to be bot-safe; found {guarded_count} guarded path(s)"
+        )
 
     TARGET.write_text(text, encoding="utf-8")
-    print("SoloMapling map runtime hooks applied (moveBot + headless visibility exclusion).")
+    print(f"SoloMapling map runtime hooks applied (moveBot + {guarded_count} headless visibility exclusions).")
 
 
 if __name__ == "__main__":
