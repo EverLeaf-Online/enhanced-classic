@@ -1,0 +1,52 @@
+name: Check EverLeaf Migrations
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - "database/sql/migration/**"
+      - "tools/test_everleaf_migrations.sh"
+      - ".github/workflows/check-migrations.yml"
+  pull_request:
+    branches: [release-dev, master]
+    paths:
+      - "database/sql/migration/**"
+      - "tools/test_everleaf_migrations.sh"
+      - ".github/workflows/check-migrations.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: everleaf_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install MySQL client
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y mysql-client
+
+      - name: Run migration smoke and retry test
+        env:
+          EVERLEAF_TEST_MYSQL_HOST: 127.0.0.1
+          EVERLEAF_TEST_MYSQL_PORT: 3306
+          EVERLEAF_TEST_MYSQL_USER: root
+          EVERLEAF_TEST_MYSQL_PASSWORD: everleaf_test
+        run: |
+          chmod +x tools/test_everleaf_migrations.sh
+          tools/test_everleaf_migrations.sh

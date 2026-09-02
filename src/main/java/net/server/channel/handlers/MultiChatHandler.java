@@ -33,6 +33,9 @@ import org.slf4j.LoggerFactory;
 import server.ChatLogger;
 import tools.PacketCreator;
 
+import java.util.HashSet;
+import java.util.Set;
+
 public final class MultiChatHandler extends AbstractPacketHandler {
     private static final Logger log = LoggerFactory.getLogger(MultiChatHandler.class);
     private static final int MAX_MULTI_CHAT_RECIPIENTS = 100;
@@ -45,6 +48,11 @@ public final class MultiChatHandler extends AbstractPacketHandler {
         }
 
         int type = p.readByte(); // 0 for buddies, 1 for parties, 2 for guilds, 3 for alliances
+        if (type < 0 || type > 3) {
+            AutobanFactory.PACKET_EDIT.alert(player, player.getName() + " sent invalid multi-chat type " + type);
+            return;
+        }
+
         int numRecipients = p.readByte() & 0xFF;
         if (numRecipients > MAX_MULTI_CHAT_RECIPIENTS || (type == 0 && numRecipients > player.getBuddylist().getCapacity())) {
             AutobanFactory.PACKET_EDIT.alert(player, player.getName() + " sent an invalid multi-chat recipient count: " + numRecipients);
@@ -52,9 +60,16 @@ public final class MultiChatHandler extends AbstractPacketHandler {
         }
 
         int[] recipients = new int[numRecipients];
+        Set<Integer> uniqueRecipients = new HashSet<>(numRecipients);
         for (int i = 0; i < numRecipients; i++) {
-            recipients[i] = p.readInt();
+            int recipient = p.readInt();
+            if (!uniqueRecipients.add(recipient)) {
+                AutobanFactory.PACKET_EDIT.alert(player, player.getName() + " sent duplicate multi-chat recipient id " + recipient);
+                return;
+            }
+            recipients[i] = recipient;
         }
+
         String chattext = p.readString();
         if (chattext.length() > Byte.MAX_VALUE && !player.isGM()) {
             AutobanFactory.PACKET_EDIT.alert(player, player.getName() + " tried to packet edit chats.");
@@ -84,9 +99,6 @@ public final class MultiChatHandler extends AbstractPacketHandler {
                 Server.getInstance().allianceMessage(allianceId, PacketCreator.multiChat(player.getName(), chattext, 3), player.getId(), -1);
                 ChatLogger.log(c, "Ally", chattext);
             }
-        } else if (type < 0 || type > 3) {
-            AutobanFactory.PACKET_EDIT.alert(player, player.getName() + " sent invalid multi-chat type " + type);
-            return;
         }
         player.getAutobanManager().spam(7);
     }

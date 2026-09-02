@@ -1,0 +1,57 @@
+name: WZ donor pipeline tests
+
+on:
+  pull_request:
+    branches:
+      - release-dev
+    paths:
+      - 'tools/wz-donor/**'
+      - '.github/workflows/wz-donor-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Compile donor tooling
+        run: >-
+          python -m py_compile
+          tools/wz-donor/wz_diff.py
+          tools/wz-donor/build_import_manifest.py
+          tools/wz-donor/render_review_report.py
+          tools/wz-donor/profile_item_candidates.py
+          tools/wz-donor/summarize_item_profile_shapes.py
+          tools/wz-donor/shortlist_etc_material_review.py
+          tools/wz-donor/cross_reference_item_shortlist.py
+          tools/wz-donor/verify_client_server_parity.py
+          tools/wz-donor/test_wz_diff.py
+          tools/wz-donor/test_import_manifest.py
+          tools/wz-donor/test_render_review_report.py
+          tools/wz-donor/test_profile_item_candidates.py
+          tools/wz-donor/test_summarize_item_profile_shapes.py
+          tools/wz-donor/test_shortlist_etc_material_review.py
+          tools/wz-donor/test_cross_reference_item_shortlist.py
+          tools/wz-donor/test_verify_client_server_parity.py
+
+      - name: Run donor regression tests
+        run: |
+          python tools/wz-donor/test_wz_diff.py
+          python tools/wz-donor/test_import_manifest.py
+          python tools/wz-donor/test_render_review_report.py
+          python tools/wz-donor/test_profile_item_candidates.py
+          python tools/wz-donor/test_summarize_item_profile_shapes.py
+          python tools/wz-donor/test_shortlist_etc_material_review.py
+          python tools/wz-donor/test_cross_reference_item_shortlist.py
+          python tools/wz-donor/test_verify_client_server_parity.py

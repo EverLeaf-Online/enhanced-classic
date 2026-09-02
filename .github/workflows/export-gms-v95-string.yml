@@ -1,0 +1,176 @@
+name: Export GMS v95 String donor
+
+on:
+  push:
+    branches:
+      - release-dev
+    paths:
+      - '.github/workflows/export-gms-v95-string.yml'
+      - 'tools/wz-donor/exporter/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      known_hosts: ${{ steps.ssh.outputs.known_hosts }}
+      string_sha256: ${{ steps.meta.outputs.string_sha256 }}
+    steps:
+      - name: Configure verified SSH host keys
+        id: ssh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          {
+            echo 'known_hosts<<EOF'
+            cat ~/.ssh/known_hosts
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Verify private v95 String source
+        id: meta
+        run: |
+          set -euo pipefail
+          remote=/opt/everleaf/private/wz-donors/gms-v95-raw
+          line="$(ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "set -e; cd '$remote'; test -f PROVENANCE.txt; test -f SHA256SUMS; sha256sum -c SHA256SUMS --ignore-missing >/dev/null; test -s String.wz; stat -c%s String.wz; sha256sum String.wz")"
+          printf '%s\n' "$line"
+          size="$(printf '%s\n' "$line" | head -n1)"
+          hash="$(printf '%s\n' "$line" | tail -n1 | awk '{print $1}')"
+          test "$size" -ge 3600000
+          test "${#hash}" -eq 64
+          echo "string_sha256=$hash" >> "$GITHUB_OUTPUT"
+
+  export:
+    needs: prepare
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ needs.prepare.outputs.known_hosts }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:SSH_KNOWN_HOSTS) { throw 'Linux prepare job did not provide verified SSH host keys' }
+          $sshDir = Join-Path $HOME '.ssh'
+          New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          $keyPath = Join-Path $sshDir 'id_everleaf'
+          [IO.File]::WriteAllText($keyPath, ($env:SSH_PRIVATE_KEY -replace "`r", "") + "`n")
+          $knownHosts = Join-Path $sshDir 'known_hosts'
+          [IO.File]::WriteAllText($knownHosts, ($env:SSH_KNOWN_HOSTS -replace "`r", "") + "`n")
+
+      - name: Fetch only String.wz from Oracle
+        shell: pwsh
+        env:
+          EXPECTED_SHA256: ${{ needs.prepare.outputs.string_sha256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $inputDir = Join-Path $env:RUNNER_TEMP 'gms-v95-string-raw'
+          New-Item -ItemType Directory -Force -Path $inputDir | Out-Null
+          $target = Join-Path $inputDir 'String.wz'
+          $keyPath = Join-Path $HOME '.ssh/id_everleaf'
+          scp -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/private/wz-donors/gms-v95-raw/String.wz" $target
+          $actual = (Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $env:EXPECTED_SHA256.ToLowerInvariant()) {
+            throw "String.wz checksum mismatch: expected $env:EXPECTED_SHA256 got $actual"
+          }
+          Write-Host "Validated String.wz SHA256: $actual"
+
+      - name: Build MapleLib exporter
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $toolDir = Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter'
+          New-Item -ItemType Directory -Force -Path $toolDir | Out-Null
+          Copy-Item 'tools/wz-donor/exporter/Program.cs' (Join-Path $toolDir 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net10.0-windows</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <EnableWindowsTargeting>true</EnableWindowsTargeting>
+            </PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="..\MapleLib\MapleLib.csproj" />
+            </ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $toolDir 'EverLeafWzExporter.csproj')
+          dotnet build (Join-Path $toolDir 'EverLeafWzExporter.csproj') -c Release
+
+      - name: Export String.wz to private-server XML
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $inputDir = Join-Path $env:RUNNER_TEMP 'gms-v95-string-raw'
+          $outputDir = Join-Path $env:RUNNER_TEMP 'gms-v95-string-export'
+          $project = Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter/EverLeafWzExporter.csproj'
+          dotnet run --project $project -c Release --no-build -- `
+            $inputDir $outputDir --patch-version=95 String.wz
+
+      - name: Validate String XML export
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'gms-v95-string-export/String.wz'
+          if (-not (Test-Path $root)) { throw 'Missing exported String.wz directory' }
+          $files = Get-ChildItem -Path $root -Filter '*.xml' -Recurse -File
+          $count = ($files | Measure-Object).Count
+          Write-Host "String.wz XML files: $count"
+          if ($count -lt 5) { throw "String.wz export produced suspiciously few XML files: $count" }
+          $names = $files | Select-Object -ExpandProperty Name
+          Write-Host ('Exported files: ' + ($names -join ', '))
+
+      - name: Package and store String donor privately on Oracle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'gms-v95-string-export'
+          $zip = Join-Path $env:RUNNER_TEMP 'gms-v95-string.zip'
+          Compress-Archive -Path (Join-Path $root '*') -DestinationPath $zip -CompressionLevel Optimal
+          $localHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "String XML archive SHA256: $localHash"
+          $keyPath = Join-Path $HOME '.ssh/id_everleaf'
+          scp -i $keyPath $zip "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/private/wz-donors/gms-v95-string.zip.part"
+          ssh -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" `
+            "set -e; cd /opt/everleaf/private/wz-donors; unzip -t gms-v95-string.zip.part >/dev/null; mv gms-v95-string.zip.part gms-v95-string.zip; sha256sum gms-v95-string.zip"
+
+      - name: Upload String export diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: gms-v95-string-export-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/MapleLib/WzExtract_Errors.txt
+          retention-days: 14
+          if-no-files-found: warn

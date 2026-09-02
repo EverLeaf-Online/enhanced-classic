@@ -1,0 +1,76 @@
+name: Check EverLeaf Web CMS
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - "web/**"
+      - ".github/workflows/check-web-cms.yml"
+  pull_request:
+    branches: [release-dev, master]
+    paths:
+      - "web/**"
+      - ".github/workflows/check-web-cms.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax-check server sources
+        run: |
+          find src scripts -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: Verify release-safe defaults
+        run: |
+          node - <<'NODE'
+          const env = require('./src/config/env');
+          const expected = Array.from({ length: 20 }, (_, index) => 7575 + index);
+          if (JSON.stringify(env.game.channelPorts) !== JSON.stringify(expected)) {
+            throw new Error(`Expected 20 EverLeaf channels (${expected.join(',')}), got ${env.game.channelPorts}`);
+          }
+          if (env.registration.enabled) {
+            throw new Error('Registration must default disabled unless explicitly configured.');
+          }
+          if (env.brand.name !== 'EverLeaf') {
+            throw new Error(`Unexpected brand: ${env.brand.name}`);
+          }
+          if (env.vote.rewardNx !== 1500) {
+            throw new Error(`Default verified vote reward must be 1,500 NX, got ${env.vote.rewardNx}`);
+          }
+          if (env.gameDb.accountVotePoints !== 'votepoints') {
+            throw new Error(`Expected vote-points column to default to votepoints, got ${env.gameDb.accountVotePoints}`);
+          }
+          NODE
+
+      - name: Run maintained CMS test suite
+        run: npm test
+
+      - name: Initialize disposable CMS database
+        env:
+          NODE_ENV: test
+          CMS_DB_PATH: ./data/ci-everleaf-cms.sqlite
+        run: npm run init-db
+
+      - name: Validate patch-manifest scripts
+        working-directory: .
+        run: |
+          node --check web/scripts/build-patch-manifest.js
+          node --check web/scripts/test-patch-manifest.js

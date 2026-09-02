@@ -1,0 +1,95 @@
+name: Export Evan client WZ baseline
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - ".github/workflows/export-evan-client-baseline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Verify canonical WZ baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+            set -euo pipefail
+            root=/opt/everleaf/patches/files
+            for f in Character.wz Skill.wz String.wz UI.wz; do
+              test -s "$root/$f"
+              stat -c '%n %s bytes' "$root/$f"
+              sha256sum "$root/$f"
+            done
+          REMOTE
+
+      - name: Inventory existing Evan donor material
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE' | tee evan-donor-inventory.txt
+            set -euo pipefail
+            echo '### Evan-named archives/files'
+            for root in /opt/everleaf /home/ubuntu /tmp; do
+              test -d "$root" || continue
+              find "$root" -maxdepth 6 -type f \
+                \( -iname 'Evan*.zip' -o -iname '*Evan*.xml' -o -iname '*Evan*.wz' -o -iname '221*.img.xml' -o -iname '2001.img.xml' -o -iname '2200.img.xml' \) \
+                -printf '%p\t%s bytes\n' 2>/dev/null || true
+            done
+            echo '### Evan-named directories'
+            for root in /opt/everleaf /home/ubuntu /tmp; do
+              test -d "$root" || continue
+              find "$root" -maxdepth 6 -type d -iname '*evan*' -print 2>/dev/null || true
+            done
+          REMOTE
+
+      - name: Copy Evan-relevant WZ files from Oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evan-wz-baseline
+          for f in Character.wz Skill.wz String.wz UI.wz; do
+            scp -i ~/.ssh/id_everleaf \
+              "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/$f" \
+              "evan-wz-baseline/$f"
+          done
+          sha256sum evan-wz-baseline/* > evan-wz-baseline/SHA256SUMS.txt
+          du -h evan-wz-baseline/*
+
+      - name: Upload Evan WZ baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: evan-client-wz-baseline-${{ github.sha }}
+          path: |
+            evan-wz-baseline/
+            evan-donor-inventory.txt
+          retention-days: 7
+          if-no-files-found: error

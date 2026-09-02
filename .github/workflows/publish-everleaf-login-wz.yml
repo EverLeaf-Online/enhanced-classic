@@ -1,0 +1,315 @@
+name: Publish EverLeaf login WZ
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - "client/branding/login/**"
+      - "client/tools/login-wz-patcher/**"
+
+concurrency:
+  group: everleaf-client-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_PUBLIC_HOST: everleafms.online
+  LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+
+jobs:
+  build-patch-and-publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Generate EverLeaf login artwork
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user --disable-pip-version-check pillow
+          python3 client/branding/login/generate_art.py --output "$RUNNER_TEMP/everleaf-login-art"
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          import os
+          root=Path(os.environ['RUNNER_TEMP'])/'everleaf-login-art'
+          bg=Image.open(root/'background.png')
+          logo=Image.open(root/'logo.png')
+          frame=Image.open(root/'frame.png')
+          signboard=Image.open(root/'signboard.png')
+          assert bg.size == (800, 600), bg.size
+          assert bg.mode == 'RGB', bg.mode
+          assert logo.size == (397, 219) and logo.mode == 'RGBA', (logo.size, logo.mode)
+          assert frame.size == (800, 600) and frame.mode == 'RGBA', (frame.size, frame.mode)
+          assert signboard.size == (368, 236), signboard.size
+          expected={'login':(89,42),'save-id':(76,23),'find-id':(82,23),
+                    'reset-password':(66,23),'register':(92,38),
+                    'homepage':(93,38),'quit':(84,38)}
+          for name,size in expected.items():
+            for state in ('normal','mouseOver','pressed','disabled'):
+              art=Image.open(root/f'{name}-{state}.png')
+              assert art.size == size and art.mode == 'RGB', (name,state,art.size,art.mode)
+          print('EverLeaf Map.wz + UI.wz login art validated')
+          PY
+
+      - name: Build source-pinned WZ patcher
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/everleaf-deps"
+          git clone --recurse-submodules https://github.com/toyobayashi/libwz.git "$RUNNER_TEMP/everleaf-deps/libwz"
+          git -C "$RUNNER_TEMP/everleaf-deps/libwz" checkout "$LIBWZ_COMMIT"
+          git -C "$RUNNER_TEMP/everleaf-deps/libwz" submodule update --init --recursive
+          cmake -S client/tools/login-wz-patcher \
+            -B "$RUNNER_TEMP/everleaf-login-wz-build" \
+            -DLIBWZ_SOURCE="$RUNNER_TEMP/everleaf-deps/libwz" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXE_LINKER_FLAGS="-static -static-libstdc++ -static-libgcc"
+          cmake --build "$RUNNER_TEMP/everleaf-login-wz-build" --config Release -j2
+          PATCHER="$RUNNER_TEMP/everleaf-login-wz-build/everleaf-login-wz-patcher"
+          test -x "$PATCHER"
+          file "$PATCHER"
+          set +e
+          "$PATCHER" >"$RUNNER_TEMP/patcher-usage.log" 2>&1
+          code=$?
+          set -e
+          test "$code" -eq 2
+          grep -q 'Usage:' "$RUNNER_TEMP/patcher-usage.log"
+
+      - name: Configure production SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          mkdir -p "$SSH_DIR"
+          chmod 700 "$SSH_DIR"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id_everleaf"
+          chmod 600 "$SSH_DIR/id_everleaf"
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$SSH_DIR/known_hosts"
+          fi
+          chmod 600 "$SSH_DIR/known_hosts"
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'test -s /opt/everleaf/patches/files/Map.wz && test -s /opt/everleaf/patches/files/UI.wz && test -s /opt/everleaf/patches/manifest.json && test -f /opt/everleaf/web/scripts/build-patch-manifest.js && command -v node >/dev/null && command -v sha256sum >/dev/null; printf "Oracle architecture: "; uname -m'
+
+      - name: Fetch and patch production Map.wz and UI.wz on runner
+        run: |
+          set -euo pipefail
+          SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          LIVE_MAP="$RUNNER_TEMP/Map.wz.live"
+          LIVE_UI="$RUNNER_TEMP/UI.wz.live"
+          PATCHED_MAP="$RUNNER_TEMP/Map.wz.new"
+          PATCHED_UI="$RUNNER_TEMP/UI.wz.new"
+          PATCHER="$RUNNER_TEMP/everleaf-login-wz-build/everleaf-login-wz-patcher"
+
+          scp -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/Map.wz" \
+            "$LIVE_MAP"
+          scp -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/UI.wz" \
+            "$LIVE_UI"
+          test -s "$LIVE_MAP" && test -s "$LIVE_UI"
+
+          old_map_hash="$(sha256sum "$LIVE_MAP" | awk '{print $1}')"
+          old_ui_hash="$(sha256sum "$LIVE_UI" | awk '{print $1}')"
+          "$PATCHER" \
+            "$LIVE_MAP" \
+            "$LIVE_UI" \
+            "$RUNNER_TEMP/everleaf-login-art" \
+            "$PATCHED_MAP" \
+            "$PATCHED_UI"
+          test -s "$PATCHED_MAP" && test -s "$PATCHED_UI"
+          new_map_hash="$(sha256sum "$PATCHED_MAP" | awk '{print $1}')"
+          new_ui_hash="$(sha256sum "$PATCHED_UI" | awk '{print $1}')"
+          test "$new_map_hash" != "$old_map_hash"
+          test "$new_ui_hash" != "$old_ui_hash"
+          printf '%s\n' "$old_map_hash" > "$RUNNER_TEMP/map.old.sha256"
+          printf '%s\n' "$new_map_hash" > "$RUNNER_TEMP/map.new.sha256"
+          printf '%s\n' "$old_ui_hash" > "$RUNNER_TEMP/ui.old.sha256"
+          printf '%s\n' "$new_ui_hash" > "$RUNNER_TEMP/ui.new.sha256"
+          stat -c '%s' "$PATCHED_MAP" > "$RUNNER_TEMP/map.new.size"
+          stat -c '%s' "$PATCHED_UI" > "$RUNNER_TEMP/ui.new.size"
+          echo "Validated coordinated Map.wz and UI.wz login theme on runner"
+
+      - name: Stage validated Map.wz and UI.wz
+        run: |
+          set -euo pipefail
+          SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          REMOTE_STAGE="/tmp/everleaf-login-wz-$GITHUB_SHA"
+          ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$RUNNER_TEMP/Map.wz.new" "$RUNNER_TEMP/UI.wz.new" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$REMOTE_STAGE/"
+
+      - name: Publish validated Map.wz and UI.wz and regenerate manifest
+        run: |
+          set -euo pipefail
+          SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          expected_old_map_hash="$(cat "$RUNNER_TEMP/map.old.sha256")"
+          expected_new_map_hash="$(cat "$RUNNER_TEMP/map.new.sha256")"
+          expected_old_ui_hash="$(cat "$RUNNER_TEMP/ui.old.sha256")"
+          expected_new_ui_hash="$(cat "$RUNNER_TEMP/ui.new.sha256")"
+          ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "RELEASE_SHA='$GITHUB_SHA' EXPECTED_OLD_MAP_HASH='$expected_old_map_hash' EXPECTED_NEW_MAP_HASH='$expected_new_map_hash' EXPECTED_OLD_UI_HASH='$expected_old_ui_hash' EXPECTED_NEW_UI_HASH='$expected_new_ui_hash' bash -s" <<'REMOTE'
+          set -euo pipefail
+          PATCH_ROOT=/opt/everleaf/patches
+          FILES="$PATCH_ROOT/files"
+          STAGE="/tmp/everleaf-login-wz-$RELEASE_SHA"
+          TEMP_PATCH="$PATCH_ROOT/.login-temp-$RELEASE_SHA"
+          BACKUP="$PATCH_ROOT/.login-backup-$RELEASE_SHA"
+          MAP_OUTPUT="$STAGE/Map.wz.new"
+          UI_OUTPUT="$STAGE/UI.wz.new"
+          GENERATED="$STAGE/manifest.json"
+
+          rm -rf "$TEMP_PATCH" "$BACKUP"
+          mkdir -p "$TEMP_PATCH" "$BACKUP"
+          test -s "$MAP_OUTPUT" && test -s "$UI_OUTPUT"
+
+          old_map_hash="$(sha256sum "$FILES/Map.wz" | awk '{print $1}')"
+          new_map_hash="$(sha256sum "$MAP_OUTPUT" | awk '{print $1}')"
+          old_ui_hash="$(sha256sum "$FILES/UI.wz" | awk '{print $1}')"
+          new_ui_hash="$(sha256sum "$UI_OUTPUT" | awk '{print $1}')"
+          test "$old_map_hash" = "$EXPECTED_OLD_MAP_HASH"
+          test "$new_map_hash" = "$EXPECTED_NEW_MAP_HASH"
+          test "$old_ui_hash" = "$EXPECTED_OLD_UI_HASH"
+          test "$new_ui_hash" = "$EXPECTED_NEW_UI_HASH"
+          test "$new_map_hash" != "$old_map_hash"
+          test "$new_ui_hash" != "$old_ui_hash"
+
+          # Build an ordinary candidate copy. Production payload files may be
+          # owned by another account/filesystem policy that forbids hard links.
+          # Nothing from this candidate is installed until manifest validation passes.
+          cp -R "$FILES" "$TEMP_PATCH/files"
+          rm -f "$TEMP_PATCH/files/Map.wz"
+          rm -f "$TEMP_PATCH/files/UI.wz"
+          cp "$MAP_OUTPUT" "$TEMP_PATCH/files/Map.wz"
+          cp "$UI_OUTPUT" "$TEMP_PATCH/files/UI.wz"
+
+          LAUNCHER_PATCH_ROOT="$TEMP_PATCH" \
+          LAUNCHER_BASELINE_PATH="$PATCH_ROOT/managed-client-baseline.json" \
+          LAUNCHER_MANIFEST_PATH="$GENERATED" \
+          LAUNCHER_PORTABLE_PATH="$PATCH_ROOT/downloads/EverLeafLauncher-portable.zip" \
+          LAUNCHER_VERSION_PATH="$PATCH_ROOT/downloads/EverLeafLauncher-version.txt" \
+          node /opt/everleaf/web/scripts/build-patch-manifest.js "$RELEASE_SHA"
+
+          node - "$GENERATED" "$new_map_hash" "$new_ui_hash" <<'NODE'
+          const fs=require('fs');
+          const m=JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const expectedMap=process.argv[3];
+          const expectedUi=process.argv[4];
+          if(m.version !== process.env.RELEASE_SHA) throw new Error(`manifest version mismatch: ${m.version}`);
+          if(m.files.length !== 36) throw new Error(`expected 36 managed files, got ${m.files.length}`);
+          const map=m.files.find(f => f.path === 'Map.wz');
+          const ui=m.files.find(f => f.path === 'UI.wz');
+          if(!map) throw new Error('Map.wz missing from manifest');
+          if(!ui) throw new Error('UI.wz missing from manifest');
+          if(map.sha256 !== expectedMap) throw new Error(`Map.wz manifest hash mismatch: ${map.sha256}`);
+          if(ui.sha256 !== expectedUi) throw new Error(`UI.wz manifest hash mismatch: ${ui.sha256}`);
+          NODE
+
+          # Regular copies are intentional here as well; hard-link creation is
+          # not permitted for all production payload files on this host.
+          cp "$FILES/Map.wz" "$BACKUP/Map.wz"
+          cp "$FILES/UI.wz" "$BACKUP/UI.wz"
+          cp "$PATCH_ROOT/manifest.json" "$BACKUP/manifest.json"
+
+          rollback() {
+            echo 'Login WZ publish failed; restoring previous Map.wz, UI.wz, and manifest.' >&2
+            sudo rm -f "$FILES/Map.wz"
+            sudo rm -f "$FILES/UI.wz"
+            sudo cp "$BACKUP/Map.wz" "$FILES/Map.wz"
+            sudo cp "$BACKUP/UI.wz" "$FILES/UI.wz"
+            sudo install -m 644 "$BACKUP/manifest.json" "$PATCH_ROOT/manifest.json"
+          }
+          trap rollback ERR
+
+          sudo install -m 644 "$MAP_OUTPUT" "$FILES/Map.wz.new"
+          sudo install -m 644 "$UI_OUTPUT" "$FILES/UI.wz.new"
+          sudo install -m 644 "$GENERATED" "$PATCH_ROOT/manifest.json.new"
+          sudo mv -f "$FILES/Map.wz.new" "$FILES/Map.wz"
+          sudo mv -f "$FILES/UI.wz.new" "$FILES/UI.wz"
+          sudo mv -f "$PATCH_ROOT/manifest.json.new" "$PATCH_ROOT/manifest.json"
+
+          test "$(sha256sum "$FILES/Map.wz" | awk '{print $1}')" = "$new_map_hash"
+          test "$(sha256sum "$FILES/UI.wz" | awk '{print $1}')" = "$new_ui_hash"
+          node - "$PATCH_ROOT/manifest.json" "$new_map_hash" "$new_ui_hash" <<'NODE'
+          const fs=require('fs'); const m=JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const map=m.files.find(f => f.path === 'Map.wz');
+          const ui=m.files.find(f => f.path === 'UI.wz');
+          if(!map || map.sha256 !== process.argv[3]) throw new Error('live Map.wz manifest verification failed');
+          if(!ui || ui.sha256 !== process.argv[4]) throw new Error('live UI.wz manifest verification failed');
+          NODE
+          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
+          trap - ERR
+
+          printf '%s\n' "$new_map_hash" > "$STAGE/map.sha256"
+          printf '%s\n' "$new_ui_hash" > "$STAGE/ui.sha256"
+          stat -c '%s' "$FILES/Map.wz" > "$STAGE/map.size"
+          stat -c '%s' "$FILES/UI.wz" > "$STAGE/ui.size"
+          rm -rf "$TEMP_PATCH" "$BACKUP"
+          echo "EverLeaf coordinated login Map.wz + UI.wz theme published: $RELEASE_SHA"
+          REMOTE
+
+      - name: Verify public Map.wz and UI.wz endpoints
+        run: |
+          set -euo pipefail
+          SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          REMOTE_STAGE="/tmp/everleaf-login-wz-$GITHUB_SHA"
+          expected_map_hash="$(cat "$RUNNER_TEMP/map.new.sha256")"
+          expected_map_size="$(cat "$RUNNER_TEMP/map.new.size")"
+          expected_ui_hash="$(cat "$RUNNER_TEMP/ui.new.sha256")"
+          expected_ui_size="$(cat "$RUNNER_TEMP/ui.new.size")"
+          remote_map_hash="$(ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "cat '$REMOTE_STAGE/map.sha256'")"
+          remote_map_size="$(ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "cat '$REMOTE_STAGE/map.size'")"
+          remote_ui_hash="$(ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "cat '$REMOTE_STAGE/ui.sha256'")"
+          remote_ui_size="$(ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "cat '$REMOTE_STAGE/ui.size'")"
+          test "$remote_map_hash" = "$expected_map_hash"
+          test "$remote_map_size" = "$expected_map_size"
+          test "$remote_ui_hash" = "$expected_ui_hash"
+          test "$remote_ui_size" = "$expected_ui_size"
+
+          curl --fail --silent --show-error --max-time 20 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" -o public-envelope.json
+          node - "$expected_map_hash" "$expected_map_size" "$expected_ui_hash" "$expected_ui_size" <<'NODE'
+          const fs=require('fs');
+          const expectedMapHash=process.argv[2];
+          const expectedMapSize=process.argv[3];
+          const expectedUiHash=process.argv[4];
+          const expectedUiSize=process.argv[5];
+          const envelope=JSON.parse(fs.readFileSync('public-envelope.json','utf8'));
+          if(typeof envelope.payload !== 'string' || !envelope.payload) throw new Error('public manifest payload missing');
+          if(typeof envelope.signature !== 'string' || !envelope.signature) throw new Error('public manifest signature missing');
+          const manifest=JSON.parse(Buffer.from(envelope.payload,'base64').toString('utf8'));
+          if(!Array.isArray(manifest.files)) throw new Error('decoded public manifest files array missing');
+          const map=manifest.files.find(f => f.path === 'Map.wz');
+          const ui=manifest.files.find(f => f.path === 'UI.wz');
+          if(!map) throw new Error('public manifest does not contain Map.wz');
+          if(!ui) throw new Error('public manifest does not contain UI.wz');
+          if(map.sha256 !== expectedMapHash) throw new Error(`public Map.wz hash mismatch: ${map.sha256}`);
+          if(String(map.size) !== expectedMapSize) throw new Error(`public Map.wz size mismatch: ${map.size}`);
+          if(ui.sha256 !== expectedUiHash) throw new Error(`public UI.wz hash mismatch: ${ui.sha256}`);
+          if(String(ui.size) !== expectedUiSize) throw new Error(`public UI.wz size mismatch: ${ui.size}`);
+          console.log('Signed public manifest exposes coordinated Map.wz and UI.wz login theme');
+          NODE
+
+          for file in Map.wz UI.wz; do
+            headers="$(curl --fail --silent --show-error --location --head --max-time 30 "https://$EVERLEAF_PUBLIC_HOST/patches/$file")"
+            actual_size="$(printf '%s\n' "$headers" | tr -d '\r' | awk -F': *' 'tolower($1)=="content-length" {print $2; exit}')"
+            test -n "$actual_size"
+            if [ "$file" = Map.wz ]; then test "$actual_size" = "$expected_map_size"; else test "$actual_size" = "$expected_ui_size"; fi
+          done
+          ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$REMOTE_STAGE'"
+          echo "EverLeaf public Map.wz and UI.wz endpoints verified for $GITHUB_SHA"

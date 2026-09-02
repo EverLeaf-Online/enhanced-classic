@@ -1,0 +1,193 @@
+name: Stage GMS v95 donor
+
+on:
+  push:
+    branches:
+      - release-dev
+    paths:
+      - '.github/workflows/stage-gms-v95-donor.yml'
+      - '.github/workflows/export-gms-v95-donor.yml'
+      - 'tools/wz-donor/exporter/**'
+      - 'tools/wz-donor/render_review_report.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      known_hosts: ${{ steps.ssh.outputs.known_hosts }}
+    steps:
+      - name: Configure SSH
+        id: ssh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          {
+            echo 'known_hosts<<EOF'
+            cat ~/.ssh/known_hosts
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Stage core v95.4 WZ files privately on Oracle
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          umask 077
+          target=/opt/everleaf/private/wz-donors/gms-v95-raw
+          mkdir -p "$target"
+
+          # ZLZ.dll ships with the same v95.4 client and is required for
+          # MapleLib's exact-client WZ key fallback when a WZ does not parse
+          # with the normal GMS IV/version path.
+          files=(
+            Character.wz
+            Item.wz
+            Map.wz
+            Mob.wz
+            Npc.wz
+            Quest.wz
+            Reactor.wz
+            Skill.wz
+            String.wz
+            Etc.wz
+            ZLZ.dll
+          )
+
+          declare -A minimums=(
+            [Character.wz]=6700000
+            [Item.wz]=23000000
+            [Map.wz]=744000000
+            [Mob.wz]=635000000
+            [Npc.wz]=57000000
+            [Quest.wz]=14000000
+            [Reactor.wz]=78000000
+            [Skill.wz]=171000000
+            [String.wz]=3600000
+            [Etc.wz]=1700000
+            [ZLZ.dll]=80000
+          )
+
+          base='https://sourceforge.net/projects/maplestoryv95/files/MapleStory'
+          for file in "${files[@]}"; do
+            dest="$target/$file"
+            part="$dest.part"
+            minimum="${minimums[$file]}"
+
+            if [ -s "$dest" ]; then
+              size="$(stat -c%s "$dest")"
+              if [ "$size" -ge "$minimum" ]; then
+                echo "present: $file ($size bytes)"
+                continue
+              fi
+              echo "discarding undersized final file: $file ($size < $minimum)"
+              rm -f "$dest"
+            fi
+
+            if [ -s "$part" ]; then
+              part_size="$(stat -c%s "$part")"
+              if [ "$part_size" -ge "$minimum" ]; then
+                echo "promoting completed partial: $file ($part_size bytes)"
+                mv "$part" "$dest"
+                continue
+              fi
+              echo "resuming: $file from $part_size bytes"
+            else
+              echo "fetching: $file"
+            fi
+
+            curl_rc=0
+            curl --fail --location --retry 8 --retry-delay 3 --retry-all-errors \
+              --continue-at - \
+              --user-agent 'EverLeaf-WZ-Donor/1.0' \
+              "$base/$file/download" \
+              --output "$part" || curl_rc=$?
+
+            part_size="$(stat -c%s "$part" 2>/dev/null || echo 0)"
+            if [ "$part_size" -ge "$minimum" ]; then
+              if [ "$curl_rc" -ne 0 ]; then
+                echo "warning: curl exited $curl_rc after receiving a published-size $file ($part_size bytes); accepting staged payload"
+              fi
+              mv "$part" "$dest"
+              continue
+            fi
+
+            if [ "$curl_rc" -eq 0 ]; then
+              curl_rc=1
+            fi
+            echo "failed to stage $file: curl=$curl_rc size=$part_size minimum=$minimum" >&2
+            exit "$curl_rc"
+          done
+
+          (
+            cd "$target"
+            sha256sum -- "${files[@]}" > SHA256SUMS
+            stat -c '%n\t%s' -- "${files[@]}" > SIZES.tsv
+          )
+
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('/opt/everleaf/private/wz-donors/gms-v95-raw')
+          minimums = {
+              'Character.wz': 6_700_000,
+              'Item.wz': 23_000_000,
+              'Map.wz': 744_000_000,
+              'Mob.wz': 635_000_000,
+              'Npc.wz': 57_000_000,
+              'Quest.wz': 14_000_000,
+              'Reactor.wz': 78_000_000,
+              'Skill.wz': 171_000_000,
+              'String.wz': 3_600_000,
+              'Etc.wz': 1_700_000,
+              'ZLZ.dll': 80_000,
+          }
+          bad=[]
+          for name, minimum in minimums.items():
+              p=root/name
+              size=p.stat().st_size if p.exists() else 0
+              print(f'{name}: {size} bytes')
+              if size < minimum:
+                  bad.append((name,size,minimum))
+          if bad:
+              raise SystemExit(f'v95 donor size validation failed: {bad}')
+          PY
+
+          printf '%s\n' \
+            'source=SourceForge MapleStory Files v.95' \
+            'version=GMS v95.4' \
+            'source_path=/MapleStory individual WZ files + ZLZ.dll' \
+            'staged_at='"$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > "$target/PROVENANCE.txt"
+          REMOTE
+
+      - name: Verify staged donor metadata
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'cd /opt/everleaf/private/wz-donors/gms-v95-raw && cat PROVENANCE.txt && cat SIZES.tsv && cat SHA256SUMS'
+
+  export:
+    needs: stage
+    uses: ./.github/workflows/export-gms-v95-donor.yml
+    with:
+      known_hosts: ${{ needs.stage.outputs.known_hosts }}
+    secrets: inherit

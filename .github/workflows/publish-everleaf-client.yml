@@ -1,0 +1,177 @@
+name: Publish EverLeaf client
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - "client/**"
+      - ".github/workflows/publish-everleaf-client.yml"
+
+concurrency:
+  group: everleaf-client-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_PUBLIC_HOST: everleafms.online
+
+jobs:
+  build-and-publish:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build source-pinned Win32 release
+        shell: pwsh
+        run: msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+
+      - name: Build managed client overlay
+        shell: pwsh
+        run: |
+          $package = "EverleafClient"
+          & "client/scripts/build-managed-package.ps1" -RepositoryRoot $PWD -OutputDirectory $package
+          $required = @("config.ini", "dinput8.dll", "EverLeaf_UI.wz", "managed-client-baseline.json")
+          $actual = @(Get-ChildItem $package -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath((Resolve-Path $package), $_.FullName).Replace('\\','/') })
+          foreach ($name in $required) { if ($name -notin $actual) { throw "Missing managed overlay: $name" } }
+          if ($actual.Count -ne $required.Count) { throw "Managed overlay contains unexpected files: $($actual -join ', ')" }
+          Compress-Archive -Path "$package/*" -DestinationPath "EverleafClient-overlay.zip"
+          Get-FileHash "EverleafClient-overlay.zip" -Algorithm SHA256
+
+      - name: Test client and patch invariants
+        shell: pwsh
+        run: |
+          python client/scripts/test-cosmic-wz-baseline.py
+          python -m py_compile client/scripts/test-managed-repair.py
+          node web/scripts/test-patch-manifest.js
+
+      - name: Configure production SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          SSH_DIR="$GITHUB_WORKSPACE/.everleaf-ssh"
+          mkdir -p "$SSH_DIR"
+          chmod 700 "$SSH_DIR"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id_everleaf"
+          chmod 600 "$SSH_DIR/id_everleaf"
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$SSH_DIR/known_hosts"
+          fi
+          chmod 600 "$SSH_DIR/known_hosts"
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'test -d /opt/everleaf/patches/files && test -f /opt/everleaf/patches/managed-client-baseline.json && test -f /opt/everleaf/patches/manifest.json && test -f /opt/everleaf/web/scripts/build-patch-manifest.js && command -v unzip >/dev/null'
+
+      - name: Stage verified client overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          SSH_DIR="$GITHUB_WORKSPACE/.everleaf-ssh"
+          REMOTE_STAGE="/tmp/everleaf-client-$GITHUB_SHA"
+          ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            EverleafClient-overlay.zip "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$REMOTE_STAGE/"
+
+      - name: Publish client overlay and regenerate manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          SSH_DIR="$GITHUB_WORKSPACE/.everleaf-ssh"
+          ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "RELEASE_SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          PATCH_ROOT=/opt/everleaf/patches
+          STAGE="/tmp/everleaf-client-$RELEASE_SHA"
+          PAYLOAD="$STAGE/payload"
+          TEMP_PATCH="$STAGE/patch"
+          GENERATED="$STAGE/manifest.json"
+          FILES="$PATCH_ROOT/files"
+          BACKUP="$STAGE/backup"
+          mkdir -p "$PAYLOAD" "$TEMP_PATCH" "$BACKUP"
+          unzip -q "$STAGE/EverleafClient-overlay.zip" -d "$PAYLOAD"
+
+          cmp -s "$PAYLOAD/managed-client-baseline.json" "$PATCH_ROOT/managed-client-baseline.json"
+          for f in config.ini dinput8.dll EverLeaf_UI.wz; do test -s "$PAYLOAD/$f"; done
+          test "$(find "$PAYLOAD" -type f | wc -l)" -eq 4
+
+          cp -a "$FILES" "$TEMP_PATCH/files"
+          for f in config.ini dinput8.dll EverLeaf_UI.wz; do
+            rm -f "$TEMP_PATCH/files/$f"
+            cp "$PAYLOAD/$f" "$TEMP_PATCH/files/$f"
+          done
+
+          LAUNCHER_PATCH_ROOT="$TEMP_PATCH" \
+          LAUNCHER_BASELINE_PATH="$PATCH_ROOT/managed-client-baseline.json" \
+          LAUNCHER_MANIFEST_PATH="$GENERATED" \
+          LAUNCHER_PORTABLE_PATH="$PATCH_ROOT/downloads/EverLeafLauncher-portable.zip" \
+          LAUNCHER_VERSION_PATH="$PATCH_ROOT/downloads/EverLeafLauncher-version.txt" \
+          node /opt/everleaf/web/scripts/build-patch-manifest.js "$RELEASE_SHA"
+
+          cp "$PATCH_ROOT/manifest.json" "$BACKUP/manifest.json"
+          for f in config.ini dinput8.dll EverLeaf_UI.wz; do cp "$FILES/$f" "$BACKUP/$f"; done
+
+          rollback() {
+            echo 'Client publish verification failed; rolling back overlay.' >&2
+            for f in config.ini dinput8.dll EverLeaf_UI.wz; do sudo install -m 644 "$BACKUP/$f" "$FILES/$f"; done
+            sudo install -m 644 "$BACKUP/manifest.json" "$PATCH_ROOT/manifest.json"
+          }
+          trap rollback ERR
+
+          for f in config.ini dinput8.dll EverLeaf_UI.wz; do
+            sudo install -m 644 "$PAYLOAD/$f" "$FILES/$f.new"
+          done
+          sudo install -m 644 "$GENERATED" "$PATCH_ROOT/manifest.json.new"
+          for f in config.ini dinput8.dll EverLeaf_UI.wz; do sudo mv -f "$FILES/$f.new" "$FILES/$f"; done
+          sudo mv -f "$PATCH_ROOT/manifest.json.new" "$PATCH_ROOT/manifest.json"
+
+          CHECK="$STAGE/check-manifest.json"
+          LAUNCHER_PATCH_ROOT="$PATCH_ROOT" \
+          LAUNCHER_BASELINE_PATH="$PATCH_ROOT/managed-client-baseline.json" \
+          LAUNCHER_MANIFEST_PATH="$CHECK" \
+          node /opt/everleaf/web/scripts/build-patch-manifest.js "$RELEASE_SHA"
+          cmp -s "$CHECK" "$PATCH_ROOT/manifest.json"
+
+          node - "$PATCH_ROOT/manifest.json" <<'NODE'
+          const fs=require('fs'); const m=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          if(m.version!==process.env.RELEASE_SHA) throw new Error(`Client manifest version mismatch: ${m.version}`);
+          if(m.files.length!==36) throw new Error(`Expected 36 managed files, got ${m.files.length}`);
+          NODE
+
+          for f in config.ini dinput8.dll EverLeaf_UI.wz; do
+            expected="$(sha256sum "$FILES/$f" | awk '{print $1}')"
+            curl -fsS "http://127.0.0.1:3000/patches/$f" -o "$STAGE/live-$f"
+            actual="$(sha256sum "$STAGE/live-$f" | awk '{print $1}')"
+            test "$actual" = "$expected"
+          done
+          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
+          trap - ERR
+          echo "EverLeaf client overlay published: $RELEASE_SHA"
+          rm -rf "$STAGE"
+          REMOTE
+
+      - name: Verify public patch endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 20 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" >/dev/null
+          for f in config.ini dinput8.dll EverLeaf_UI.wz; do
+            curl --fail --silent --show-error --location --max-time 60 "https://$EVERLEAF_PUBLIC_HOST/patches/$f" -o "public-$f"
+            test -s "public-$f"
+          done
+          echo "EverLeaf public client patch endpoints verified for $GITHUB_SHA"

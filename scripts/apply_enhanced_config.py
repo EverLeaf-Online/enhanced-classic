@@ -31,7 +31,7 @@ FIRST_WORLD_REPLACEMENTS = {
     "    server_message: Welcome to Scania!\n": "    server_message: Welcome to EverLeaf!\n",
     "    event_message: Scania!\n": "    event_message: EverLeaf Enhanced Classic\n",
     "    why_am_i_recommended: Welcome to Scania!\n": "    why_am_i_recommended: Welcome to EverLeaf!\n",
-    "    channels: 3\n": "    channels: 8\n",
+    "    channels: 3\n": "    channels: 20\n",
 }
 
 
@@ -42,6 +42,13 @@ def replace_first_world(updated: str, old: str, new: str) -> str:
 
     if new in world_section:
         return updated
+
+    # Accept the former EverLeaf 8-channel value as an upgrade source.
+    if old == "    channels: 3\n":
+        old8 = "    channels: 8\n"
+        pos8 = world_section.find(old8)
+        if pos8 != -1:
+            return updated[:pos8] + new + updated[pos8 + len(old8):]
 
     pos = world_section.find(old)
     if pos == -1:
@@ -70,9 +77,9 @@ def main() -> None:
 
     if updated != original:
         CONFIG.write_text(updated, encoding="utf-8")
-        print("Applied Enhanced Classic configuration defaults (EverLeaf: 8 channels).")
+        print("Applied Enhanced Classic configuration defaults (EverLeaf: 20 channels).")
     else:
-        print("Enhanced Classic configuration defaults already applied (EverLeaf: 8 channels).")
+        print("Enhanced Classic configuration defaults already applied (EverLeaf: 20 channels).")
 
 
 if __name__ == "__main__":

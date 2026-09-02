@@ -1,0 +1,117 @@
+name: Verify EverLeaf login WZ live
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - ".github/workflows/verify-everleaf-login-wz-live.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: everleaf-login-wz-live-verification
+  cancel-in-progress: true
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_PUBLIC_HOST: everleafms.online
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure production SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          mkdir -p "$SSH_DIR"
+          chmod 700 "$SSH_DIR"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id_everleaf"
+          chmod 600 "$SSH_DIR/id_everleaf"
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$SSH_DIR/known_hosts"
+          fi
+          chmod 600 "$SSH_DIR/known_hosts"
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'test -s /opt/everleaf/patches/files/Map.wz && test -s /opt/everleaf/patches/manifest.json'
+
+      - name: Read live Oracle Map.wz identity
+        run: |
+          set -euo pipefail
+          SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'sha256sum /opt/everleaf/patches/files/Map.wz; stat -c "%s" /opt/everleaf/patches/files/Map.wz; cat /opt/everleaf/patches/manifest.json' \
+            > "$RUNNER_TEMP/live-map.txt"
+          live_hash="$(sed -n '1s/ .*//p' "$RUNNER_TEMP/live-map.txt")"
+          live_size="$(sed -n '2p' "$RUNNER_TEMP/live-map.txt")"
+          tail -n +3 "$RUNNER_TEMP/live-map.txt" > "$RUNNER_TEMP/live-manifest.json"
+          node - "$live_hash" "$live_size" "$RUNNER_TEMP/live-manifest.json" <<'NODE'
+          const fs=require('fs');
+          const hash=process.argv[2];
+          const size=process.argv[3];
+          const path=process.argv[4];
+          const m=JSON.parse(fs.readFileSync(path,'utf8'));
+          if(!Array.isArray(m.files)) throw new Error('live manifest files array missing');
+          const map=m.files.find(f=>f.path==='Map.wz');
+          if(!map) throw new Error('Map.wz missing from live manifest');
+          if(map.sha256!==hash) throw new Error(`live manifest Map.wz hash mismatch: ${map.sha256}`);
+          if(String(map.size)!==size) throw new Error(`live manifest Map.wz size mismatch: ${map.size}`);
+          console.log(`Oracle Map.wz ${hash} (${size} bytes), manifest version ${m.version}`);
+          NODE
+          printf '%s\n' "$live_hash" > "$RUNNER_TEMP/live-map.sha256"
+          printf '%s\n' "$live_size" > "$RUNNER_TEMP/live-map.size"
+
+      - name: Verify signed public manifest payload
+        run: |
+          set -euo pipefail
+          live_hash="$(cat "$RUNNER_TEMP/live-map.sha256")"
+          live_size="$(cat "$RUNNER_TEMP/live-map.size")"
+          curl --fail --silent --show-error --max-time 20 \
+            "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" \
+            -o "$RUNNER_TEMP/public-envelope.json"
+          node - "$live_hash" "$live_size" "$RUNNER_TEMP/public-envelope.json" <<'NODE'
+          const fs=require('fs');
+          const expectedHash=process.argv[2];
+          const expectedSize=process.argv[3];
+          const envelope=JSON.parse(fs.readFileSync(process.argv[4],'utf8'));
+          if(typeof envelope.payload!=='string' || !envelope.payload) throw new Error('public manifest payload missing');
+          if(typeof envelope.signature!=='string' || !envelope.signature) throw new Error('public manifest signature missing');
+          const manifest=JSON.parse(Buffer.from(envelope.payload,'base64').toString('utf8'));
+          if(!Array.isArray(manifest.files)) throw new Error('decoded public manifest files array missing');
+          const map=manifest.files.find(f=>f.path==='Map.wz');
+          if(!map) throw new Error('Map.wz missing from decoded public manifest');
+          if(map.sha256!==expectedHash) throw new Error(`public manifest Map.wz hash mismatch: ${map.sha256}`);
+          if(String(map.size)!==expectedSize) throw new Error(`public manifest Map.wz size mismatch: ${map.size}`);
+          console.log(`Signed public manifest exposes Map.wz ${map.sha256} (${map.size} bytes), version ${manifest.version}`);
+          NODE
+
+      - name: Verify public Map.wz endpoint
+        run: |
+          set -euo pipefail
+          expected_size="$(cat "$RUNNER_TEMP/live-map.size")"
+          headers="$(curl --fail --silent --show-error --location --head --max-time 30 "https://$EVERLEAF_PUBLIC_HOST/patches/Map.wz")"
+          printf '%s\n' "$headers"
+          actual_size="$(
+            printf '%s\n' "$headers" |
+              tr -d '\r' |
+              awk -F': *' 'tolower($1)=="content-length" {print $2; exit}'
+          )"
+          test -n "$actual_size"
+          test "$actual_size" = "$expected_size"
+          printf '%s\n' "$headers" | tr -d '\r' | grep -qiE '^content-type: *(application/octet-stream|application/x-msdownload|binary/octet-stream|application/zip|application/x-gzip|application/vnd\.ms-cab-compressed|application/x-7z-compressed|application/x-rar-compressed|application/x-wz|application/octetstream)' || true
+          echo "EverLeaf public Map.wz endpoint size verified: $expected_size bytes"

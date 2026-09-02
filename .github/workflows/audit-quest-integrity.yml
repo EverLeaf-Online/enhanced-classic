@@ -1,0 +1,29 @@
+name: Audit quest integrity
+
+on:
+  push:
+    branches:
+      - master
+      - release-dev
+    paths:
+      - 'wz/Quest.wz/**'
+      - 'wz/Npc.wz/**'
+      - 'tools/audit_quest_integrity.py'
+      - '.github/workflows/audit-quest-integrity.yml'
+  pull_request:
+    branches:
+      - master
+      - release-dev
+    paths:
+      - 'wz/Quest.wz/**'
+      - 'wz/Npc.wz/**'
+      - 'tools/audit_quest_integrity.py'
+      - '.github/workflows/audit-quest-integrity.yml'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Audit global Quest.wz integrity
+        run: python3 tools/audit_quest_integrity.py

@@ -1,5 +1,6 @@
 -- Everleaf hybrid weekly progression persistence.
 -- Character-scoped objectives + account-scoped valuable reward budget.
+-- Safe to rerun after an interrupted release migration.
 
 CREATE TABLE IF NOT EXISTS everleaf_weekly_account_state (
     account_id INT NOT NULL,
@@ -28,11 +29,35 @@ CREATE TABLE IF NOT EXISTS everleaf_weekly_character_objective (
     CONSTRAINT chk_everleaf_objective_progress_nonnegative CHECK (progress_count >= 0)
 ) ENGINE=InnoDB;
 
-CREATE INDEX idx_everleaf_weekly_account_week
-    ON everleaf_weekly_account_state (week_start_utc);
+SET @idx_exists = (
+    SELECT COUNT(*) FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'everleaf_weekly_account_state'
+      AND index_name = 'idx_everleaf_weekly_account_week'
+);
+SET @idx_sql = IF(@idx_exists = 0,
+    'CREATE INDEX idx_everleaf_weekly_account_week ON everleaf_weekly_account_state (week_start_utc)',
+    'SELECT 1');
+PREPARE stmt FROM @idx_sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
-CREATE INDEX idx_everleaf_weekly_character_week
-    ON everleaf_weekly_character_objective (week_start_utc);
+SET @idx_exists = (
+    SELECT COUNT(*) FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'everleaf_weekly_character_objective'
+      AND index_name = 'idx_everleaf_weekly_character_week'
+);
+SET @idx_sql = IF(@idx_exists = 0,
+    'CREATE INDEX idx_everleaf_weekly_character_week ON everleaf_weekly_character_objective (week_start_utc)',
+    'SELECT 1');
+PREPARE stmt FROM @idx_sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
-CREATE INDEX idx_everleaf_weekly_objective_lookup
-    ON everleaf_weekly_character_objective (objective_id, week_start_utc);
+SET @idx_exists = (
+    SELECT COUNT(*) FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'everleaf_weekly_character_objective'
+      AND index_name = 'idx_everleaf_weekly_objective_lookup'
+);
+SET @idx_sql = IF(@idx_exists = 0,
+    'CREATE INDEX idx_everleaf_weekly_objective_lookup ON everleaf_weekly_character_objective (objective_id, week_start_utc)',
+    'SELECT 1');
+PREPARE stmt FROM @idx_sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

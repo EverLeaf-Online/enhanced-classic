@@ -2073,7 +2073,14 @@ public class MapleMap {
                     if (mist.makeChanceResult()) {
                         Character chr = (Character) mo;
                         if (mist.getOwner().getId() == chr.getId() || mist.getOwner().getParty() != null && mist.getOwner().getParty().containsMembers(chr.getMPC())) {
-                            chr.addMP(mist.getSourceSkill().getEffect(chr.getSkillLevel(mist.getSourceSkill().getId())).getX() * chr.getMp() / 100);
+                            StatEffect recoveryEffect = mist.getSourceSkill().getEffect(
+                                    mist.getOwner().getSkillLevel(mist.getSourceSkill().getId()));
+                            int recoveryInterval = 2500;
+                            int recoveryDuration = Math.max(1, recoveryEffect.getDuration());
+                            int recoveryAmount = (int) Math.floor(
+                                    chr.getMaxMp() * (recoveryEffect.getX() / 100.0)
+                                            * recoveryInterval / recoveryDuration);
+                            chr.addMP(Math.max(1, recoveryAmount));
                         }
                     }
                 }
@@ -2343,7 +2350,7 @@ public class MapleMap {
         }
 
         if (mapid == MapId.FROM_LITH_TO_RIEN) { // To Rien
-            int travelTime = getWorldServer().getTransportationTime((int) MINUTES.toMillis(1));
+            int travelTime = getWorldServer().getTransportationRideTime((int) MINUTES.toMillis(1));
             chr.sendPacket(PacketCreator.getClock(travelTime / 1000));
             TimerManager.getInstance().schedule(() -> {
                 if (chr.getMapId() == MapId.FROM_LITH_TO_RIEN) {
@@ -2351,7 +2358,7 @@ public class MapleMap {
                 }
             }, travelTime);
         } else if (mapid == MapId.FROM_RIEN_TO_LITH) { // To Lith Harbor
-            int travelTime = getWorldServer().getTransportationTime((int) MINUTES.toMillis(1));
+            int travelTime = getWorldServer().getTransportationRideTime((int) MINUTES.toMillis(1));
             chr.sendPacket(PacketCreator.getClock(travelTime / 1000));
             TimerManager.getInstance().schedule(() -> {
                 if (chr.getMapId() == MapId.FROM_RIEN_TO_LITH) {
@@ -2359,7 +2366,7 @@ public class MapleMap {
                 }
             }, travelTime);
         } else if (mapid == MapId.FROM_ELLINIA_TO_EREVE) { // To Ereve (SkyFerry)
-            int travelTime = getWorldServer().getTransportationTime((int) MINUTES.toMillis(2));
+            int travelTime = getWorldServer().getTransportationRideTime((int) MINUTES.toMillis(2));
             chr.sendPacket(PacketCreator.getClock(travelTime / 1000));
             TimerManager.getInstance().schedule(() -> {
                 if (chr.getMapId() == MapId.FROM_ELLINIA_TO_EREVE) {
@@ -2367,7 +2374,7 @@ public class MapleMap {
                 }
             }, travelTime);
         } else if (mapid == MapId.FROM_EREVE_TO_ELLINIA) { // To Victoria Island (SkyFerry)
-            int travelTime = getWorldServer().getTransportationTime((int) MINUTES.toMillis(2));
+            int travelTime = getWorldServer().getTransportationRideTime((int) MINUTES.toMillis(2));
             chr.sendPacket(PacketCreator.getClock(travelTime / 1000));
             TimerManager.getInstance().schedule(() -> {
                 if (chr.getMapId() == MapId.FROM_EREVE_TO_ELLINIA) {
@@ -2375,7 +2382,7 @@ public class MapleMap {
                 }
             }, travelTime);
         } else if (mapid == MapId.FROM_EREVE_TO_ORBIS) { // To Orbis (SkyFerry)
-            int travelTime = getWorldServer().getTransportationTime((int) MINUTES.toMillis(8));
+            int travelTime = getWorldServer().getTransportationRideTime((int) MINUTES.toMillis(8));
             chr.sendPacket(PacketCreator.getClock(travelTime / 1000));
             TimerManager.getInstance().schedule(() -> {
                 if (chr.getMapId() == MapId.FROM_EREVE_TO_ORBIS) {
@@ -2383,7 +2390,7 @@ public class MapleMap {
                 }
             }, travelTime);
         } else if (mapid == MapId.FROM_ORBIS_TO_EREVE) { // To Ereve From Orbis (SkyFerry)
-            int travelTime = getWorldServer().getTransportationTime((int) MINUTES.toMillis(8));
+            int travelTime = getWorldServer().getTransportationRideTime((int) MINUTES.toMillis(8));
             chr.sendPacket(PacketCreator.getClock(travelTime / 1000));
             TimerManager.getInstance().schedule(() -> {
                 if (chr.getMapId() == MapId.FROM_ORBIS_TO_EREVE) {

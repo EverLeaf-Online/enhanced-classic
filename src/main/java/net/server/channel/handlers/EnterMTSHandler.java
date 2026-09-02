@@ -54,6 +54,24 @@ public final class EnterMTSHandler extends AbstractPacketHandler {
             return;
         }
 
+        if (chr.isChangingMaps()) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
+        // NPC shops and storage are safe to close before a normal map warp.
+        // Do not treat those references as hard blockers: they can remain set
+        // briefly after the client UI has already closed, which caused false
+        // "finish your interaction" errors when using the TRADE -> FM shortcut.
+        // Real player-to-player commerce must still be finished explicitly.
+        if (chr.getTrade() != null
+                || chr.getPlayerShop() != null
+                || chr.getHiredMerchant() != null) {
+            chr.dropMessage(1, "Finish your current trade, player shop, or hired merchant interaction before entering the Free Market.");
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
         if (chr.getEventInstance() != null) {
             chr.dropMessage(1, "You cannot enter the Free Market while participating in an event.");
             c.sendPacket(PacketCreator.enableActions());

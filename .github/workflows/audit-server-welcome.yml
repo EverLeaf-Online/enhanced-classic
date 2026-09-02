@@ -1,0 +1,23 @@
+name: Audit server welcome branding
+
+on:
+  push:
+    branches: [client-dev]
+    paths:
+      - ".github/workflows/audit-server-welcome.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: content-dev
+      - name: Locate welcome branding
+        shell: bash
+        run: |
+          rg -n -i 'Welcome.{0,80}MapleStory|MapleStory.{0,40}Welcome|\[Welcome\]' . || true

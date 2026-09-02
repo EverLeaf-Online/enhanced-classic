@@ -1,0 +1,90 @@
+name: Build EverLeaf v83 client
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - "client/**"
+      - "web/scripts/build-patch-manifest.js"
+      - "web/scripts/test-patch-manifest.js"
+      - ".github/workflows/build-everleaf-client.yml"
+  pull_request:
+    branches: [release-dev, master]
+    paths:
+      - "client/**"
+      - "web/scripts/build-patch-manifest.js"
+      - "web/scripts/test-patch-manifest.js"
+      - ".github/workflows/build-everleaf-client.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build source-pinned Win32 release
+        shell: pwsh
+        run: msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+
+      - name: Verify EverLeaf client hardening
+        shell: pwsh
+        run: |
+          $sourcePath = "client/ezorsia/ezorsia/ReplacementFuncs.h"
+          $source = Get-Content $sourcePath -Raw
+          $required = @(
+            "EverLeafPinStringPoolEntry(pThis, nIdx)",
+            "EVERLEAF_STRING_POOL_PIN",
+            'lpClassName, "EverLeaf", dwStyle',
+            'case 888:',
+            'Welcome to EverLeaf!'
+          )
+          foreach ($pattern in $required) {
+            if (-not $source.Contains($pattern)) { throw "Missing required client hardening marker: $pattern" }
+          }
+          if ($source -match 'if\s*\(\(HRESULT\)v\d+\s*<\s*0\)') {
+            throw "Function-pointer address is still being tested as an HRESULT"
+          }
+
+      - name: Build managed client package
+        shell: pwsh
+        run: |
+          $dll = "client/ezorsia/out/Release/dinput8.dll"
+          if (-not (Test-Path $dll)) { throw "Missing build output: $dll" }
+          $package = "EverleafClient"
+          & "client/scripts/build-managed-package.ps1" -RepositoryRoot $PWD -OutputDirectory $package
+          $config = Get-Content "$package/config.ini" -Raw
+          $forbidden = @(
+            "ServerIP_Address", "MsgAmount", "setDamageCap", "useTubi",
+            "speedMovementCap", "CustomLoginFrame", "ownCashShopFrame",
+            "useV62_ExpTable", "sleepTime", "use_custom_dll"
+          )
+          foreach ($name in $forbidden) {
+            if ($config -match [regex]::Escape($name)) { throw "Player config exposes forbidden setting: $name" }
+          }
+          if (-not (Test-Path "$package/EverLeaf_UI.wz")) { throw "Missing branded EverLeaf UI file" }
+          if (Test-Path "$package/EzorsiaV2_UI.wz") { throw "Legacy UI filename leaked into package" }
+          Compress-Archive -Path "$package/*" -DestinationPath "EverleafClient-source-built.zip"
+          Get-FileHash "EverleafClient-source-built.zip" -Algorithm SHA256
+
+      - name: Test managed client and manifest invariants
+        shell: pwsh
+        run: |
+          python client/scripts/test-cosmic-wz-baseline.py
+          python -m py_compile client/scripts/test-managed-repair.py
+          node web/scripts/test-patch-manifest.js
+
+      - name: Upload client candidate
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-client-${{ github.sha }}
+          path: EverleafClient-source-built.zip
+          if-no-files-found: error
+          retention-days: 7

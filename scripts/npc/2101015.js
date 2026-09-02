@@ -46,6 +46,19 @@ function action(mode, type, selection) {
                 cm.dispose();
             }
         } else if (status == 2) {
+            // Revalidate the exchange at the actual commit point. Dialogue state can become
+            // stale, and rewards must never be granted after the point balance changed.
+            if (cm.getPlayer().getAriantPoints() < 100) {
+                cm.sendOk("You no longer have the 100 Battle Arena points required for this exchange.");
+                cm.dispose();
+                return;
+            }
+            if (!cm.canHold(3010018, 1)) {
+                cm.sendOk("Please make room in your SET-UP inventory before exchanging your points.");
+                cm.dispose();
+                return;
+            }
+
             cm.getPlayer().gainAriantPoints(-100);
             cm.gainItem(3010018, 1);
             cm.dispose();

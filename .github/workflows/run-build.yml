@@ -8,11 +8,13 @@ on:
       - master
       - enhanced-dev
       - progression-dev
+      - release-dev
   pull_request:
     branches:
       - master
       - enhanced-dev
       - progression-dev
+      - release-dev
 
 jobs:
   build:
@@ -25,27 +27,188 @@ jobs:
           java-version: '21'
           distribution: 'corretto'
           cache: 'maven'
-      - name: Set up Node 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: web/package-lock.json
-      - name: Test EverLeaf website and CMS
-        working-directory: web
-        run: |
-          npm ci
-          npm test
       - name: Apply Everleaf configuration
         run: python3 tools/apply_everleaf_config.py
       - name: Apply Everleaf source transforms
-        run: python3 tools/apply_level_cap_250.py
+        run: |
+          python3 tools/apply_level_cap_250.py
+          python3 tools/apply_pq_points.py
+          python3 tools/apply_evan_skill_data.py
+          python3 tools/apply_evan_behavior_fixes.py
+          python3 tools/apply_evan_dragon_fury_fixes.py
+          python3 tools/apply_evan_magic_resistance_fixes.py
+          python3 tools/apply_evan_progression_fixes.py
+          python3 tools/apply_equipment_requirement_fixes.py
+          python3 tools/apply_item_stack_integrity_fixes.py
+          python3 tools/apply_item_transfer_integrity_fixes.py
+          python3 tools/apply_duey_ownership_fixes.py
+          python3 tools/apply_duey_settlement_fixes.py
+          python3 tools/apply_merchant_recovery_fixes.py
+          python3 tools/apply_merchant_persistence_transaction.py
+          python3 tools/apply_merchant_credit_concurrency_fixes.py
+          python3 tools/apply_merchant_purchase_quantity_fixes.py
+          python3 tools/apply_merchant_snapshot_consistency.py
+          python3 tools/apply_playershop_transaction_integrity.py
+          python3 tools/apply_playershop_snapshot_consistency.py
+      - name: Verify Evan Dragon Fury transform idempotency
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='src/main/java/net/server/channel/handlers/AbstractDealDamageHandler.java'
+          before="$(sha256sum "$target" | awk '{print $1}')"
+          python3 tools/apply_evan_dragon_fury_fixes.py
+          after="$(sha256sum "$target" | awk '{print $1}')"
+          test "$before" = "$after" || {
+            echo 'Evan Dragon Fury transform is not idempotent; a production second pass would mutate source again.' >&2
+            exit 1
+          }
+          python3 tools/audit_evan_dragon_fury.py
+          echo 'Evan Dragon Fury transform is repeat-safe.'
+      - name: Verify Evan Magic Resistance transform idempotency
+        shell: bash
+        run: |
+          set -euo pipefail
+          targets=(
+            'src/main/java/server/life/MobAttackInfo.java'
+            'src/main/java/server/life/MobAttackInfoFactory.java'
+            'src/main/java/net/server/channel/handlers/TakeDamageHandler.java'
+          )
+          before="$(sha256sum "${targets[@]}" | sha256sum | awk '{print $1}')"
+          python3 tools/apply_evan_magic_resistance_fixes.py
+          after="$(sha256sum "${targets[@]}" | sha256sum | awk '{print $1}')"
+          test "$before" = "$after" || {
+            echo 'Evan Magic Resistance transform is not idempotent; a production second pass would mutate source again.' >&2
+            exit 1
+          }
+          python3 tools/audit_evan_magic_resistance.py
+          echo 'Evan Magic Resistance transform is repeat-safe.'
+      - name: Verify Duey transform idempotency
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='src/main/java/client/processor/npc/DueyProcessor.java'
+          before="$(sha256sum "$target" | awk '{print $1}')"
+          python3 tools/apply_duey_ownership_fixes.py
+          python3 tools/apply_duey_settlement_fixes.py
+          after="$(sha256sum "$target" | awk '{print $1}')"
+          test "$before" = "$after" || {
+            echo 'Duey transforms are not idempotent; a production second pass would mutate source again.' >&2
+            exit 1
+          }
+          python3 tools/audit_duey_integrity.py
+          python3 tools/audit_duey_settlement.py
+          echo 'Duey ownership/settlement transforms are repeat-safe.'
+      - name: Verify merchant transform idempotency
+        shell: bash
+        run: |
+          set -euo pipefail
+          merchant='src/main/java/server/maps/HiredMerchant.java'
+          fredrick='src/main/java/client/processor/npc/FredrickProcessor.java'
+          before="$(sha256sum "$merchant" "$fredrick" | sha256sum | awk '{print $1}')"
+          python3 tools/apply_merchant_recovery_fixes.py
+          python3 tools/apply_merchant_persistence_transaction.py
+          python3 tools/apply_merchant_credit_concurrency_fixes.py
+          python3 tools/apply_merchant_purchase_quantity_fixes.py
+          python3 tools/apply_merchant_snapshot_consistency.py
+          after="$(sha256sum "$merchant" "$fredrick" | sha256sum | awk '{print $1}')"
+          test "$before" = "$after" || {
+            echo 'Merchant transforms are not idempotent; a production second pass would mutate source again.' >&2
+            exit 1
+          }
+          python3 tools/audit_merchant_recovery_integrity.py
+          python3 tools/audit_merchant_persistence_transaction.py
+          python3 tools/audit_merchant_credit_concurrency.py
+          python3 tools/audit_merchant_purchase_quantity.py
+          python3 tools/audit_merchant_snapshot_consistency.py
+          echo 'Merchant recovery/persistence/credit/quantity/snapshot transforms are repeat-safe.'
+      - name: Verify PlayerShop transform idempotency
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='src/main/java/server/maps/PlayerShop.java'
+          before="$(sha256sum "$target" | awk '{print $1}')"
+          python3 tools/apply_playershop_transaction_integrity.py
+          python3 tools/apply_playershop_snapshot_consistency.py
+          after="$(sha256sum "$target" | awk '{print $1}')"
+          test "$before" = "$after" || {
+            echo 'PlayerShop transforms are not idempotent; a production second pass would mutate source again.' >&2
+            exit 1
+          }
+          python3 tools/audit_playershop_transaction_integrity.py
+          python3 tools/audit_playershop_snapshot_consistency.py
+          echo 'PlayerShop transaction/snapshot transforms are repeat-safe.'
       - name: Audit economy and NX drops
         run: python3 tools/audit_economy_balance.py
       - name: Audit Gachapon and reward sources
         run: python3 tools/audit_reward_sources.py
+      - name: Audit Vote Point exchange
+        run: python3 tools/audit_vote_shop.py
+      - name: Audit verified Vote Point rewards
+        run: python3 tools/audit_vote_rewards.py
+      - name: Audit PQ Points
+        run: python3 tools/audit_pq_points.py
+      - name: Audit Pet Vac safety
+        run: python3 tools/audit_pet_vac.py
+      - name: Audit Maple Leaf exchange
+        run: python3 tools/audit_leaf_shop.py
+      - name: Audit Rooted content
+        run: python3 tools/audit_rooted_content.py
+      - name: Audit class and skill integrity
+        run: python3 tools/audit_class_skills.py
+      - name: Audit Evan release support
+        run: python3 tools/audit_evan_release.py
+      - name: Audit Evan Dragon Fury
+        run: python3 tools/audit_evan_dragon_fury.py
+      - name: Audit Evan Magic Resistance
+        run: python3 tools/audit_evan_magic_resistance.py
+      - name: Audit items and equipment integrity
+        run: python3 tools/audit_items_equipment.py
+      - name: Audit item transfer and stack integrity
+        run: python3 tools/audit_item_transfer_integrity.py
+      - name: Audit Duey package ownership integrity
+        run: python3 tools/audit_duey_integrity.py
+      - name: Audit Duey settlement integrity
+        run: python3 tools/audit_duey_settlement.py
+      - name: Audit merchant recovery integrity
+        run: python3 tools/audit_merchant_recovery_integrity.py
+      - name: Audit merchant persistence transaction
+        run: python3 tools/audit_merchant_persistence_transaction.py
+      - name: Audit merchant seller-credit concurrency
+        run: python3 tools/audit_merchant_credit_concurrency.py
+      - name: Audit merchant purchase quantity integrity
+        run: python3 tools/audit_merchant_purchase_quantity.py
+      - name: Audit merchant snapshot consistency
+        run: python3 tools/audit_merchant_snapshot_consistency.py
+      - name: Audit PlayerShop transaction integrity
+        run: python3 tools/audit_playershop_transaction_integrity.py
+      - name: Audit PlayerShop snapshot consistency
+        run: python3 tools/audit_playershop_snapshot_consistency.py
+      - name: Audit boss and PQ event-manager links
+        run: python3 tools/audit_event_manager_links.py
       - name: Audit world data integrity
         run: python3 tools/audit_world_integrity.py
+      - name: Audit release-facing NPC and portal integrity
+        run: python3 tools/audit_world_release.py
+      - name: Review active NPC script coverage
+        run: python3 tools/audit_active_npc_scripts.py
+      - name: Audit portal script filename case
+        run: python3 tools/audit_portal_script_case.py
+      - name: Audit script map references
+        run: python3 tools/audit_script_map_references.py --strict
+      - name: Audit Maple Island beginner quests
+        run: python3 tools/audit_maple_island_quests.py
+      - name: Audit global quest integrity
+        run: python3 tools/audit_quest_integrity.py
+      - name: Audit active quest content references
+        run: python3 tools/audit_quest_content_refs.py
+      - name: Audit Victoria Island quests
+        run: python3 tools/audit_victoria_quests.py
+      - name: Audit classic mainland quests
+        run: python3 tools/audit_mainland_quests.py
+      - name: Audit scripted quest handlers
+        run: python3 tools/audit_quest_scripts.py
+      - name: Audit quest actions and rewards
+        run: python3 tools/audit_quest_actions.py
       - name: Ensure Maven wrapper is executable
         run: chmod +x mvnw
       - name: Build with Maven (compile -> test -> package)
@@ -55,9 +218,6 @@ jobs:
         run: python3 tools/generate_build_manifest.py
       - name: Upload Everleaf server artifact (best effort)
         if: success()
-        # A full account-level Actions artifact quota must not turn a verified
-        # compile/test/package run red. The jar is still available in the job
-        # workspace and production deployment has its own rollback copy.
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:

@@ -55,6 +55,12 @@ public class YamlConfig {
         if (automaticRegister != null && !automaticRegister.isBlank()) {
             server.AUTOMATIC_REGISTER = parseBoolean("EVERLEAF_AUTOMATIC_REGISTER", automaticRegister);
         }
+
+        // EverLeaf uses the account password as its only interactive login secret.
+        // The v83 PIN/PIC prompts add friction without adding useful protection for
+        // our launcher-backed account flow, so always advertise both systems as disabled.
+        server.ENABLE_PIN = false;
+        server.ENABLE_PIC = false;
     }
 
     private static String envOrDefault(Map<String, String> environment, String key, String fallback) {

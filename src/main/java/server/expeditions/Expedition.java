@@ -191,6 +191,10 @@ public class Expedition {
 
     public void finishRegistration() {
         registering = false;
+        if (schedule != null) {
+            schedule.cancel(false);
+            schedule = null;
+        }
     }
 
     public void start() {
@@ -237,6 +241,11 @@ public class Expedition {
         }
         if (members.size() >= this.getMaxSize()) { //Would be a miracle if anybody ever saw this
             return 3; //"Sorry, this expedition is full!";
+        }
+
+        int channel = this.getRecruitingMap().getChannelServer().getId();
+        if (!ExpeditionBossLog.attemptBoss(player.getId(), channel, this, false)) {
+            return 4; // Entry-attempt quota reached.
         }
 
         members.put(player.getId(), player.getName());

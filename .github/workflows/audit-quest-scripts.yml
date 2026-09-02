@@ -1,0 +1,31 @@
+name: Audit scripted quests
+
+on:
+  push:
+    branches:
+      - master
+      - release-dev
+    paths:
+      - 'wz/Quest.wz/**'
+      - 'wz/Map.wz/Map/**'
+      - 'scripts/quest/**'
+      - 'tools/audit_quest_scripts.py'
+      - '.github/workflows/audit-quest-scripts.yml'
+  pull_request:
+    branches:
+      - master
+      - release-dev
+    paths:
+      - 'wz/Quest.wz/**'
+      - 'wz/Map.wz/Map/**'
+      - 'scripts/quest/**'
+      - 'tools/audit_quest_scripts.py'
+      - '.github/workflows/audit-quest-scripts.yml'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Audit Quest.wz script requirements
+        run: python3 tools/audit_quest_scripts.py

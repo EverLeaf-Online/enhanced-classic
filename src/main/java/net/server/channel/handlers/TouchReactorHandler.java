@@ -26,6 +26,9 @@ import net.AbstractPacketHandler;
 import net.packet.InPacket;
 import scripting.reactor.ReactorScriptManager;
 import server.maps.Reactor;
+import tools.PacketCreator;
+
+import java.awt.Point;
 
 /**
  * @author Generic
@@ -36,7 +39,8 @@ public final class TouchReactorHandler extends AbstractPacketHandler {
     public final void handlePacket(InPacket p, Client c) {
         int oid = p.readInt();
         Reactor reactor = c.getPlayer().getMap().getReactorByOid(oid);
-        if (reactor == null) {
+        if (reactor == null || !isNearby(c, reactor)) {
+            c.sendPacket(PacketCreator.enableActions());
             return;
         }
 
@@ -45,5 +49,12 @@ public final class TouchReactorHandler extends AbstractPacketHandler {
         } else {
             ReactorScriptManager.getInstance().untouch(c, reactor);
         }
+    }
+
+    private static boolean isNearby(Client c, Reactor reactor) {
+        Point playerPos = c.getPlayer().getPosition();
+        Point reactorPos = reactor.getPosition();
+        return Math.abs(reactorPos.x - playerPos.x) <= 1200
+                && Math.abs(reactorPos.y - playerPos.y) <= 800;
     }
 }

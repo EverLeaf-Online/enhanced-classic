@@ -1,0 +1,78 @@
+name: Analyze v83 attack-move client paths
+
+on:
+  push:
+    paths:
+      - ".github/workflows/analyze-attack-move.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve verified legacy client
+        uses: actions/checkout@v5
+        with:
+          ref: 335d4fbb74e713a01f63163c39c941865401d24a
+          sparse-checkout: Localhosts.zip
+          sparse-checkout-cone-mode: false
+
+      - name: Verify source archive
+        shell: bash
+        run: |
+          echo "096e21e155ca1a06a3132a6ad6f7feda5cd986928f415bab15a3b67fee412527  Localhosts.zip" | sha256sum --check
+
+      - name: Disassemble confirmed attack and movement regions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source analysis
+          unzip -q Localhosts.zip -d source
+          exe="source/Localhost.exe"
+          sha256sum "$exe" > analysis/source-sha256.txt
+          objdump -D -Mintel --start-address=0x950800 --stop-address=0x957200 "$exe" > analysis/attack-region.txt || true
+          objdump -D -Mintel --start-address=0x94c360 --stop-address=0x94c420 "$exe" > analysis/move-skill-94c3.txt || true
+          objdump -D -Mintel --start-address=0x95f920 --stop-address=0x95fa20 "$exe" > analysis/move-skill-95f9.txt || true
+          objdump -D -Mintel --start-address=0x9cbf60 --stop-address=0x9cc010 "$exe" > analysis/move-skill-9cbf.txt || true
+
+      - name: Verify documented v83 move-while-skill bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          exe="source/Localhost.exe"
+          echo '===== DOCUMENTED MOVE-WHILE-SKILL CANDIDATES ====='
+          for spec in \
+            'move_skill_a 0x95f940 0x95f9c0' \
+            'move_skill_b 0x9cbf80 0x9cbfd0' \
+            'move_skill_c 0x94c390 0x94c3e5' \
+            'jump_shoot 0x9539d0 0x953a20' \
+            'jump_magic 0x9559c0 0x955a10'; do
+            set -- $spec
+            echo "===== $1 ====="
+            objdump -D -Mintel --start-address="$2" --stop-address="$3" "$exe" || true
+          done
+
+          python3 - <<'PY'
+          from pathlib import Path
+          data=Path('source/Localhost.exe').read_bytes()
+          # PE image base is 0x00400000 and this executable's raw .text mapping is
+          # handled from section metadata below; emit bytes using objdump output too.
+          print('Candidate VA list: 0095F97A 009CBFB0 0094C3BB 009539FA 009559E5')
+          PY
+
+      - name: Cross-reference candidate branches in attack region
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -nEi '9539fa|9559e5|95f97a|9cbfb0|94c3bb' analysis/attack-region.txt || true
+
+      - name: Upload attack-move analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-v83-attack-move-analysis
+          path: analysis/
+          retention-days: 7
+          if-no-files-found: error

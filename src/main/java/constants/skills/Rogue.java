@@ -8,8 +8,7 @@
     it under the terms of the GNU Affero General Public License as
     published by the Free Software Foundation version 3 as published by
     the Free Software Foundation. You may not use, modify or distribute
-    this program under any other version of the GNU Affero General Public
-    License.
+    this program under any other version of the GNU Affero General Public License.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -25,8 +24,8 @@ package constants.skills;
  * @author BubblesDev
  */
 public class Rogue {
-    public static final int NIMBLE_BODY = 4001000;
-    public static final int KEEN_EYES = 4001001;
+    public static final int NIMBLE_BODY = 4000000;
+    public static final int KEEN_EYES = 4000001;
     public static final int DARK_SIGHT = 4001003;
     public static final int DISORDER = 4001002;
     public static final int DOUBLE_STAB = 4001334;

@@ -28,6 +28,7 @@ import client.inventory.ItemFactory;
 import client.inventory.Pet;
 import config.YamlConfig;
 import constants.game.GameConstants;
+import constants.id.ItemId;
 import constants.id.MapId;
 import constants.id.NpcId;
 import constants.inventory.ItemConstants;
@@ -406,9 +407,31 @@ public class NPCConversationManager extends AbstractPlayerInteraction {
         }
     }
 
-    public void doGachapon() {
+    public boolean doGachapon(int ticketId) {
+        if (ticketId != ItemId.GACHAPON_TICKET && ticketId != ItemId.REMOTE_GACHAPON_TICKET) {
+            log.warn("Rejected invalid Gachapon ticket id {} from script {}", ticketId, scriptName);
+            return false;
+        }
+        if (!haveItem(ticketId)) {
+            sendOk("You do not have the required Gachapon ticket.");
+            return false;
+        }
+
         GachaponItem item = Gachapon.getInstance().process(npc);
-        Item itemGained = gainItem(item.getId(), (short) (item.getId() / 10000 == 200 ? 100 : 1), true, true); // For normal potions, make it give 100.
+        short quantity = (short) (item.getId() / 10000 == 200 ? 100 : 1); // For normal potions, make it give 100.
+        if (!canHold(item.getId(), quantity, ticketId, 1)) {
+            sendOk("Please make room in your #r" + ItemConstants.getInventoryType(item.getId()).name()
+                    + "#k inventory. Your Gachapon ticket was not consumed.");
+            return false;
+        }
+
+        gainItem(ticketId, (short) -1, false, true);
+        Item itemGained = gainItem(item.getId(), quantity, true, true);
+        if (itemGained == null) {
+            gainItem(ticketId, (short) 1, false, true);
+            sendOk("The reward could not be added to your inventory. Your Gachapon ticket was returned.");
+            return false;
+        }
 
         sendNext("You have obtained a #b#t" + item.getId() + "##k.");
 
@@ -423,6 +446,7 @@ public class NPCConversationManager extends AbstractPlayerInteraction {
         if (item.getTier() > 0) { //Uncommon and Rare
             Server.getInstance().broadcastMessage(c.getWorld(), PacketCreator.gachaponMessage(itemGained, map, getPlayer()));
         }
+        return true;
     }
 
     public void upgradeAlliance() {

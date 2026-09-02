@@ -7,9 +7,8 @@
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as
     published by the Free Software Foundation version 3 as published by
-    the Free Software Foundation. You may not use, modify or distribute
-    this program under any other version of the GNU Affero General Public
-    License.
+the Free Software Foundation. You may not use, modify or distribute
+this program under any other version of the GNU Affero General Public License.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -24,7 +23,6 @@ package server;
 import client.Client;
 import client.inventory.InventoryType;
 import client.inventory.Item;
-import client.inventory.Pet;
 import client.inventory.manipulator.InventoryManipulator;
 import constants.id.ItemId;
 import constants.inventory.ItemConstants;
@@ -52,8 +50,6 @@ public class Shop {
     private final int id;
     private final int npcId;
     private final List<ShopItem> items;
-    private final int tokenvalue = 1000000000;
-    private final int token = ItemId.GOLDEN_MAPLE_LEAF;
 
     static {
         for (int throwingStarId : ItemId.allThrowingStarIds()) {
@@ -85,17 +81,38 @@ public class Shop {
 
     public void buy(Client c, short slot, int itemId, short quantity) {
         ShopItem item = findBySlot(slot);
-        if (item != null) {
-            if (item.getItemId() != itemId) {
-                log.warn("Wrong slot number in shop {}", id);
-                return;
-            }
-        } else {
+        if (item == null) {
+            c.sendPacket(PacketCreator.shopTransaction((byte) 2));
             return;
         }
+        if (item.getItemId() != itemId) {
+            log.warn("Wrong slot number in shop {}", id);
+            c.sendPacket(PacketCreator.shopTransaction((byte) 2));
+            return;
+        }
+        if (quantity < 1) {
+            c.sendPacket(PacketCreator.shopTransaction((byte) 2));
+            return;
+        }
+
+        // Zero-price entries are added for recharge support and are not products.
+        // Legacy non-positive-price buying also contained unsafe Golden Maple Leaf
+        // arithmetic; EverLeaf has no data-driven negative-price shop entries.
+        if (item.getPrice() <= 0 && item.getPitch() <= 0) {
+            log.warn("Chr {} tried to buy non-purchasable shop item {} from shop {}",
+                    c.getPlayer().getName(), itemId, id);
+            c.sendPacket(PacketCreator.shopTransaction((byte) 2));
+            return;
+        }
+
         ItemInformationProvider ii = ItemInformationProvider.getInstance();
         if (item.getPrice() > 0) {
-            int amount = (int) Math.min((float) item.getPrice() * quantity, Integer.MAX_VALUE);
+            long rawAmount = (long) item.getPrice() * quantity;
+            if (rawAmount <= 0 || rawAmount > Integer.MAX_VALUE) {
+                c.sendPacket(PacketCreator.shopTransaction((byte) 2));
+                return;
+            }
+            int amount = (int) rawAmount;
             if (c.getPlayer().getMeso() >= amount) {
                 if (InventoryManipulator.checkSpace(c, itemId, quantity, "")) {
                     if (!ItemConstants.isRechargeable(itemId)) { //Pets can't be bought from shops
@@ -117,7 +134,12 @@ public class Shop {
             }
 
         } else if (item.getPitch() > 0) {
-            int amount = (int) Math.min((float) item.getPitch() * quantity, Integer.MAX_VALUE);
+            long rawAmount = (long) item.getPitch() * quantity;
+            if (rawAmount <= 0 || rawAmount > Integer.MAX_VALUE) {
+                c.sendPacket(PacketCreator.shopTransaction((byte) 2));
+                return;
+            }
+            int amount = (int) rawAmount;
 
             if (c.getPlayer().getInventory(InventoryType.ETC).countById(ItemId.PERFECT_PITCH) >= amount) {
                 if (InventoryManipulator.checkSpace(c, itemId, quantity, "")) {
@@ -134,27 +156,6 @@ public class Shop {
                 } else {
                     c.sendPacket(PacketCreator.shopTransaction((byte) 3));
                 }
-            }
-
-        } else if (c.getPlayer().getInventory(InventoryType.CASH).countById(token) != 0) {
-            int amount = c.getPlayer().getInventory(InventoryType.CASH).countById(token);
-            int value = amount * tokenvalue;
-            int cost = item.getPrice() * quantity;
-            if (c.getPlayer().getMeso() + value >= cost) {
-                int cardreduce = value - cost;
-                int diff = cardreduce + c.getPlayer().getMeso();
-                if (InventoryManipulator.checkSpace(c, itemId, quantity, "")) {
-                    if (ItemConstants.isPet(itemId)) {
-                        int petid = Pet.createPet(itemId);
-                        InventoryManipulator.addById(c, itemId, quantity, "", petid, -1);
-                    } else {
-                        InventoryManipulator.addById(c, itemId, quantity, "", -1, -1);
-                    }
-                    c.getPlayer().gainMeso(diff, false);
-                } else {
-                    c.sendPacket(PacketCreator.shopTransaction((byte) 3));
-                }
-                c.sendPacket(PacketCreator.shopTransaction((byte) 0));
             } else {
                 c.sendPacket(PacketCreator.shopTransaction((byte) 2));
             }
@@ -162,7 +163,7 @@ public class Shop {
     }
 
     private static boolean canSell(Item item, short quantity) {
-        if (item == null) { //Basic check
+        if (item == null) {
             return false;
         }
 
@@ -191,6 +192,12 @@ public class Shop {
         return quantity;
     }
 
+    static boolean isValidSellPrice(int price) {
+        // ItemInformationProvider uses -1 when Item.wz has no price. Such items
+        // are not sellable and must never be removed from inventory for zero mesos.
+        return price >= 0;
+    }
+
     public void sell(Client c, InventoryType type, short slot, short quantity) {
         if (quantity == 0xFFFF || quantity == 0) {
             quantity = 1;
@@ -201,10 +208,15 @@ public class Shop {
         Item item = c.getPlayer().getInventory(type).getItem(slot);
         if (canSell(item, quantity)) {
             quantity = getSellingQuantity(item, quantity);
-            InventoryManipulator.removeFromSlot(c, type, (byte) slot, quantity, false);
 
             ItemInformationProvider ii = ItemInformationProvider.getInstance();
             int recvMesos = ii.getPrice(item.getItemId(), quantity);
+            if (!isValidSellPrice(recvMesos)) {
+                c.sendPacket(PacketCreator.shopTransaction((byte) 0x5));
+                return;
+            }
+
+            InventoryManipulator.removeFromSlot(c, type, (byte) slot, quantity, false);
             if (recvMesos > 0) {
                 c.getPlayer().gainMeso(recvMesos, false);
             }
@@ -226,6 +238,9 @@ public class Shop {
         }
         if (item.getQuantity() < slotMax) {
             int price = (int) Math.ceil(ii.getUnitPrice(item.getItemId()) * (slotMax - item.getQuantity()));
+            if (price < 0) {
+                return;
+            }
             if (c.getPlayer().getMeso() >= price) {
                 item.setQuantity(slotMax);
                 c.getPlayer().forceUpdateItem(item);
@@ -238,6 +253,9 @@ public class Shop {
     }
 
     private ShopItem findBySlot(short slot) {
+        if (slot < 0 || slot >= items.size()) {
+            return null;
+        }
         return items.get(slot);
     }
 
@@ -252,7 +270,7 @@ public class Shop {
                 query = "SELECT * FROM shops WHERE npcid = ?";
             }
 
-            try (PreparedStatement ps = con.prepareStatement(query)) {
+            try (PreparedStatement ps = con.prepareStatement(query.toString())) {
                 ps.setInt(1, id);
 
                 try (ResultSet rs = ps.executeQuery()) {

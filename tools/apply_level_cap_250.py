@@ -64,19 +64,34 @@ replace_once(
     'log.info("{} is now online after {} ms.", service.enhanced.EverleafIdentity.NAME, initDuration.toMillis());',
 )
 
-# Register player-facing Everleaf progression commands without permanently
-# rewriting the large upstream command registry yet. Some branches use explicit
-# gm0 imports while the current EverLeaf registry uses a wildcard; support both
-# source shapes so CI remains deterministic as the registry evolves.
+# EverLeaf QoL: storage is account utility and should be available from level 1.
+# Older source snapshots still carry Cosmic's level-15 gate; newer EverLeaf
+# source has the gate removed directly. Support both shapes so this build
+# transform remains deterministic while the fork is being consolidated.
+storage_processor = Path("src/main/java/client/processor/npc/StorageProcessor.java")
+storage_text = storage_processor.read_text(encoding="utf-8")
+storage_gate = """        if (chr.getLevel() < 15) {\n            chr.dropMessage(1, \"You may only use the storage once you have reached level 15.\");\n            c.sendPacket(PacketCreator.enableActions());\n            return;\n        }\n\n"""
+if storage_gate in storage_text:
+    storage_processor.write_text(storage_text.replace(storage_gate, "", 1), encoding="utf-8")
+elif "chr.getLevel() < 15" in storage_text:
+    raise SystemExit("Unexpected storage level-gate source shape in StorageProcessor.java")
+
+# Register player-facing Everleaf progression/economy commands without
+# permanently rewriting the large upstream command registry yet. Some branches
+# use explicit gm0 imports while the current EverLeaf registry uses a wildcard;
+# support both source shapes so CI remains deterministic as the registry evolves.
 commands = Path("src/main/java/client/command/CommandsExecutor.java")
 commands_text = commands.read_text(encoding="utf-8")
-progression_imports = (
+everleaf_imports = (
+    "import client.command.commands.gm0.LeafShopCommand;\n"
     "import client.command.commands.gm0.MarksCommand;\n"
     "import client.command.commands.gm0.ProgressCommand;\n"
+    "import client.command.commands.gm0.VoteCommand;\n"
+    "import client.command.commands.gm0.VoteShopCommand;\n"
     "import client.command.commands.gm0.WeekliesCommand;"
 )
 
-if "import client.command.commands.gm0.*;" not in commands_text and progression_imports not in commands_text:
+if "import client.command.commands.gm0.*;" not in commands_text and everleaf_imports not in commands_text:
     import_anchor = "import client.command.commands.gm0.OnlineCommand;"
     if import_anchor not in commands_text:
         raise SystemExit(
@@ -84,7 +99,7 @@ if "import client.command.commands.gm0.*;" not in commands_text and progression_
         )
     commands_text = commands_text.replace(
         import_anchor,
-        import_anchor + "\n" + progression_imports,
+        import_anchor + "\n" + everleaf_imports,
         1,
     )
 
@@ -103,6 +118,31 @@ if progression_registration not in commands_text:
         1,
     )
 
+leafshop_registration = '        addCommand(new String[]{"leafshop", "leaves"}, LeafShopCommand.class);'
+if leafshop_registration not in commands_text:
+    progression_anchor = '        addCommand(new String[]{"weeklies", "weekly"}, WeekliesCommand.class);'
+    if progression_anchor not in commands_text:
+        raise SystemExit("Could not find EverLeaf weekly command registration anchor.")
+    commands_text = commands_text.replace(
+        progression_anchor,
+        progression_anchor + "\n" + leafshop_registration,
+        1,
+    )
+
+vote_registration = (
+    '        addCommand("vote", VoteCommand.class);\n'
+    '        addCommand(new String[]{"voteshop", "voteexchange"}, VoteShopCommand.class);'
+)
+if vote_registration not in commands_text:
+    vote_anchor = leafshop_registration
+    if vote_anchor not in commands_text:
+        raise SystemExit("Could not find EverLeaf leaf shop command registration anchor.")
+    commands_text = commands_text.replace(
+        vote_anchor,
+        vote_anchor + "\n" + vote_registration,
+        1,
+    )
+
 commands.write_text(commands_text, encoding="utf-8")
 
-print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics + progression/marks commands).")
+print("Everleaf Enhanced Classic source transform applied (level cap 250 + survivability + identity + safety diagnostics + level-1 storage + progression/marks/leafshop/vote commands).")

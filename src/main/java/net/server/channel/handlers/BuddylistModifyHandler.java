@@ -82,6 +82,10 @@ public class BuddylistModifyHandler extends AbstractPacketHandler {
     @Override
     public void handlePacket(InPacket p, Client c) {
         int mode = p.readByte();
+        if (mode < 1 || mode > 3) {
+            return;
+        }
+
         Character player = c.getPlayer();
         BuddyList buddylist = player.getBuddylist();
         if (mode == 1) { // add
@@ -174,6 +178,11 @@ public class BuddylistModifyHandler extends AbstractPacketHandler {
             }
         } else if (mode == 2) { // accept buddy
             int otherCid = p.readInt();
+            BuddylistEntry pendingEntry = buddylist.get(otherCid);
+            if (pendingEntry == null || pendingEntry.isVisible()) {
+                return;
+            }
+
             if (!buddylist.isFull()) {
                 try {
                     int channel = c.getWorldServer().find(otherCid);//worldInterface.find(otherCid);

@@ -27,6 +27,7 @@ import client.Character;
 import client.Client;
 import client.command.Command;
 import constants.game.GameConstants;
+import constants.id.MapId;
 import constants.id.NpcId;
 import server.maps.FieldLimit;
 import server.maps.MapFactory;
@@ -76,6 +77,15 @@ public class GotoCommand extends Command {
         listEntries.sort((e1, e2) -> e1.getValue().compareTo(e2.getValue()));
     }
 
+    /**
+     * EverLeaf temporarily exposes @goto to all players. The command itself
+     * still restricts non-GMs to the safe town list and blocks restricted maps.
+     */
+    @Override
+    public int getRank() {
+        return 0;
+    }
+
     @Override
     public void execute(Client c, String[] params) {
         Character player = c.getPlayer();
@@ -110,11 +120,16 @@ public class GotoCommand extends Command {
         }
 
         if (gotomaps.containsKey(params[0])) {
-            MapleMap target = c.getChannelServer().getMapFactory().getMap(gotomaps.get(params[0]));
+            int targetMapId = gotomaps.get(params[0]);
+            MapleMap target = c.getChannelServer().getMapFactory().getMap(targetMapId);
 
             // expedition issue with this command detected thanks to Masterrulax
             Portal targetPortal = target.getRandomPlayerSpawnpoint();
-            player.saveLocationOnWarp();
+            if (targetMapId == MapId.FM_ENTRANCE) {
+                player.saveLocation("FREE_MARKET");
+            } else {
+                player.saveLocationOnWarp();
+            }
             player.changeMap(target, targetPortal);
         } else {
             // detailed info on goto available areas suggested thanks to Vcoc

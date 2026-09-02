@@ -1,0 +1,63 @@
+name: Inventory live Evan WZ paths
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - "client/tools/evan-wz-inventory/**"
+      - ".github/workflows/inventory-evan-live-wz.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Build pinned WZ inventory tool
+        run: |
+          set -euo pipefail
+          git clone --recurse-submodules https://github.com/toyobayashi/libwz.git "$RUNNER_TEMP/libwz"
+          git -C "$RUNNER_TEMP/libwz" checkout "$LIBWZ_COMMIT"
+          git -C "$RUNNER_TEMP/libwz" submodule update --init --recursive
+          cmake -S client/tools/evan-wz-inventory -B "$RUNNER_TEMP/evan-inventory-build" -DLIBWZ_SOURCE="$RUNNER_TEMP/libwz" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/evan-inventory-build" --config Release -j2
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Fetch live WZ files
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/live-wz"
+          for f in Character.wz Skill.wz String.wz UI.wz; do
+            scp -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/$f" "$RUNNER_TEMP/live-wz/$f"
+          done
+      - name: Inventory Evan paths
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/evan-inventory-build/everleaf-evan-wz-inventory" \
+            "$RUNNER_TEMP/live-wz/Character.wz" "$RUNNER_TEMP/live-wz/Skill.wz" \
+            "$RUNNER_TEMP/live-wz/String.wz" "$RUNNER_TEMP/live-wz/UI.wz" | tee evan-live-wz-inventory.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evan-live-wz-inventory-${{ github.sha }}
+          path: evan-live-wz-inventory.txt
+          retention-days: 7

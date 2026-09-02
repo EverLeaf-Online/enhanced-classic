@@ -63,7 +63,7 @@ public final class RangedAttackHandler extends AbstractDealDamageHandler {
         
         /*long timeElapsed = currentServerTime() - chr.getAutobanManager().getLastSpam(8);
         if(timeElapsed < 300) {
-            AutobanFactory.FAST_ATTACK.alert(chr, "Time: " + timeElapsed);
+                AutobanFactory.FAST_ATTACK.alert(chr, "Time: " + timeElapsed);
         }
         chr.getAutobanManager().spam(8);*/
 
@@ -71,7 +71,6 @@ public final class RangedAttackHandler extends AbstractDealDamageHandler {
 
         if (chr.getBuffEffect(BuffStat.MORPH) != null) {
             if (chr.getBuffEffect(BuffStat.MORPH).isMorphWithoutAttack()) {
-                // How are they attacking when the client won't let them?
                 chr.getClient().disconnect(false, false);
                 return;
             }
@@ -127,7 +126,7 @@ public final class RangedAttackHandler extends AbstractDealDamageHandler {
                     c.sendPacket(PacketCreator.skillCooldown(attack.skill, effect.getCooldown()));
                 }
 
-                if (attack.skill == 4111004) {   // shadow meso
+                if (attack.skill == 4111004) {
                     bulletCount = 0;
 
                     int money = effect.getMoneyCon();
@@ -154,8 +153,10 @@ public final class RangedAttackHandler extends AbstractDealDamageHandler {
 
                     boolean bow = ItemConstants.isArrowForBow(id);
                     boolean cbow = ItemConstants.isArrowForCrossBow(id);
-                    if (item.getQuantity() >= bulletCount) { //Fixes the bug where you can't use your last arrow.
-                        if (type == WeaponType.CLAW && ItemConstants.isThrowingStar(id) && weapon.getItemId() != ItemId.MAGICAL_MITTEN) {
+                    boolean throwingStar = ItemConstants.isThrowingStar(id);
+                    boolean enoughProjectiles = throwingStar ? item.getQuantity() > 0 : item.getQuantity() >= bulletCount;
+                    if (enoughProjectiles) {
+                        if (type == WeaponType.CLAW && throwingStar && weapon.getItemId() != ItemId.MAGICAL_MITTEN) {
                             if (((id == ItemId.HWABI_THROWING_STARS || id == ItemId.BALANCED_FURY) && chr.getLevel() < 70) || (id == ItemId.CRYSTAL_ILBI_THROWING_STARS && chr.getLevel() < 50)) {
                             } else {
                                 projectile = id;
@@ -181,7 +182,8 @@ public final class RangedAttackHandler extends AbstractDealDamageHandler {
             boolean soulArrow = chr.getBuffedValue(BuffStat.SOULARROW) != null;
             boolean shadowClaw = chr.getBuffedValue(BuffStat.SHADOW_CLAW) != null;
             if (projectile != 0) {
-                if (!soulArrow && !shadowClaw && attack.skill != 11101004 && attack.skill != 15111007 && attack.skill != 14101006) {
+                boolean infiniteThrowingStar = ItemConstants.isThrowingStar(projectile);
+                if (!infiniteThrowingStar && !soulArrow && !shadowClaw && attack.skill != 11101004 && attack.skill != 15111007 && attack.skill != 14101006) {
                     short bulletConsume = bulletCount;
 
                     if (effect != null && effect.getBulletConsume() != 0) {
@@ -197,10 +199,10 @@ public final class RangedAttackHandler extends AbstractDealDamageHandler {
             }
 
             if (projectile != 0 || soulArrow || attack.skill == 11101004 || attack.skill == 15111007 || attack.skill == 14101006 || attack.skill == 4111004 || attack.skill == 13101005) {
-                int visProjectile = projectile; //visible projectile sent to players
+                int visProjectile = projectile;
                 if (ItemConstants.isThrowingStar(projectile)) {
                     Inventory cash = chr.getInventory(InventoryType.CASH);
-                    for (int i = 1; i <= cash.getSlotLimit(); i++) { // impose order...
+                    for (int i = 1; i <= cash.getSlotLimit(); i++) {
                         Item item = cash.getItem((short) i);
                         if (item != null) {
                             if (item.getItemId() / 1000 == 5021) {
@@ -215,10 +217,10 @@ public final class RangedAttackHandler extends AbstractDealDamageHandler {
 
                 final Packet packet;
                 switch (attack.skill) {
-                    case 3121004: // Hurricane
-                    case 3221001: // Pierce
-                    case 5221004: // Rapid Fire
-                    case 13111002: // KoC Hurricane
+                    case 3121004:
+                    case 3221001:
+                    case 5221004:
+                    case 13111002:
                         packet = PacketCreator.rangedAttack(chr, attack.skill, attack.skilllevel, attack.rangedirection,
                                 attack.numAttackedAndDamage, visProjectile, attack.targets, attack.speed,
                                 attack.direction, attack.display);

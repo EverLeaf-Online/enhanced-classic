@@ -134,7 +134,10 @@ public final class ItemConstants {
     }
 
     public static boolean isTownScroll(int itemId) {
-        return itemId >= 2030000;
+        // Return/town scrolls live in the 203xxxx family.  Keep this bounded so
+        // upgrade scrolls (204xxxx) and all later USE items cannot be routed
+        // through the return-scroll handling path by a malformed packet.
+        return itemId >= 2030000 && itemId < 2040000;
     }
 
     public static boolean isCleanSlate(int scrollId) {

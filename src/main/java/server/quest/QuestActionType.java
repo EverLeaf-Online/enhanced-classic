@@ -59,6 +59,8 @@ public enum QuestActionType {
             return MESO;
         case "item":
             return ITEM;
+        case "quest":
+            return QUEST;
         case "skill":
             return SKILL;
         case "nextQuest":

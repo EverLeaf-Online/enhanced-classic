@@ -32,14 +32,16 @@ import java.util.Date;
 import java.util.TimeZone;
 
 public class TimeCommand extends Command {
+    private static final TimeZone EVERLEAF_TIME_ZONE = TimeZone.getTimeZone("America/New_York");
+
     {
-        setDescription("Show current EverLeaf server time.");
+        setDescription("Show current EverLeaf server time (Eastern Time).");
     }
 
     @Override
     public void execute(Client client, String[] params) {
-        DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss z");
-        dateFormat.setTimeZone(TimeZone.getDefault());
+        DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss a z");
+        dateFormat.setTimeZone(EVERLEAF_TIME_ZONE);
         client.getPlayer().yellowMessage("EverLeaf Server Time: " + dateFormat.format(new Date()));
     }
 }

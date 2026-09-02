@@ -1,0 +1,35 @@
+name: Audit Maple Island quests
+
+on:
+  push:
+    branches:
+      - master
+      - release-dev
+    paths:
+      - 'scripts/npc/**'
+      - 'scripts/portal/**'
+      - 'wz/Map.wz/Map/Map0/**'
+      - 'wz/Npc.wz/**'
+      - 'wz/Quest.wz/**'
+      - 'tools/audit_maple_island_quests.py'
+      - '.github/workflows/audit-maple-island-quests.yml'
+  pull_request:
+    branches:
+      - master
+      - release-dev
+    paths:
+      - 'scripts/npc/**'
+      - 'scripts/portal/**'
+      - 'wz/Map.wz/Map/Map0/**'
+      - 'wz/Npc.wz/**'
+      - 'wz/Quest.wz/**'
+      - 'tools/audit_maple_island_quests.py'
+      - '.github/workflows/audit-maple-island-quests.yml'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Audit Maple Island beginner quests
+        run: python3 tools/audit_maple_island_quests.py

@@ -35,7 +35,7 @@ var rideTime = 5 * 60 * 1000; //The time that require move to destination
 function init() {
     closeTime = em.getTransportationTime(closeTime);
     beginTime = em.getTransportationTime(beginTime);
-    rideTime = em.getTransportationTime(rideTime);
+    rideTime = em.getTransportationRideTime(rideTime);
 
     Orbis_btf = em.getChannelServer().getMapFactory().getMap(200000152);
     Ariant_btf = em.getChannelServer().getMapFactory().getMap(260000110);

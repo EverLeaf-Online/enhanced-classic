@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "kind": "client-server-parity-contract",
+  "batchId": "gms-v95-consume-batch-001",
+  "approved": false,
+  "productionApplyAllowed": false,
+  "sourceClient": {
+    "item": {
+      "version": 83,
+      "sha256": "33d7e2d8416a6523935e9fc933107ca3b66f6dde869667ffb0551746a36c5e44"
+    },
+    "string": {
+      "version": 83,
+      "sha256": "75418d45153d8e6b4687f9c4ad0c2807470701f2a241102f1106552ede566d99"
+    }
+  },
+  "donor": {
+    "item": {
+      "version": 95,
+      "sha256": "b3349f4b183ac6bdb0512d3e0ac949cb17fdbaba111f9cc04ad303dffd3eae7c"
+    },
+    "string": {
+      "version": 95,
+      "sha256": "5bcf6fb7ea4ba39a7b1986d9ae184d04b272c24bf1f24cebcdafbe4682ac613c"
+    }
+  },
+  "candidateIds": [2022711, 2022712],
+  "candidates": [
+    {
+      "contentId": 2022711,
+      "name": "Carbonated Drink",
+      "description": "A carbonated drink made by Surl. Perfect for a hot day! Recovers 1000 HP and 1000 MP.",
+      "hp": 1000,
+      "mp": 1000,
+      "price": null,
+      "slotMax": null,
+      "requiresCanvasIcons": true
+    },
+    {
+      "contentId": 2022712,
+      "name": "Acorn",
+      "description": "An acorn that can be obtained from the Fruit Trees in Edelstein. Recovers 70 HP and 70 MP.",
+      "hp": 70,
+      "mp": 70,
+      "price": 10,
+      "slotMax": 20,
+      "requiresCanvasIcons": true
+    }
+  ]
+}

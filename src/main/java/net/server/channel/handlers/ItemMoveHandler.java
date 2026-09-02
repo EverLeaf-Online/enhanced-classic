@@ -21,12 +21,19 @@
 */
 package net.server.channel.handlers;
 
+import client.Character;
 import client.Client;
+import client.inventory.Equip;
 import client.inventory.InventoryType;
+import client.inventory.Item;
 import client.inventory.manipulator.InventoryManipulator;
+import constants.inventory.EquipmentRequirements;
 import net.AbstractPacketHandler;
 import net.packet.InPacket;
+import server.ItemInformationProvider;
 import tools.PacketCreator;
+
+import java.util.Map;
 
 /**
  * @author Matze
@@ -34,27 +41,72 @@ import tools.PacketCreator;
 public final class ItemMoveHandler extends AbstractPacketHandler {
     @Override
     public final void handlePacket(InPacket p, Client c) {
-        p.skip(4);
-        if (c.getPlayer().getAutobanManager().getLastSpam(6) + 300 > currentServerTime()) {
+        Character chr = c.getPlayer();
+        if (chr.getTrade() != null && chr.getTrade().isFullTrade()) {
             c.sendPacket(PacketCreator.enableActions());
             return;
         }
 
-        InventoryType type = InventoryType.getByType(p.readByte());
-        short src = p.readShort();     //is there any reason to use byte instead of short in src and action?
-        short action = p.readShort();
-        short quantity = p.readShort();
-
-        if (src < 0 && action > 0) {
-            InventoryManipulator.unequip(c, src, action);
-        } else if (action < 0) {
-            InventoryManipulator.equip(c, src, action);
-        } else if (action == 0) {
-            InventoryManipulator.drop(c, type, src, quantity);
-        } else {
-            InventoryManipulator.move(c, type, src, action);
+        if (!c.tryacquireClient()) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
         }
 
-        c.getPlayer().getAutobanManager().spam(6);
+        try {
+            p.skip(4);
+            if (chr.getAutobanManager().getLastSpam(6) + 300 > currentServerTime()) {
+                c.sendPacket(PacketCreator.enableActions());
+                return;
+            }
+
+            InventoryType type = InventoryType.getByType(p.readByte());
+            short src = p.readShort();     //is there any reason to use byte instead of short in src and action?
+            short action = p.readShort();
+            short quantity = p.readShort();
+
+            // Client inventory-move packets should only address real inventory tabs.
+            // Internal/sentinel inventory types must never reach the manipulators from
+            // an untrusted packet.
+            if (type == null || type == InventoryType.UNDEFINED || type == InventoryType.CANHOLD || type == InventoryType.EQUIPPED) {
+                c.sendPacket(PacketCreator.enableActions());
+                return;
+            }
+            if (action == 0 && quantity <= 0) {
+                c.sendPacket(PacketCreator.enableActions());
+                return;
+            }
+
+            if (src < 0 && action > 0) {
+                InventoryManipulator.unequip(c, src, action);
+            } else if (action < 0) {
+                // Equipping must originate from the EQUIP inventory and must respect
+                // the WZ reqJob mask server-side. The stock client normally enforces
+                // this, but packet-edited requests cannot be trusted to do so.
+                if (type != InventoryType.EQUIP) {
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+                Item candidate = chr.getInventory(InventoryType.EQUIP).getItem(src);
+                if (!(candidate instanceof Equip equip)) {
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+                Map<String, Integer> stats = ItemInformationProvider.getInstance().getEquipStats(equip.getItemId());
+                if (stats == null || !EquipmentRequirements.canEquipForJob(chr.getJob(), stats.getOrDefault("reqJob", 0))) {
+                    equip.wear(false);
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+                InventoryManipulator.equip(c, src, action);
+            } else if (action == 0) {
+                InventoryManipulator.drop(c, type, src, quantity);
+            } else {
+                InventoryManipulator.move(c, type, src, action);
+            }
+
+            chr.getAutobanManager().spam(6);
+        } finally {
+            c.releaseClient();
+        }
     }
 }

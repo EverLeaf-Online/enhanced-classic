@@ -162,14 +162,21 @@ public class CommandsExecutor {
         addCommand("gacha", GachaCommand.class);
         addCommand("dispose", DisposeCommand.class);
         addCommand("unstuck", UnstuckCommand.class);
+        addCommand("everleaf", EverLeafCommand.class);
         addCommand("changel", ChangeLanguageCommand.class);
         addCommand("equiplv", EquipLvCommand.class);
         addCommand("showrates", ShowRatesCommand.class);
         addCommand("rates", RatesCommand.class);
         addCommand("online", OnlineCommand.class);
+        addCommand(new String[]{"marks", "verdant"}, MarksCommand.class);
+        addCommand("progress", ProgressCommand.class);
+        addCommand(new String[]{"weeklies", "weekly"}, WeekliesCommand.class);
         addCommand("gm", GmCommand.class);
         addCommand("reportbug", ReportBugCommand.class);
         addCommand("points", ReadPointsCommand.class);
+        addCommand("vote", VoteCommand.class);
+        addCommand("whodrops", WhoDropsCommand.class);
+        addCommand("whatdropsfrom", WhatDropsFromCommand.class);
         addCommand("joinevent", JoinEventCommand.class);
         addCommand("leaveevent", LeaveEventCommand.class);
         addCommand("ranks", RanksCommand.class);
@@ -189,8 +196,6 @@ public class CommandsExecutor {
     private void registerLv1Commands() {
         levelCommandsCursor = new Pair<>(new ArrayList<String>(), new ArrayList<String>());
 
-        addCommand("whatdropsfrom", 1, WhatDropsFromCommand.class);
-        addCommand("whodrops", 1, WhoDropsCommand.class);
         addCommand("buffme", 1, BuffMeCommand.class);
         addCommand("goto", 1, GotoCommand.class);
 
@@ -282,6 +287,7 @@ public class CommandsExecutor {
         addCommand("pe", 3, PeCommand.class);
         addCommand("startevent", 3, StartEventCommand.class);
         addCommand("endevent", 3, EndEventCommand.class);
+        addCommand("everleafops", 3, EverleafOpsCommand.class);
         addCommand("startmapevent", 3, StartMapEventCommand.class);
         addCommand("stopmapevent", 3, StopMapEventCommand.class);
         addCommand("online2", 3, OnlineTwoCommand.class);

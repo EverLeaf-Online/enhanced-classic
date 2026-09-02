@@ -1,0 +1,169 @@
+name: Apply EverLeaf Production Migrations
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/apply-production-migrations.yml'
+
+concurrency:
+  group: everleaf-production-migrations
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout release-dev
+        uses: actions/checkout@v4
+        with:
+          ref: release-dev
+          fetch-depth: 1
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY" || { echo 'EVERLEAF_SSH_PRIVATE_KEY is not configured.' >&2; exit 1; }
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'echo EverLeaf production SSH OK'
+
+      - name: Stage migration files
+        shell: bash
+        run: |
+          set -euo pipefail
+          REMOTE_DIR="/tmp/everleaf-production-migrations-$GITHUB_SHA"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "rm -rf '$REMOTE_DIR' && mkdir -p '$REMOTE_DIR'"
+          rsync -az -e 'ssh -i ~/.ssh/id_everleaf' \
+            database/sql/migration/everleaf_*.sql \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$REMOTE_DIR/"
+
+      - name: Back up production database
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          BEFORE="$(sudo find /opt/everleaf/backups -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 || true)"
+          sudo systemctl start everleaf-backup.service
+          RESULT="$(systemctl show everleaf-backup.service --property=Result --value)"
+          test "$RESULT" = success
+          AFTER="$(sudo find /opt/everleaf/backups -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 || true)"
+          echo "Backup before: $BEFORE"
+          echo "Backup after:  $AFTER"
+          test -n "$AFTER"
+          echo 'Production backup completed successfully.'
+          REMOTE
+
+      - name: Apply EverLeaf migrations and verify schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "REMOTE_DIR='/tmp/everleaf-production-migrations-$GITHUB_SHA' RELEASE_SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          command -v mysql >/dev/null || { echo 'mysql client is not installed on production.' >&2; exit 1; }
+          test -d "$REMOTE_DIR"
+
+          # Production runtime credentials intentionally use a least-privilege
+          # account. Schema migrations run through local sudo/mysql socket auth.
+          sudo mysql --batch --skip-column-names cosmic -e 'SELECT 1;' >/dev/null
+          mysql_cmd=(sudo mysql --batch --skip-column-names cosmic)
+
+          "${mysql_cmd[@]}" <<'SQL'
+          CREATE TABLE IF NOT EXISTS everleaf_schema_migration_log (
+              migration_name VARCHAR(128) NOT NULL PRIMARY KEY,
+              migration_sha256 CHAR(64) NOT NULL,
+              release_sha CHAR(40) NOT NULL,
+              applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB;
+          SQL
+
+          migrations=(
+            everleaf_weekly_progression.sql
+            everleaf_verdant_marks.sql
+            everleaf_pq_points.sql
+            everleaf_account_entitlements.sql
+            everleaf_vote_rewards.sql
+            everleaf_nx_rewards.sql
+            everleaf_enhanced_encounters.sql
+            everleaf_rooted_materials.sql
+            everleaf_inventoryequipment_forge_stage.sql
+            everleaf_rooted_forge.sql
+            everleaf_nx_drop_balance.sql
+            everleaf_rare_global_drop_balance.sql
+            everleaf_boss_rare_scroll_drops.sql
+          )
+
+          for migration in "${migrations[@]}"; do
+            path="$REMOTE_DIR/$migration"
+            test -s "$path"
+            checksum="$(sha256sum "$path" | awk '{print $1}')"
+            echo "Applying $migration"
+            "${mysql_cmd[@]}" < "$path"
+            "${mysql_cmd[@]}" -e \
+              "INSERT INTO everleaf_schema_migration_log (migration_name,migration_sha256,release_sha) VALUES ('$migration','$checksum','$RELEASE_SHA') ON DUPLICATE KEY UPDATE migration_sha256=VALUES(migration_sha256), release_sha=VALUES(release_sha), applied_at=CURRENT_TIMESTAMP;"
+          done
+
+          table_count="$("${mysql_cmd[@]}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='cosmic' AND table_name IN ('everleaf_weekly_account_state','everleaf_weekly_character_objective','everleaf_verdant_mark_balance','everleaf_pq_point_balance','everleaf_pq_point_ledger','everleaf_account_entitlement','everleaf_account_entitlement_ledger','everleaf_vote_reward_ledger','everleaf_encounter_attempt','everleaf_encounter_weekly_reward','everleaf_rooted_material_balance','everleaf_rooted_forge_order');")"
+          test "$table_count" = 12 || { echo "Expected 12 EverLeaf structural tables, found $table_count" >&2; exit 1; }
+
+          forge_column="$("${mysql_cmd[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='cosmic' AND table_name='inventoryequipment' AND column_name='everleaf_forge_stage';")"
+          test "$forge_column" = 1 || { echo 'Forge-stage persistence column missing.' >&2; exit 1; }
+
+          rare_global="$("${mysql_cmd[@]}" -e "SELECT COUNT(*) FROM drop_data_global WHERE itemid IN (2049100,2340000) AND continent=-1;")"
+          test "$rare_global" = 0 || { echo "Chaos/White global rows still present: $rare_global" >&2; exit 1; }
+
+          boss_scroll_rows="$("${mysql_cmd[@]}" -e "SELECT COUNT(*) FROM drop_data WHERE dropperid IN (8500001,8510000,9420549,9420544,8800002,8810018,8820001) AND itemid IN (2049100,2340000) AND questid=0;")"
+          test "$boss_scroll_rows" = 14 || { echo "Expected 14 managed boss rare-scroll rows, found $boss_scroll_rows" >&2; exit 1; }
+
+          nx100="$("${mysql_cmd[@]}" -e "SELECT COUNT(*) FROM drop_data_global WHERE itemid=4031865 AND continent=-1 AND chance=400;")"
+          nx250="$("${mysql_cmd[@]}" -e "SELECT COUNT(*) FROM drop_data_global WHERE itemid=4031866 AND continent=-1 AND chance=100;")"
+          test "$nx100" = 1 || { echo "100 NX global drop balance is not exact (matching rows=$nx100)." >&2; exit 1; }
+          test "$nx250" = 1 || { echo "250 NX global drop balance is not exact (matching rows=$nx250)." >&2; exit 1; }
+
+          migration_count="$("${mysql_cmd[@]}" -e 'SELECT COUNT(*) FROM everleaf_schema_migration_log;')"
+          test "$migration_count" -ge 13 || { echo "Expected at least 13 logged EverLeaf migrations, found $migration_count" >&2; exit 1; }
+          echo "EverLeaf production migration verification passed: tables=$table_count forge_column=$forge_column boss_scroll_rows=$boss_scroll_rows migration_log_rows=$migration_count"
+          REMOTE
+
+      - name: Verify game service remains healthy
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          systemctl is-active --quiet everleaf.service
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          python3 "$CURRENT/tools/verify_channel_runtime.py" --config "$CURRENT/config.yaml" --host 127.0.0.1
+          REMOTE
+
+      - name: Clean staged migration files
+        if: always()
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "rm -rf '/tmp/everleaf-production-migrations-$GITHUB_SHA'" || true

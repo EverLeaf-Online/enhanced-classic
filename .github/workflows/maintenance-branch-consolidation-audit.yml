@@ -1,0 +1,228 @@
+name: Maintenance branch consolidation audit
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/maintenance-branch-consolidation-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Fetch every branch
+        run: git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune
+      - name: Classify remote branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, re, subprocess
+          from pathlib import Path
+
+          canonical = ['master', 'release-dev', 'client-dev']
+          explicit_excluded = {'Community-files', 'empress-dev'}
+          protected_workspaces = {'consolidation/master-promotion'}
+          protected_prefixes = ('wz/',)
+          empress_re = re.compile(r'(^|[/_.-])empress([/_.-]|$)|cygnus.*empress', re.I)
+          nonruntime_re = re.compile(r'^(?:\.github/|docs/|tools/)|(?:^|/)(?:tests?|testdata|fixtures?)/', re.I)
+
+          def sh(*args, check=True):
+              p = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+              if check and p.returncode:
+                  raise RuntimeError(f"command failed ({p.returncode}): {' '.join(args)}\n{p.stderr}")
+              return p
+
+          def ref(branch):
+              return f'origin/{branch}'
+
+          def is_ancestor(a, b):
+              return sh('git', 'merge-base', '--is-ancestor', ref(a), ref(b), check=False).returncode == 0
+
+          def blob(branch, path):
+              p = sh('git', 'rev-parse', f'{ref(branch)}:{path}', check=False)
+              return p.stdout.strip() if p.returncode == 0 else None
+
+          branches = []
+          for line in sh('git', 'for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin').stdout.splitlines():
+              if line == 'origin/HEAD' or not line.startswith('origin/'):
+                  continue
+              branches.append(line[len('origin/'):])
+          branches = sorted(set(branches))
+          missing_canonical = [branch for branch in canonical if branch not in branches]
+          if missing_canonical:
+              raise RuntimeError(f"Missing canonical branch(es): {', '.join(missing_canonical)}")
+          canonical_refs = [ref(x) for x in canonical]
+
+          rows = []
+          for branch in branches:
+              if branch in canonical:
+                  continue
+              protected = branch in protected_workspaces or branch.startswith(protected_prefixes)
+              excluded = branch in explicit_excluded or bool(empress_re.search(branch))
+              contained_by = [c for c in canonical if is_ancestor(branch, c)]
+              revs = sh('git', 'rev-list', ref(branch), '--not', *canonical_refs).stdout.splitlines()
+              unique_count = len(revs)
+
+              equivalent = set()
+              equivalent_by = {}
+              if revs:
+                  wanted = set(revs)
+                  for c in canonical:
+                      for line in sh('git', 'cherry', ref(c), ref(branch), check=False).stdout.splitlines():
+                          parts = line.split()
+                          if len(parts) != 2:
+                              continue
+                          sign, sha = parts
+                          if sign == '-' and sha in wanted:
+                              equivalent.add(sha)
+                              equivalent_by.setdefault(sha, []).append(c)
+              missing_revs = [sha for sha in revs if sha not in equivalent]
+
+              subject = {}
+              if revs:
+                  log = sh('git', 'log', '--format=%H%x09%s', ref(branch), '--not', *canonical_refs).stdout
+                  for line in log.splitlines():
+                      sha, _, title = line.partition('\t')
+                      subject[sha] = title
+              unique_commits = [f"{sha}\t{subject.get(sha, '')}" for sha in revs[:40]]
+              missing_commits = [f"{sha}\t{subject.get(sha, '')}" for sha in missing_revs[:40]]
+
+              paths = set()
+              for commit in missing_revs[:250]:
+                  for p in sh('git', 'diff-tree', '--no-commit-id', '--name-only', '-r', commit).stdout.splitlines():
+                      if p:
+                          paths.add(p)
+              missing_paths = sorted(paths)
+              empress_only = bool(missing_paths) and all(empress_re.search(p) for p in missing_paths)
+
+              represented_paths = {}
+              unrepresented_paths = []
+              for path in missing_paths:
+                  branch_blob = blob(branch, path)
+                  matches = [c for c in canonical if blob(c, path) == branch_blob]
+                  if matches:
+                      represented_paths[path] = matches
+                  else:
+                      unrepresented_paths.append(path)
+
+              functional_paths = [p for p in missing_paths if not nonruntime_re.search(p)]
+              unrepresented_functional_paths = [p for p in unrepresented_paths if p in functional_paths]
+
+              rows.append({
+                  'branch': branch,
+                  'protectedWorkspace': protected,
+                  'excludedByPolicy': excluded,
+                  'containedBy': contained_by,
+                  'uniqueCommitCount': unique_count,
+                  'patchEquivalentCommitCount': len(equivalent),
+                  'missingPatchCommitCount': len(missing_revs),
+                  'uniqueCommits': unique_commits,
+                  'missingCommits': missing_commits,
+                  'patchEquivalentByCanonical': equivalent_by,
+                  'missingPaths': missing_paths,
+                  'representedTipPaths': represented_paths,
+                  'unrepresentedTipPaths': unrepresented_paths,
+                  'functionalPaths': functional_paths,
+                  'unrepresentedFunctionalPaths': unrepresented_functional_paths,
+                  'missingPathsEmpressOnly': empress_only,
+              })
+
+          contained = [r for r in rows if r['containedBy']]
+          patch_equivalent_only = [r for r in rows if not r['containedBy'] and r['uniqueCommitCount'] and not r['missingPatchCommitCount']]
+          tree_effect_equivalent = [
+              r for r in rows
+              if r['missingPatchCommitCount'] and r['missingPaths'] and not r['unrepresentedTipPaths']
+          ]
+          runtime_equivalent = [
+              r for r in rows
+              if r['missingPatchCommitCount'] and r['functionalPaths'] and not r['unrepresentedFunctionalPaths']
+          ]
+          runtime_actionable = [
+              r for r in rows
+              if r['unrepresentedFunctionalPaths'] and not r['excludedByPolicy'] and not r['protectedWorkspace'] and not r['missingPathsEmpressOnly']
+          ]
+          metadata_only = [
+              r for r in rows
+              if r['missingPatchCommitCount'] and not r['functionalPaths'] and not r['excludedByPolicy'] and not r['protectedWorkspace']
+          ]
+          excluded = [r for r in rows if r['excludedByPolicy'] or r['missingPathsEmpressOnly']]
+          protected = [r for r in rows if r['protectedWorkspace']]
+
+          report = {
+              'canonicalBranches': canonical,
+              'protectedWorkspaces': sorted(protected_workspaces),
+              'protectedPrefixes': list(protected_prefixes),
+              'branchCount': len(branches),
+              'nonCanonicalBranchCount': len(rows),
+              'fullyContainedCount': len(contained),
+              'patchEquivalentOnlyCount': len(patch_equivalent_only),
+              'treeEffectEquivalentCount': len(tree_effect_equivalent),
+              'runtimeEffectEquivalentCount': len(runtime_equivalent),
+              'metadataOnlyDivergenceCount': len(metadata_only),
+              'runtimeActionableBranchCount': len(runtime_actionable),
+              'rows': rows,
+          }
+          Path('branch-consolidation-audit.json').write_text(json.dumps(report, indent=2) + '\n')
+
+          lines = [
+              '# Branch consolidation audit', '',
+              f"- Remote branches: **{len(branches)}**",
+              f"- Non-canonical branches: **{len(rows)}**",
+              f"- Protected integration/WZ workspaces: **{len(protected)}**",
+              f"- Fully contained: **{len(contained)}**",
+              f"- Patch-equivalent diverged branches: **{len(patch_equivalent_only)}**",
+              f"- Final tree effect already represented exactly: **{len(tree_effect_equivalent)}**",
+              f"- Runtime/player-facing effect already represented exactly: **{len(runtime_equivalent)}**",
+              f"- Divergence limited to CI/docs/tools/tests: **{len(metadata_only)}**",
+              f"- Non-Empress branches with unrepresented runtime paths: **{len(runtime_actionable)}**",
+              '', '## Runtime/player-facing paths still requiring semantic review', ''
+          ]
+          for r in runtime_actionable:
+              lines.append(
+                  f"- `{r['branch']}` — {len(r['unrepresentedFunctionalPaths'])} unrepresented runtime path(s); "
+                  f"{r['missingPatchCommitCount']} non-equivalent commit(s)"
+              )
+              for path in r['unrepresentedFunctionalPaths'][:12]:
+                  lines.append(f"  - `{path}`")
+              for c in r['missingCommits'][:4]:
+                  lines.append(f"  - commit: {c}")
+
+          lines += ['', '## Safe cleanup: runtime effect already represented', '']
+          safe_runtime = []
+          for r in rows:
+              if r['excludedByPolicy'] or r['protectedWorkspace']:
+                  continue
+              if r['containedBy'] or (r['uniqueCommitCount'] and not r['missingPatchCommitCount']) or (r['functionalPaths'] and not r['unrepresentedFunctionalPaths']):
+                  safe_runtime.append(r)
+          for r in safe_runtime:
+              reason = 'contained' if r['containedBy'] else ('patch-equivalent' if not r['missingPatchCommitCount'] else 'runtime tree-equivalent')
+              lines.append(f"- `{r['branch']}` — {reason}")
+
+          lines += ['', '## Protected integration/WZ workspaces', '']
+          for r in protected:
+              lines.append(f"- `{r['branch']}`")
+
+          lines += ['', '## Explicitly excluded / Empress-only', '']
+          for r in excluded:
+              if r['uniqueCommitCount'] or r['branch'] in explicit_excluded:
+                  lines.append(f"- `{r['branch']}`")
+
+          Path('branch-consolidation-audit.md').write_text('\n'.join(lines) + '\n')
+          print('\n'.join(lines[:900]))
+          PY
+      - name: Upload branch audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: branch-consolidation-audit
+          path: |
+            branch-consolidation-audit.json
+            branch-consolidation-audit.md
+          if-no-files-found: error

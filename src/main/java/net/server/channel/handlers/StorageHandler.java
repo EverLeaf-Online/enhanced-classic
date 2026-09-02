@@ -25,6 +25,8 @@ import client.Client;
 import client.processor.npc.StorageProcessor;
 import net.AbstractPacketHandler;
 import net.packet.InPacket;
+import server.Storage;
+import tools.PacketCreator;
 
 /**
  * @author Matze
@@ -32,6 +34,12 @@ import net.packet.InPacket;
 public final class StorageHandler extends AbstractPacketHandler {
     @Override
     public final void handlePacket(InPacket p, Client c) {
+        Storage storage = c.getPlayer().getStorage();
+        if (storage == null || !storage.isStorageOpen() || storage.getCurrentMapId() != c.getPlayer().getMapId()) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
         StorageProcessor.storageAction(p, c);
     }
 }

@@ -1,0 +1,53 @@
+name: Audit script map references
+
+on:
+  pull_request:
+    branches: [release-dev, master]
+    paths:
+      - 'scripts/**'
+      - 'wz/Map.wz/**'
+      - 'tools/audit_script_map_refs.py'
+      - '.github/workflows/audit-script-map-references.yml'
+  push:
+    branches: [release-dev]
+    paths:
+      - 'scripts/**'
+      - 'wz/Map.wz/**'
+      - 'tools/audit_script_map_refs.py'
+      - '.github/workflows/audit-script-map-references.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile auditor
+        run: python3 -m py_compile tools/audit_script_map_refs.py
+      - name: Scan literal map references
+        run: |
+          mkdir -p build
+          python3 tools/audit_script_map_refs.py --json > build/script-map-reference-audit.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('build/script-map-reference-audit.json'))
+          print('scripts_scanned=', d['scriptsScanned'])
+          print('literal_map_references=', d['literalMapReferences'])
+          print('review_findings=', d['reviewFindingCount'])
+          print('excluded_empress_cygnus=', d['excludedFindingCount'])
+          PY
+      - name: Upload audit report
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: script-map-reference-audit
+          path: build/script-map-reference-audit.json
+          if-no-files-found: warn
