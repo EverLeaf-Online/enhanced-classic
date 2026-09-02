@@ -139,6 +139,14 @@ def main() -> None:
     for old, new in replacements:
         text = replace_once(text, old, new)
 
+    # SoloMapling is QA infrastructure in EverLeaf. Keep cold-boot bot
+    # population disabled unless a controlled smoke/staging run opts in.
+    text = replace_once(
+        text,
+        "    SHUTDOWNHOOK: true\n\n    #Server Flags",
+        "    SHUTDOWNHOOK: true\n    SPAWN_BOTS_ON_STARTUP: false\n\n    #Server Flags",
+    )
+
     CONFIG.write_text(text, encoding="utf-8")
 
     # This feature branch carries SoloMapling as an additive QA layer. Apply
