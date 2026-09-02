@@ -6,6 +6,7 @@ ensuring builds/tests use EverLeaf's intended defaults. It intentionally fails
 when expected upstream values change so configuration drift is visible in CI.
 """
 from pathlib import Path
+import subprocess
 
 CONFIG = Path("config.yaml")
 
@@ -139,6 +140,12 @@ def main() -> None:
         text = replace_once(text, old, new)
 
     CONFIG.write_text(text, encoding="utf-8")
+
+    # This feature branch carries SoloMapling as an additive QA layer. Apply
+    # its narrowly-scoped host hooks through the same deterministic transform
+    # stage so CI tests the reconciled EverLeaf host code without replacing it.
+    subprocess.run(["python3", "tools/apply_solomapling_host_hooks.py"], check=True)
+
     print("EverLeaf development configuration applied (20 channels; public channel host; website registration required).")
 
 
