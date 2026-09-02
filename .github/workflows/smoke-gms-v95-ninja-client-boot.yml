@@ -132,10 +132,13 @@ jobs:
           }
 
           # Fail closed on every output hash recorded by the regional client patcher.
+          # Manifest keys are the exact full WZ family names (for example "Map.wz").
           foreach ($family in $families) {
-            $key = [IO.Path]::GetFileNameWithoutExtension($family).ToLowerInvariant()
-            $outputNode = $candidateManifest.output.$key
-            if ($null -eq $outputNode -or -not $outputNode.sha256) { throw "Regional manifest missing output hash for $family" }
+            $property = $candidateManifest.output.PSObject.Properties[$family]
+            if ($null -eq $property -or $null -eq $property.Value -or -not $property.Value.sha256) {
+              throw "Regional manifest missing output hash for $family"
+            }
+            $outputNode = $property.Value
             $actualHash = (Get-FileHash (Join-Path $clientDir $family) -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($actualHash -ne ([string]$outputNode.sha256).ToLowerInvariant()) { throw "Boot client $family does not match pinned Ninja candidate" }
           }
