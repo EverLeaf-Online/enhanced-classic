@@ -91,7 +91,42 @@ public final class BotAttackProfile {
     }
 
     public int rollDamage(int level, Job job) {
-        int tier = (job != null) ? job.getJobTier() : 0;
-        return BotDamageModel.rollLine(tier, level, numDamage);
+        return BotDamageModel.rollLine(jobTier(job), level, numDamage);
+    }
+
+    /**
+     * Cosmic's Job enum in EverLeaf predates SoloMapling's getJobTier() helper, so derive
+     * the same 0..4 combat tier from the canonical v83 job ids.  Cygnus/Aran follow the
+     * same x100/x10/final-digit progression; Evan's ten mastery stages are grouped into
+     * four practical damage tiers.  GM jobs are treated as fourth-job for QA smoke damage.
+     */
+    static int jobTier(Job job) {
+        if (job == null) {
+            return 0;
+        }
+
+        int id = job.getId();
+        if (job == Job.GM || job == Job.SUPERGM || job == Job.MAPLELEAF_BRIGADIER) {
+            return 4;
+        }
+        if (job == Job.BEGINNER || job == Job.NOBLESSE || job == Job.LEGEND || job == Job.EVAN) {
+            return 0;
+        }
+
+        // Evan mastery stages: 2200, 2210..2218.
+        if (id == 2200) return 1;
+        if (id >= 2210 && id <= 2212) return 2;
+        if (id >= 2213 && id <= 2215) return 3;
+        if (id >= 2216 && id <= 2218) return 4;
+
+        // Ordinary, Cygnus and Aran families all encode advancement depth in the
+        // trailing digits: x00 first, xx10 second, xx11 third, xx12 fourth.
+        int lastTwo = id % 100;
+        if (lastTwo == 0) return 1;
+        if (lastTwo % 10 == 0) return 2;
+        if (lastTwo % 10 == 1) return 3;
+        if (lastTwo % 10 == 2) return 4;
+
+        return 1;
     }
 }
