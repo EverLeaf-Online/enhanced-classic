@@ -133,11 +133,19 @@ final class BotNavigationGraph implements Serializable {
             return Math.max(0, maxY - minY);
         }
 
+        Point leftPoint() {
+            return pointAt(minX);
+        }
+
         Point centerPoint() {
             if (isRopeRegion) {
                 return new Point(minX, minY + height() / 2);
             }
             return pointAt(minX + width() / 2);
+        }
+
+        Point rightPoint() {
+            return pointAt(maxX);
         }
 
         Point pointAt(int x) {
