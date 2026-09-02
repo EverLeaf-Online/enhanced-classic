@@ -64,6 +64,11 @@ public final class BareBotFactory {
             throw new IllegalStateException("SoloMapling QA world/channel is not available");
         }
 
+        // loadCharFromDB does not execute the normal PlayerLoggedinHandler rate
+        // initialization. Apply the current EverLeaf world rates so bot-attributed
+        // EXP/meso/drop smoke tests use the same world multipliers as players.
+        bot.setWorldRates();
+
         channel.addPlayer(bot);
         world.getPlayerStorage().addPlayer(bot);
         map.addPlayer(bot);
