@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/smoke-gms-v95-first-batch-server.yml'
       - 'src/test/java/server/WzDonorStagingItemSmokeTest.java'
+      - 'src/test/java/server/WzDonorStagingTradeSmokeTest.java'
       - 'tools/wz-donor/stage_batch_patch.py'
       - 'tools/wz-donor/build_batch_patch.py'
       - 'tools/wz-donor/verify_batch_manifest.py'
@@ -20,6 +21,7 @@ on:
     paths:
       - '.github/workflows/smoke-gms-v95-first-batch-server.yml'
       - 'src/test/java/server/WzDonorStagingItemSmokeTest.java'
+      - 'src/test/java/server/WzDonorStagingTradeSmokeTest.java'
   workflow_dispatch:
 
 permissions:
@@ -135,12 +137,12 @@ jobs:
           path.write_text(text.replace(old, new, 1), encoding='utf-8')
           PY
 
-      - name: Run real ItemInformationProvider smoke against staged WZ
+      - name: Run real staged-WZ item and trade smokes
         run: |
           set -euo pipefail
           chmod +x mvnw
           ./mvnw -B \
-            -Dtest=server.WzDonorStagingItemSmokeTest \
+            -Dtest=server.WzDonorStagingItemSmokeTest,server.WzDonorStagingTradeSmokeTest \
             -Dwz-path="$RUNNER_TEMP/staging-wz" \
             -Dwz-donor-staging-smoke=true \
             test
@@ -153,5 +155,6 @@ jobs:
             ${{ runner.temp }}/patch/PATCH_MANIFEST.json
             ${{ runner.temp }}/staging-wz/STAGING_MERGE_REPORT.json
             target/surefire-reports/TEST-server.WzDonorStagingItemSmokeTest.xml
+            target/surefire-reports/TEST-server.WzDonorStagingTradeSmokeTest.xml
           retention-days: 14
           if-no-files-found: error
