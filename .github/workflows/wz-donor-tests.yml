@@ -38,6 +38,7 @@ jobs:
           tools/wz-donor/profile_region_cluster.py
           tools/wz-donor/extract_region_quest_evidence.py
           tools/wz-donor/verify_client_server_parity.py
+          tools/wz-donor/verify_region_staging_contract.py
           tools/wz-donor/test_wz_diff.py
           tools/wz-donor/test_import_manifest.py
           tools/wz-donor/test_render_review_report.py
@@ -48,6 +49,7 @@ jobs:
           tools/wz-donor/test_profile_region_cluster.py
           tools/wz-donor/test_extract_region_quest_evidence.py
           tools/wz-donor/test_verify_client_server_parity.py
+          tools/wz-donor/test_verify_region_staging_contract.py
 
       - name: Run donor regression tests
         run: |
@@ -61,3 +63,4 @@ jobs:
           python tools/wz-donor/test_profile_region_cluster.py
           python tools/wz-donor/test_extract_region_quest_evidence.py
           python tools/wz-donor/test_verify_client_server_parity.py
+          python tools/wz-donor/test_verify_region_staging_contract.py
