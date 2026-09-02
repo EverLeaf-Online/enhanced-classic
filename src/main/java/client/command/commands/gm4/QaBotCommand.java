@@ -9,6 +9,7 @@ import soloMapling.ArtificialPlayer.BareBotFactory;
 import soloMapling.ArtificialPlayer.BareBotMovement;
 import soloMapling.ArtificialPlayer.BareBotPortal;
 import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovement;
+import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovementDiagnostics;
 import tools.exceptions.EmptyMovementException;
 
 import java.awt.Point;
@@ -104,6 +105,7 @@ public class QaBotCommand extends Command {
                         + " pos=" + position.x + "," + position.y
                         + " GCMove=" + (GCMovement.isEnabled(bot) ? "ON" : "OFF")
                         + " patrol=" + (BareBotAutopilot.isPatrolling(bot) ? "ON" : "OFF") + ".");
+        c.getPlayer().yellowMessage(GCMovementDiagnostics.describe(bot));
     }
 
     private static void nudge(Client c, String[] params) {
