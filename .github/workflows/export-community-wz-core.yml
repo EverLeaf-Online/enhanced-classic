@@ -230,11 +230,12 @@ jobs:
             if ($LASTEXITCODE -eq 0) { $uploaded = $true } else { Start-Sleep -Seconds (3 * $attempt) }
           }
           if (-not $uploaded) { throw 'Private XML upload failed' }
-          $remoteCommand = "set -euo pipefail; cd /opt/everleaf/private/wz-donors; unzip -t community-repack-core.zip.part >/dev/null; test \"`$(sha256sum community-repack-core.zip.part | awk '{print `$1}')\" = '$localHash'; mv community-repack-core.zip.part community-repack-core.zip; sha256sum community-repack-core.zip"
+          $remoteCommand = "set -euo pipefail; cd /opt/everleaf/private/wz-donors; unzip -t community-repack-core.zip.part >/dev/null; echo '$localHash  community-repack-core.zip.part' | sha256sum -c -; mv community-repack-core.zip.part community-repack-core.zip; sha256sum community-repack-core.zip"
           ssh everleaf-oracle $remoteCommand
           if ($LASTEXITCODE -ne 0) { throw 'Private XML verification failed' }
 
       - name: Upload review artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: community-repack-core-analysis-${{ github.sha }}
