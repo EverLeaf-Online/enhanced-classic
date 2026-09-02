@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 import sys
 import tempfile
 import unittest
@@ -97,9 +96,12 @@ class ItemProfilerTest(unittest.TestCase):
                     candidate("2001501", "Item.wz/Consume/0200.img.xml", risk="blocked", missing=[{"target_id": "1"}]),
                 ]
             }
-            profiles = profiler.build_profiles(manifest, donor)["profiles"]
-            self.assertEqual("manual-review", profiles[0]["classification"])
-            self.assertEqual("blocked", profiles[1]["classification"])
+            profiles = {
+                profile["contentId"]: profile
+                for profile in profiler.build_profiles(manifest, donor)["profiles"]
+            }
+            self.assertEqual("manual-review", profiles["4000001"]["classification"])
+            self.assertEqual("blocked", profiles["2001501"]["classification"])
 
     def test_string_index_requires_direct_name_string(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
