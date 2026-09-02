@@ -78,7 +78,7 @@ def verify(contract_path: Path, quest_drop_path: Path, portal_path: Path) -> lis
     unresolved = sorted(contract.get("unresolvedQuestDropItems", []))
     if unresolved != sorted(drops.get("unresolvedItems", [])):
         errors.append("implementation contract unresolved quest-drop set disagrees with quest-drop contract")
-    if unresolved != [4000339, 4000341, 4000343]:
+    if unresolved != [4000343]:
         errors.append("unresolved Ninja Castle quest-drop set drifted")
 
     item_set = set(closure.get("itemIds", []))
