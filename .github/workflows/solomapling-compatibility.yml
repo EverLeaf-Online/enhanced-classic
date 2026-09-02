@@ -1,0 +1,89 @@
+name: SoloMapling compatibility probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned SoloMapling v0.3
+        uses: actions/checkout@v4
+        with:
+          repository: MadaraGameDev/SoloMapling
+          ref: 47b61b5
+          path: .solomapling-upstream
+
+      - name: Overlay SoloMapling framework package
+        shell: bash
+        run: |
+          mkdir -p src/main/java/soloMapling
+          cp -a .solomapling-upstream/src/main/java/soloMapling/. src/main/java/soloMapling/
+
+      - name: Add upstream graph dependencies for probe
+        shell: python
+        run: |
+          from pathlib import Path
+
+          pom = Path('pom.xml')
+          text = pom.read_text()
+          marker = '    </dependencies>'
+          deps = '''
+          <dependency>
+              <groupId>org.jgrapht</groupId>
+              <artifactId>jgrapht-core</artifactId>
+              <version>1.5.2</version>
+          </dependency>
+          <dependency>
+              <groupId>org.jgrapht</groupId>
+              <artifactId>jgrapht-io</artifactId>
+              <version>1.5.2</version>
+          </dependency>
+          <dependency>
+              <groupId>org.jgrapht</groupId>
+              <artifactId>jgrapht-ext</artifactId>
+              <version>1.5.2</version>
+          </dependency>
+          <dependency>
+              <groupId>org.jgrapht</groupId>
+              <artifactId>jgrapht-guava</artifactId>
+              <version>1.5.2</version>
+          </dependency>
+          <dependency>
+              <groupId>com.github.vlsi.mxgraph</groupId>
+              <artifactId>jgraphx</artifactId>
+              <version>4.2.2</version>
+          </dependency>
+      '''
+          if marker not in text:
+              raise SystemExit('Could not locate dependencies block')
+          pom.write_text(text.replace(marker, deps + marker, 1))
+
+      - name: Compile and capture compatibility failures
+        shell: bash
+        run: |
+          set +e
+          mvn --batch-mode --no-transfer-progress -DskipTests compile > solomapling-compile.log 2>&1
+          status=$?
+          set -e
+          cat solomapling-compile.log
+          printf '%s\n' "$status" > solomapling-compile.exit-code
+          if [ "$status" -eq 0 ]; then
+            echo 'SoloMapling package compiled cleanly against EverLeaf.'
+          else
+            echo 'Compile probe found host compatibility gaps; see artifact/log.'
+          fi
+
+      - name: Upload probe report
+        uses: actions/upload-artifact@v4
+        with:
+          name: solomapling-compatibility-report
+          path: |
+            solomapling-compile.log
+            solomapling-compile.exit-code
