@@ -3,6 +3,7 @@ package client.command.commands.gm4;
 import client.Character;
 import client.Client;
 import client.command.Command;
+import soloMapling.ArtificialPlayer.BareBotCombat;
 import soloMapling.ArtificialPlayer.BareBotFactory;
 import soloMapling.ArtificialPlayer.BareBotMovement;
 import tools.exceptions.EmptyMovementException;
@@ -17,7 +18,7 @@ public class QaBotCommand extends Command {
     private static final Map<Integer, Character> spawnedByGm = new ConcurrentHashMap<>();
 
     {
-        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|nudge <dx>|move <x> <y>");
+        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|nudge|move|strike");
     }
 
     @Override
@@ -33,6 +34,7 @@ public class QaBotCommand extends Command {
             case "remove" -> remove(c);
             case "nudge" -> nudge(c, params);
             case "move" -> move(c, params);
+            case "strike" -> strike(c, params);
             default -> usage(c);
         }
     }
@@ -107,6 +109,36 @@ public class QaBotCommand extends Command {
         }
     }
 
+    private static void strike(Client c, String[] params) {
+        if (params.length > 2) {
+            usage(c);
+            return;
+        }
+        Character bot = getBot(c);
+        if (bot == null) {
+            return;
+        }
+
+        int damage = 1;
+        if (params.length == 2) {
+            try {
+                damage = Integer.parseInt(params[1]);
+            } catch (NumberFormatException e) {
+                c.getPlayer().yellowMessage("strike damage must be an integer.");
+                return;
+            }
+        }
+
+        BareBotCombat.StrikeResult result = BareBotCombat.strikeNearest(bot, damage);
+        if (!result.hit()) {
+            c.getPlayer().yellowMessage("QA bot strike skipped: " + result.reason());
+            return;
+        }
+        c.getPlayer().yellowMessage(
+                "QA bot hit " + result.monsterName() + " (" + result.monsterId() + ") for "
+                        + result.damage() + (result.killed() ? " and killed it." : "; HP left " + result.remainingHp() + "."));
+    }
+
     private static Character getBot(Client c) {
         Character bot = spawnedByGm.get(c.getPlayer().getId());
         if (bot == null) {
@@ -116,6 +148,6 @@ public class QaBotCommand extends Command {
     }
 
     private static void usage(Client c) {
-        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|nudge <dx>|move <x> <y>");
+        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|nudge <dx>|move <x> <y>|strike [damage]");
     }
 }
