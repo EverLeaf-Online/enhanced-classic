@@ -2,9 +2,9 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using MapleLib.WzLib;
 
-if (args.Length != 5)
+if (args.Length is < 5 or > 6)
 {
-    Console.Error.WriteLine("Usage: ChairProgram <target-Item.wz> <target-String.wz> <donor-Item.wz> <donor-String.wz> <output-directory>");
+    Console.Error.WriteLine("Usage: ChairProgram <target-Item.wz> <target-String.wz> <donor-Item.wz> <donor-String.wz> <output-directory> [count]");
     return 2;
 }
 
@@ -13,6 +13,8 @@ var targetStringPath = Path.GetFullPath(args[1]);
 var donorItemPath = Path.GetFullPath(args[2]);
 var donorStringPath = Path.GetFullPath(args[3]);
 var outputDirectory = Path.GetFullPath(args[4]);
+var batchCount = args.Length == 6 && int.TryParse(args[5], out var parsedCount) ? parsedCount : 3;
+if (batchCount < 1 || batchCount > 50) throw new ArgumentOutOfRangeException(nameof(batchCount), "Chair batch count must be between 1 and 50.");
 Directory.CreateDirectory(outputDirectory);
 
 static string Sha256(string path)
@@ -103,7 +105,7 @@ using (var donorString = OpenWz(donorStringPath))
 
     foreach (var candidate in donorCandidates)
     {
-        if (selected.Count >= 3) break;
+        if (selected.Count >= batchCount) break;
         var id = candidate.id;
         if (FindDirect(targetInstall, id) != null) continue;
         var donorStringEntry = FindStringEntry(donorString, id);
@@ -118,8 +120,8 @@ using (var donorString = OpenWz(donorStringPath))
         selected.Add((id, ReadName(donorStringEntry.Value.property, id), donorStringEntry.Value.image.Name));
     }
 
-    if (selected.Count < 3)
-        throw new InvalidOperationException($"Only found {selected.Count} donor-only chair(s) with matching String.wz entries; expected 3.");
+    if (selected.Count < batchCount)
+        throw new InvalidOperationException($"Only found {selected.Count} donor-only chair(s) with matching String.wz entries; expected {batchCount}.");
 
     targetItem.SaveToDisk(outputItemPath);
     targetString.SaveToDisk(outputStringPath);
@@ -141,8 +143,9 @@ using (var checkString = OpenWz(outputStringPath))
 
 var manifest = new
 {
-    schemaVersion = 1,
-    kind = "community-chair-live-test-candidate",
+    schemaVersion = 2,
+    kind = "community-chair-batch-candidate",
+    requestedCount = batchCount,
     selected = selected.Select(x => new { contentId = x.id, name = x.name, stringImage = x.stringImage }).ToArray(),
     source = new
     {
@@ -156,7 +159,7 @@ var manifest = new
         itemSha256 = Sha256(outputItemPath),
         stringSha256 = Sha256(outputStringPath)
     },
-    validation = new { outputReparsed = true, exactSelectedCount = selected.Count == 3, sourceUnchanged = true }
+    validation = new { outputReparsed = true, exactSelectedCount = selected.Count == batchCount, sourceUnchanged = true }
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
 foreach (var row in selected) Console.WriteLine($"Selected chair {row.id}: {row.name}");
