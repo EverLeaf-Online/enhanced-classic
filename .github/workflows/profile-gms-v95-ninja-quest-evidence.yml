@@ -1,0 +1,85 @@
+name: Profile GMS v95 Ninja Castle quest evidence
+
+on:
+  push:
+    branches:
+      - release-dev
+    paths:
+      - '.github/workflows/profile-gms-v95-ninja-quest-evidence.yml'
+      - 'tools/wz-donor/extract_region_quest_evidence.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Fetch pinned private donor evidence
+        run: |
+          set -euo pipefail
+          remote=/opt/everleaf/private/wz-donors
+          scp -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$remote/gms-v95-core7.zip" "$RUNNER_TEMP/gms-v95-core7.zip"
+          scp -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$remote/gms-v95-string.zip" "$RUNNER_TEMP/gms-v95-string.zip"
+          test "$(sha256sum "$RUNNER_TEMP/gms-v95-core7.zip" | awk '{print $1}')" = '62e106f8437ce04443c797c0514e14d430fcc0a10ae4131f16567f540a8d5d3c'
+          test "$(sha256sum "$RUNNER_TEMP/gms-v95-string.zip" | awk '{print $1}')" = 'f00b94fcfad3f95d438b4474b74d550ea68d8aee0a8c3e4c2d9fae548a6fe7ed'
+          unzip -t "$RUNNER_TEMP/gms-v95-core7.zip" >/dev/null
+          unzip -t "$RUNNER_TEMP/gms-v95-string.zip" >/dev/null
+          mkdir -p "$RUNNER_TEMP/core7" "$RUNNER_TEMP/string"
+          unzip -q "$RUNNER_TEMP/gms-v95-core7.zip" -d "$RUNNER_TEMP/core7"
+          unzip -q "$RUNNER_TEMP/gms-v95-string.zip" -d "$RUNNER_TEMP/string"
+          test "$(find "$RUNNER_TEMP/core7" -type f -name '*.xml' | wc -l)" -eq 14527
+          test "$(find "$RUNNER_TEMP/string" -type f -name '*.xml' | wc -l)" -eq 20
+      - name: Extract Ninja Castle quest and NPC evidence
+        run: |
+          set -euo pipefail
+          python tools/wz-donor/extract_region_quest_evidence.py \
+            --quest-root "$RUNNER_TEMP/core7/Quest.wz" \
+            --string-root "$RUNNER_TEMP/string/String.wz" \
+            --quest-ids 8165 8166 8167 8168 8169 8170 8171 \
+            --npc-ids 9110103 9110106 9110108 9110112 9110113 9110114 \
+            --output "$RUNNER_TEMP/gms-v95-ninja-quest-evidence.json" \
+            | tee "$RUNNER_TEMP/gms-v95-ninja-quest-evidence.txt"
+          python - "$RUNNER_TEMP/gms-v95-ninja-quest-evidence.json" <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json,sys
+          r=json.load(open(sys.argv[1],encoding='utf-8'))
+          print('## GMS v95 Ninja Castle quest evidence')
+          for qid in r['questIds']:
+              print(f"- **quest {qid}:** {len(r['questComponents'].get(qid,{}))} Quest.wz files; {len(r['questStringHits'].get(qid,[]))} String hits")
+          for nid in r['npcIds']:
+              print(f"- **NPC {nid}:** {len(r['npcStringHits'].get(nid,[]))} String hits")
+          print()
+          print('**approved=false / importAllowed=false / automaticImport=false**')
+          PY
+      - name: Upload Ninja Castle quest evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: gms-v95-ninja-quest-evidence-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/gms-v95-ninja-quest-evidence.json
+            ${{ runner.temp }}/gms-v95-ninja-quest-evidence.txt
+          retention-days: 14
+          if-no-files-found: error

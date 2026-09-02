@@ -36,6 +36,7 @@ jobs:
           tools/wz-donor/shortlist_etc_material_review.py
           tools/wz-donor/cross_reference_item_shortlist.py
           tools/wz-donor/profile_region_cluster.py
+          tools/wz-donor/extract_region_quest_evidence.py
           tools/wz-donor/verify_client_server_parity.py
           tools/wz-donor/test_wz_diff.py
           tools/wz-donor/test_import_manifest.py
@@ -45,6 +46,7 @@ jobs:
           tools/wz-donor/test_shortlist_etc_material_review.py
           tools/wz-donor/test_cross_reference_item_shortlist.py
           tools/wz-donor/test_profile_region_cluster.py
+          tools/wz-donor/test_extract_region_quest_evidence.py
           tools/wz-donor/test_verify_client_server_parity.py
 
       - name: Run donor regression tests
@@ -57,4 +59,5 @@ jobs:
           python tools/wz-donor/test_shortlist_etc_material_review.py
           python tools/wz-donor/test_cross_reference_item_shortlist.py
           python tools/wz-donor/test_profile_region_cluster.py
+          python tools/wz-donor/test_extract_region_quest_evidence.py
           python tools/wz-donor/test_verify_client_server_parity.py
