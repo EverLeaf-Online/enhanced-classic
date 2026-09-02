@@ -1,0 +1,121 @@
+name: Diagnose GMS v95 Character WZ
+
+on:
+  push:
+    branches:
+      - wz/v95-character-fast-diagnostics
+    paths:
+      - '.github/workflows/diagnose-gms-v95-character.yml'
+      - 'tools/wz-donor/character-diagnostic/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  ssh-host:
+    runs-on: ubuntu-24.04
+    outputs:
+      known_hosts: ${{ steps.keys.outputs.known_hosts }}
+    steps:
+      - name: Resolve Oracle SSH host keys
+        id: keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          keys="$(ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST")"
+          test -n "$keys"
+          {
+            echo 'known_hosts<<EOF'
+            printf '%s\n' "$keys"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+  diagnose:
+    needs: ssh-host
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ needs.ssh-host.outputs.known_hosts }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:SSH_KNOWN_HOSTS) { throw 'Linux SSH host-key discovery returned no keys' }
+          $sshDir = Join-Path $HOME '.ssh'
+          New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          $keyPath = Join-Path $sshDir 'id_everleaf'
+          [IO.File]::WriteAllText($keyPath, ($env:SSH_PRIVATE_KEY -replace "`r", "") + "`n")
+          $knownHosts = Join-Path $sshDir 'known_hosts'
+          [IO.File]::WriteAllText($knownHosts, ($env:SSH_KNOWN_HOSTS -replace "`r", "") + "`n")
+
+      - name: Fetch only Character donor inputs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $keyPath = Join-Path $HOME '.ssh/id_everleaf'
+          $root = Join-Path $env:RUNNER_TEMP 'gms-v95-character'
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          scp -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/private/wz-donors/gms-v95-raw/Character.wz" (Join-Path $root 'Character.wz')
+          scp -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/private/wz-donors/gms-v95-raw/ZLZ.dll" (Join-Path $root 'ZLZ.dll')
+          $character = Get-FileHash (Join-Path $root 'Character.wz') -Algorithm SHA256
+          $zlz = Get-FileHash (Join-Path $root 'ZLZ.dll') -Algorithm SHA256
+          if ($character.Hash.ToLowerInvariant() -ne '99a11767c03cdb10520832456f4bb2bb21c6797ccee310ae40c2e8cc7a04fb22') { throw 'Character.wz checksum mismatch' }
+          if ($zlz.Hash.ToLowerInvariant() -ne '5179db7f3bc87b858c0e4cf02c1e6eaea984a463ef041f3470b325e73c66e829') { throw 'ZLZ.dll checksum mismatch' }
+
+      - name: Build Character diagnostic
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $toolDir = Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafCharacterDiagnostic'
+          New-Item -ItemType Directory -Force -Path $toolDir | Out-Null
+          Copy-Item 'tools/wz-donor/character-diagnostic/Program.cs' (Join-Path $toolDir 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net10.0-windows</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <EnableWindowsTargeting>true</EnableWindowsTargeting>
+            </PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="..\MapleLib\MapleLib.csproj" />
+            </ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $toolDir 'EverLeafCharacterDiagnostic.csproj')
+          dotnet build (Join-Path $toolDir 'EverLeafCharacterDiagnostic.csproj') -c Release
+
+      - name: Run Character diagnostic
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $root = Join-Path $env:RUNNER_TEMP 'gms-v95-character'
+          $project = Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafCharacterDiagnostic/EverLeafCharacterDiagnostic.csproj'
+          dotnet run --project $project -c Release --no-build -- $root 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/character-diagnostic.log"
+          $diagnosticExit = $LASTEXITCODE
+          Get-Content "$env:RUNNER_TEMP/character-diagnostic.log" | Add-Content $env:GITHUB_STEP_SUMMARY
+          if ($diagnosticExit -eq 0) {
+            Write-Host 'Character diagnostic found a plausible parse.'
+            exit 0
+          } elseif ($diagnosticExit -eq 1) {
+            Write-Host 'Character diagnostic completed successfully with result: no plausible parse in tested modes.'
+            exit 0
+          } else {
+            throw "Character diagnostic infrastructure failed with exit code $diagnosticExit"
+          }
