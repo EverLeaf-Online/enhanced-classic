@@ -80,6 +80,25 @@ def patch_character() -> None:
         addition,
         "public int getTotalMoveSpeedStat()",
     )
+
+    # SoloMapling clones a persisted template character, then gives the in-memory
+    # headless clone a synthetic object/player id before it is registered in world,
+    # channel and map storage. EverLeaf's id field is mutable but intentionally had
+    # no public setter, so expose only the upstream-compatible hook required here.
+    id_addition = """    // SoloMapling QA: assign the synthetic in-memory bot identity before
+    // registering the cloned template character in channel/world/map storage.
+    public void setID(int id) {
+        this.id = id;
+    }
+
+"""
+    text = insert_before_once(
+        text,
+        "    public boolean isLoggedinWorld() {\n",
+        id_addition,
+        "public void setID(int id)",
+    )
+
     CHARACTER.write_text(text, encoding="utf-8")
 
 
@@ -212,7 +231,7 @@ def main() -> None:
     patch_foothold()
     patch_server_config()
     patch_commands_executor()
-    print("SoloMapling host hooks applied (Character, Client, Foothold, ServerConfig, QA command).")
+    print("SoloMapling host hooks applied (Character, Client, Foothold, ServerConfig, QA command, synthetic bot id).")
 
 
 if __name__ == "__main__":
