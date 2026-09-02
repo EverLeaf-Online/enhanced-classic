@@ -25,9 +25,8 @@ def read_xml(path:Path):
     except (ET.ParseError,OSError):return None
 
 def node_blob(node:ET.Element)->str:
-    parts=[node.attrib.get('name',''),node.attrib.get('value',''),node.text or '']
+    parts=[]
     for child in node.iter():
-        if child is node: continue
         parts.extend((child.attrib.get('name',''),child.attrib.get('value',''),child.text or ''))
     return ' '.join(parts)
 
@@ -39,26 +38,26 @@ def term_hits(text:str):
         elif term in low: hits.append(term)
     return sorted(set(hits))
 
-def numeric_node_matches(root:ET.Element,predicate,initial_numeric:str|None=None):
-    out=[]
-    def walk(node, numeric_ancestor=None):
+def numeric_node_matches(root:ET.Element,predicate,initial_numeric:str|None=None,min_digits:int=1):
+    # Standalone WZ files (Map/Npc/Mob etc.) are one content record: scan the root once.
+    if initial_numeric is not None:
+        blob=node_blob(root)
+        return {initial_numeric:blob} if predicate(blob) else {}
+    # Grouped files (String/Item containers): scan numeric content entries only, not every descendant.
+    out={}
+    for node in root.iter():
         name=node.attrib.get('name','')
-        current=numeric_ancestor
-        if NUMERIC_RE.fullmatch(name): current=name
+        if not NUMERIC_RE.fullmatch(name) or len(name)<min_digits: continue
         blob=node_blob(node)
-        if current and predicate(blob): out.append((current,blob))
-        for child in list(node): walk(child,current)
-    walk(root,initial_numeric)
-    dedup={}
-    for cid,blob in out: dedup[cid]=blob
-    return dedup
+        if predicate(blob): out[name]=blob
+    return out
 
 def string_evidence(string_root:Path):
     rows=[]; ids=set()
     for path in iter_xml(string_root):
         root=read_xml(path)
         if root is None: continue
-        matches=numeric_node_matches(root,lambda b: bool(term_hits(b)))
+        matches=numeric_node_matches(root,lambda b: bool(term_hits(b)),min_digits=4)
         for cid,blob in matches.items():
             hits=term_hits(blob)
             if not hits: continue
@@ -115,7 +114,8 @@ def family_evidence(core:Path,family:str,anchors:set[str]):
         if root is None: continue
         file_id=None; m=FILE_ID_RE.match(path.name)
         if m:file_id=m.group(1)
-        matches=numeric_node_matches(root,lambda b: bool(pat.search(b)) or bool(term_hits(b)),file_id)
+        min_digits=4 if family=='Item.wz' and file_id is None else 1
+        matches=numeric_node_matches(root,lambda b: bool(pat.search(b)) or bool(term_hits(b)),file_id,min_digits=min_digits)
         for cid,blob in matches.items():
             refs=sorted(set(pat.findall(blob)),key=lambda x:(len(x),x)); hits=term_hits(blob)
             if not refs and not hits:continue
