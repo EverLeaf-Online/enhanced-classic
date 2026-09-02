@@ -42,13 +42,11 @@ class WzDonorConsumePersistenceTest {
         drink.setOwner("");
         drink.setExpiration(-1);
         drink.setGiftFrom("");
-        drink.setFlag((short) 0);
 
         Item acorn = new Item(ACORN, (short) 8, (short) 19);
         acorn.setOwner("EverLeaf");
         acorn.setExpiration(1_900_000_000_000L);
         acorn.setGiftFrom("staging");
-        acorn.setFlag((short) 0);
 
         factory.saveItems(List.of(
                 new Pair<>(drink, InventoryType.USE),
