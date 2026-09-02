@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class BareBotFactory {
     private static final AtomicInteger nextBotOffset = new AtomicInteger(100);
+    private static final int MAX_SYNTHETIC_OFFSET = 99_000_000;
 
     private BareBotFactory() {
     }
@@ -41,16 +42,26 @@ public final class BareBotFactory {
             BotClientHandler.initHeadlessBotClient();
         }
 
+        Server server = Server.getInstance();
+        Channel channel = server.getChannel(
+                SoloMaplingConstants.GameConstants.WORLD_SCANIA,
+                SoloMaplingConstants.GameConstants.CHANNEL_1);
+        World world = server.getWorld(SoloMaplingConstants.GameConstants.WORLD_SCANIA);
+        if (channel == null || world == null) {
+            throw new IllegalStateException("SoloMapling QA world/channel is not available");
+        }
+
         Character bot = Character.loadCharFromDB(templateCharacterId, BotClientHandler.getBotClient(), false);
         if (bot == null) {
             throw new IllegalStateException("Could not load QA bot template character " + templateCharacterId);
         }
 
-        int botId = SoloMaplingConstants.GameConstants.BOT_BASE_ID + nextBotOffset.getAndIncrement();
+        int botId = allocateSyntheticId(channel, world);
+        int displayOffset = botId - SoloMaplingConstants.GameConstants.BOT_BASE_ID;
         bot.setClient(BotClientHandler.getBotClient());
         bot.setID(botId);
-        bot.setName("EverLeafQA" + botId);
-        bot.setFame(botId);
+        bot.setName("ELQA" + displayOffset);
+        bot.setFame(0);
 
         // The persisted GM is only a visual/stat template. Do not let its cloned
         // administrative or social state leak into the artificial player.
@@ -63,15 +74,6 @@ public final class BareBotFactory {
         bot.setPosition(position);
         bot.setStance(5);
 
-        Server server = Server.getInstance();
-        Channel channel = server.getChannel(
-                SoloMaplingConstants.GameConstants.WORLD_SCANIA,
-                SoloMaplingConstants.GameConstants.CHANNEL_1);
-        World world = server.getWorld(SoloMaplingConstants.GameConstants.WORLD_SCANIA);
-        if (channel == null || world == null) {
-            throw new IllegalStateException("SoloMapling QA world/channel is not available");
-        }
-
         // loadCharFromDB does not execute the normal PlayerLoggedinHandler rate
         // initialization. Apply the current EverLeaf world rates so bot-attributed
         // EXP/meso/drop smoke tests use the same world multipliers as players.
@@ -81,6 +83,21 @@ public final class BareBotFactory {
         world.getPlayerStorage().addPlayer(bot);
         map.addPlayer(bot);
         return bot;
+    }
+
+    private static int allocateSyntheticId(Channel channel, World world) {
+        for (int attempts = 0; attempts < 10_000; attempts++) {
+            int offset = nextBotOffset.getAndIncrement();
+            if (offset > MAX_SYNTHETIC_OFFSET) {
+                throw new IllegalStateException("SoloMapling QA synthetic bot id range exhausted");
+            }
+            int candidate = SoloMaplingConstants.GameConstants.BOT_BASE_ID + offset;
+            if (channel.getPlayerStorage().getCharacterById(candidate) == null
+                    && world.getPlayerStorage().getCharacterById(candidate) == null) {
+                return candidate;
+            }
+        }
+        throw new IllegalStateException("Could not allocate a collision-free SoloMapling QA bot id");
     }
 
     public static void removeBareBot(Character bot) {
