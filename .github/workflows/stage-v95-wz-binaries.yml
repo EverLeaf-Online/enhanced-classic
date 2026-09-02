@@ -63,17 +63,30 @@ jobs:
             TamingMob.wz
           )
 
-          base='https://sourceforge.net/projects/maplestoryv95/files/MapleStory'
+          base='https://downloads.sourceforge.net/project/maplestoryv95/MapleStory'
           for file in "${files[@]}"; do
+            if [ -s "$file" ]; then
+              echo "Keeping existing $file ($(stat -c '%s' "$file") bytes)"
+              continue
+            fi
             tmp="${file}.part"
+            rm -f "$tmp"
             echo "Downloading $file"
-            curl --fail --location --retry 8 --retry-delay 5 --connect-timeout 30 \
-              --user-agent 'Mozilla/5.0 EverLeaf-v95-archive' \
-              -o "$tmp" "$base/$file/download"
+            curl --fail --location --retry 8 --retry-all-errors --retry-delay 5 --connect-timeout 30 \
+              --user-agent 'Wget/1.21.4' \
+              --referer 'https://sourceforge.net/projects/maplestoryv95/files/MapleStory/' \
+              -o "$tmp" "$base/$file?download=1"
             size=$(stat -c '%s' "$tmp")
             if [ "$size" -lt 1024 ]; then
               echo "Refusing suspiciously small download for $file: $size bytes" >&2
               exit 1
+            fi
+            if [ "$file" != 'List.wz' ]; then
+              sig=$(head -c 4 "$tmp" || true)
+              if [ "$sig" != 'PKG1' ]; then
+                echo "Refusing non-WZ payload for $file (signature: $sig)" >&2
+                exit 1
+              fi
             fi
             mv -f "$tmp" "$file"
           done
