@@ -145,6 +145,7 @@ def main() -> None:
     # its narrowly-scoped host hooks through the same deterministic transform
     # stage so CI tests the reconciled EverLeaf host code without replacing it.
     subprocess.run(["python3", "tools/apply_solomapling_host_hooks.py"], check=True)
+    subprocess.run(["python3", "tools/apply_solomapling_nav_hooks.py"], check=True)
 
     print("EverLeaf development configuration applied (20 channels; public channel host; website registration required).")
 
