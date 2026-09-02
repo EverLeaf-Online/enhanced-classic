@@ -16,7 +16,8 @@ import java.util.concurrent.ScheduledFuture;
 
 /**
  * Controlled autonomous QA wrapper around SoloMapling's real GCMove + BotAttackSystem.
- * It selects/chases targets; class/weapon attack selection, visible attack packets,
+ * It selects/chases targets, loots EverLeaf-owned drops, and keeps running through
+ * transient failures; class/weapon attack selection, visible attack packets,
  * cooldowns and damage are delegated to BotAttackDriver.
  */
 public final class BareBotHunter {
@@ -52,6 +53,7 @@ public final class BareBotHunter {
         hunt.cancel();
         GCMovement.stop(bot);
         BotAttackDriver.clearBot(bot.getId());
+        BotLootDriver.clearBot(bot.getId());
         return true;
     }
 
@@ -76,8 +78,8 @@ public final class BareBotHunter {
                 tick();
             } catch (Throwable t) {
                 // ScheduledExecutorService suppresses every future execution after an
-                // uncaught exception. A transient navigation/combat failure must never
-                // permanently kill an active QA hunt session.
+                // uncaught exception. A transient navigation/combat/loot failure must
+                // never permanently kill an active QA hunt session.
                 long now = System.currentTimeMillis();
                 if (now - lastFailureLogAt >= 5_000L) {
                     lastFailureLogAt = now;
@@ -90,6 +92,14 @@ public final class BareBotHunter {
         private void tick() {
             if (bot.getMap() == null || bot.getMapId() != mapId || !BotHelpers.isBot(bot)) {
                 stop(bot);
+                return;
+            }
+
+            // Loot bot-owned drops before acquiring another target. The loot driver
+            // delegates the transaction to Character.pickupItem(), so EverLeaf's
+            // normal ownership/inventory/quest/meso checks remain authoritative.
+            BotLootDriver.LootResult loot = BotLootDriver.tick(bot);
+            if (loot.found()) {
                 return;
             }
 
