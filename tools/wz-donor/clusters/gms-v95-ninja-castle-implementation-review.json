@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "contractId": "gms-v95-ninja-castle-implementation-review",
+  "donorId": "gms-v95-core7",
+  "mode": "extraction-only-review",
+  "evidence": {
+    "profileRunId": 33588987309,
+    "profileArtifactDigest": "sha256:bd5465902f856276b615e2888363062bb2ac5a41be39e157259f2c64ca209d8e"
+  },
+  "closure": {
+    "mapIds": [800040000, 800040100, 800040200, 800040201, 800040202, 800040203, 800040204, 800040205, 800040206, 800040207, 800040208, 800040209, 800040210, 800040211, 800040300, 800040301, 800040302, 800040303, 800040304, 800040305, 800040306, 800040307, 800040308, 800040309, 800040310, 800040311, 800040312, 800040313, 800040314, 800040315, 800040400, 800040401, 800040410],
+    "mobIds": [9400400, 9400401, 9400402, 9400403, 9400404, 9400405, 9400406, 9400407, 9400408, 9400409, 9400410],
+    "npcIds": [9110100, 9110101, 9110102, 9110103, 9110104, 9110105, 9110106, 9110107, 9110108, 9110109, 9110110, 9110111, 9110112, 9110113, 9110114],
+    "reactorIds": [],
+    "itemIds": [4000337, 4000338, 4000339, 4000340, 4000341, 4000342, 4000343, 4000344, 4000345, 4000346],
+    "questIds": [8165, 8166, 8167, 8168, 8169, 8170, 8171],
+    "portalScripts": ["ninja_Boss"]
+  },
+  "mobDependencyPolicy": {
+    "reviveEdges": [{"from": 9400408, "to": 9400409}],
+    "additionalReviveMobsRequired": [],
+    "bossQuestDropOwner": 9400409
+  },
+  "collisionPolicy": {
+    "9110100": {
+      "family": "Npc.wz",
+      "decision": "deliberate-replacement-review",
+      "donorFingerprint": "40bc1006d76ee175a06a1954dffb130e8687bc9d52cf6c99e77ad0c9a157b3e1",
+      "baselineFingerprint": "e1f35d4998091f6fa5e269641e8d2036c5c2adcaf3f8b48975bf5163a4e9fcac",
+      "baselineReferenceCount": 1,
+      "baselineReferenceFiles": ["wz/Etc.wz/NpcLocation.img.xml"],
+      "blockIfFingerprintChanges": true,
+      "note": "v83 identifies 9110100 as Charity Box; v95 Ninja Castle reuses the ID. Current v83 evidence found no map, quest, script, source, or SQL references beyond NpcLocation metadata. Replacement is still not authorized by this review contract."
+    }
+  },
+  "portalPolicy": {
+    "ninja_Boss": {
+      "fromMap": 800040401,
+      "toMap": 800040410,
+      "targetPortal": "out00",
+      "source": "v3921358/GMS111_Scripts@6695e72027ee439e91e8ba461b79d240eaa9b0d9:portal/ninja_Boss.js",
+      "compatibility": "EverLeaf v83 portal API supports pi.playPortalSound() and pi.warp(mapId, portalName)."
+    }
+  },
+  "questDropContract": "tools/wz-donor/clusters/gms-v95-ninja-castle-quest-drops.json",
+  "unresolvedQuestDropItems": [4000339, 4000341, 4000343],
+  "blockingReview": [
+    "v95 donor mode is extraction-only; this contract must not be consumed by an automatic importer",
+    "NPC 9110100 is a changed-ID collision and requires explicit replacement/remap approval before any WZ edit",
+    "quest-drop items 4000339, 4000341, and 4000343 remain unresolved and must not be synthesized",
+    "client/server asset parity for the complete region has not been proven",
+    "NPC scripts, quest actions/rewards, mob drop tables beyond the sourced quest rows, and live gameplay behavior still require review"
+  ],
+  "approved": false,
+  "applyAllowed": false,
+  "automaticApply": false,
+  "importAllowed": false,
+  "automaticImport": false
+}
