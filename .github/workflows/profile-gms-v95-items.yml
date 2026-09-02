@@ -9,6 +9,7 @@ on:
       - 'tools/wz-donor/profile_item_candidates.py'
       - 'tools/wz-donor/summarize_item_profile_shapes.py'
       - 'tools/wz-donor/shortlist_etc_material_review.py'
+      - 'tools/wz-donor/cross_reference_item_shortlist.py'
       - 'tools/wz-donor/wz_diff.py'
       - 'tools/wz-donor/build_import_manifest.py'
   workflow_dispatch:
@@ -124,6 +125,12 @@ jobs:
             "$RUNNER_TEMP/wz-gms-v95-item-profiles.json" \
             --output "$RUNNER_TEMP/wz-gms-v95-etc-review-shortlist.json" \
             | tee "$RUNNER_TEMP/wz-gms-v95-etc-review-shortlist.txt"
+          python tools/wz-donor/cross_reference_item_shortlist.py \
+            "$RUNNER_TEMP/wz-gms-v95-etc-review-shortlist.json" \
+            --donor "$RUNNER_TEMP/gms-v95-core7" \
+            --baseline . \
+            --output "$RUNNER_TEMP/wz-gms-v95-etc-cross-references.json" \
+            | tee "$RUNNER_TEMP/wz-gms-v95-etc-cross-references.txt"
           {
             echo '## GMS v95 conservative item profile'
             echo
@@ -144,7 +151,12 @@ jobs:
             cat "$RUNNER_TEMP/wz-gms-v95-etc-review-shortlist.txt"
             echo '```'
             echo
-            echo 'This shortlist is not approved and does not authorize import.'
+            echo '### Cross-reference evidence for shortlist'
+            echo '```text'
+            cat "$RUNNER_TEMP/wz-gms-v95-etc-cross-references.txt"
+            echo '```'
+            echo
+            echo 'Neither the shortlist nor cross-reference report approves or authorizes import.'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload item profile analysis
@@ -160,5 +172,7 @@ jobs:
             ${{ runner.temp }}/wz-gms-v95-etc-shapes.txt
             ${{ runner.temp }}/wz-gms-v95-etc-review-shortlist.json
             ${{ runner.temp }}/wz-gms-v95-etc-review-shortlist.txt
+            ${{ runner.temp }}/wz-gms-v95-etc-cross-references.json
+            ${{ runner.temp }}/wz-gms-v95-etc-cross-references.txt
           retention-days: 14
           if-no-files-found: error
