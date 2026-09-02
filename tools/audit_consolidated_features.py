@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify that known EverLeaf non-Empress features remain on canonical branches.
 
-This is intentionally behavior-marker based rather than commit-SHA based.  Old
+This is intentionally behavior-marker based rather than commit-SHA based. Old
 feature branches were often squashed, cherry-picked, or superseded by stronger
 implementations, so ancestry alone cannot prove that a QoL/security feature
 survived consolidation.
@@ -9,7 +9,6 @@ survived consolidation.
 from __future__ import annotations
 
 import subprocess
-import sys
 
 CANONICAL = {
     "server": "origin/release-dev",
@@ -33,22 +32,22 @@ CHECKS = [
     ("server", "scripts/npc/2007.js", ["Evan"]),
 
     # Transaction / economy hardening surfaces
-    ("server", "src/main/java/server/shops/HiredMerchant.java", ["synchronized"]),
-    ("server", "src/main/java/server/shops/PlayerShop.java", ["synchronized"]),
+    ("server", "src/main/java/server/maps/HiredMerchant.java", ["ReentrantLock", "AtomicBoolean", "visitorLock"]),
+    ("server", "src/main/java/server/maps/PlayerShop.java", ["AtomicBoolean", "open"]),
     ("server", "src/main/java/net/server/channel/handlers/StorageHandler.java", ["isStorageOpen"]),
 
     # Client / launcher safety
-    ("server", "launcher/EverLeaf.Launcher/BoundedDownload.cs", ["ContentLength", "expectedSize"]),
+    ("server", "launcher/EverLeaf.Launcher/BoundedDownload.cs", ["expectedBytes", "signed size", "extra"]),
     ("server", "launcher/EverLeaf.Launcher/LaunchTicket.cs", [".everleaf-launch", "CleanupStale"]),
     ("server", "launcher/EverLeaf.Launcher/MainWindow.xaml.cs", ["LaunchTicket"]),
-    ("client", "client/tools/evan-xml-donor-builder/main.cpp", ["MapleLib"]),
+    ("client", "client/tools/evan-xml-donor-builder/main.cpp", ["wz::WzFile", "ParseWzFile", "EverLeaf Evan XML donor build: PASS"]),
 
     # Website / CMS / account / Wiki / voting
     ("web", "web/src/views/account.ejs", ["VOTE FOR NX", "Pending Vote NX", "accountQuick"]),
     ("web", "web/src/routes/vote.js", ["timingSafeEqual", "queueVerifiedVoteNx", "gtop100.com"]),
     ("web", "web/scripts/backup-mysql.js", ["--single-transaction", "--protocol=socket", "Intentionally do not use --databases"]),
     ("web", "web/src/routes/wiki.js", ["wikiCatalog"]),
-    ("web", "web/src/views/wiki-entry.ejs", ["provenance"]),
+    ("web", "web/src/views/wiki-entry.ejs", ["PROVENANCE", "Verification", "Source document"]),
     ("web", "web/src/views/admin.ejs", ["admin"]),
     ("web", "web/src/views/rankings.ejs", ["rank"]),
 ]
@@ -81,8 +80,8 @@ def main() -> int:
             continue
         passed += 1
 
-    # Policy guard: Empress and Community-files are reference/excluded lines,
-    # never canonical release inputs.
+    # Empress and Community-files are explicitly excluded reference lines, never
+    # canonical release inputs.
     canonical_values = set(CANONICAL.values())
     for forbidden in ("origin/empress-dev", "origin/Community-files"):
         if forbidden in canonical_values:
