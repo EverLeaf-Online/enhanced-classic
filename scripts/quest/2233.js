@@ -1,6 +1,6 @@
 /*
  * Captain Al's Passing of Knowledge - Raise the Rep! (2233)
- * QuestInfo requires current Family Rep >= 1,000.
+ * Complete after the player reaches 1,000 current Family Rep.
  */
 
 function end(mode, type, selection) {
@@ -18,6 +18,7 @@ function end(mode, type, selection) {
         return;
     }
 
+    qm.gainExp(2400);
     qm.forceCompleteQuest();
     qm.sendNext("Excellent. You've reached 1,000 Rep and proven that you know how to support your Family. You're ready for the next lesson.");
     qm.dispose();
