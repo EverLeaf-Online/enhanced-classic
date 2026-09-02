@@ -1,0 +1,51 @@
+name: Maintenance delete fully-contained branches
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/maintenance-delete-contained-branches.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  prune:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Fetch branches
+        run: git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune
+      - name: Delete only branches fully contained by canonical history
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical=(master release-dev client-dev content-dev)
+          deleted=0
+          skipped=0
+          while IFS= read -r ref; do
+            branch="${ref#origin/}"
+            case "$branch" in
+              master|release-dev|client-dev|content-dev|Community-files|empress-dev|wz/*)
+                continue
+                ;;
+            esac
+            contained=""
+            for target in "${canonical[@]}"; do
+              if git merge-base --is-ancestor "origin/$branch" "origin/$target" 2>/dev/null; then
+                contained="$target"
+                break
+              fi
+            done
+            if [[ -n "$contained" ]]; then
+              echo "DELETE $branch (fully contained by $contained)"
+              git push origin --delete "$branch"
+              deleted=$((deleted + 1))
+            else
+              skipped=$((skipped + 1))
+            fi
+          done < <(git for-each-ref --format='%(refname:short)' refs/remotes/origin | grep '^origin/' | grep -v '^origin/HEAD$' | sort)
+          echo "Deleted fully-contained branches: $deleted"
+          echo "Preserved non-contained branches: $skipped"
