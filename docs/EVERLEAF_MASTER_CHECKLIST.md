@@ -1,551 +1,694 @@
 # EverLeaf Master Development Checklist
 
-Repository-backed working checklist for EverLeaf. This document is the source of truth for server completion work.
+Repository-backed working checklist for the current non-Empress EverLeaf release line.
+
+Last synchronized: **2026-09-02** after repository consolidation, world-content hardening, reactor restoration, quest gameplay audits, and the current QoL/feature review.
 
 ## Scope and exclusions
 
-- **Included branches for implementation evidence:** `master`, `release-dev`, `client-dev`, `content-dev`, `progression-dev`, `enhanced-dev`, `qa-agent-hub`, `web-cms`, and focused feature/fix branches when relevant.
-- **Excluded from completeness calculations:** `empress-dev` and all Empress content.
-- **Excluded from completeness calculations:** `Community-files`.
-- A feature can be **implemented somewhere** but still not be **release-ready** until it is integrated, regression-tested, and verified on the release path.
+- Primary release path: `release-dev` → `master`.
+- Maintained client line: `client-dev`.
+- `Community-files` is archive/reference-only and excluded from completion status.
+- `empress-dev` and all Empress/Cygnus content are deferred/excluded.
+- All `wz/*` work, especially `wz/v95-*`, belongs to the separate updated-WZ modernization effort and is protected from routine cleanup or unrelated rewrites.
+- A repository/static audit can close structural integrity work, but live-client behavior remains `🟡` until tested in the packaged client/runtime.
 
 ## Status legend
 
-- ✅ **Complete** — implemented and sufficiently evidenced in the audited branch set.
-- 🟡 **Needs verification** — implementation exists or legacy support is present, but end-to-end validation is still required.
-- 🔧 **Needs work** — partially implemented or requires integration/hardening.
+- ✅ **Complete** — implemented and sufficiently evidenced on the maintained release path.
+- 🟡 **Needs verification** — implementation exists or static integrity is proven, but live/runtime validation remains.
+- 🔧 **Needs work** — incomplete, partially implemented, or still requires hardening/integration.
 - 🐛 **Bug** — known defect requiring correction.
-- ❌ **Missing** — no sufficient implementation evidence found during this audit.
 - ⏸ **Deferred** — intentionally postponed.
 - 🚫 **Excluded** — intentionally outside this checklist.
 
 ---
 
-# 1. Repository / Integration / Release Management
+# 1. Repository / Release Management
 
-- 🔧 Consolidate diverged EverLeaf development branches into a coherent release path.
-- 🔧 Reconcile `client-dev`, `content-dev`, `progression-dev`, `enhanced-dev`, `qa-agent-hub`, and `web-cms` with `release-dev` without dropping working features.
-- 🟡 Verify required build checks are green before promotion.
-- 🟡 Verify the packaged build manifest matches commit, protocol, level cap, rates, and release configuration.
-- 🔧 Establish a repeatable branch promotion policy: feature branch → integration/release branch → `master`.
-- 🟡 Confirm all production-only secrets/config overrides stay outside source control.
-- ✅ Build/release GitHub workflow infrastructure exists.
-- 🚫 Ignore `Community-files` for completion status.
-- 🚫 Ignore `empress-dev` and all Empress content for completion status.
+- ✅ `master`, `release-dev`, and `client-dev` are the intended long-lived branches.
+- ✅ `Community-files` preserved as archive/reference.
+- ✅ `empress-dev` preserved and excluded from the non-Empress release line.
+- ✅ Repository consolidation/promotion work completed.
+- ✅ Old `consolidation/*` and temporary cleanup branches retired.
+- ✅ Branch lifecycle/cleanup policy documented.
+- ✅ Updated-WZ/v95 work explicitly protected from cleanup.
+- ✅ Required build gating and release workflows exist.
+- ✅ Full Maven compile/test/package runs in the release build.
+- ✅ Build manifest generation exists.
+- 🟡 Continue reconciling useful historical branch-local work only when it is still intentionally unconsumed.
+- 🟡 Final `release-dev` → `master` production promotion after runtime validation.
+- 🟡 Confirm all production secrets/config overrides remain outside source control.
 
 # 2. Core Server / Infrastructure
 
+- ✅ Core server build/runtime baseline exists.
+- ✅ MySQL persistence baseline exists.
+- ✅ Oracle/staging deployment tooling exists.
+- ✅ Backup tooling exists.
+- ✅ Log rotation tooling exists.
+- ✅ Disk monitoring exists.
+- ✅ Production-readiness auditing exists.
 - 🟡 Verify login server startup/shutdown cleanly.
 - 🟡 Verify channel server startup/shutdown cleanly.
 - 🟡 Verify Cash Shop server startup/shutdown cleanly.
 - 🟡 Verify world/channel registration and deregistration under reconnects.
-- 🔧 Standardize production runtime configuration through environment overrides.
-- 🟡 Verify public/LAN/localhost host configuration for production topology.
-- 🟡 Verify no server startup warnings remain unresolved.
-- 🟡 Run long-duration soak testing for memory leaks, deadlocks, thread growth, and scheduler drift.
-- 🟡 Verify graceful recovery from database reconnects and transient failures.
+- 🟡 Verify public/LAN/localhost production topology.
+- 🟡 Verify graceful recovery from DB reconnects/transient failures.
+- 🟡 Run long-duration soak testing for memory leaks, deadlocks, scheduler drift, and thread growth.
 
 # 3. Login / Accounts / Authentication
 
-- 🟡 Verify account registration flow end-to-end.
-- 🟡 Verify public production registration policy and automatic registration setting.
+- ✅ Account/database framework exists.
+- ✅ Launcher login integration framework exists.
+- 🟡 Verify registration end-to-end.
+- 🟡 Verify production registration policy/automatic registration setting.
 - 🟡 Verify password hashing and legacy-account compatibility.
-- 🟡 Verify account bans / temporary bans / IP or MAC restrictions as intended.
+- 🟡 Verify bans, temporary bans, and IP/MAC restrictions.
 - 🟡 Verify duplicate-login/session protection.
-- 🟡 Verify PIC/PIN behavior if enabled by the chosen client/server configuration.
-- 🟡 Verify account persistence across server restarts.
-- 🟡 Verify clean launcher login → Play → client launch flow.
-- 🐛 Document/mitigate players launching the game EXE directly instead of using the launcher; this is primarily a user-side launch-path issue.
+- 🟡 Verify PIC/PIN behavior if enabled.
+- 🟡 Verify account persistence across restarts.
+- 🟡 Verify launcher login → Play → client launch.
+- 🐛 Document/mitigate players launching the raw EXE instead of the EverLeaf Launcher.
 
-# 4. Character Creation / Character Persistence
+# 4. Character Creation / Persistence
 
-- 🟡 Verify new-character creation for all intended starter paths.
-- 🟡 Verify name validation, reserved names, duplicate names, and invalid character handling.
-- 🟡 Verify appearance/gender/starting equipment parity with client assets.
-- 🟡 Verify character select, deletion, restoration policy, and logout persistence.
+- ✅ Character persistence framework exists.
+- ✅ Character-persistence diagnostics exist.
+- 🟡 Verify all intended starter paths.
+- 🟡 Verify name validation/reserved names/duplicates.
+- 🟡 Verify appearance, gender, and starting equipment against packaged client assets.
+- 🟡 Verify character select/deletion/restoration policy.
 - 🟡 Verify inventories, mesos, skills, quests, keybinds, buddy/guild state, pets, mounts, storage, and cooldowns survive relog/restart.
-- 🟡 Verify character persistence diagnostics under production-like database latency.
+- 🟡 Verify persistence under production-like DB latency.
 
 # 5. Classes / Jobs / Skills / Advancement
 
-- 🟡 Audit all intended v83-era classes and job branches available to EverLeaf.
-- 🟡 Verify 1st/2nd/3rd/4th job advancement quests and NPCs.
-- 🟡 Verify AP/SP assignment and reset behavior.
-- 🟡 Verify mastery/passive skills and buff expiration.
-- 🟡 Verify summons, transformations, charge skills, stance, dispels, seals, and status interactions.
-- 🟡 Verify multi-target, projectile, melee, magic, and summon damage formulas.
-- 🐛 Remove ranged-class melee fallback/"whack" damage and animation for Bowman/Assassin-style ranged classes where the client falls back to a melee swing.
-- 🟡 Verify skills with custom/client-sensitive animations do not crash or desync.
-- 🟡 Verify skill books/mastery books and 4th-job unlock flows.
-- 🟡 Verify death, EXP loss, safety charm, resurrection, and revival interactions.
+- ✅ Broad class/skill integrity auditing exists.
+- ✅ Evan release-support auditing exists.
+- ✅ Evan Dragon Fury hardening exists.
+- ✅ Evan Magic Resistance hardening exists.
+- 🟡 Verify all intended v83-era classes/job branches live.
+- 🟡 Verify 1st/2nd/3rd/4th job advancement quests and NPCs live.
+- 🟡 Verify AP/SP assignment/reset behavior.
+- 🟡 Verify mastery/passives, buff expiration, summons, transformations, charge skills, stance, dispels, seals, and status interactions.
+- 🟡 Verify projectile/melee/magic/summon formulas.
+- 🟡 Verify skill/mastery books and 4th-job unlocks.
+- 🟡 Verify death, EXP loss, charms, resurrection, and revival interactions.
+- 🐛 Fix ranged-class melee/"whack" fallback damage/animation where the client falls back to a melee swing.
 
 # 6. Progression / Level Cap / EXP
 
-- ✅ Level-cap policy work exists for level 250.
+- ✅ Level-cap policy/framework exists for level 250.
 - ✅ Post-200 progression framework exists.
 - ✅ Verdant Marks framework exists.
 - ✅ Weekly progression framework exists.
 - ✅ Endgame tier/reward-lane framework exists.
-- 🟡 Verify EXP requirements from 201–249 are valid, monotonic, and production-balanced.
+- ✅ Progress/weekly/Marks command support exists.
+- 🟡 Verify 201–249 EXP requirements are valid and production-balanced.
 - 🟡 Verify 199→200 and all post-200 milestones.
-- 🟡 Verify level 250 cannot gain an invalid 251st level.
-- 🟡 Verify `@progress`, `@weekly` / `@weeklies`, and Marks reporting in live gameplay.
-- 🟡 Verify account-bound weekly reward budgets and double-claim protection.
-- 🟡 Verify Verdant Marks cannot be traded/transferred through unintended paths.
-- 🟡 Verify donation systems cannot convert into progression currencies.
+- 🟡 Verify level 250 cannot become 251.
+- 🟡 Verify weekly reward budgets/double-claim protection live.
+- 🟡 Verify Verdant Marks cannot move through unintended trade/storage paths.
+- 🟡 Verify donation systems cannot convert into progression currency/power.
 
 # 7. HP Washing Replacement / Survivability
 
-- ✅ Enhanced survivability policy/service work exists.
-- 🟡 Verify replacement progression for all classes and level ranges.
+- ✅ Enhanced survivability policy/service exists.
+- ✅ Project direction is to make traditional HP washing unnecessary.
+- 🟡 Finalize and verify replacement progression for all classes/level ranges.
 - 🟡 Verify legacy washed characters do not gain unintended advantages.
-- 🟡 Verify load-time survivability floors are idempotent and safe.
-- 🟡 Verify HP/MP reset items and related Cash Shop behavior cannot bypass EverLeaf balance rules.
+- 🟡 Verify survivability floors remain idempotent.
+- 🟡 Verify HP/MP reset items cannot bypass balance policy.
 
 # 8. Combat / Damage / Status Effects
 
-- 🟡 Verify weapon/magic damage formulas against intended v83 behavior plus EverLeaf changes.
-- 🟡 Verify critical hits, elemental weaknesses/resists/immunities, defense, accuracy, avoidability, and level penalties.
-- 🟡 Verify monster knockback, invulnerability, weapon/magic cancel, damage reflect if present, and status immunity.
+- ✅ Core combat framework exists.
+- 🟡 Verify weapon/magic damage formulas.
+- 🟡 Verify critical hits, elemental weakness/resistance/immunity, defense, accuracy, avoidability, and level penalties.
+- 🟡 Verify knockback, invulnerability, weapon/magic cancel, reflect if present, and boss immunities.
 - 🟡 Verify poison, freeze, stun, seal, darkness, curse, slow, doom, dispel, seduce, and zombify-style mechanics where applicable.
-- 🟡 Verify boss HP bars and phase transitions.
-- 🟡 Verify party EXP distribution and leech rules.
+- 🟡 Verify boss HP bars/phase transitions.
+- 🟡 Verify party EXP/leech rules.
 - 🟡 Verify death/revive inside instances and boss maps.
 
 # 9. Maps / Portals / Reactors
 
-- 🔧 Perform repository-wide map reference audit.
-- 🔧 Perform portal destination audit for broken/missing links.
-- 🔧 Perform reactor script/trigger audit.
-- 🔧 Validate map return points, death returns, field limits, forced returns, and hidden-street transitions.
-- 🟡 Verify map ownership/instance behavior for PQs and bosses.
-- 🟡 Verify scripted portals and warp NPCs cannot send players to invalid maps.
-- 🟡 Verify map object cleanup after instance completion or disconnect.
-- ✅ Perion map reference checking workflow evidence exists.
+- ✅ **5,238 non-Empress maps structurally audited.**
+- ✅ Global map-reference audit completed with zero hard structural failures in the current release pass.
+- ✅ Broken/missing portal destination audit completed.
+- ✅ Named exits and script map references audited.
+- ✅ Portal script filename case audited.
+- ✅ Return/death-map and forced-return validation completed.
+- ✅ Hidden-street transition references structurally checked.
+- ✅ NPC/mob/reactor asset references audited.
+- ✅ Reactor script coverage classifier added.
+- ✅ Proven missing server reactor handlers restored, including Zakum prequest, Horntail maze, Romeo/Juliet, Pink Bean transition, Sharenian/GPQ, and Hidden Street/drop reactors.
+- ✅ Passive vs action-bearing scriptless reactors are classified for review.
+- ✅ Event/map manager disposal framework exists for instance cleanup.
+- 🟡 Traverse important travel/Hidden Street chains in the packaged client.
+- 🟡 Verify scripted warps/NPC travel live.
+- 🟡 Verify map ownership/instance behavior for bosses/PQs.
+- 🟡 Verify reactor animation/trigger behavior live.
+- 🟡 Verify cleanup after clear, timeout, disconnect, and re-entry.
 
 # 10. NPCs / Spawn Placement
 
-- 🔧 Complete full NPC presence and placement audit.
-- 🐛 Fix misplaced NPCs.
-- 🐛 Restore missing NPCs.
-- 🟡 Verify duplicate NPCs are intentional.
-- 🟡 Verify NPC scripts correspond to the correct NPC IDs/maps.
-- 🟡 Verify essential travel, advancement, storage, shop, quest, and event NPCs are reachable.
-- ✅ NPC reference/presence/spawn audit workflows exist.
-- ✅ Automated NPC spawn-fix workflow evidence exists.
+- ✅ Global NPC presence/asset audit completed.
+- ✅ NPC spawn coordinates and footholds audited.
+- ✅ NPC roam ranges audited.
+- ✅ Duplicate NPCs structurally classified.
+- ✅ Active NPC script coverage audited.
+- ✅ Quest-owner NPC references audited.
+- ✅ Release-facing NPC integrity gate exists in CI.
+- ✅ NPC audit/fix workflow infrastructure exists.
+- 🟡 Visually verify NPC placement in packaged client.
+- 🟡 Live-test travel, advancement, storage, shop, quest, and event NPC interactions.
 
 # 11. Quests
 
-- 🔧 Audit all intended quests for start/complete conditions.
-- 🟡 Verify quest NPC references and prerequisite chains.
-- 🟡 Verify item collection counters and mob-kill counters.
-- 🟡 Verify reward EXP/items/mesos/fame/skills.
-- 🟡 Verify repeatable/daily/weekly cooldowns.
-- 🟡 Verify abandoned/restarted quests do not duplicate rewards.
-- 🟡 Verify scripted quest items cannot be exploited through trade/storage/drop paths.
-- 🟡 Verify major class advancement and boss prerequisite quests.
+- ✅ Global quest structural integrity audit completed.
+- ✅ Maple Island beginner quest audit completed.
+- ✅ Victoria Island quest audit completed.
+- ✅ Classic mainland quest audit completed.
+- ✅ Active quest content-reference audit completed.
+- ✅ Scripted quest-handler audit completed.
+- ✅ Quest NPC/prerequisite references audited.
+- ✅ Item collection and mob/kill counter shape audited.
+- ✅ EXP/item/meso/fame/skill reward/action structure audited.
+- ✅ Reward quantity and overflow safety audited.
+- ✅ Repeatable interval validity audited.
+- ✅ Start-phase reward surfaces flagged for abandon/restart review.
+- ✅ Quest gameplay-completeness audit is part of release CI.
+- 🟡 Live-test repeatable/daily/weekly cooldown behavior.
+- 🟡 Live-test abandon/restart exploit paths.
+- 🟡 Verify scripted quest items cannot bypass restrictions through trade/storage/drop.
+- 🟡 Live-test major class advancement and boss prerequisite chains.
 
 # 12. Monsters / Spawns / Drops
 
-- 🔧 Audit mob spawn data against intended map content.
-- 🟡 Verify respawn timing and density.
-- 🟡 Verify elite/boss spawn triggers where applicable.
-- 🔧 Audit drop tables for missing, duplicate, impossible, or economy-breaking drops.
-- 🟡 Verify meso drop ranges and global drop rules.
+- ✅ Spawn monster IDs audited against available monster data.
+- ✅ Spawn coordinates/footholds audited.
+- ✅ Roam ranges audited.
+- ✅ Density review is surfaced by the world audit.
+- ✅ Economy/global-drop audits exist.
+- ✅ Ordinary global Chaos Scroll and White Scroll drop removal is implemented.
+- 🟡 Verify actual respawn timing/density in live gameplay.
+- 🟡 Verify elite/boss trigger behavior live.
+- 🔧 Complete full mob-drop referential/parity review for missing, duplicate, impossible, and economy-breaking drops.
+- 🟡 Verify meso drop ranges/global rules.
 - 🟡 Verify quest-item drop conditions.
 - 🟡 Verify party ownership, pickup rights, pet loot, and expiry.
-- 🟡 Verify drop-rate modifiers stack correctly and cannot overflow.
+- 🟡 Verify drop-rate modifiers stack safely without overflow.
 
 # 13. Bosses / Expeditions
 
-- 🟡 Audit all intended non-Empress bosses.
-- 🟡 Verify Zakum entry, arms/body lifecycle, drops, and reset behavior.
-- 🟡 Verify Horntail/other major expeditions supported by the chosen baseline.
 - ✅ Enhanced boss catalog/framework exists.
 - ✅ Dedicated encounter framework exists.
-- ✅ Rooted Zakum custom encounter implementation exists.
-- 🟡 Verify expedition creation, signup, leader transfer, disconnect/rejoin, and cleanup.
-- 🟡 Verify entry limits/cooldowns are enforced transactionally.
-- 🟡 Verify boss rewards cannot be duplicated by reconnect/retry.
+- ✅ Rooted Zakum custom encounter exists.
+- ✅ Boss/PQ event-manager linkage audit exists.
+- ✅ Pink Bean transition reactor handler restored.
+- 🟡 Audit/test all intended non-Empress bosses live.
+- 🟡 Verify Zakum entry, arms/body lifecycle, drops, and reset.
+- 🟡 Verify Horntail and other supported expeditions.
+- 🟡 Verify expedition creation/signup/leader transfer/disconnect/rejoin/cleanup.
+- 🟡 Verify entry limits and cooldowns transactionally.
+- 🟡 Verify rewards cannot duplicate on reconnect/retry.
 - 🚫 Empress/Cygnus boss content excluded.
 
 # 14. Party Quests
 
-- 🟡 Audit all intended PQ scripts and stage transitions.
-- ✅ PQ Points persistence/service work exists in `release-dev`.
-- 🟡 Verify PQ point awards exactly once per eligible clear.
-- 🟡 Verify lobby creation, minimum/maximum party size, entry checks, and leader handling.
-- 🟡 Verify stage timers, object cleanup, reconnect behavior, and failure exits.
-- 🟡 Verify reward NPCs and exchange shops.
-- 🟡 Regression-test Kerning/Ludi/Orbis/Henesys/etc. PQs that are intended to be playable.
+- ✅ PQ Points persistence/service exists.
+- ✅ Boss/PQ event-manager linkage audit exists.
+- ✅ Relevant Romeo/Juliet and GPQ reactor handlers restored.
+- 🟡 Audit/test all intended PQ stage transitions live.
+- 🟡 Verify PQ Points award exactly once.
+- 🟡 Verify party-size, entry, leader, timer, cleanup, reconnect, and failure-exit behavior.
+- 🟡 Verify reward NPCs/exchange shops.
+- 🟡 Regression-test Kerning, Ludibrium, Orbis, Henesys, Romeo & Juliet, GPQ, and other intended PQs.
 
 # 15. Events / Minigames
 
-- 🔧 Inventory all event scripts and decide supported vs disabled.
-- 🟡 Verify automated event scheduling if enabled.
+- 🔧 Inventory event scripts and classify supported vs disabled.
+- 🟡 Verify automated scheduling if enabled.
 - 🟡 Verify event maps reset cleanly.
-- 🟡 Verify minigames do not duplicate rewards or trap characters.
-- 🟡 Verify seasonal/event-only content is disabled when not active.
+- 🟡 Verify minigames cannot duplicate rewards/trap characters.
+- 🟡 Verify seasonal/event-only content stays disabled when inactive.
 
 # 16. Items / Equipment / Scrolls
 
-- 🟡 Audit all item IDs referenced by scripts, shops, rewards, and drops.
-- 🟡 Verify equip requirements and class restrictions.
-- 🟡 Verify upgrade slots, scroll success/fail, curse/destruction, clean slate behavior if supported, and stat persistence.
-- 🟡 Verify rechargeable stars/bullets and projectile consumption.
-- 🟡 Verify item expiration.
-- 🟡 Verify untradeable/account-bound/quest flags across trade, storage, merchant, drop, and Cash Shop.
-- 🟡 Verify unique-item/equip restrictions.
-- 🟡 Verify item cloning/serialization cannot create malformed equips.
+- ✅ Item/equipment integrity audit exists in release CI.
+- ✅ Item transfer/stack integrity audit exists.
+- 🟡 Verify all item IDs referenced by scripts, shops, rewards, and drops.
+- 🟡 Verify equip requirements/class restrictions.
+- 🟡 Verify slots, scroll success/fail, curse/destruction, Clean Slate if supported, and stat persistence.
+- 🟡 Verify throwing stars/bullets and projectile consumption.
+- 🟡 Verify expiration.
+- 🟡 Verify untradeable/account-bound/quest flags across trade/storage/merchant/drop/Cash Shop.
+- 🟡 Verify unique/equip restrictions.
+- 🟡 Verify cloning/serialization cannot create malformed equips.
 
 # 17. Pets / Mounts
 
-- 🟡 Verify pet equip, summon, hunger/closeness, commands, expiry, and revive behavior.
-- 🟡 Verify pet loot and meso/item pickup rules.
-- 🟡 Verify multi-pet behavior if enabled.
-- 🟡 Verify mounts, saddles, fatigue, skill requirements, and quest unlocks.
-- 🟡 Verify mount/pet state survives channel change and relog.
+- ✅ Pet Vac safety audit exists.
+- 🟡 Verify pet summon/equip/hunger/closeness/commands/expiry/revive.
+- 🟡 Verify pet item/meso pickup rules.
+- 🟡 Verify multi-pet if enabled.
+- 🟡 Verify mounts, saddles, fatigue, skills, and unlock quests.
+- 🟡 Verify mount/pet state across channel change/relog.
 
 # 18. Cash Shop / NX
 
-- ✅ NX reward service/framework exists.
-- 🟡 Verify Cash Shop entry/exit and character state preservation.
-- 🟡 Verify NX balances and account/character scopes.
-- 🟡 Verify gifting, wishlist, storage, and purchase history if enabled.
-- 🟡 Verify paid rate coupons remain disabled.
-- 🟡 Verify cosmetic inventory transfer rules.
-- 🟡 Verify no pay-to-win donation path into progression power/currencies.
-- 🟡 Verify vote/reward NX transaction idempotency.
+- ✅ NX reward framework exists.
+- ✅ NX/global-drop balance audit exists.
+- 🟡 Verify Cash Shop entry/exit and character state.
+- 🟡 Verify NX balances/scopes.
+- 🟡 Verify gifting/wishlist/storage/purchase history if enabled.
+- 🟡 Verify paid rate coupons stay disabled.
+- 🟡 Verify cosmetic transfer rules.
+- 🟡 Verify no P2W donation path.
+- 🟡 Verify vote/reward NX idempotency.
 
-# 19. Economy / Mesos / Currencies
+# 19. Economy / Mesos / Custom Currencies
 
-- 🔧 Perform economy source/sink audit.
-- 🟡 Verify meso cap/overflow handling.
-- 🟡 Verify shop buy/sell prices and quantity validation.
-- 🟡 Verify repair/recharge/sink systems if present.
-- ✅ Verdant Marks account currency framework exists.
-- ✅ PQ Points account/reward framework exists.
-- 🟡 Verify all custom currencies have immutable ledgers or equivalent anti-duplication controls.
-- 🟡 Verify donation rewards remain non-P2W.
+- ✅ Verdant Marks framework exists.
+- ✅ PQ Points framework exists.
+- ✅ NX reward framework exists.
+- ✅ Reward-source/economy audits exist.
+- ✅ Maple Leaf exchange audit exists.
+- ✅ Ordinary global Chaos/White Scroll drops removed.
+- 🔧 Complete full economy source/sink balance pass.
+- 🟡 Verify meso cap/overflow.
+- 🟡 Verify shop pricing/quantity validation.
+- 🟡 Verify custom currency concurrency/anti-duplication.
+- 🟡 Finalize explicit Chaos/White Scroll source policy.
+- 🟡 Monitor inflation/high-value item generation under player load.
 
 # 20. Trade / Free Market / Merchants
 
-- 🟡 Verify direct player trade end-to-end.
-- 🟡 Verify trade item/meso validation and cancellation/rollback.
+- ✅ Duey ownership/settlement integrity audits exist.
+- ✅ Merchant recovery/persistence/seller-credit/purchase-quantity/snapshot audits exist.
+- ✅ PlayerShop transaction/snapshot audits exist.
+- 🟡 Verify direct trade end-to-end.
+- 🟡 Verify trade cancellation/rollback/item/meso validation.
 - 🔧 Make the **Trade** button take players to the Free Market as planned.
-- 🟡 Verify Free Market entrances/exits and channel behavior.
-- 🟡 Verify hired merchants/player shops if enabled.
-- 🟡 Verify merchant persistence across disconnect/restart if enabled.
+- 🟡 Verify FM entrances/exits/channel behavior.
+- 🟡 Verify hired merchants/player shops live.
+- 🟡 Verify merchant persistence on disconnect/restart.
 - 🟡 Verify untradeable/account-bound/custom-currency restrictions.
-- 🟡 Run trade/merchant race-condition and duplication testing.
+- 🟡 Run trade/merchant race/dupe tests.
 
 # 21. Shops / Exchanges / Crafting / Maker
 
-- 🟡 Audit standard shops and shop inventory mappings.
-- 🟡 Verify buy/sell quantity, meso checks, inventory-space checks, and rollback.
-- 🟡 Verify exchange NPCs and token shops.
-- 🟡 Audit Maker/crafting implementation if enabled.
 - ✅ Rooted Forge framework exists.
-- 🟡 Verify Rooted Forge fulfillment, persistence, stat application, failure/retry behavior, and exploit resistance in live gameplay.
-- 🟡 Verify custom material acquisition and consumption.
+- 🟡 Audit standard shop inventory mappings.
+- 🟡 Verify buy/sell quantity, meso, inventory-space checks, and rollback.
+- 🟡 Verify exchange/token shops.
+- 🟡 Audit Maker/crafting if enabled.
+- 🟡 Verify Rooted Forge fulfillment, persistence, stat application, retry/failure, and exploit resistance live.
+- 🟡 Verify custom-material acquisition/consumption.
 
-# 22. Gachapon / Fishing / Reward Randomization
+# 22. Gachapon / Fishing / Random Rewards
 
-- 🟡 Audit Gachapon scripts and reward pools.
-- ✅ Gachapon-related script/test work exists on content development path.
-- 🟡 Verify duplicate/banned/invalid item handling.
-- 🟡 Verify ticket consumption and inventory-full rollback.
-- 🔧 Audit fishing implementation and decide whether it is supported, reworked, or disabled.
-- 🟡 Verify random reward systems cannot be rerolled by disconnect/packet retry.
+- ✅ Gachapon/reward-source audit coverage exists.
+- 🟡 Verify reward pools and invalid/duplicate handling.
+- 🟡 Verify ticket consumption/inventory-full rollback.
+- 🔧 Decide whether fishing is supported, reworked, or disabled.
+- 🟡 Verify random rewards cannot be rerolled by disconnect/packet retry.
 
 # 23. Party / Guild / Alliance / Buddy / Fame
 
-- 🟡 Verify party create/invite/kick/leave/disband and leader migration.
+- 🟡 Verify party lifecycle and leader migration.
 - 🟡 Verify party HP/status/map updates.
-- 🟡 Verify guild creation, emblem, rank, invite/kick/leave, contribution, and disband.
-- 🟡 Verify alliance features if enabled.
-- 🟡 Verify buddy add/accept/delete/capacity/offline state.
-- 🟡 Verify fame daily limits and anti-abuse.
+- 🟡 Verify guild creation/emblem/ranks/invite/kick/leave/contribution/disband.
+- 🟡 Verify alliances if enabled.
+- 🟡 Verify buddy lifecycle/capacity/offline state.
+- 🟡 Verify fame limits/anti-abuse.
 - 🟡 Verify cross-channel social updates.
 
 # 24. Inventory / Storage
 
-- 🟡 Verify all inventory categories, slot expansion, sorting, and movement.
-- 🟡 Verify storage deposit/withdraw mesos/items.
-- 🟡 Verify storage across characters on the same account.
-- 🟡 Verify locked/untradeable/custom items cannot bypass restrictions via storage.
-- 🟡 Verify inventory-full and disconnect rollback paths.
+- ✅ Item transfer/stack integrity framework exists.
+- 🟡 Verify inventory categories, slot expansion, sorting, and movement.
+- 🟡 Verify storage item/meso deposit/withdraw.
+- 🟡 Verify account-shared storage.
+- 🟡 Verify restricted/custom items cannot bypass policy through storage.
+- 🟡 Verify inventory-full/disconnect rollback.
 
 # 25. Rankings / Website-visible Character Data
 
-- 🟡 Verify in-game ranking data and post-200 sorting.
-- ✅ Website rankings implementation exists on `web-cms`.
-- 🟡 Verify excluded GM/test accounts are handled properly.
+- ✅ Website rankings implementation exists.
+- 🟡 Verify post-200 sorting.
+- 🟡 Verify GM/test exclusions.
 - 🟡 Verify stale/deleted/renamed characters.
-- 🟡 Verify website does not leak sensitive account fields.
+- 🟡 Verify website exposes no sensitive account data.
 
 # 26. Commands / GM Tools / Permissions
 
-- 🟡 Audit all player commands for intended availability.
-- 🟡 Audit GM level requirements for every privileged command.
 - ✅ EverLeaf ops command work exists.
-- ✅ Progress/weekly/marks/vote command work exists across progression/content branches.
-- 🟡 Verify commands cannot bypass progression, reward, trade, or item restrictions.
+- ✅ Progress/weekly/Marks/vote command work exists.
+- 🟡 Audit player commands for intended availability.
+- 🟡 Audit GM levels for every privileged command.
+- 🟡 Verify commands cannot bypass progression/reward/trade/item rules.
 - 🟡 Log destructive/privileged GM actions.
-- 🟡 Verify admin commands are unavailable to normal players even with malformed packets/command aliases.
+- 🟡 Verify malformed aliases/packets cannot access admin commands.
 
-# 27. Client / Server Asset Parity
+# 27. Custom EverLeaf Progression / Endgame Features
 
-- ✅ Managed client source/import work exists in `client-dev`.
+- ✅ Level 250.
+- ✅ Post-200 progression.
+- ✅ Weekly progression.
+- ✅ Verdant Marks.
+- ✅ Endgame reward lanes.
+- ✅ Rooted content framework.
+- ✅ Rooted Forge.
+- ✅ Rooted materials framework.
+- ✅ Rooted Zakum.
+- ✅ Dedicated encounter framework.
+- 🟡 Live balance, persistence, and anti-abuse validation.
+
+# 28. Planned Boss / Endgame Features
+
+- 🔧 Boss Codex: kills, clears, difficulty, milestones.
+- 🔧 Boss Reward Boxes with controlled progression-material sources.
+- 🔧 Boss Timers / cooldown tracking UI.
+- 🔧 Personal lockout/reset display.
+- 🔧 Reconnect to still-active boss/PQ instances with strict identity/eligibility rules.
+
+# 29. QoL — Combat / Movement
+
+- 🔧 Attack while moving for eligible skills while preserving intentional cast/channel locks.
+- 🔧 No-breath-lock / remove unnecessary post-hit or weapon-swap friction without bypassing control states.
+- 🔧 Flash Jump for every class with balanced unlock level/MP cost/animation/class exceptions.
+- 🔧 Infinite Throwing Stars for normal PvE once the relevant star type is owned/equipped, preserving star identity/damage.
+
+# 30. QoL — HP / Long-term Progression
+
+- 🔧 Finalize no-HP-washing progression path.
+- 🔧 Monster Book Ring / Quest Ring with meaningful permanent HP/stat progression.
+- 🔧 Evolving Rings with defined tiers/stat ceilings/replacement rules.
+- 🔧 Linked Level account progression; audit existing linked-level code/data before creating anything duplicate.
+
+# 31. QoL — Inventory / Storage / Shops / Trading
+
+- 🔧 Storage at any level.
+- 🔧 Remote Storage / Merchant access restricted away from boss/PQ/event/instance abuse.
+- 🔧 Sell All with locked/favorite/quest/cash/high-value exclusions and confirmation summary.
+- 🔧 Buyback with bounded history, expiry, persistence, and anti-dupe logic.
+- 🔧 Safe allowlist for droppable/tradeable NX cosmetics/convenience items; sensitive/progression items remain restricted.
+
+# 32. QoL — Pets / Loot
+
+- 🔧 Pet Vac as universal/earnable/progression-unlocked convenience rather than VIP-only power.
+- ✅ Pet Vac safety audit exists.
+- 🔧 Define range/pickup rate while preserving ownership/quest restrictions.
+
+# 33. QoL — Bossing / PQ
+
+- 🔧 Boss Codex.
+- 🔧 Boss Reward Boxes.
+- 🔧 Boss cooldown/respawn timers.
+- 🔧 Reconnect to boss/PQ run with party/character/instance identity and no death/entry/loot reset exploit.
+
+# 34. QoL — UI / Chat / Enhancements
+
+- 🔧 Optional overlay widgets for boss info/timers, reliable DPS/combat stats, and progression/codex information.
+- 🔧 Loosen overly aggressive chat spam restrictions while retaining flood/bot/packet-abuse protection.
+- 🔧 Custom scrolling/enhancement review.
+- 🔧 Final Chaos Scroll/White Scroll protection/source policies.
+- ✅ Chaos Scroll 60% removed from ordinary global monster drops.
+- ✅ White Scroll removed from ordinary global monster drops.
+
+# 35. Client / Server Asset Parity
+
+- ✅ Managed client source/import work exists.
 - ✅ Client WZ baseline/repair tooling exists.
-- 🟡 Verify WZ files match server data IDs and scripts.
-- 🟡 Verify map/NPC/mob/item/skill assets required by server exist in distributed client.
+- ✅ Updated-WZ/v95 modernization is active in the separate protected WZ workstream.
+- 🟡 Verify WZ/server IDs/scripts match in the final distributed build.
+- 🟡 Verify required map/NPC/mob/item/skill assets exist in the packaged client.
 - 🟡 Verify protocol/version compatibility.
-- 🟡 Test from a clean machine, not only the development machine.
-- 🟡 Verify no server-side content references assets missing from the packaged client.
+- 🟡 Clean-machine parity test.
 
-# 28. Client Bugs / QoL
+# 36. Client Bugs / Client QoL
 
-- 🔧 Perform complete known-client-bug sweep against MapleEzorsia v2 baseline/issues/TODO references.
-- 🐛 Fix ranged-class whack/melee fallback visual behavior where applicable.
+- 🔧 Complete known-client-bug sweep against MapleEzorsia v2 references/TODOs.
+- 🐛 Fix ranged whack/melee fallback visual behavior.
 - 🟡 Verify resolution/window/fullscreen behavior.
 - 🟡 Verify alt-tab/minimize/restore stability.
-- 🟡 Verify chat, whisper, buddy, party, guild, and trade UI.
+- 🟡 Verify chat/whisper/buddy/party/guild/trade UI.
 - 🟡 Verify Cash Shop transitions.
-- 🟡 Verify client exits cleanly after disconnect/crash.
-- 🟡 Verify custom EverLeaf web links/buttons.
-- 🟡 Verify intended login-layout branding.
+- 🟡 Verify clean disconnect/crash exit.
+- 🟡 Verify EverLeaf web links/buttons and login branding.
 
-# 29. EverLeaf Branding
+# 37. EverLeaf Branding
 
-- ✅ EverLeaf client branding work exists.
-- ✅ `WorldConfig.java` branding/welcome changes exist on development paths.
-- 🟡 Verify server welcome text displays **Welcome to EverLeaf** everywhere intended.
-- 🟡 Verify executable/window/title/resource strings are consistently EverLeaf.
-- 🟡 Verify legacy MapleEzorsia/Ezorsia names are removed from player-facing surfaces where legally/technically appropriate.
-- 🟡 Verify installer/launcher/download page naming consistency.
+- ✅ EverLeaf branding work exists.
+- ✅ WorldConfig/welcome branding work exists.
+- 🟡 Verify **Welcome to EverLeaf** everywhere intended.
+- 🟡 Verify executable/window/resource strings consistently use EverLeaf.
+- 🟡 Remove remaining player-facing MapleEzorsia/Ezorsia branding where appropriate.
+- 🟡 Verify installer/launcher/download naming consistency.
 
-# 30. Launcher / Patcher / Auto-Updater
+# 38. Launcher / Patcher / Auto-Updater
 
 - ✅ EverLeaf launcher project exists.
-- ✅ Patch service tests exist.
+- ✅ Patch service and tests exist.
 - ✅ Launcher update service exists.
-- ✅ Launcher build/publish workflows exist.
-- ✅ Patch manifest build/test scripts exist.
+- ✅ Build/publish workflows exist.
+- ✅ Patch manifest tooling exists.
 - ✅ Installer script exists.
-- 🔧 Complete production auto-update pipeline and endpoint configuration.
+- 🔧 Complete production auto-update pipeline/endpoint configuration.
 - 🟡 Verify launcher self-update.
-- 🟡 Verify client file manifest/hash validation.
-- 🟡 Verify damaged/missing file repair.
-- 🟡 Verify atomic update behavior so interrupted patches do not corrupt the client.
-- 🟡 Verify rollback/retry behavior.
-- 🟡 Verify launcher login and Play button launch the correct executable/config.
-- 🟡 Add clear handling/instructions for users who bypass the launcher and start the client EXE directly.
-- 🟡 Verify launcher update signing/provenance strategy.
+- 🟡 Verify client manifest/hash validation and damaged-file repair.
+- 🟡 Verify atomic interrupted-update behavior and rollback/retry.
+- 🟡 Verify login/Play launches the correct executable/config.
+- 🟡 Add clear handling for users launching the raw EXE.
+- 🟡 Verify signing/provenance strategy.
 
-# 31. Channels / World Capacity
+# 39. Channels / World Capacity
 
-- 🔧 Confirm intended production channel count; current project direction is approximately **8 channels** rather than assuming the website's previous value of 3.
-- 🟡 Verify game server actually exposes the configured channel count.
-- 🟡 Verify website status reads live/configured channel state correctly rather than a hardcoded value.
-- 🟡 Verify channel change across all configured channels.
-- 🟡 Verify channel capacity limits and failure messaging.
+- 🔧 Target approximately **8 production channels**.
+- 🟡 Verify server exposes configured channel count.
+- 🟡 Verify website reads live/configured channel count rather than stale hardcoded values.
+- 🟡 Verify channel change across all channels.
+- 🟡 Verify capacity/failure messaging.
 - 🟡 Load-test multi-channel concurrency.
 
-# 32. Website / CMS
+# 40. Website / CMS
 
-- ✅ Web CMS implementation exists on `web-cms`.
-- ✅ Public routes/pages exist for home, downloads, news, community, help, account, rankings, support, terms, login/register.
-- ✅ Admin post-management route/UI exists.
-- ✅ Oracle deployment, nginx, systemd, backup, and DB helper work exists.
-- 🔧 Integrate current web/CMS work with the release path.
-- 🟡 Verify registration/login against production game DB safely.
-- 🟡 Verify password compatibility between site and game login.
-- 🟡 Verify rankings and server-status data.
-- 🟡 Verify status page displays the correct number of live channels.
-- 🟡 Verify download links and launcher manifests point to production artifacts.
+- ✅ Public website/CMS implementation exists.
+- ✅ Home, downloads, news, community, help, account, rankings, support, terms, login/register routes exist.
+- ✅ Admin post-management UI exists.
+- ✅ Oracle/nginx/systemd deployment tooling exists.
+- ✅ Website backup/DB helper work exists.
+- ✅ Major UI/UX redesign work exists.
+- 🟡 Verify registration/login against production game DB.
+- 🟡 Verify site/game password compatibility.
+- 🟡 Verify rankings/server status/live channel count.
+- 🟡 Verify download links/launcher manifests use production artifacts.
 - 🟡 Verify admin auth/session/CSRF/rate-limit/security controls.
-- 🟡 Verify account page exposes only safe operations.
+- 🟡 Verify account pages expose only safe operations.
 
-# 33. Database / Migrations / Backups
+# 41. Discord / Community
 
-- ✅ Base database/drop/shop/admin SQL exists.
-- ✅ EverLeaf migration framework/files exist.
+- ✅ Discord organization/bot cleanup work exists.
+- ✅ Forum-aware reconciliation work exists.
+- ✅ Discord deployment/operations tooling exists.
+- 🟡 Verify live reporting, moderation, suggestions, and support workflows.
+
+# 42. Database / Migrations / Backups
+
+- ✅ Base DB/drop/shop/admin SQL exists.
+- ✅ EverLeaf migration framework exists.
 - ✅ Weekly progression migration exists.
 - ✅ Verdant Marks migration exists.
 - ✅ PQ Points migration exists.
-- ✅ Rooted Forge/material/encounter/NX migration work exists across branches.
-- ✅ Database backup tooling exists.
+- ✅ Rooted migration work exists.
+- ✅ Backup tooling exists.
 - 🟡 Test every migration from a clean baseline.
-- 🟡 Test sequential upgrade from the current production/staging schema.
-- 🟡 Verify migration idempotency or safe failure semantics.
+- 🟡 Test sequential upgrade from current production/staging schema.
+- 🟡 Verify migration idempotency/safe failure semantics.
 - 🟡 Perform backup restore drill before public beta.
-- 🟡 Verify foreign keys/indexes/unique constraints for reward and currency systems.
-- 🟡 Verify database user uses least privilege and MySQL is not publicly exposed.
+- 🟡 Verify constraints/indexes/uniqueness for reward/currency systems.
+- 🟡 Verify DB least privilege and no public MySQL exposure.
+- 🟡 Define orphaned/deleted-account character cleanup policy.
 
-# 34. Security / Exploit Resistance
+# 43. Security / Exploit Resistance
 
-- 🔧 Full packet-validation audit.
-- 🔧 Full dupe/race-condition audit.
+- ✅ Extensive transaction-integrity auditing is part of CI.
+- ✅ Duey hardening exists.
+- ✅ Merchant hardening exists.
+- ✅ PlayerShop hardening exists.
+- ✅ Item transfer/stack hardening exists.
+- ✅ Economy/reward audits exist.
+- 🔧 Complete packet-validation audit.
+- 🔧 Complete broad dupe/race-condition audit.
 - 🟡 Validate item/meso/NX/currency quantities server-side.
-- 🟡 Validate NPC/quest/shop/map proximity and state server-side where required.
+- 🟡 Validate NPC/quest/shop/map proximity/state where required.
 - 🟡 Verify packet replay cannot duplicate purchases/rewards.
-- 🟡 Verify concurrent weekly/reward claims are transactional.
+- 🟡 Verify concurrent weekly/reward claims transactionally.
 - 🟡 Verify trade/storage/merchant concurrency.
 - 🟡 Verify malformed inventory/equip packets cannot corrupt state.
 - 🟡 Verify unauthorized GM/admin commands are rejected.
-- 🟡 Verify web endpoints use rate limiting and secure session/cookie settings.
-- 🟡 Verify logs do not expose passwords, tokens, secrets, or sensitive account data.
+- 🟡 Verify web rate limiting/session/cookie security.
+- 🟡 Verify logs never expose secrets/sensitive account data.
 
-# 35. Concurrency / Transaction Safety
+# 44. Concurrency / Transaction Safety
 
-- 🟡 Double-claim test for weeklies and custom rewards.
-- 🟡 Concurrent Verdant Marks earn/spend test.
-- 🟡 Concurrent PQ Points award/spend test.
-- 🟡 Trade + disconnect race test.
-- 🟡 Storage + disconnect race test.
-- 🟡 Merchant + restart/disconnect race test if merchants are enabled.
-- 🟡 Cash Shop purchase retry/replay test.
-- 🟡 Boss reward retry/disconnect test.
-- 🟡 Database rollback tests for failed multi-step rewards.
+- ✅ Merchant seller-credit/persistence/purchase/snapshot audits exist.
+- ✅ PlayerShop transaction/snapshot audits exist.
+- ✅ Duey ownership/settlement audits exist.
+- 🟡 Double-claim test for weeklies/custom rewards.
+- 🟡 Concurrent Verdant Marks earn/spend.
+- 🟡 Concurrent PQ Points award/spend.
+- 🟡 Trade + disconnect race.
+- 🟡 Storage + disconnect race.
+- 🟡 Merchant + restart/disconnect race live.
+- 🟡 Cash Shop retry/replay.
+- 🟡 Boss reward retry/disconnect.
+- 🟡 DB rollback tests for failed multi-step rewards.
 
-# 36. Logging / Monitoring / Diagnostics
+# 45. Logging / Monitoring / Diagnostics
 
-- ✅ Log rotation configuration/test work exists.
-- ✅ Disk-usage monitoring script exists.
-- ✅ Character-persistence diagnostic workflow exists.
-- ✅ Production-readiness audit workflow exists.
-- 🟡 Verify structured logs for login, channel, DB, gameplay exceptions, and reward transactions.
-- 🟡 Add/verify production health probes.
-- 🟡 Verify log retention and disk alerts.
-- 🟡 Verify crash dumps/client diagnostic collection strategy where appropriate.
+- ✅ Log rotation exists.
+- ✅ Disk monitoring exists.
+- ✅ Character-persistence diagnostics exist.
+- ✅ Production-readiness auditing exists.
+- ✅ CI world/NPC/portal/quest/reactor audits exist.
+- 🟡 Verify structured login/channel/DB/gameplay/reward logs.
+- 🟡 Add/verify production health probes/alerts.
+- 🟡 Verify log retention/disk alerts.
+- 🟡 Define client crash/diagnostic collection strategy.
 
-# 37. Automated QA / Agent Testing
+# 46. Automated QA / Agent Testing
 
-- ✅ QA agent hub branch exists.
+- ✅ QA agent infrastructure exists.
 - ✅ Static/deep QA tooling exists.
 - ✅ Runtime QA tooling exists.
 - ✅ Game-agent tooling exists.
-- ✅ Staging probe and Windows client bridge exist.
+- ✅ Staging probe/Windows client bridge exists.
 - ✅ QA Docker/staging stack exists.
-- 🔧 Integrate QA suite into release branch/CI.
-- 🟡 Run QA suite against the actual integrated release build.
-- 🟡 Add regression cases for every fixed exploit/critical bug.
-- 🟡 Maintain a machine-readable known-issues list for automated checks.
+- ✅ Major release CI suite is integrated.
+- ✅ Current world/content hardening passes QA + Maven compile/test/package.
+- 🟡 Run automated gameplay QA against the actual packaged client/release candidate.
+- 🟡 Add regression tests for every fixed exploit/critical bug.
+- 🟡 Maintain a machine-readable known-issues list.
 
-# 38. Performance / Stability
+# 47. Performance / Stability
 
 - 🟡 Soak test with realistic player counts.
 - 🟡 Profile database query hotspots.
 - 🟡 Profile map/mob scheduler load.
-- 🟡 Test many simultaneous logins/channel changes.
-- 🟡 Test boss/PQ instance creation at concurrency.
-- 🟡 Test guild/party/buddy broadcasts across channels.
-- 🟡 Monitor GC pauses, heap growth, thread count, socket count, DB pool exhaustion, and file descriptors.
+- 🟡 Test simultaneous logins/channel changes.
+- 🟡 Test concurrent boss/PQ instances.
+- 🟡 Test cross-channel social broadcasts.
+- 🟡 Monitor GC pauses, heap, threads, sockets, DB pool, and file descriptors.
 - 🟡 Establish restart/recovery procedures.
 
-# 39. Deployment / Production Hardening
+# 48. Production Hardening
 
-- ✅ Deployment checklist exists.
-- ✅ Staging deployment tooling exists on development branches.
-- ✅ Web Oracle deployment tooling exists.
-- 🟡 Production build check green.
-- 🟡 Dedicated DB user configured.
-- 🟡 Strong DB password outside repository.
-- 🟡 Firewall exposes only required ports.
-- 🟡 SSH key authentication and hardened server access.
-- 🟡 MySQL not publicly exposed.
-- 🟡 Backups scheduled and restore-tested.
-- 🟡 Monitoring/log rotation enabled.
-- 🟡 Clean-machine client/launcher install test passes.
+- ✅ Deployment checklist/tooling exists.
+- ✅ Staging deployment tooling exists.
+- ✅ Oracle web deployment tooling exists.
+- ✅ Production-readiness checks exist.
+- 🟡 Final production release build/promotion.
+- 🟡 Dedicated DB user/strong secret management.
+- 🟡 Firewall/SSH hardening.
+- 🟡 MySQL private-only exposure.
+- 🟡 Scheduled backups and successful restore drill.
+- 🟡 Monitoring/alerting/log rotation live.
+- 🟡 Clean-machine client/launcher install passes.
 
-# 40. Player Documentation
+# 49. Player Documentation
 
-- 🔧 Create definitive installation/launcher guide.
-- 🔧 Clearly tell players to launch through **EverLeaf Launcher**, not the raw client EXE.
-- 🟡 Document account creation and password recovery/support flow.
-- 🟡 Document rates, level cap, progression, Verdant Marks, PQ Points, and major custom systems.
+- 🔧 Definitive installation/launcher guide.
+- 🔧 Clearly instruct players to launch via **EverLeaf Launcher**, not raw EXE.
+- 🟡 Document account creation/recovery/support.
+- 🟡 Document rates, level 250, post-200 progression, Verdant Marks, PQ Points, and custom systems.
 - 🟡 Document non-P2W donation policy.
-- 🟡 Document known issues and reporting process.
-- 🟡 Document antivirus false-positive guidance without telling players to disable antivirus globally.
+- 🟡 Document known issues/reporting.
+- 🟡 Document antivirus false-positive guidance without recommending global antivirus disablement.
 
-# 41. Staff / GM Documentation
+# 50. Staff / GM Documentation
 
-- 🔧 Create GM command and permission reference.
-- 🔧 Create player-support procedures.
-- 🔧 Create rollback/economy incident procedures.
-- 🔧 Create ban/appeal/evidence handling procedures.
-- 🔧 Create event operation procedures.
-- 🔧 Create deployment/restart/backup/restore runbook.
-- 🔧 Create exploit-response and emergency shutdown procedure.
+- 🔧 GM command/permission reference.
+- 🔧 Player-support procedures.
+- 🔧 Rollback/economy incident procedures.
+- 🔧 Ban/appeal/evidence procedures.
+- 🔧 Event-operation procedures.
+- 🔧 Deploy/restart/backup/restore runbook.
+- 🔧 Exploit-response/emergency shutdown procedure.
 
-# 42. Closed Alpha Readiness
+# 51. Closed Alpha Readiness
 
-- 🟡 Integrated release branch builds successfully.
-- 🟡 Client/launcher clean install succeeds.
+- ✅ Integrated release branch builds successfully.
+- ✅ Repository/static world-content baseline substantially hardened.
+- 🟡 Clean client/launcher installation succeeds.
 - 🟡 Invite-only account flow works.
-- 🟡 Critical login/character persistence bugs resolved.
-- 🟡 Core advancement/combat/maps/NPCs/quests function for normal progression.
-- 🟡 Major non-Empress bosses/PQs are playable or explicitly disabled.
-- 🟡 Backup and logging enabled.
-- 🟡 Known-issues list published to testers.
-- 🟡 QA agent suite running against staging.
+- 🟡 Critical login/character persistence behavior verified.
+- 🟡 Normal advancement/combat/maps/NPCs/quests progression playthrough succeeds.
+- 🟡 Major non-Empress bosses/PQs playable or explicitly disabled.
+- 🟡 Backup/logging enabled live.
+- 🟡 Known-issues list published.
+- 🟡 QA agents run against staging/package.
 
-# 43. Public Beta Readiness
+# 52. Public Beta Readiness
 
 - 🟡 Public registration/auth hardened.
-- 🟡 Website/launcher/channel status integration correct.
+- 🟡 Website/launcher/channel integration correct.
 - 🟡 Economy/source/sink review complete.
 - 🟡 Exploit/dupe/concurrency pass complete.
 - 🟡 Backup restore drill complete.
-- 🟡 Monitoring and alerting active.
+- 🟡 Monitoring/alerting active.
 - 🟡 Donation system confirmed non-P2W.
 - 🟡 Staff/support procedures ready.
-- 🟡 Major known client crashes resolved.
+- 🟡 Major client crashes/critical bugs resolved.
 
-# 44. Public Launch Readiness
+# 53. Public Launch Readiness
 
-- 🟡 All critical/high-severity issues closed or consciously accepted.
-- 🟡 Release branch consolidated and reproducible.
-- 🟡 Production build and launcher artifacts reproducible from source/workflows.
+- 🟡 Critical/high-severity issues closed or consciously accepted.
+- 🟡 Release is consolidated/reproducible.
+- 🟡 Server/client/launcher artifacts reproducible from source/workflows.
 - 🟡 Client/server assets verified from a clean install.
-- 🟡 Live channel count/configuration verified.
+- 🟡 Live channel count/config verified.
 - 🟡 Website/CMS/auth/rankings/status verified.
 - 🟡 Economy/security/performance/load validation complete.
 - 🟡 Backup/restore/rollback procedures validated.
-- 🟡 Player and staff documentation published.
-- 🟡 Launch owner approval after beta telemetry, balance, security, operational cost, and legal-risk review.
+- 🟡 Player/staff documentation published.
+- 🟡 Final launch approval after beta telemetry/balance/security/operations review.
 
-# 45. Post-Launch Operations
+# 54. Post-Launch Operations
 
-- 🔧 Define patch cadence and emergency hotfix process.
+- 🔧 Define patch cadence/emergency hotfix process.
 - 🔧 Define launcher manifest/version policy.
-- 🔧 Define database migration/release process.
-- 🔧 Monitor economy inflation and high-value item generation.
-- 🔧 Monitor crashes/disconnect rates and channel health.
+- 🔧 Define DB migration/release process.
+- 🔧 Monitor inflation/high-value item generation.
+- 🔧 Monitor crashes/disconnect/channel health.
 - 🔧 Monitor suspicious trade/storage/merchant/reward behavior.
-- 🔧 Maintain public known-issues/changelog.
-- 🔧 Schedule recurring backups and restore verification.
-- 🔧 Schedule recurring security, performance, and content audits.
+- 🔧 Maintain public changelog/known issues.
+- 🔧 Schedule recurring backups/restore verification.
+- 🔧 Schedule recurring security/performance/content audits.
 
 ---
 
 # Immediate Priority Queue
 
-1. **Branch consolidation/integration plan** — current functionality is fragmented across diverged branches.
-2. **Build + clean-install baseline** — integrated server, launcher, client, and web stack must build and run together.
-3. **NPC/map/portal/reactor/quest audit** — resolve missing/misplaced/broken world content.
-4. **Class/skill/combat regression audit** — including ranged whack/melee fallback bug.
-5. **Launcher production auto-update + repair path** — ensure launcher is the canonical player entry point.
-6. **Correct channel count everywhere** — target configuration around 8 channels and make website reflect the live server rather than a stale/hardcoded count.
-7. **Trade → Free Market QoL change**.
-8. **Boss/PQ/event regression pass excluding Empress**.
-9. **Economy/security/dupe/concurrency pass**.
-10. **Run QA-agent suite against integrated staging build**.
-11. **Closed alpha clean-machine test**.
+1. **Live packaged-client world/content verification** — traversal, NPC placement/interaction, quest chains, boss/PQ teardown and reconnect behavior.
+2. **Client QoL + known client bugs** — especially ranged whack/melee fallback, movement/combat QoL, storage/shop QoL, boss timers/codex/reconnect.
+3. **Updated-WZ/client-server parity** — continue only in the protected updated-WZ workstream.
+4. **Full drop/economy/source-sink balance** — including explicit rare-scroll sources.
+5. **Trade/storage/Cash Shop concurrency and anti-dupe testing**.
+6. **Launcher production auto-update/repair/signing path**.
+7. **Clean-machine client/launcher install**.
+8. **Production website/auth/rankings/status/channel integration**.
+9. **Database migration + backup restore drill**.
+10. **Performance/soak/load testing**.
+11. **Documentation and closed-alpha operations readiness**.
 
 # Current Completion Assessment
 
-A precise percentage is intentionally **not** assigned yet. The audit shows substantial implementation across multiple branches, including launcher/updater work, client management, web CMS, post-200 progression, custom currencies, enhanced encounters, Rooted Forge/Rooted Zakum, QA automation, migrations, deployment tooling, and release checks. However, several of these branches have materially diverged from one another. Until they are reconciled into one integrated release candidate and the checklist is validated against runtime tests, counting branch-local implementations as fully complete would overstate launch readiness.
+EverLeaf has moved beyond the earlier repository-consolidation and broad static world-content-audit stage. The maintained release line now includes strong CI coverage for economy, rewards, items, transaction safety, world data, NPCs, portals, quests, class/skill integrity, boss/PQ links, and the full Maven build.
 
-The next meaningful percentage should be calculated only after branch consolidation and the first integrated QA run.
+The biggest remaining uncertainty is no longer whether the repository contains obvious broken world references; it is **live packaged-client behavior, persistence/concurrency under real runtime conditions, client QoL/bug work, final asset parity, production integration, and load/operations validation**.
+
+A single launch-readiness percentage is still intentionally avoided until the next integrated packaged-client QA/closed-alpha run provides runtime evidence.
