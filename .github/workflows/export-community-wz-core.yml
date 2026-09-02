@@ -10,6 +10,8 @@ on:
       - 'tools/wz-donor/wz_diff.py'
       - 'tools/wz-donor/build_import_manifest.py'
       - 'tools/wz-donor/render_review_report.py'
+      - 'tools/wz-donor/evaluate_package.py'
+      - 'tools/wz-donor/batches/community-empress-future-henesys-001.json'
   workflow_dispatch:
 
 permissions:
@@ -127,6 +129,21 @@ jobs:
           python tools/wz-donor/render_review_report.py "$env:RUNNER_TEMP/community-core-diff.json" "$env:RUNNER_TEMP/community-core-import-manifest.json" --output "$env:RUNNER_TEMP/community-core-review.md"
           Get-Content "$env:RUNNER_TEMP/community-core-review.md" | Add-Content $env:GITHUB_STEP_SUMMARY
 
+      - name: Evaluate Future Henesys and Empress package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python tools/wz-donor/evaluate_package.py tools/wz-donor/batches/community-empress-future-henesys-001.json "$env:RUNNER_TEMP/community-core-diff.json" --output "$env:RUNNER_TEMP/community-empress-package-evaluation.json"
+          $report = Get-Content "$env:RUNNER_TEMP/community-empress-package-evaluation.json" -Raw | ConvertFrom-Json
+          Add-Content $env:GITHUB_STEP_SUMMARY '## Future Henesys / Empress package'
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Selected IDs: **$($report.selectedCount)**"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Donor-new: **$($report.counts.'donor-new')**"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Changed collisions: **$($report.counts.'collision-changed')**"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Identical collisions: **$($report.counts.'collision-identical')**"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Missing from donor: **$($report.counts.'missing-from-donor')**"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Missing selected dependencies: **$($report.missingSelectedDependencyCount)**"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Ready for import review: **$($report.readyForImportReview)**"
+
       - name: Preserve exported donor privately on Oracle
         shell: pwsh
         run: |
@@ -151,5 +168,6 @@ jobs:
             ${{ runner.temp }}/community-core-diff.json
             ${{ runner.temp }}/community-core-import-manifest.json
             ${{ runner.temp }}/community-core-review.md
+            ${{ runner.temp }}/community-empress-package-evaluation.json
           retention-days: 14
           if-no-files-found: error
