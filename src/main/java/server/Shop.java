@@ -7,9 +7,8 @@
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as
     published by the Free Software Foundation version 3 as published by
-    the Free Software Foundation. You may not use, modify or distribute
-    this program under any other version of the GNU Affero General Public
-    License.
+the Free Software Foundation. You may not use, modify or distribute
+this program under any other version of the GNU Affero General Public License.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -164,7 +163,7 @@ public class Shop {
     }
 
     private static boolean canSell(Item item, short quantity) {
-        if (item == null) { //Basic check
+        if (item == null) {
             return false;
         }
 
@@ -193,6 +192,12 @@ public class Shop {
         return quantity;
     }
 
+    static boolean isValidSellPrice(int price) {
+        // ItemInformationProvider uses -1 when Item.wz has no price. Such items
+        // are not sellable and must never be removed from inventory for zero mesos.
+        return price >= 0;
+    }
+
     public void sell(Client c, InventoryType type, short slot, short quantity) {
         if (quantity == 0xFFFF || quantity == 0) {
             quantity = 1;
@@ -203,10 +208,15 @@ public class Shop {
         Item item = c.getPlayer().getInventory(type).getItem(slot);
         if (canSell(item, quantity)) {
             quantity = getSellingQuantity(item, quantity);
-            InventoryManipulator.removeFromSlot(c, type, (byte) slot, quantity, false);
 
             ItemInformationProvider ii = ItemInformationProvider.getInstance();
             int recvMesos = ii.getPrice(item.getItemId(), quantity);
+            if (!isValidSellPrice(recvMesos)) {
+                c.sendPacket(PacketCreator.shopTransaction((byte) 0x5));
+                return;
+            }
+
+            InventoryManipulator.removeFromSlot(c, type, (byte) slot, quantity, false);
             if (recvMesos > 0) {
                 c.getPlayer().gainMeso(recvMesos, false);
             }
@@ -260,7 +270,7 @@ public class Shop {
                 query = "SELECT * FROM shops WHERE npcid = ?";
             }
 
-            try (PreparedStatement ps = con.prepareStatement(query)) {
+            try (PreparedStatement ps = con.prepareStatement(query.toString())) {
                 ps.setInt(1, id);
 
                 try (ResultSet rs = ps.executeQuery()) {
