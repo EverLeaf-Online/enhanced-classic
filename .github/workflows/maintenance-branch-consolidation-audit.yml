@@ -49,79 +49,116 @@ jobs:
                   continue
               branches.append(line[len('origin/'):])
           branches = sorted(set(branches))
-
           canonical_refs = [ref(x) for x in canonical]
+
           rows = []
           for branch in branches:
               if branch in canonical:
                   continue
               excluded = branch in explicit_excluded or bool(empress_re.search(branch))
               contained_by = [c for c in canonical if is_ancestor(branch, c)]
-              cmd = ['git', 'rev-list', '--count', ref(branch), '--not', *canonical_refs]
-              unique_count = int(sh(*cmd).stdout.strip() or '0')
+              revs = sh('git', 'rev-list', ref(branch), '--not', *canonical_refs).stdout.splitlines()
+              unique_count = len(revs)
+
+              # A branch commit can have a different SHA yet already be present as an
+              # equivalent cherry-pick. `git cherry` compares stable patch identity.
+              equivalent = set()
+              equivalent_by = {}
+              if revs:
+                  wanted = set(revs)
+                  for c in canonical:
+                      for line in sh('git', 'cherry', ref(c), ref(branch), check=False).stdout.splitlines():
+                          parts = line.split()
+                          if len(parts) != 2:
+                              continue
+                          sign, sha = parts
+                          if sign == '-' and sha in wanted:
+                              equivalent.add(sha)
+                              equivalent_by.setdefault(sha, []).append(c)
+              missing_revs = [sha for sha in revs if sha not in equivalent]
+
               unique_commits = []
-              unique_paths = []
-              empress_only = False
-              if unique_count:
-                  commit_out = sh('git', 'log', '--format=%H%x09%s', '--max-count=40', ref(branch), '--not', *canonical_refs).stdout
-                  unique_commits = [x for x in commit_out.splitlines() if x]
-                  path_out = sh('git', 'diff', '--name-only', *canonical_refs, ref(branch), check=False)
-                  # `git diff --not` is not a valid union-diff operation; derive paths from unique commits instead.
-                  paths = set()
-                  revs = sh('git', 'rev-list', ref(branch), '--not', *canonical_refs).stdout.splitlines()
-                  for commit in revs[:200]:
-                      for p in sh('git', 'diff-tree', '--no-commit-id', '--name-only', '-r', commit).stdout.splitlines():
-                          if p:
-                              paths.add(p)
-                  unique_paths = sorted(paths)
-                  if unique_paths:
-                      empress_only = all(empress_re.search(p) for p in unique_paths)
+              missing_commits = []
+              if revs:
+                  subject = {}
+                  log = sh('git', 'log', '--format=%H%x09%s', ref(branch), '--not', *canonical_refs).stdout
+                  for line in log.splitlines():
+                      sha, _, title = line.partition('\t')
+                      subject[sha] = title
+                  unique_commits = [f"{sha}\t{subject.get(sha, '')}" for sha in revs[:40]]
+                  missing_commits = [f"{sha}\t{subject.get(sha, '')}" for sha in missing_revs[:40]]
+
+              paths = set()
+              for commit in missing_revs[:250]:
+                  for p in sh('git', 'diff-tree', '--no-commit-id', '--name-only', '-r', commit).stdout.splitlines():
+                      if p:
+                          paths.add(p)
+              missing_paths = sorted(paths)
+              empress_only = bool(missing_paths) and all(empress_re.search(p) for p in missing_paths)
+
               rows.append({
                   'branch': branch,
                   'excludedByPolicy': excluded,
                   'containedBy': contained_by,
                   'uniqueCommitCount': unique_count,
+                  'patchEquivalentCommitCount': len(equivalent),
+                  'missingPatchCommitCount': len(missing_revs),
                   'uniqueCommits': unique_commits,
-                  'uniquePaths': unique_paths,
-                  'uniquePathsEmpressOnly': empress_only,
+                  'missingCommits': missing_commits,
+                  'patchEquivalentByCanonical': equivalent_by,
+                  'missingPaths': missing_paths,
+                  'missingPathsEmpressOnly': empress_only,
               })
 
+          actionable = [
+              r for r in rows
+              if r['missingPatchCommitCount'] and not r['excludedByPolicy'] and not r['missingPathsEmpressOnly']
+          ]
+          contained = [r for r in rows if r['containedBy']]
+          patch_equivalent_only = [
+              r for r in rows
+              if not r['containedBy'] and r['uniqueCommitCount'] and not r['missingPatchCommitCount']
+          ]
+          excluded = [r for r in rows if r['excludedByPolicy'] or r['missingPathsEmpressOnly']]
           report = {
               'canonicalBranches': canonical,
               'branchCount': len(branches),
               'nonCanonicalBranchCount': len(rows),
-              'fullyContainedCount': sum(1 for r in rows if r['containedBy']),
-              'uniqueBranchCount': sum(1 for r in rows if r['uniqueCommitCount']),
-              'uniqueNonEmpressBranchCount': sum(1 for r in rows if r['uniqueCommitCount'] and not r['excludedByPolicy'] and not r['uniquePathsEmpressOnly']),
+              'fullyContainedCount': len(contained),
+              'patchEquivalentOnlyCount': len(patch_equivalent_only),
+              'branchesWithMissingPatchesCount': len(actionable),
               'rows': rows,
           }
           Path('branch-consolidation-audit.json').write_text(json.dumps(report, indent=2) + '\n')
 
-          actionable = [r for r in rows if r['uniqueCommitCount'] and not r['excludedByPolicy'] and not r['uniquePathsEmpressOnly']]
-          contained = [r for r in rows if r['containedBy']]
-          excluded = [r for r in rows if r['excludedByPolicy'] or r['uniquePathsEmpressOnly']]
           lines = [
               '# Branch consolidation audit', '',
               f"- Remote branches: **{len(branches)}**",
               f"- Non-canonical branches: **{len(rows)}**",
               f"- Fully contained by a canonical branch: **{len(contained)}**",
-              f"- Branches with unique commits: **{report['uniqueBranchCount']}**",
-              f"- Unique non-Empress branches requiring review: **{len(actionable)}**",
-              '', '## Unique non-Empress branches requiring review', ''
+              f"- Diverged branches whose unique SHAs are entirely patch-equivalent: **{len(patch_equivalent_only)}**",
+              f"- Unique non-Empress branches with genuinely missing patches: **{len(actionable)}**",
+              '', '## Genuinely missing non-Empress patches', ''
           ]
           for r in actionable:
-              lines.append(f"- `{r['branch']}` — {r['uniqueCommitCount']} unique commit(s); {len(r['uniquePaths'])} path(s)")
-              for c in r['uniqueCommits'][:5]:
+              lines.append(
+                  f"- `{r['branch']}` — {r['missingPatchCommitCount']} missing / "
+                  f"{r['uniqueCommitCount']} unique-SHA commit(s); {len(r['missingPaths'])} affected path(s)"
+              )
+              for c in r['missingCommits'][:5]:
                   lines.append(f"  - {c}")
+          lines += ['', '## Safe cleanup: patch-equivalent despite diverged history', '']
+          for r in patch_equivalent_only:
+              lines.append(f"- `{r['branch']}` — all {r['uniqueCommitCount']} unique SHA(s) patch-equivalent")
           lines += ['', '## Explicitly excluded / Empress-only', '']
           for r in excluded:
               if r['uniqueCommitCount'] or r['branch'] in explicit_excluded:
-                  lines.append(f"- `{r['branch']}` — {r['uniqueCommitCount']} unique commit(s)")
-          lines += ['', '## Safe cleanup candidates already contained', '']
+                  lines.append(f"- `{r['branch']}` — {r['missingPatchCommitCount']} missing patch(es)")
+          lines += ['', '## Safe cleanup: fully contained', '']
           for r in contained:
               lines.append(f"- `{r['branch']}` → {', '.join(r['containedBy'])}")
           Path('branch-consolidation-audit.md').write_text('\n'.join(lines) + '\n')
-          print('\n'.join(lines[:500]))
+          print('\n'.join(lines[:650]))
           PY
       - name: Upload branch audit
         uses: actions/upload-artifact@v4
