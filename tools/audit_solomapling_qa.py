@@ -36,7 +36,7 @@ def main() -> None:
     require("src/main/java/soloMapling/server/SoloMaplingConstants.java", "BOT_BASE_ID = 900_000_000", "reserved synthetic bot id range configured")
     require("src/main/java/soloMapling/ArtificialPlayer/BotHelpers.java", "id >= SoloMaplingConstants.GameConstants.BOT_BASE_ID", "bot identity starts at reserved range")
     require("src/main/java/soloMapling/ArtificialPlayer/BotHelpers.java", "id < BOT_ID_LIMIT_EXCLUSIVE", "bot identity has reserved upper bound")
-    forbid("src/main/java/soloMapling/ArtificialPlayer/BotHelpers.java", "id > 20000", "legacy broad bot identity heuristic removed")
+    forbid("src/main/java/soloMapling/ArtificialPlayer/BotHelpers.java", "return id > 20000", "legacy broad bot identity implementation removed")
 
     require("src/main/java/soloMapling/ArtificialPlayer/BareBotMovement.java", "updatePositionBot", "headless movement executor present")
     require("src/main/java/soloMapling/ArtificialPlayer/BareBotAutopilot.java", "startPatrol", "bounded autonomous movement smoke present")
