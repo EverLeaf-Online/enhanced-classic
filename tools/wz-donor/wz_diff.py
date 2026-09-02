@@ -31,9 +31,11 @@ CATEGORY_ROOTS = {
     "skills": ("Skill.wz",),
 }
 
-# Conservative property names whose values are unambiguous enough to treat as
-# cross-content references. Ambiguous generic fields such as `id` are handled
-# only in known structural contexts below.
+# These are the v83 Item.wz families that actually contain item records.
+# Root-level donor files such as ItemOption.img are system metadata (potentials,
+# option tables, etc.) and must never be promoted into the item candidate set.
+ITEM_DATA_FAMILIES = {"Cash", "Consume", "Etc", "Install", "Pet", "Special"}
+
 DIRECT_REFERENCE_NAMES = {
     "map": "maps",
     "mapid": "maps",
@@ -72,7 +74,6 @@ class Reference:
 
 
 def canonical_id(value: str | None) -> str | None:
-    """Normalize numeric WZ IDs to the integer form used by server references."""
     if not value or not ID_VALUE.match(value):
         return None
     return str(int(value))
@@ -87,7 +88,6 @@ def sha256_file(path: Path) -> str:
 
 
 def _semantic_element(node: ET.Element) -> tuple:
-    """Return a stable XML representation that ignores formatting whitespace."""
     text = (node.text or "").strip()
     return (
         node.tag,
@@ -111,7 +111,6 @@ def normalize_stem(path: Path) -> str | None:
 
 
 def first_level_numeric_ids(path: Path) -> set[str]:
-    """Collect direct-ish WZ IDs without harvesting animation/frame indexes."""
     found: set[str] = set()
     try:
         root = ET.parse(path).getroot()
@@ -132,13 +131,7 @@ def first_level_numeric_ids(path: Path) -> set[str]:
 
 
 def item_entries(path: Path, relative_path: str) -> list[Entry]:
-    """Inventory real Item.wz IDs rather than grouped container filenames.
-
-    Classic Item.wz families such as Consume/Install/Etc/Cash group many actual
-    items under files like ``0200.img.xml``. Their direct child imgdirs are the
-    real item IDs. Pet files are generally one item per file and therefore fall
-    back to the filename ID when no numeric direct children exist.
-    """
+    """Inventory real item IDs from one known Item.wz data-family XML file."""
     try:
         root = ET.parse(path).getroot()
     except (ET.ParseError, OSError):
@@ -162,6 +155,11 @@ def item_entries(path: Path, relative_path: str) -> list[Entry]:
     return []
 
 
+def is_item_data_path(relative_path: str) -> bool:
+    parts = Path(relative_path).parts
+    return len(parts) >= 3 and parts[0] == "Item.wz" and parts[1] in ITEM_DATA_FAMILIES
+
+
 def iter_xml(root: Path) -> Iterable[Path]:
     if not root.exists():
         return []
@@ -178,6 +176,8 @@ def inventory(tree: Path) -> dict[str, dict[str, Entry]]:
                 rel = xml_path.relative_to(tree).as_posix()
 
                 if category == "items":
+                    if not is_item_data_path(rel):
+                        continue
                     for entry in item_entries(xml_path, rel):
                         result[category].setdefault(entry.content_id, entry)
                     continue
@@ -185,61 +185,33 @@ def inventory(tree: Path) -> dict[str, dict[str, Entry]]:
                 file_id = normalize_stem(xml_path)
                 digest = sha256_file(xml_path)
                 if file_id:
-                    result[category].setdefault(
-                        file_id,
-                        Entry(category, file_id, rel, digest),
-                    )
+                    result[category].setdefault(file_id, Entry(category, file_id, rel, digest))
 
                 if category in {"quests", "skills"}:
                     for nested_id in first_level_numeric_ids(xml_path):
-                        result[category].setdefault(
-                            nested_id,
-                            Entry(category, nested_id, rel, digest),
-                        )
+                        result[category].setdefault(nested_id, Entry(category, nested_id, rel, digest))
     return result
 
 
-def _add_reference(
-    output: set[Reference],
-    source_category: str,
-    source_id: str,
-    target_category: str,
-    target_id: str | None,
-    property_name: str,
-    relative_path: str,
-) -> None:
+def _add_reference(output: set[Reference], source_category: str, source_id: str,
+                   target_category: str, target_id: str | None,
+                   property_name: str, relative_path: str) -> None:
     normalized_target = canonical_id(target_id)
     if normalized_target is not None:
-        output.add(
-            Reference(
-                source_category,
-                source_id,
-                target_category,
-                normalized_target,
-                property_name,
-                relative_path,
-            )
-        )
+        output.add(Reference(source_category, source_id, target_category,
+                             normalized_target, property_name, relative_path))
 
 
 def _scope_entry_root(root: ET.Element, entry: Entry) -> ET.Element:
-    """Limit grouped Item.wz dependency scanning to the selected item node."""
     if entry.category != "items":
         return root
     for child in list(root):
-        if child.tag != "imgdir":
-            continue
-        if canonical_id(child.attrib.get("name")) == entry.content_id:
+        if child.tag == "imgdir" and canonical_id(child.attrib.get("name")) == entry.content_id:
             return child
     return root
 
 
 def references_for_entry(tree: Path, entry: Entry) -> set[Reference]:
-    """Extract high-confidence cross-content references from one donor entry.
-
-    This deliberately under-reports rather than guessing. It recognizes common
-    direct reference property names plus v83-style map portal/life structures.
-    """
     path = tree / entry.relative_path
     try:
         root = ET.parse(path).getroot()
@@ -254,88 +226,46 @@ def references_for_entry(tree: Path, entry: Entry) -> set[Reference]:
         value = node.attrib.get("value")
         target_category = DIRECT_REFERENCE_NAMES.get(name)
         if target_category:
-            _add_reference(
-                refs,
-                entry.category,
-                entry.content_id,
-                target_category,
-                value,
-                name,
-                entry.relative_path,
-            )
+            _add_reference(refs, entry.category, entry.content_id, target_category,
+                           value, name, entry.relative_path)
 
     if entry.category == "maps":
         for parent in root.iter("imgdir"):
             parent_name = parent.attrib.get("name", "").lower()
-
             if parent_name == "portal":
                 for portal in parent.findall("imgdir"):
                     for node in portal:
                         if node.attrib.get("name", "").lower() == "tm":
-                            _add_reference(
-                                refs,
-                                entry.category,
-                                entry.content_id,
-                                "maps",
-                                node.attrib.get("value"),
-                                "portal.tm",
-                                entry.relative_path,
-                            )
-
+                            _add_reference(refs, entry.category, entry.content_id, "maps",
+                                           node.attrib.get("value"), "portal.tm", entry.relative_path)
             if parent_name == "life":
                 for life in parent.findall("imgdir"):
-                    values = {
-                        child.attrib.get("name", "").lower(): child.attrib.get("value")
-                        for child in life
-                    }
+                    values = {child.attrib.get("name", "").lower(): child.attrib.get("value") for child in life}
                     life_type = values.get("type")
                     target = {"m": "mobs", "n": "npcs", "r": "reactors"}.get(life_type or "")
                     if target:
-                        _add_reference(
-                            refs,
-                            entry.category,
-                            entry.content_id,
-                            target,
-                            values.get("id"),
-                            f"life.{life_type}.id",
-                            entry.relative_path,
-                        )
-
+                        _add_reference(refs, entry.category, entry.content_id, target,
+                                       values.get("id"), f"life.{life_type}.id", entry.relative_path)
     return refs
 
 
-def analyze_dependencies(
-    donor_tree: Path,
-    baseline: dict[str, dict[str, Entry]],
-    donor: dict[str, dict[str, Entry]],
-) -> dict:
-    available = {
-        category: set(baseline[category]) | set(donor[category])
-        for category in CATEGORY_ROOTS
-    }
-
+def analyze_dependencies(donor_tree: Path, baseline: dict[str, dict[str, Entry]],
+                         donor: dict[str, dict[str, Entry]]) -> dict:
+    available = {category: set(baseline[category]) | set(donor[category]) for category in CATEGORY_ROOTS}
     references: set[Reference] = set()
     for category in CATEGORY_ROOTS:
         new_ids = set(donor[category]) - set(baseline[category])
         for content_id in new_ids:
             references.update(references_for_entry(donor_tree, donor[category][content_id]))
 
-    ordered = sorted(
-        references,
-        key=lambda ref: (
-            ref.source_category,
-            int(ref.source_id),
-            ref.target_category,
-            int(ref.target_id),
-            ref.property_name,
-        ),
-    )
+    ordered = sorted(references, key=lambda ref: (
+        ref.source_category, int(ref.source_id), ref.target_category,
+        int(ref.target_id), ref.property_name,
+    ))
     missing = [ref for ref in ordered if ref.target_id not in available[ref.target_category]]
-
     by_source: dict[str, list[dict]] = {}
     for ref in missing:
-        key = f"{ref.source_category}:{ref.source_id}"
-        by_source.setdefault(key, []).append(asdict(ref))
+        by_source.setdefault(f"{ref.source_category}:{ref.source_id}", []).append(asdict(ref))
 
     return {
         "referenceCount": len(ordered),
@@ -350,7 +280,6 @@ def analyze_dependencies(
 def compare(baseline: dict[str, dict[str, Entry]], donor: dict[str, dict[str, Entry]]) -> dict:
     report: dict[str, object] = {"categories": {}}
     totals = {"baseline": 0, "donor": 0, "new": 0, "collisions": 0, "changed": 0}
-
     for category in CATEGORY_ROOTS:
         base_entries = baseline[category]
         donor_entries = donor[category]
@@ -358,12 +287,8 @@ def compare(baseline: dict[str, dict[str, Entry]], donor: dict[str, dict[str, En
         donor_ids = set(donor_entries)
         new_ids = sorted(donor_ids - base_ids, key=int)
         collisions = sorted(donor_ids & base_ids, key=int)
-        changed = [
-            content_id
-            for content_id in collisions
-            if donor_entries[content_id].sha256 != base_entries[content_id].sha256
-        ]
-
+        changed = [content_id for content_id in collisions
+                   if donor_entries[content_id].sha256 != base_entries[content_id].sha256]
         report["categories"][category] = {
             "baselineCount": len(base_ids),
             "donorCount": len(donor_ids),
@@ -372,13 +297,11 @@ def compare(baseline: dict[str, dict[str, Entry]], donor: dict[str, dict[str, En
             "changedCollisionIds": changed,
             "newEntries": [asdict(donor_entries[i]) for i in new_ids],
         }
-
         totals["baseline"] += len(base_ids)
         totals["donor"] += len(donor_ids)
         totals["new"] += len(new_ids)
         totals["collisions"] += len(collisions)
         totals["changed"] += len(changed)
-
     report["totals"] = totals
     return report
 
@@ -389,11 +312,7 @@ def main() -> int:
     parser.add_argument("--donor", type=Path, required=True, help="Donor exported WZ XML tree")
     parser.add_argument("--output", type=Path, default=Path("tools/output/wz-donor-diff.json"))
     parser.add_argument("--donor-id", default="unknown-donor")
-    parser.add_argument(
-        "--skip-dependencies",
-        action="store_true",
-        help="Skip conservative cross-content reference analysis",
-    )
+    parser.add_argument("--skip-dependencies", action="store_true", help="Skip conservative cross-content reference analysis")
     args = parser.parse_args()
 
     if not args.baseline.exists():
@@ -417,7 +336,6 @@ def main() -> int:
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-
     totals = report["totals"]
     print(f"Donor: {args.donor_id}")
     print(f"New IDs: {totals['new']}")

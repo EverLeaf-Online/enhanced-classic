@@ -104,7 +104,6 @@ class WzDiffTest(unittest.TestCase):
     def test_grouped_item_dependency_scan_is_scoped_to_item(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
-            baseline = workspace / "baseline"
             donor = workspace / "donor"
 
             write_xml(
@@ -143,6 +142,30 @@ class WzDiffTest(unittest.TestCase):
 
             inventory = wz_diff.inventory(tree)
             self.assertEqual({"5000038"}, set(inventory["items"]))
+
+    def test_root_level_item_system_metadata_is_not_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tree = Path(tmp)
+            write_xml(
+                tree,
+                "Item.wz/ItemOption.img.xml",
+                '''<imgdir name="ItemOption.img">
+                  <imgdir name="000001"><int name="optionType" value="1"/></imgdir>
+                  <imgdir name="000901"><int name="optionType" value="2"/></imgdir>
+                </imgdir>''',
+            )
+            write_xml(
+                tree,
+                "Item.wz/Consume/0200.img.xml",
+                '''<imgdir name="0200.img">
+                  <imgdir name="02000000"/>
+                </imgdir>''',
+            )
+
+            inventory = wz_diff.inventory(tree)
+            self.assertEqual({"2000000"}, set(inventory["items"]))
+            self.assertNotIn("1", inventory["items"])
+            self.assertNotIn("901", inventory["items"])
 
     def test_quest_nested_ids_are_inventoried(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
