@@ -29,7 +29,7 @@ jobs:
 
           canonical = ['master', 'release-dev', 'client-dev']
           explicit_excluded = {'Community-files', 'empress-dev'}
-          protected_workspaces = {'consolidation/master-promotion'}
+          protected_workspaces = set()
           protected_prefixes = ('wz/',)
           empress_re = re.compile(r'(^|[/_.-])empress([/_.-]|$)|cygnus.*empress', re.I)
           nonruntime_re = re.compile(r'^(?:\.github/|docs/|tools/)|(?:^|/)(?:tests?|testdata|fixtures?)/', re.I)
