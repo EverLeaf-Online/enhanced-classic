@@ -9,8 +9,9 @@ Runtime semantics mirrored here:
 * QuestScriptManager falls back to medalQuest.js whenever QuestInfo.wz gives
   that quest a non-zero ``viewMedalItem`` (not merely for one numeric range).
 
-Hard failures are limited to non-limited quests whose owner NPC is spawned in
-the active world and whose runtime script/fallback cannot be resolved.
+Hard failures are limited to non-limited, in-scope quests whose owner NPC is
+spawned in the active world and whose runtime script/fallback cannot resolve.
+Explicit project-scope exclusions remain visible as review findings.
 """
 from __future__ import annotations
 
@@ -29,6 +30,12 @@ SCRIPT_ROOT = ROOT / "scripts" / "quest"
 NUMERIC_SCRIPT_RE = re.compile(r"^(\d+)\.js$")
 START_RE = re.compile(r"\bfunction\s+start\s*\(")
 END_RE = re.compile(r"\bfunction\s+end\s*\(")
+
+# EverLeaf currently defers Empress content. Keep each explicit exclusion
+# visible and documented rather than hiding a broad numeric range.
+PROJECT_SCOPE_EXCLUSIONS = {
+    "20015": "Empress quest: Greetings From the Young Empress",
+}
 
 
 def norm(value: str | None) -> str:
@@ -149,6 +156,7 @@ def main() -> int:
     active_scripted: dict[str, set[str]] = defaultdict(set)
     review_scripted: dict[str, set[str]] = defaultdict(set)
     limited_scripted: set[str] = set()
+    scope_excluded_scripted: set[str] = set()
     medal_fallback_quests: set[str] = set()
     required_script_ids: set[str] = set()
 
@@ -163,14 +171,22 @@ def main() -> int:
 
         required_script_ids.add(qid)
         limited = is_limited_quest(node)
+        excluded = qid in PROJECT_SCOPE_EXCLUSIONS
         spawned = bool(owners(node) & spawned_npcs)
-        is_active = spawned and not limited
+        is_active = spawned and not limited and not excluded
+
         if is_active:
             active_scripted[qid].update(phases)
         else:
             review_scripted[qid].update(phases)
             if limited:
                 limited_scripted.add(qid)
+            if excluded:
+                scope_excluded_scripted.add(qid)
+                reviews.append(
+                    f"Scope-excluded quest {qid} ({PROJECT_SCOPE_EXCLUSIONS[qid]}) requires scripted "
+                    f"{','.join(sorted(phases))} phase(s)"
+                )
 
         script_path = SCRIPT_ROOT / f"{qid}.js"
         fallback = qid in medals
@@ -182,7 +198,7 @@ def main() -> int:
             message = f"Quest {qid} requires scripted {','.join(sorted(phases))} phase(s) but {qid}.js is missing"
             if is_active:
                 failures.append(message)
-            else:
+            elif not excluded:
                 prefix = "Limited/event" if limited else "Dormant"
                 reviews.append(f"{prefix} {message.lower()}")
             continue
@@ -192,13 +208,13 @@ def main() -> int:
             message = f"Quest {qid} has scripted start requirement but {qid}.js has no start(...) function"
             if is_active:
                 failures.append(message)
-            else:
+            elif not excluded:
                 reviews.append(("Limited/event " if limited else "Dormant ") + message.lower())
         if "end" in phases and not has_end:
             message = f"Quest {qid} has scripted end requirement but {qid}.js has no end(...) function"
             if is_active:
                 failures.append(message)
-            else:
+            elif not excluded:
                 reviews.append(("Limited/event " if limited else "Dormant ") + message.lower())
 
     numeric_scripts = {
@@ -223,6 +239,8 @@ def main() -> int:
         "activeScriptedQuestCount": len(active_scripted),
         "reviewScriptedQuestCount": len(review_scripted),
         "limitedScriptedQuestCount": len(limited_scripted),
+        "scopeExcludedScriptedQuestCount": len(scope_excluded_scripted),
+        "scopeExcludedScriptedQuests": sorted(scope_excluded_scripted, key=int),
         "medalQuestCount": len(medals),
         "medalFallbackQuestCount": len(medal_fallback_quests),
         "numericQuestScriptCount": len(numeric_scripts),
@@ -238,7 +256,8 @@ def main() -> int:
     else:
         print(
             f"Quest script audit: {len(active_scripted)} release-facing / "
-            f"{len(review_scripted)} review-only ({len(limited_scripted)} limited/event) / "
+            f"{len(review_scripted)} review-only ({len(limited_scripted)} limited/event, "
+            f"{len(scope_excluded_scripted)} scope-excluded) / "
             f"{len(medal_fallback_quests)} medal fallbacks / {len(numeric_scripts)} numeric JS files"
         )
         for line in reviews:
