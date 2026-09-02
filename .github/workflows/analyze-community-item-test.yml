@@ -78,24 +78,20 @@ jobs:
           )
           $root = Join-Path $env:RUNNER_TEMP 'item-test'
           New-Item -ItemType Directory -Force -Path $root | Out-Null
-
           foreach ($pair in $pairs) {
             $label = $pair.Label
             $remote = $pair.Remote
             $remoteBase = "/tmp/everleaf-item-test-$label"
             $localParts = Join-Path $root "$label-parts"
             New-Item -ItemType Directory -Force -Path $localParts | Out-Null
-
             $prep = "set -euo pipefail; test -s '$remote'; rm -f '$remoteBase'.part.* '$remoteBase'.parts.sha256 '$remoteBase'.file.sha256; sha256sum '$remote' > '$remoteBase.file.sha256'; split -b 32M -d -a 4 '$remote' '$remoteBase.part.'; sha256sum '$remoteBase'.part.* > '$remoteBase.parts.sha256'"
             ssh everleaf-oracle $prep
             if ($LASTEXITCODE -ne 0) { throw "Failed preparing $label Item.wz" }
-
             $partsManifest = Join-Path $localParts 'parts.sha256'
             $fileManifest = Join-Path $localParts 'file.sha256'
             scp "everleaf-oracle`:$remoteBase.parts.sha256" $partsManifest
             scp "everleaf-oracle`:$remoteBase.file.sha256" $fileManifest
             if ($LASTEXITCODE -ne 0) { throw "Failed fetching $label manifests" }
-
             foreach ($row in (Get-Content $partsManifest | Where-Object { $_.Trim() })) {
               if ($row -notmatch '^([0-9a-f]{64})\s+(.+)$') { throw "Malformed part manifest: $row" }
               $expected = $matches[1]
@@ -114,7 +110,6 @@ jobs:
               }
               if (-not $ok) { throw "Unable to fetch verified $label part $name" }
             }
-
             $destination = Join-Path $root "$label-Item.wz"
             $out = [IO.File]::Open($destination, [IO.FileMode]::Create, [IO.FileAccess]::Write)
             try {
@@ -123,7 +118,6 @@ jobs:
                 try { $input.CopyTo($out) } finally { $input.Dispose() }
               }
             } finally { $out.Dispose() }
-
             $fileRow = Get-Content $fileManifest | Select-Object -First 1
             if ($fileRow -notmatch '^([0-9a-f]{64})\s+') { throw "Malformed file manifest for $label" }
             $expectedFile = $matches[1]
@@ -178,26 +172,30 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $donor = Join-Path $env:RUNNER_TEMP 'item-test/donor-xml'
           $current = Join-Path $env:RUNNER_TEMP 'item-test/current-xml'
-          python tools/wz-donor/wz_diff.py --baseline $current --donor $donor --donor-id community-item-test --skip-dependencies --output "$env:RUNNER_TEMP/item-test/community-item-diff.json"
-          python - "$env:RUNNER_TEMP/item-test/community-item-diff.json" <<'PY'
-          import json, sys
-          report=json.load(open(sys.argv[1], encoding='utf-8'))
-          items=report['categories']['items']
-          new={str(x) for x in items['newIds']}
-          collisions={str(x) for x in items['collisionIds']}
-          targets=['2022711','2022712']
-          result={
-              'targets': targets,
-              'states': {x: ('donor-new' if x in new else 'collision' if x in collisions else 'missing-from-donor') for x in targets},
-              'itemNewCount': len(new),
-              'itemCollisionCount': len(collisions),
-              'safeForMergePoC': all(x in new for x in targets),
-              'note': 'Binary-derived XML only; no community XML pack used.'
+          $diff = Join-Path $env:RUNNER_TEMP 'item-test/community-item-diff.json'
+          $resultPath = Join-Path $env:RUNNER_TEMP 'item-test/community-item-test-result.json'
+          python tools/wz-donor/wz_diff.py --baseline $current --donor $donor --donor-id community-item-test --skip-dependencies --output $diff
+          $report = Get-Content $diff -Raw | ConvertFrom-Json
+          $new = @($report.categories.items.newIds | ForEach-Object { [string]$_ })
+          $collisions = @($report.categories.items.collisionIds | ForEach-Object { [string]$_ })
+          $targets = @('2022711','2022712')
+          $states = [ordered]@{}
+          foreach ($target in $targets) {
+            if ($new -contains $target) { $states[$target] = 'donor-new' }
+            elseif ($collisions -contains $target) { $states[$target] = 'collision' }
+            else { $states[$target] = 'missing-from-donor' }
           }
-          out=sys.argv[1].replace('community-item-diff.json','community-item-test-result.json')
-          json.dump(result, open(out,'w',encoding='utf-8'), indent=2)
-          print(json.dumps(result, indent=2))
-          PY
+          $result = [ordered]@{
+            targets = $targets
+            states = $states
+            itemNewCount = $new.Count
+            itemCollisionCount = $collisions.Count
+            safeForMergePoC = (($states['2022711'] -eq 'donor-new') -and ($states['2022712'] -eq 'donor-new'))
+            note = 'Binary-derived XML only; no community XML pack used.'
+          }
+          $result | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 $resultPath
+          $result | ConvertTo-Json -Depth 6
+          if (-not $result.safeForMergePoC) { throw 'Requested item test IDs are not both donor-new in the actual community Item.wz' }
 
       - name: Upload test evidence only
         uses: actions/upload-artifact@v4
