@@ -1,24 +1,14 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "clusterId": "gms-v95-ninja-castle-review",
   "donorId": "gms-v95-core7",
   "mapPrefixes": ["800040"],
   "mapIds": [],
   "mobPrefixes": ["94004"],
   "mobIds": [],
-  "itemIds": [
-    4000337,
-    4000338,
-    4000339,
-    4000340,
-    4000341,
-    4000342,
-    4000343,
-    4000344,
-    4000345,
-    4000346
-  ],
+  "itemIds": [4000337,4000338,4000339,4000340,4000341,4000342,4000343,4000344,4000345,4000346],
+  "questIds": [8165,8166,8167,8168,8169,8170,8171],
   "approved": false,
   "importAllowed": false,
-  "note": "Review scope only. Resolve map, mob, NPC, reactor, portal, quest, script, client, and drop dependencies before considering any import."
+  "note": "Review scope only. Resolve map, mob, NPC, portal, quest, script, client, drop, and collision dependencies before considering any import."
 }
