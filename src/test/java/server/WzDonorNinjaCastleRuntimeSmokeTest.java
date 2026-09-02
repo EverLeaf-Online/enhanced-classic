@@ -10,6 +10,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -32,6 +34,7 @@ import server.maps.MapleMap;
 import tools.DatabaseConnection;
 
 class WzDonorNinjaCastleRuntimeSmokeTest {
+    private static final int SCRIPTED_PORTAL_TARGET_SENTINEL = 999999999;
     private static final int[] MAPS = {
         800040000, 800040100,
         800040200, 800040201, 800040202, 800040203, 800040204, 800040205, 800040206, 800040207,
@@ -108,7 +111,7 @@ class WzDonorNinjaCastleRuntimeSmokeTest {
     }
 
     @Test
-    void bossPortalTargetsLoadedDestinationAndOutPortal() throws Exception {
+    void bossPortalUsesScriptSentinelAndReviewedDestinationLoads() throws Exception {
         DataProvider mapProvider = DataProviderFactory.getDataProvider(WZFiles.MAP);
         Data source = mapProvider.getData("Map/Map8/800040401.img");
         assertNotNull(source);
@@ -121,7 +124,13 @@ class WzDonorNinjaCastleRuntimeSmokeTest {
             }
         }
         assertNotNull(bossPortal, "map 800040401 must contain scripted ninja_Boss portal");
-        assertEquals(800040410, DataTool.getInt(bossPortal.getChildByPath("tm")));
+        assertEquals(
+                SCRIPTED_PORTAL_TARGET_SENTINEL,
+                DataTool.getInt(bossPortal.getChildByPath("tm")),
+                "scripted portals keep the WZ target sentinel; the reviewed JS owns the real warp destination");
+
+        String portalScript = Files.readString(Path.of("scripts/portal/ninja_Boss.js"));
+        assertTrue(portalScript.contains("pi.warp(800040410, \"out00\")"));
 
         Connection connection = mock(Connection.class);
         PreparedStatement statement = mock(PreparedStatement.class);
@@ -134,7 +143,7 @@ class WzDonorNinjaCastleRuntimeSmokeTest {
             database.when(DatabaseConnection::getConnection).thenReturn(connection);
             MapleMap target = MapFactory.loadMapFromWz(800040410, 0, 1, event);
             assertNotNull(target);
-            assertNotNull(target.getPortal("out00"), "ninja_Boss target map must expose out00 portal");
+            assertNotNull(target.getPortal("out00"), "ninja_Boss reviewed target map must expose out00 portal");
         }
     }
 
