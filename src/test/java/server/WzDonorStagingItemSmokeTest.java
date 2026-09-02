@@ -1,6 +1,7 @@
 package server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -49,5 +50,13 @@ class WzDonorStagingItemSmokeTest {
 
         // Acorn explicitly declares slotMax=20. Null Client is safe for non-rechargeable consumables.
         assertEquals(20, ii.getSlotMax(null, ACORN));
+
+        // Both candidates survived the profiler specifically because they carry no special transfer/system flags.
+        for (int itemId : new int[] {CARBONATED_DRINK, ACORN}) {
+            assertFalse(ii.isQuestItem(itemId), "candidate must not become a quest item");
+            assertFalse(ii.isPickupRestricted(itemId), "candidate must not become one-of-a-kind/pickup restricted");
+            assertFalse(ii.isAccountRestricted(itemId), "candidate must not become account restricted");
+            assertFalse(ii.isDropRestricted(itemId), "candidate must not become drop/trade restricted");
+        }
     }
 }
