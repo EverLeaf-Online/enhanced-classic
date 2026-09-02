@@ -158,6 +158,7 @@ def main() -> None:
     subprocess.run(["python3", "tools/apply_solomapling_map_runtime_hooks.py"], check=True)
     subprocess.run(["python3", "tools/apply_solomapling_bootstrap_hooks.py"], check=True)
     subprocess.run(["python3", "tools/apply_solomapling_combat_hooks.py"], check=True)
+    subprocess.run(["python3", "tools/audit_solomapling_qa.py"], check=True)
 
     print("EverLeaf development configuration applied (20 channels; public channel host; website registration required).")
 
