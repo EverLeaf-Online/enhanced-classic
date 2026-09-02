@@ -112,8 +112,10 @@ jobs:
           Get-Content "$env:RUNNER_TEMP/character-diagnostic.log" | Add-Content $env:GITHUB_STEP_SUMMARY
           if ($diagnosticExit -eq 0) {
             Write-Host 'Character diagnostic found a plausible parse.'
+            exit 0
           } elseif ($diagnosticExit -eq 1) {
             Write-Host 'Character diagnostic completed successfully with result: no plausible parse in tested modes.'
+            exit 0
           } else {
             throw "Character diagnostic infrastructure failed with exit code $diagnosticExit"
           }
