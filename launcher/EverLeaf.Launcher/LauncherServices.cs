@@ -20,7 +20,10 @@ public sealed class InsufficientDiskSpaceException(string message) : IOException
 
 public static class LauncherConfiguration
 {
-    public static readonly Uri ApiBase = new("https://everleafms.online/");
+    // Temporary DNS-outage fallback. The MapleStory game connection itself still
+    // uses EverLeaf's Oracle public IPv4; only launcher/status/patch traffic uses
+    // DuckDNS until everleafms.online DNS is restored.
+    public static readonly Uri ApiBase = new("https://everleafms.duckdns.org/");
     public static readonly Uri ManifestUri = new(ApiBase, "v1/launcher/manifest");
     public const string GameExecutable = "EverLeaf.exe";
     public const string LegacyGameExecutable = "MapleStory.exe";
@@ -353,35 +356,20 @@ public sealed class PatchService : IDisposable
     {
         try
         {
-            await using var stream = new FileStream(
-                path, FileMode.Open, FileAccess.Read, FileShare.Read,
-                1024 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            await using var stream = File.OpenRead(path);
             var hash = await SHA256.HashDataAsync(stream, cancellationToken);
-            return CryptographicOperations.FixedTimeEquals(hash, Convert.FromHexString(expected));
+            return Convert.ToHexString(hash).Equals(expected, StringComparison.OrdinalIgnoreCase);
         }
-        catch (IOException)
-        {
-            return false;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return false;
-        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
     }
 
     internal static void VerifySignature(byte[] payload, byte[] signature, string publicKeyPem)
     {
-        try
-        {
-            using var rsa = RSA.Create();
-            rsa.ImportFromPem(publicKeyPem);
-            if (!rsa.VerifyData(payload, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pss))
-                throw new CryptographicException("Manifest signature is invalid.");
-        }
-        catch (Exception ex) when (ex is ArgumentException or CryptographicException)
-        {
-            throw new InvalidOperationException("Patch manifest could not be authenticated.", ex);
-        }
+        using var rsa = RSA.Create();
+        rsa.ImportFromPem(publicKeyPem);
+        if (!rsa.VerifyData(payload, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1))
+            throw new InvalidOperationException("Patch manifest signature is invalid.");
     }
 
     private static void MakeWritable(string path)
@@ -400,31 +388,9 @@ public sealed class PatchService : IDisposable
             MakeWritable(path);
             File.Delete(path);
         }
-        catch { }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     public void Dispose() => _http.Dispose();
-}
-
-public static class GameLauncher
-{
-    public static void Start(string gameDirectory)
-    {
-        var executable = Path.Combine(gameDirectory, LauncherConfiguration.GameExecutable);
-        if (!File.Exists(executable))
-            throw new FileNotFoundException(
-                "EverLeaf.exe was not found. Run Install / Repair Files before launching.", executable);
-
-        var start = CreateStartInfo(executable, gameDirectory);
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("Unable to start EverLeaf.exe.");
-    }
-
-    internal static ProcessStartInfo CreateStartInfo(string executable, string gameDirectory) => new()
-    {
-        FileName = executable,
-        WorkingDirectory = gameDirectory,
-        // The v83 game executable declares requireAdministrator in its embedded manifest.
-        // Shell execution lets Windows display the trusted UAC consent prompt.
-        UseShellExecute = true
-    };
 }
