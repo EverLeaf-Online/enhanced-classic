@@ -4,13 +4,11 @@ from __future__ import annotations
 import argparse, hashlib, json, shutil, xml.etree.ElementTree as ET
 from pathlib import Path
 
-
 def sha256(path:Path)->str:
     h=hashlib.sha256()
     with path.open('rb') as f:
         for chunk in iter(lambda:f.read(1024*1024),b''): h.update(chunk)
     return h.hexdigest()
-
 def tree_digest(root:Path)->str:
     h=hashlib.sha256()
     for p in sorted(x for x in root.rglob('*') if x.is_file()):
@@ -26,7 +24,6 @@ def family_index(root:Path,family:str):
         stem=p.name[:-8]
         if stem.isdigit():out[str(int(stem))]=p
     return out
-
 def copy_full_ids(donor:Path,staging:Path,family:str,ids:list[str],replace:set[str]|None=None):
     replace=replace or set();di=family_index(donor,family);si=family_index(staging,family);rows=[]
     for cid in ids:
@@ -41,7 +38,6 @@ def copy_full_ids(donor:Path,staging:Path,family:str,ids:list[str],replace:set[s
         if semantic_hash(src)!=semantic_hash(dst):raise RuntimeError(f'{family} staged semantic mismatch {cid}')
         rows.append({'family':family,'contentId':cid,'action':action,'path':dst.relative_to(staging).as_posix(),'sha256':sha256(dst)})
     return rows
-
 def clone(node):return ET.fromstring(ET.tostring(node,encoding='unicode'))
 def find_parent(root,target):
     for parent in root.iter():
@@ -68,8 +64,10 @@ def ensure_parent(dst_root,src_root,src_target):
             dst_next=ET.Element(src_next.tag,dict(src_next.attrib));parent.append(dst_next)
         parent=dst_next;src_parent=src_next
     return parent
-
-def matching_nodes(root,cid):return [n for n in root.iter() if n.attrib.get('name')==cid]
+def same_content_id(name,cid):
+    if name==cid:return True
+    return bool(name and name.isdigit() and cid.isdigit() and int(name)==int(cid))
+def matching_nodes(root,cid):return [n for n in root.iter() if same_content_id(n.attrib.get('name'),cid)]
 def merge_named_nodes_file(src:Path,dst:Path,ids:list[str],label:str,replace:set[str]|None=None,require_all:bool=True):
     replace=replace or set();st=ET.parse(src);dt=ET.parse(dst);sr=st.getroot();dr=dt.getroot();rows=[]
     for cid in ids:
@@ -86,10 +84,9 @@ def merge_named_nodes_file(src:Path,dst:Path,ids:list[str],label:str,replace:set
             idx=list(parent).index(old);parent.remove(old);parent.insert(idx,clone(src_node));action='replace'
         else:
             parent=ensure_parent(dr,sr,src_node);parent.append(clone(src_node));action='add'
-        rows.append({'kind':label,'contentId':cid,'action':action,'path':dst.as_posix()})
+        rows.append({'kind':label,'contentId':cid,'action':action,'path':dst.as_posix(),'sourceNodeName':src_node.attrib.get('name')})
     ET.indent(dt,space='  ');dt.write(dst,encoding='utf-8',xml_declaration=True)
     return rows
-
 def merge_item_nodes(donor:Path,staging:Path,ids:list[str]):
     rows=[]
     for cid in ids:
@@ -103,7 +100,6 @@ def merge_item_nodes(donor:Path,staging:Path,ids:list[str]):
         if not dst.is_file():raise ValueError(f'Item staging target missing {rel}')
         rows+=merge_named_nodes_file(src,dst,[cid],'Item.wz Etc item')
     return rows
-
 def merge_string_file(string_donor:Path,staging:Path,filename:str,ids:list[str],replace:set[str]|None=None,require_all:bool=True):
     src=string_donor/'String.wz'/filename;dst=staging/'String.wz'/filename
     if not src.is_file() or not dst.is_file():raise ValueError(f'String file missing {filename}')
@@ -113,11 +109,9 @@ def merge_quests(donor:Path,staging:Path,ids:list[str]):
     for filename in ('Check.img.xml','Act.img.xml','QuestInfo.img.xml'):
         src=donor/'Quest.wz'/filename;dst=staging/'Quest.wz'/filename
         if src.is_file() and dst.is_file():rows+=merge_named_nodes_file(src,dst,ids,f'Quest.wz/{filename}',require_all=False)
-    found={r['contentId'] for r in rows}
-    missing=sorted(set(ids)-found,key=int)
+    found={r['contentId'] for r in rows};missing=sorted(set(ids)-found,key=int)
     if missing:raise ValueError(f'Quest IDs absent from all staged Quest files: {missing}')
     return rows
-
 def stage(contract_path:Path,donor:Path,string_donor:Path,canonical:Path,staging:Path):
     c=json.loads(contract_path.read_text(encoding='utf-8'))
     for key in ('approved','importAllowed','automaticImport','productionApplyAllowed'):
@@ -125,32 +119,16 @@ def stage(contract_path:Path,donor:Path,string_donor:Path,canonical:Path,staging
     before=tree_digest(canonical)
     if staging.exists():shutil.rmtree(staging)
     shutil.copytree(canonical,staging)
-    collision=c['deliberateReplacementCollisions'][0];cid=collision['contentId']
-    base_npc=family_index(canonical,'Npc.wz').get(cid)
+    collision=c['deliberateReplacementCollisions'][0];cid=collision['contentId'];base_npc=family_index(canonical,'Npc.wz').get(cid)
     if not base_npc or semantic_hash(base_npc)!=collision['baselineFingerprint']:raise ValueError(f'{cid} baseline fingerprint drifted before staging')
-
-    full=[]
-    full+=copy_full_ids(donor,staging,'Map.wz',c['maps'])
-    full+=copy_full_ids(donor,staging,'Mob.wz',c['mobs'])
-    full+=copy_full_ids(donor,staging,'Npc.wz',c['castleNpcs'],replace={cid})
+    full=[];full+=copy_full_ids(donor,staging,'Map.wz',c['maps']);full+=copy_full_ids(donor,staging,'Mob.wz',c['mobs']);full+=copy_full_ids(donor,staging,'Npc.wz',c['castleNpcs'],replace={cid})
     if semantic_hash(family_index(staging,'Npc.wz')[cid])!=collision['donorFingerprint']:raise ValueError(f'{cid} staged donor fingerprint mismatch')
-
-    item_rows=merge_item_nodes(donor,staging,c['items'])
-    quest_rows=merge_quests(donor,staging,c['questIds'])
-    string_rows=[]
-    string_rows+=merge_string_file(string_donor,staging,'Etc.img.xml',c['items'])
-    string_rows+=merge_string_file(string_donor,staging,'Map.img.xml',c['maps'],require_all=False)
-    string_rows+=merge_string_file(string_donor,staging,'Mob.img.xml',c['mobs'],require_all=False)
-    string_rows+=merge_string_file(string_donor,staging,'Npc.img.xml',c['castleNpcs'],replace={cid},require_all=False)
-    string_rows+=merge_string_file(string_donor,staging,'Quest.img.xml',c['questIds'],require_all=False)
-
+    item_rows=merge_item_nodes(donor,staging,c['items']);quest_rows=merge_quests(donor,staging,c['questIds']);string_rows=[]
+    string_rows+=merge_string_file(string_donor,staging,'Etc.img.xml',c['items']);string_rows+=merge_string_file(string_donor,staging,'Map.img.xml',c['maps'],require_all=False);string_rows+=merge_string_file(string_donor,staging,'Mob.img.xml',c['mobs'],require_all=False);string_rows+=merge_string_file(string_donor,staging,'Npc.img.xml',c['castleNpcs'],replace={cid},require_all=False);string_rows+=merge_string_file(string_donor,staging,'Quest.img.xml',c['questIds'],require_all=False)
     after=tree_digest(canonical)
     if after!=before:raise RuntimeError('canonical WZ tree changed during regional staging')
     report={'schemaVersion':2,'mode':'temporary-regional-staging-copy','batchId':c['batchId'],'canonicalMutated':False,'productionApplyAllowed':False,'approved':False,'canonicalTreeSha256Before':before,'canonicalTreeSha256After':after,'stagingTreeSha256':tree_digest(staging),'fullFileChanges':full,'itemNodes':item_rows,'questNodes':quest_rows,'stringNodes':string_rows,'deliberateReplacementIds':[cid]}
-    (staging/'REGIONAL_STAGING_REPORT.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
-    return report
-
+    (staging/'REGIONAL_STAGING_REPORT.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8');return report
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--contract',type=Path,required=True);p.add_argument('--donor',type=Path,required=True);p.add_argument('--string-donor',type=Path,required=True);p.add_argument('--canonical',type=Path,required=True);p.add_argument('--staging',type=Path,required=True);a=p.parse_args()
-    r=stage(a.contract,a.donor,a.string_donor,a.canonical,a.staging);print('full files staged:',len(r['fullFileChanges']));print('item nodes staged:',len(r['itemNodes']));print('quest nodes staged:',len(r['questNodes']));print('string nodes staged:',len(r['stringNodes']));print('canonicalMutated=false / approved=false / productionApplyAllowed=false');return 0
+    p=argparse.ArgumentParser();p.add_argument('--contract',type=Path,required=True);p.add_argument('--donor',type=Path,required=True);p.add_argument('--string-donor',type=Path,required=True);p.add_argument('--canonical',type=Path,required=True);p.add_argument('--staging',type=Path,required=True);a=p.parse_args();r=stage(a.contract,a.donor,a.string_donor,a.canonical,a.staging);print('full files staged:',len(r['fullFileChanges']));print('item nodes staged:',len(r['itemNodes']));print('quest nodes staged:',len(r['questNodes']));print('string nodes staged:',len(r['stringNodes']));print('canonicalMutated=false / approved=false / productionApplyAllowed=false');return 0
 if __name__=='__main__':raise SystemExit(main())
