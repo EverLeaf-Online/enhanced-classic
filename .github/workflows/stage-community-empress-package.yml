@@ -1,0 +1,159 @@
+name: Stage community Future Henesys Empress package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  PACKAGE: tools/wz-donor/batches/community-empress-future-henesys-001.json
+
+jobs:
+  stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          cat >> ~/.ssh/config <<EOF
+          Host everleaf-oracle
+            HostName $EVERLEAF_DEPLOY_HOST
+            User $EVERLEAF_DEPLOY_USER
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 15
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Fetch verified private community XML donor
+        run: |
+          set -euo pipefail
+          remote=/opt/everleaf/private/wz-donors/community-repack-core.zip
+          remote_hash="$(ssh everleaf-oracle "set -e; test -s '$remote'; unzip -t '$remote' >/dev/null; sha256sum '$remote'" | awk '{print $1}')"
+          test -n "$remote_hash"
+          for attempt in 1 2 3 4 5; do
+            rm -f "$RUNNER_TEMP/community-repack-core.zip"
+            if scp "everleaf-oracle:$remote" "$RUNNER_TEMP/community-repack-core.zip"; then
+              local_hash="$(sha256sum "$RUNNER_TEMP/community-repack-core.zip" | awk '{print $1}')"
+              if [ "$local_hash" = "$remote_hash" ]; then
+                break
+              fi
+            fi
+            if [ "$attempt" = 5 ]; then
+              echo 'Unable to fetch verified community XML donor' >&2
+              exit 1
+            fi
+            sleep $((attempt * 3))
+          done
+          mkdir -p "$RUNNER_TEMP/community-donor"
+          unzip -q "$RUNNER_TEMP/community-repack-core.zip" -d "$RUNNER_TEMP/community-donor"
+          test -d "$RUNNER_TEMP/community-donor/Map.wz"
+          test -d "$RUNNER_TEMP/community-donor/Mob.wz"
+          test -d "$RUNNER_TEMP/community-donor/Npc.wz"
+
+      - name: Evaluate frozen package against donor
+        run: |
+          set -euo pipefail
+          python tools/wz-donor/wz_diff.py \
+            --baseline wz \
+            --donor "$RUNNER_TEMP/community-donor" \
+            --donor-id community-repack-core \
+            --output "$RUNNER_TEMP/community-core-diff.json"
+          python tools/wz-donor/evaluate_package.py \
+            "$PACKAGE" \
+            "$RUNNER_TEMP/community-core-diff.json" \
+            --output "$RUNNER_TEMP/package-evaluation.json"
+          python - "$RUNNER_TEMP/package-evaluation.json" <<'PY'
+          import json, sys
+          report=json.load(open(sys.argv[1], encoding='utf-8'))
+          assert report['selectedCount'] == 91, report['selectedCount']
+          assert report['missingSelectedDependencyCount'] == 0, report.get('missingSelectedDependencies')
+          assert report['counts']['missing-from-donor'] == 0, report['counts']
+          assert report['readyForImportReview'] is True, report
+          print('Package evaluation gate passed: 91 selected, none missing, dependencies satisfied.')
+          PY
+
+      - name: Merge package into disposable v83 XML staging copy
+        run: |
+          set -euo pipefail
+          python tools/wz-donor/stage_package_xml.py \
+            "$PACKAGE" \
+            --canonical wz \
+            --donor "$RUNNER_TEMP/community-donor" \
+            --staging "$RUNNER_TEMP/staging-wz"
+
+      - name: Prove staging safety and exact package boundary
+        run: |
+          set -euo pipefail
+          python tools/wz-donor/wz_diff.py \
+            --baseline wz \
+            --donor "$RUNNER_TEMP/staging-wz" \
+            --donor-id community-empress-future-henesys-001-staging \
+            --skip-dependencies \
+            --output "$RUNNER_TEMP/staging-diff.json"
+          python - "$PACKAGE" "$RUNNER_TEMP/staging-wz/STAGING_PACKAGE_REPORT.json" "$RUNNER_TEMP/staging-diff.json" <<'PY'
+          import json, sys
+          package=json.load(open(sys.argv[1], encoding='utf-8'))
+          report=json.load(open(sys.argv[2], encoding='utf-8'))
+          diff=json.load(open(sys.argv[3], encoding='utf-8'))
+
+          assert package['mode'] == 'review-only'
+          assert package['approved'] is False
+          assert package['automaticImport'] is False
+          assert report['canonicalMutated'] is False
+          assert report['productionApplyAllowed'] is False
+          assert report['approved'] is False
+          assert report['selectedFiles'] == 91, report['selectedFiles']
+          assert report['missingSourceFiles'] == [], report['missingSourceFiles']
+
+          allowed={k:{str(x) for x in v} for k,v in package['content'].items() if k in {'maps','mobs','npcs','reactors'}}
+          staged={(f['category'], str(f['contentId'])) for f in report['files']}
+          expected={(cat,cid) for cat,ids in allowed.items() for cid in ids}
+          assert staged == expected, (len(staged), len(expected), sorted(expected-staged)[:10], sorted(staged-expected)[:10])
+
+          for category,data in diff['categories'].items():
+            changed={str(x) for x in data.get('newIds', [])} | {str(x) for x in data.get('changedCollisionIds', [])}
+            permitted=allowed.get(category, set())
+            unexpected=changed-permitted
+            assert not unexpected, (category, sorted(unexpected)[:20])
+
+          print('Safety gates passed: canonical untouched; all 91 staged files are package-selected; no out-of-package XML delta.')
+          PY
+
+      - name: Upload staging evidence only
+        uses: actions/upload-artifact@v4
+        with:
+          name: community-empress-future-henesys-001-staging-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/community-core-diff.json
+            ${{ runner.temp }}/package-evaluation.json
+            ${{ runner.temp }}/staging-wz/STAGING_PACKAGE_REPORT.json
+            ${{ runner.temp }}/staging-diff.json
+          retention-days: 14
+          if-no-files-found: error
