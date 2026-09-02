@@ -1,16 +1,7 @@
 <%- include("partials/header",{title:"Support Center"}) %>
-<main class="lightPage"><div class="lightTitle"><div class="wrap"><h1>Support Center</h1><p>Answers to common questions and ways to reach the team.</p></div></div><div class="wrap" style="max-width:820px">
-<div class="paperCard" style="margin-bottom:14px">
-  <h3>Installation trouble?</h3>
-  <p class="muted">Check the <a href="/downloads" style="color:#2f9b43;font-weight:800">Downloads</a> page for the launcher and installation guide. Most launch issues are solved by re-running the launcher as administrator.</p>
-</div>
-<div class="paperCard" style="margin-bottom:14px">
-  <h3>Can't log in?</h3>
-  <p class="muted">Make sure you're using your EverLeaf website account — it's the same login for the website and the game client. You can reset details from your <a href="/account" style="color:#2f9b43;font-weight:800">Account</a> page once logged in.</p>
-</div>
-<div class="paperCard">
-  <h3>Still need help?</h3>
-  <p class="muted">Join the community Discord for the fastest response from staff and other players.</p>
-  <% if(brand.discordUrl){ %><a class="btn primary" href="<%=brand.discordUrl%>">JOIN DISCORD</a><% } else { %><a class="btn primary" href="/community">VISIT COMMUNITY</a><% } %>
-</div>
+<main class="lightPage"><section class="lightTitle"><div class="wrap pageHeroGrid"><div><div class="pageEyebrow">Beginner's Guide</div><h1>Player Help</h1><p>Launcher setup, account recovery, login help, and direct paths to the EverLeaf community.</p></div><div class="pageHeroAside"><strong>Need a hand?</strong><span>Start with the matching guide. If the problem continues, Discord is the fastest route to EverLeaf staff.</span></div></div></section><div class="wrap helpGrid">
+<section class="helpCard"><div class="helpIcon"><img src="/assets/ui/launcher.svg" alt=""></div><div class="pageEyebrow">Client Setup</div><h3>Install & Update EverLeaf</h3><p>Download the launcher into an empty folder and use <strong>Install / Repair Files</strong> for missing or interrupted files. Always start the game through EverLeafLauncher.exe.</p><a class="btn" href="/downloads">OPEN DOWNLOAD GUIDE</a></section>
+<section class="helpCard"><div class="helpIcon"><img src="/assets/ui/account.svg" alt=""></div><div class="pageEyebrow">Account</div><h3>Login Problems</h3><p>Your website and game use the same account. If you can sign in here, use the Account page to manage your password and confirm your character roster.</p><a class="btn" href="/account">OPEN ACCOUNT PORTAL</a></section>
+<section class="helpCard"><div class="helpIcon"><img src="/assets/ui/recovery.svg" alt=""></div><div class="pageEyebrow">Recovery</div><h3>Forgot Account Details</h3><p>Submit a private recovery request using your username or account email. Staff verifies account ownership before making any changes.</p><a class="btn" href="/recover">START RECOVERY</a></section>
+<section class="helpCard"><div class="helpIcon"><img src="/assets/ui/community.svg" alt=""></div><div class="pageEyebrow">Community</div><h3>Ask an Adventurer</h3><p>Talk with staff and other players in the EverLeaf Discord. Never post passwords, recovery details, or other private account information.</p><% if(brand.discordUrl){ %><a class="btn primary" href="<%=brand.discordUrl%>" target="_blank" rel="noopener noreferrer">JOIN EVERLEAF DISCORD</a><% } else { %><a class="btn primary" href="/community">OPEN COMMUNITY</a><% } %></section>
 </div></main><%- include("partials/footer") %>

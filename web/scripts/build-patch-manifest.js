@@ -40,6 +40,11 @@ async function walk(dir) {
   return out;
 }
 
+async function exists(file) {
+  try { await fsp.access(file, fs.constants.R_OK); return true; }
+  catch { return false; }
+}
+
 async function main() {
   const baseline = JSON.parse(await fsp.readFile(baselinePath, "utf8"));
   if (baseline.schemaVersion !== 1 || !Array.isArray(baseline.managedFiles) || baseline.managedFiles.length === 0)
@@ -104,11 +109,6 @@ async function main() {
   await fsp.writeFile(tmp, JSON.stringify(manifest, null, 2) + "\n", {encoding: "utf8", mode: 0o644});
   await fsp.rename(tmp, manifestPath);
   console.log(`Published EverLeaf patch manifest ${version}: ${files.length}/${allowed.size} managed files`);
-}
-
-async function exists(file) {
-  try { await fsp.access(file, fs.constants.R_OK); return true; }
-  catch { return false; }
 }
 
 main().catch(error => { console.error(error.stack || error); process.exitCode = 1; });

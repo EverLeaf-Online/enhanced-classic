@@ -24,15 +24,26 @@ function runCase(name, managedFiles, payload, shouldPass, launcher = null) {
     if (launcher.archive !== undefined) fs.writeFileSync(portable, launcher.archive);
     if (launcher.version !== undefined) fs.writeFileSync(launcherVersion, launcher.version);
   }
+  const manifest = path.join(root, "manifest.json");
   const result = spawnSync(process.execPath, [generator, "test"], {
     encoding: "utf8",
     env: {...process.env, LAUNCHER_PATCH_ROOT: root, LAUNCHER_BASELINE_PATH: baseline,
-      LAUNCHER_MANIFEST_PATH: path.join(root, "manifest.json"), LAUNCHER_PORTABLE_PATH: portable,
+      LAUNCHER_MANIFEST_PATH: manifest, LAUNCHER_PORTABLE_PATH: portable,
       LAUNCHER_VERSION_PATH: launcherVersion}
   });
-  fs.rmSync(root, {recursive: true, force: true});
-  if ((result.status === 0) !== shouldPass)
+  if ((result.status === 0) !== shouldPass) {
+    fs.rmSync(root, {recursive: true, force: true});
     throw new Error(`${name}: expected pass=${shouldPass}, exit=${result.status}\n${result.stdout}\n${result.stderr}`);
+  }
+  if (shouldPass && launcher) {
+    const output = JSON.parse(fs.readFileSync(manifest, "utf8"));
+    if (output.launcher?.version !== launcher.version
+        || output.launcher?.url !== "/launcher/download"
+        || !/^[a-f0-9]{64}$/.test(output.launcher?.sha256 || "")
+        || output.launcher?.size !== Buffer.byteLength(launcher.archive))
+      throw new Error(`${name}: signed launcher metadata was not generated correctly`);
+  }
+  fs.rmSync(root, {recursive: true, force: true});
 }
 
 runCase("valid", [{path: "Data/a.bin", redistributable: true}], {"Data/a.bin": "data"}, true);

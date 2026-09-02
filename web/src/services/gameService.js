@@ -108,15 +108,6 @@ async function changePassword(accountId, currentPassword, newPassword) {
   return true;
 }
 
-async function voteBalance(accountId) {
-  const db = getPool(), g = env.gameDb;
-  const [rows] = await db.query(
-    `SELECT COALESCE(${I(g.accountVotePoints)},0) votePoints FROM ${I(g.accountsTable)} WHERE ${I(g.accountId)}=? LIMIT 1`,
-    [Number(accountId)]
-  );
-  return Number(rows[0]?.votePoints || 0);
-}
-
 async function nxRewardStatus(accountId) {
   const db = getPool(), g = env.gameDb;
   const [rows] = await db.query(
@@ -138,11 +129,6 @@ function utcDateString(date = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
-/**
- * Queue a provider-verified NX reward exactly once per account/provider/UTC day.
- * The game claims queued NX so its in-memory Cash Shop balance stays synchronized
- * with accounts.nxCredit.
- */
 async function queueVerifiedVoteNx({ username, provider, nxAmount=1500, votedAt=new Date() }) {
   const g = env.gameDb;
   const amount = Number(nxAmount);
@@ -211,7 +197,6 @@ module.exports = {
   register,
   accountCharacters,
   changePassword,
-  voteBalance,
   nxRewardStatus,
   queueVerifiedVoteNx
 };
