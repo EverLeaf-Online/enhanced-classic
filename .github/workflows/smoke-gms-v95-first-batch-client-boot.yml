@@ -1,0 +1,187 @@
+name: Smoke GMS v95 first consume batch in client
+
+on:
+  pull_request:
+    branches:
+      - release-dev
+    paths:
+      - '.github/workflows/smoke-gms-v95-first-batch-client-boot.yml'
+      - 'client/managed-client-baseline.json'
+      - 'tools/wz-donor/batches/gms-v95-consume-batch-001-parity.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  CANDIDATE_SHA: 6dec14b4bb09272ffd29eda026412ff9e2ebc13e
+  CANDIDATE_ZIP_SHA256: 2eca95cc44e7ab5c3a4260e50a5d85251817937166931ad9053aba8be255b93a
+
+jobs:
+  boot-smoke:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sshDir = Join-Path $HOME '.ssh'
+          New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          $keyPath = Join-Path $sshDir 'id_everleaf'
+          [IO.File]::WriteAllText($keyPath, ($env:SSH_PRIVATE_KEY -replace "`r", "") + "`n")
+          $knownHosts = Join-Path $sshDir 'known_hosts'
+          $gitKeyscan = 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe'
+          if (-not (Test-Path $gitKeyscan)) { throw "Git OpenSSH keyscan not found: $gitKeyscan" }
+          if ($env:SSH_KNOWN_HOSTS) {
+            [IO.File]::WriteAllText($knownHosts, ($env:SSH_KNOWN_HOSTS -replace "`r", "") + "`n")
+          } else {
+            & $gitKeyscan -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $knownHosts
+            if ($LASTEXITCODE -ne 0) { throw "Git ssh-keyscan failed with exit code $LASTEXITCODE" }
+          }
+          if (-not (Test-Path $knownHosts) -or (Get-Item $knownHosts).Length -eq 0) { throw 'known_hosts is empty' }
+
+      - name: Fetch exact managed EverLeaf client and pinned private candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $keyPath = Join-Path $HOME '.ssh/id_everleaf'
+          $sshExe = 'C:\Program Files\Git\usr\bin\ssh.exe'
+          $scpExe = 'C:\Program Files\Git\usr\bin\scp.exe'
+          $baseline = Get-Content 'client/managed-client-baseline.json' -Raw | ConvertFrom-Json
+          if ($baseline.schemaVersion -ne 1) { throw 'Unsupported managed client baseline schema' }
+          $names = @($baseline.managedFiles | ForEach-Object { [string]$_.path })
+          if ($names -notcontains 'EverLeaf.exe' -or $names -notcontains 'Item.wz' -or $names -notcontains 'String.wz') {
+            throw 'Managed baseline is missing required client files'
+          }
+          foreach ($name in $names) {
+            if ($name -notmatch '^[A-Za-z0-9_.-]+$') { throw "Unsafe managed client filename: $name" }
+          }
+
+          $remoteRoot = '/opt/everleaf/patches/files'
+          $remoteArchive = "/tmp/everleaf-client-boot-$env:GITHUB_RUN_ID.tgz"
+          $quoted = ($names | ForEach-Object { "'$_'" }) -join ' '
+          $remoteCommand = "set -euo pipefail; cd '$remoteRoot'; for f in $quoted; do test -f `"`$f`"; done; sha256sum $quoted > /tmp/everleaf-client-boot-$env:GITHUB_RUN_ID.sha256; tar -czf '$remoteArchive' $quoted; sha256sum '$remoteArchive'"
+          $archiveHashLine = & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" $remoteCommand
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to prepare exact private client archive on Oracle' }
+          $remoteArchiveHash = (($archiveHashLine | Select-Object -Last 1) -split '\s+')[0].ToLowerInvariant()
+          if ($remoteArchiveHash.Length -ne 64) { throw 'Invalid remote client archive hash' }
+
+          $archive = Join-Path $env:RUNNER_TEMP 'everleaf-client.tgz'
+          & $scpExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteArchive" $archive
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to fetch private managed client archive' }
+          $localArchiveHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($localArchiveHash -ne $remoteArchiveHash) { throw 'Managed client archive hash mismatch after transfer' }
+
+          $hashes = Join-Path $env:RUNNER_TEMP 'LIVE_CLIENT_SOURCE_HASHES.txt'
+          & $scpExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/tmp/everleaf-client-boot-$env:GITHUB_RUN_ID.sha256" $hashes
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to fetch live client hash inventory' }
+          & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "rm -f '$remoteArchive' '/tmp/everleaf-client-boot-$env:GITHUB_RUN_ID.sha256'"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to remove temporary Oracle client smoke archives' }
+
+          $clientDir = Join-Path $env:RUNNER_TEMP 'everleaf-client'
+          New-Item -ItemType Directory -Force -Path $clientDir | Out-Null
+          tar -xzf $archive -C $clientDir
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to extract managed EverLeaf client' }
+          foreach ($name in $names) {
+            if (-not (Test-Path (Join-Path $clientDir $name) -PathType Leaf)) { throw "Extracted client missing $name" }
+          }
+
+          $candidateRemote = "/opt/everleaf/private/wz-client-candidates/gms-v95-consume-batch-001/$env:CANDIDATE_SHA/client-candidate.zip"
+          $candidate = Join-Path $env:RUNNER_TEMP 'client-candidate.zip'
+          $remoteCandidateHash = & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "set -e; test -f '$candidateRemote'; unzip -t '$candidateRemote' >/dev/null; sha256sum '$candidateRemote'"
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned private client candidate is unavailable or corrupt' }
+          $remoteCandidateDigest = (($remoteCandidateHash | Select-Object -Last 1) -split '\s+')[0].ToLowerInvariant()
+          if ($remoteCandidateDigest -ne $env:CANDIDATE_ZIP_SHA256) { throw 'Pinned private client candidate hash drifted' }
+          & $scpExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$candidateRemote" $candidate
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to fetch pinned private client candidate' }
+          if ((Get-FileHash $candidate -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:CANDIDATE_ZIP_SHA256) { throw 'Candidate hash mismatch after transfer' }
+
+          $candidateDir = Join-Path $env:RUNNER_TEMP 'candidate'
+          Expand-Archive -LiteralPath $candidate -DestinationPath $candidateDir
+          foreach ($name in @('Item.wz','String.wz','CLIENT_PATCH_MANIFEST.json','CLIENT_SERVER_PARITY_REPORT.json')) {
+            if (-not (Test-Path (Join-Path $candidateDir $name) -PathType Leaf)) { throw "Candidate missing $name" }
+          }
+          $parity = Get-Content (Join-Path $candidateDir 'CLIENT_SERVER_PARITY_REPORT.json') -Raw | ConvertFrom-Json
+          if ($parity.passed -ne $true -or $parity.approved -ne $false -or $parity.productionApplyAllowed -ne $false) {
+            throw 'Pinned candidate parity/approval state is not fail-closed'
+          }
+
+          Copy-Item (Join-Path $candidateDir 'Item.wz') (Join-Path $clientDir 'Item.wz') -Force
+          Copy-Item (Join-Path $candidateDir 'String.wz') (Join-Path $clientDir 'String.wz') -Force
+          $candidateManifest = Get-Content (Join-Path $candidateDir 'CLIENT_PATCH_MANIFEST.json') -Raw | ConvertFrom-Json
+          $itemHash = (Get-FileHash (Join-Path $clientDir 'Item.wz') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $stringHash = (Get-FileHash (Join-Path $clientDir 'String.wz') -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($itemHash -ne ([string]$candidateManifest.output.item.sha256).ToLowerInvariant()) { throw 'Boot client Item.wz does not match pinned candidate' }
+          if ($stringHash -ne ([string]$candidateManifest.output.string.sha256).ToLowerInvariant()) { throw 'Boot client String.wz does not match pinned candidate' }
+
+          "CLIENT_DIR=$clientDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "LIVE_CLIENT_ARCHIVE_SHA256=$localArchiveHash" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Block game network and boot exact client candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $env:CLIENT_DIR 'EverLeaf.exe'
+          if (-not (Test-Path $exe -PathType Leaf)) { throw 'EverLeaf.exe missing from reconstructed client' }
+          $exeHash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $itemHash = (Get-FileHash (Join-Path $env:CLIENT_DIR 'Item.wz') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $stringHash = (Get-FileHash (Join-Path $env:CLIENT_DIR 'String.wz') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $startedAt = Get-Date
+          $ruleName = "EverLeaf-v95-boot-smoke-$env:GITHUB_RUN_ID"
+          try {
+            New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Program $exe -Action Block -Profile Any | Out-Null
+            $process = Start-Process -FilePath $exe -WorkingDirectory $env:CLIENT_DIR -PassThru
+            Start-Sleep -Seconds 15
+            $process.Refresh()
+            if ($process.HasExited) {
+              $recentErrors = Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=$startedAt} -ErrorAction SilentlyContinue |
+                Where-Object { $_.LevelDisplayName -eq 'Error' -and $_.Message -match 'EverLeaf|MapleStory' } |
+                Select-Object -First 10 TimeCreated, Id, ProviderName, Message
+              $errorText = ($recentErrors | Format-List | Out-String)
+              throw "EverLeaf.exe exited during isolated 15-second boot smoke with code $($process.ExitCode).`n$errorText"
+            }
+
+            $report = [ordered]@{
+              schemaVersion = 1
+              kind = 'isolated-client-boot-smoke'
+              batchId = 'gms-v95-consume-batch-001'
+              candidateSha = $env:CANDIDATE_SHA
+              candidateZipSha256 = $env:CANDIDATE_ZIP_SHA256
+              liveClientArchiveSha256 = $env:LIVE_CLIENT_ARCHIVE_SHA256
+              executableSha256 = $exeHash
+              itemWzSha256 = $itemHash
+              stringWzSha256 = $stringHash
+              outboundNetworkBlocked = $true
+              survivedSeconds = 15
+              processAliveAtEnd = $true
+              productionFilesModified = $false
+              approved = $false
+              productionApplyAllowed = $false
+            }
+            $report | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 (Join-Path $env:RUNNER_TEMP 'CLIENT_BOOT_SMOKE_REPORT.json')
+            Get-Content (Join-Path $env:RUNNER_TEMP 'CLIENT_BOOT_SMOKE_REPORT.json') | Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+          finally {
+            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+            Remove-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
+          }
+
+      - name: Upload boot-smoke evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gms-v95-consume-batch-001-client-boot-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/CLIENT_BOOT_SMOKE_REPORT.json
+            ${{ runner.temp }}/LIVE_CLIENT_SOURCE_HASHES.txt
+          retention-days: 14
+          if-no-files-found: warn
