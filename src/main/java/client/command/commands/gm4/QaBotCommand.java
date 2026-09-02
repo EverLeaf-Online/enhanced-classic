@@ -47,7 +47,10 @@ public class QaBotCommand extends Command {
         }
 
         try {
+            // Clone the invoking GM's persisted character as the visual/stat template.
+            // This avoids SoloMapling upstream's hard-coded database character id 2.
             Character bot = BareBotFactory.createBareBot(
+                    gmId,
                     c.getPlayer().getPosition(),
                     c.getPlayer().getMap());
             spawnedByGm.put(gmId, bot);
