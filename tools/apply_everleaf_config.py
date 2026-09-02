@@ -155,6 +155,7 @@ def main() -> None:
     subprocess.run(["python3", "tools/apply_solomapling_host_hooks.py"], check=True)
     subprocess.run(["python3", "tools/apply_solomapling_nav_hooks.py"], check=True)
     subprocess.run(["python3", "tools/apply_solomapling_movement_hooks.py"], check=True)
+    subprocess.run(["python3", "tools/apply_solomapling_map_runtime_hooks.py"], check=True)
     subprocess.run(["python3", "tools/apply_solomapling_bootstrap_hooks.py"], check=True)
     subprocess.run(["python3", "tools/apply_solomapling_combat_hooks.py"], check=True)
 
