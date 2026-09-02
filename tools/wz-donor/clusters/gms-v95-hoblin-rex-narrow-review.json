@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "kind": "review-only-region-cluster-selection",
+  "clusterId": "gms-v95-hoblin-rex-narrow",
+  "donorId": "gms-v95-raw",
+  "mapPrefixes": [],
+  "mapIds": [
+    921120000,
+    921120001,
+    921120005,
+    921120100,
+    921120200,
+    921120300,
+    921120400,
+    921120500,
+    921120600
+  ],
+  "mobPrefixes": [],
+  "mobIds": [],
+  "itemIds": [
+    4000579,
+    4000580,
+    4000581,
+    4000582,
+    4000583,
+    4000584
+  ],
+  "selectionRationale": "Narrow second-pass v95 Hoblin King / Rex PQ discovery after the broad 921120*/93003* profile proved unusably wide. These nine classic Ice Ravine map IDs seed the closure; mobs are discovered only from selected-map life entries plus recursive revive dependencies. Outbound donor maps remain visible as portal targets instead of being silently added.",
+  "approved": false,
+  "importAllowed": false,
+  "automaticImport": false,
+  "productionApplyAllowed": false
+}

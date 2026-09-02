@@ -1,0 +1,94 @@
+name: Extract GMS v95 Evan profile
+
+on:
+  push:
+    branches:
+      - release-dev
+    paths:
+      - '.github/workflows/extract-gms-v95-evan.yml'
+      - 'tools/wz-donor/extract_evan_profile.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Fetch pinned private v95 donor archives
+        run: |
+          set -euo pipefail
+          core=/opt/everleaf/private/wz-donors/gms-v95-core7.zip
+          strings=/opt/everleaf/private/wz-donors/gms-v95-string.zip
+          core_hash="$(ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "set -e; test -f '$core'; unzip -t '$core' >/dev/null; sha256sum '$core'" | awk '{print $1}')"
+          string_hash="$(ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "set -e; test -f '$strings'; unzip -t '$strings' >/dev/null; sha256sum '$strings'" | awk '{print $1}')"
+          test "$core_hash" = '62e106f8437ce04443c797c0514e14d430fcc0a10ae4131f16567f540a8d5d3c'
+          test "$string_hash" = 'f00b94fcfad3f95d438b4474b74d550ea68d8aee0a8c3e4c2d9fae548a6fe7ed'
+          scp -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$core" "$RUNNER_TEMP/core7.zip"
+          scp -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$strings" "$RUNNER_TEMP/string.zip"
+          test "$(sha256sum "$RUNNER_TEMP/core7.zip" | awk '{print $1}')" = "$core_hash"
+          test "$(sha256sum "$RUNNER_TEMP/string.zip" | awk '{print $1}')" = "$string_hash"
+          mkdir -p "$RUNNER_TEMP/core7" "$RUNNER_TEMP/strings"
+          unzip -q "$RUNNER_TEMP/core7.zip" -d "$RUNNER_TEMP/core7"
+          unzip -q "$RUNNER_TEMP/string.zip" -d "$RUNNER_TEMP/strings"
+          test "$(find "$RUNNER_TEMP/core7" -type f -name '*.xml' | wc -l)" -eq 14527
+          test "$(find "$RUNNER_TEMP/strings" -type f -name '*.xml' | wc -l)" -eq 20
+      - name: Extract comprehensive Evan evidence
+        run: |
+          set -euo pipefail
+          python tools/wz-donor/extract_evan_profile.py \
+            --core "$RUNNER_TEMP/core7" \
+            --strings "$RUNNER_TEMP/strings" \
+            --baseline . \
+            --output "$RUNNER_TEMP/gms-v95-evan-profile.json" \
+            | tee "$RUNNER_TEMP/gms-v95-evan-profile.txt"
+          python - "$RUNNER_TEMP/gms-v95-evan-profile.json" <<'PY' > "$RUNNER_TEMP/gms-v95-evan-profile.md"
+          import json,sys
+          r=json.load(open(sys.argv[1],encoding='utf-8'))
+          print('# GMS v95.4 Evan extraction')
+          print()
+          for k,v in r['counts'].items(): print(f'- **{k}:** {v}')
+          print(f"- **Evan skill/job files:** {', '.join(r['skillJobIds'])}")
+          print()
+          print('## Limitations')
+          for x in r['limitations']: print(f'- {x}')
+          print()
+          print('## Safety')
+          print('- approved=false')
+          print('- importAllowed=false')
+          print('- automaticImport=false')
+          PY
+          cat "$RUNNER_TEMP/gms-v95-evan-profile.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Evan extraction evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: gms-v95-evan-profile-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/gms-v95-evan-profile.json
+            ${{ runner.temp }}/gms-v95-evan-profile.txt
+            ${{ runner.temp }}/gms-v95-evan-profile.md
+          retention-days: 14
+          if-no-files-found: error

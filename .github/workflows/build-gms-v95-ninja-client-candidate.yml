@@ -1,0 +1,138 @@
+name: Build GMS v95 Ninja Castle client WZ candidate
+
+on:
+  pull_request:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/build-gms-v95-ninja-client-candidate.yml'
+      - 'tools/wz-donor/regional-client-patcher/Program.cs'
+      - 'tools/wz-donor/batches/gms-v95-ninja-castle-batch-002.json'
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/build-gms-v95-ninja-client-candidate.yml'
+      - 'tools/wz-donor/regional-client-patcher/Program.cs'
+      - 'tools/wz-donor/batches/gms-v95-ninja-castle-batch-002.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  client-candidate:
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build MapleLib regional patcher before large transfers
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $toolDir = Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafRegionalClientWzPatcher'
+          New-Item -ItemType Directory -Force -Path $toolDir | Out-Null
+          Copy-Item 'tools/wz-donor/regional-client-patcher/Program.cs' (Join-Path $toolDir 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net10.0-windows</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <EnableWindowsTargeting>true</EnableWindowsTargeting>
+            </PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="..\MapleLib\MapleLib.csproj" />
+            </ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $toolDir 'EverLeafRegionalClientWzPatcher.csproj')
+          dotnet build (Join-Path $toolDir 'EverLeafRegionalClientWzPatcher.csproj') -c Release
+
+      - name: Configure verified Oracle SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sshDir = Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          $keyPath = Join-Path $sshDir 'id_everleaf'; [IO.File]::WriteAllText($keyPath, ($env:SSH_PRIVATE_KEY -replace "`r", "") + "`n")
+          $knownHosts = Join-Path $sshDir 'known_hosts'
+          if ($env:SSH_KNOWN_HOSTS) { [IO.File]::WriteAllText($knownHosts, ($env:SSH_KNOWN_HOSTS -replace "`r", "") + "`n") }
+          else {
+            $keyscan = 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe'; if (-not (Test-Path $keyscan)) { throw 'Git ssh-keyscan missing' }
+            & $keyscan -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $knownHosts
+            if ($LASTEXITCODE -ne 0) { throw 'ssh-keyscan failed' }
+          }
+          if (-not (Test-Path $knownHosts) -or (Get-Item $knownHosts).Length -eq 0) { throw 'known_hosts empty' }
+
+      - name: Fetch exact live and donor regional WZ files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $families = @('Map.wz','Mob.wz','Npc.wz','Item.wz','Quest.wz','String.wz')
+          $key = Join-Path $HOME '.ssh/id_everleaf'; $ssh = 'C:\Program Files\Git\usr\bin\ssh.exe'; $scp = 'C:\Program Files\Git\usr\bin\scp.exe'
+          $target = Join-Path $env:RUNNER_TEMP 'everleaf-live-wz'; $donor = Join-Path $env:RUNNER_TEMP 'gms-v95-raw'; New-Item -ItemType Directory -Force -Path $target,$donor | Out-Null
+          $remoteArgs = $families | ForEach-Object { "'/opt/everleaf/patches/files/$_' '/opt/everleaf/private/wz-donors/gms-v95-raw/$_'" }
+          $remoteCmd = "set -e; " + (($families | ForEach-Object { "test -f '/opt/everleaf/patches/files/$_'; test -f '/opt/everleaf/private/wz-donors/gms-v95-raw/$_'" }) -join '; ') + "; sha256sum " + ($remoteArgs -join ' ')
+          $before = & $ssh -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" $remoteCmd
+          if ($LASTEXITCODE -ne 0) { throw 'Oracle regional WZ preflight/hash failed' }
+          $before | Set-Content -Encoding ascii (Join-Path $env:RUNNER_TEMP 'NINJA_REMOTE_HASHES_BEFORE.txt')
+          foreach ($f in $families) {
+            & $scp -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/patches/files/$f" (Join-Path $target $f); if ($LASTEXITCODE -ne 0) { throw "Failed live $f transfer" }
+            & $scp -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/private/wz-donors/gms-v95-raw/$f" (Join-Path $donor $f); if ($LASTEXITCODE -ne 0) { throw "Failed donor $f transfer" }
+          }
+          foreach ($f in $families) { Get-FileHash (Join-Path $target $f) -Algorithm SHA256; Get-FileHash (Join-Path $donor $f) -Algorithm SHA256 }
+
+      - name: Build, save, reparse, and digest isolated regional candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $project = Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafRegionalClientWzPatcher/EverLeafRegionalClientWzPatcher.csproj'
+          $target = Join-Path $env:RUNNER_TEMP 'everleaf-live-wz'; $donor = Join-Path $env:RUNNER_TEMP 'gms-v95-raw'; $output = Join-Path $env:RUNNER_TEMP 'gms-v95-ninja-castle-client-candidate'
+          dotnet run --project $project -c Release --no-build -- tools/wz-donor/batches/gms-v95-ninja-castle-batch-002.json $target $donor $output
+          Get-Content (Join-Path $output 'REGIONAL_CLIENT_PATCH_MANIFEST.json') | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Prove Oracle source WZ stayed byte-identical
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $families = @('Map.wz','Mob.wz','Npc.wz','Item.wz','Quest.wz','String.wz'); $key = Join-Path $HOME '.ssh/id_everleaf'; $ssh = 'C:\Program Files\Git\usr\bin\ssh.exe'
+          $args = $families | ForEach-Object { "'/opt/everleaf/patches/files/$_' '/opt/everleaf/private/wz-donors/gms-v95-raw/$_'" }
+          $after = & $ssh -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" ("set -e; sha256sum " + ($args -join ' ')); if ($LASTEXITCODE -ne 0) { throw 'Oracle re-hash failed' }
+          $beforeLines = Get-Content (Join-Path $env:RUNNER_TEMP 'NINJA_REMOTE_HASHES_BEFORE.txt') | ForEach-Object {$_.Trim()} | Where-Object {$_}
+          $afterLines = $after | ForEach-Object {$_.Trim()} | Where-Object {$_}
+          if (($beforeLines -join "`n") -ne ($afterLines -join "`n")) { throw 'Oracle regional source hashes changed during build' }
+          Write-Host 'All live/donor Oracle WZ hashes are unchanged.'
+
+      - name: Store candidate privately after release merge only
+        if: github.event_name == 'push'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $key = Join-Path $HOME '.ssh/id_everleaf'; $ssh = 'C:\Program Files\Git\usr\bin\ssh.exe'; $scp = 'C:\Program Files\Git\usr\bin\scp.exe'
+          $output = Join-Path $env:RUNNER_TEMP 'gms-v95-ninja-castle-client-candidate'; $zip = Join-Path $env:RUNNER_TEMP 'gms-v95-ninja-castle-client-candidate.zip'
+          Compress-Archive -Path (Join-Path $output '*') -DestinationPath $zip -CompressionLevel Optimal
+          $remote = "/opt/everleaf/private/wz-client-candidates/gms-v95-ninja-castle-batch-002/${{ github.sha }}"
+          & $ssh -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "set -e; mkdir -p '$remote'; test ! -e '$remote/client-candidate.zip'"; if ($LASTEXITCODE -ne 0) { throw 'Private candidate dir unavailable' }
+          & $scp -i $key $zip "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remote/client-candidate.zip.part"; if ($LASTEXITCODE -ne 0) { throw 'Private upload failed' }
+          & $ssh -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "set -e; cd '$remote'; unzip -t client-candidate.zip.part >/dev/null; mv client-candidate.zip.part client-candidate.zip; sha256sum client-candidate.zip"; if ($LASTEXITCODE -ne 0) { throw 'Private candidate validation failed' }
+
+      - name: Upload manifest only
+        uses: actions/upload-artifact@v4
+        with:
+          name: gms-v95-ninja-client-manifest-${{ github.sha }}
+          path: ${{ runner.temp }}/gms-v95-ninja-castle-client-candidate/REGIONAL_CLIENT_PATCH_MANIFEST.json
+          retention-days: 14
+          if-no-files-found: error

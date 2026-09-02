@@ -1,0 +1,30 @@
+name: Audit reactor script coverage
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/reactor/**'
+      - 'wz/Map.wz/Map/**'
+      - 'wz/Reactor.wz/**'
+      - 'tools/audit_reactor_script_coverage.py'
+      - '.github/workflows/audit-reactor-script-coverage.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run reactor script coverage audit
+        run: |
+          mkdir -p build
+          python3 tools/audit_reactor_script_coverage.py
+          python3 tools/audit_reactor_script_coverage.py --json > build/reactor-script-coverage.json
+      - name: Upload reactor coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: reactor-script-coverage
+          path: build/reactor-script-coverage.json

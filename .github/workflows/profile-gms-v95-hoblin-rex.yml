@@ -1,0 +1,95 @@
+name: Profile GMS v95 Hoblin Rex cluster
+
+on:
+  push:
+    branches:
+      - release-dev
+    paths:
+      - '.github/workflows/profile-gms-v95-hoblin-rex.yml'
+      - 'tools/wz-donor/profile_region_cluster.py'
+      - 'tools/wz-donor/clusters/gms-v95-hoblin-rex-review.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Fetch pinned private core7 donor
+        run: |
+          set -euo pipefail
+          remote=/opt/everleaf/private/wz-donors/gms-v95-core7.zip
+          remote_hash="$(ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "set -e; test -f '$remote'; unzip -t '$remote' >/dev/null; sha256sum '$remote'" | awk '{print $1}')"
+          test "$remote_hash" = '62e106f8437ce04443c797c0514e14d430fcc0a10ae4131f16567f540a8d5d3c'
+          scp -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$remote" "$RUNNER_TEMP/gms-v95-core7.zip"
+          test "$(sha256sum "$RUNNER_TEMP/gms-v95-core7.zip" | awk '{print $1}')" = "$remote_hash"
+          mkdir -p "$RUNNER_TEMP/gms-v95-core7"
+          unzip -q "$RUNNER_TEMP/gms-v95-core7.zip" -d "$RUNNER_TEMP/gms-v95-core7"
+          test "$(find "$RUNNER_TEMP/gms-v95-core7" -type f -name '*.xml' | wc -l)" -eq 14527
+      - name: Profile broad Hoblin Rex dependency closure
+        run: |
+          set -euo pipefail
+          python tools/wz-donor/profile_region_cluster.py \
+            tools/wz-donor/clusters/gms-v95-hoblin-rex-review.json \
+            --donor "$RUNNER_TEMP/gms-v95-core7" \
+            --baseline . \
+            --output "$RUNNER_TEMP/gms-v95-hoblin-rex-cluster.json" \
+            | tee "$RUNNER_TEMP/gms-v95-hoblin-rex-cluster.txt"
+          python - "$RUNNER_TEMP/gms-v95-hoblin-rex-cluster.json" <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, sys
+          r=json.load(open(sys.argv[1], encoding='utf-8'))
+          print('## GMS v95 Hoblin / Rex review-only dependency profile')
+          print()
+          for key, value in r['counts'].items(): print(f'- **{key}:** {value}')
+          print(f"- **missing portal scripts:** {len(r['blockingReview']['missingPortalScripts'])}")
+          print(f"- **unresolved portal targets:** {len(r['blockingReview']['unresolvedPortalTargets'])}")
+          print(f"- **changed collisions:** {len(r.get('changedCollisions', []))}")
+          print(f"- **quest nodes:** {len(r['questReferences'])}")
+          print()
+          print('### Mobs needing backport')
+          for row in r['mobs']:
+              if row['needsBackport']: print(f"- {row['contentId']}")
+          print('### NPCs needing backport')
+          for row in r['npcs']:
+              if row['needsBackport']: print(f"- {row['contentId']}")
+          print('### Reactors needing backport')
+          for row in r['reactors']:
+              if row['needsBackport']: print(f"- {row['contentId']}")
+          print('### Missing portal scripts')
+          for script in r['blockingReview']['missingPortalScripts']: print(f'- `{script}`')
+          print()
+          print('**approved=false / importAllowed=false / automaticImport=false / productionApplyAllowed=false**')
+          PY
+      - name: Upload Hoblin Rex review evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: gms-v95-hoblin-rex-profile-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/gms-v95-hoblin-rex-cluster.json
+            ${{ runner.temp }}/gms-v95-hoblin-rex-cluster.txt
+          retention-days: 14
+          if-no-files-found: error

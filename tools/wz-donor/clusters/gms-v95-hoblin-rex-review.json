@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "kind": "review-only-region-cluster-selection",
+  "clusterId": "gms-v95-hoblin-rex",
+  "donorId": "gms-v95-raw",
+  "mapPrefixes": [
+    "921120"
+  ],
+  "mapIds": [],
+  "mobPrefixes": [
+    "93003"
+  ],
+  "mobIds": [],
+  "itemIds": [
+    4000579,
+    4000580,
+    4000581,
+    4000582,
+    4000583,
+    4000584
+  ],
+  "selectionRationale": "Broad first-pass v95 Hoblin King / Rex PQ discovery. The map and mob prefixes intentionally over-select the likely Ice Ravine and 93003xx PQ families so the regional profiler can discover the donor's actual map, NPC, reactor, portal, revive/link, quest, and collision closure before a narrower frozen batch is defined.",
+  "approved": false,
+  "importAllowed": false,
+  "automaticImport": false,
+  "productionApplyAllowed": false
+}
