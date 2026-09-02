@@ -222,7 +222,12 @@ var manifest = new
     }
 };
 
-File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+var jsonOptions = new JsonSerializerOptions
+{
+    WriteIndented = true,
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+};
+File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, jsonOptions) + Environment.NewLine);
 Console.WriteLine($"Client WZ candidate built for IDs: {string.Join(", ", ids)}");
 Console.WriteLine($"Target versions: Item={targetItemVersion}, String={targetStringVersion}");
 Console.WriteLine($"Donor versions: Item={donorItemVersion}, String={donorStringVersion}");
