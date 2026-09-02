@@ -108,6 +108,12 @@ jobs:
           $root = Join-Path $env:RUNNER_TEMP 'gms-v95-character'
           $project = Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafCharacterDiagnostic/EverLeafCharacterDiagnostic.csproj'
           dotnet run --project $project -c Release --no-build -- $root 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/character-diagnostic.log"
-          $exit = $LASTEXITCODE
+          $diagnosticExit = $LASTEXITCODE
           Get-Content "$env:RUNNER_TEMP/character-diagnostic.log" | Add-Content $env:GITHUB_STEP_SUMMARY
-          exit $exit
+          if ($diagnosticExit -eq 0) {
+            Write-Host 'Character diagnostic found a plausible parse.'
+          } elseif ($diagnosticExit -eq 1) {
+            Write-Host 'Character diagnostic completed successfully with result: no plausible parse in tested modes.'
+          } else {
+            throw "Character diagnostic infrastructure failed with exit code $diagnosticExit"
+          }
