@@ -32,6 +32,11 @@ class GCMovementLifecycleTest {
         when(bot.getMapId()).thenReturn(100000000);
         when(bot.getPosition()).thenReturn(new Point(15, 25));
 
+        // Capture the real base profile before BotMovementProfile's static methods
+        // are mocked; invoking base() inside thenReturn() leaves Mockito with a
+        // nested unfinished static stubbing operation.
+        BotMovementProfile baseProfile = BotMovementProfile.base();
+
         try (MockedStatic<ObserverTracker> observer = mockStatic(ObserverTracker.class);
              MockedStatic<BotMovementProfile> profiles = mockStatic(BotMovementProfile.class);
              MockedStatic<GCMovementDriver> driver = mockStatic(GCMovementDriver.class);
@@ -40,7 +45,7 @@ class GCMovementLifecycleTest {
              MockedStatic<GCTravel> travel = mockStatic(GCTravel.class);
              MockedStatic<GCFidget> fidget = mockStatic(GCFidget.class)) {
 
-            profiles.when(() -> BotMovementProfile.fromCharacter(bot)).thenReturn(BotMovementProfile.base());
+            profiles.when(() -> BotMovementProfile.fromCharacter(bot)).thenReturn(baseProfile);
 
             GCMovement.move(bot, 315, 225);
 
