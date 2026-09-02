@@ -29,13 +29,13 @@ jobs:
           tools/wz-donor/wz_diff.py tools/wz-donor/build_import_manifest.py tools/wz-donor/render_review_report.py
           tools/wz-donor/profile_item_candidates.py tools/wz-donor/summarize_item_profile_shapes.py
           tools/wz-donor/shortlist_etc_material_review.py tools/wz-donor/cross_reference_item_shortlist.py
-          tools/wz-donor/profile_region_cluster.py tools/wz-donor/extract_region_quest_evidence.py
+          tools/wz-donor/profile_region_cluster.py tools/wz-donor/extract_region_quest_evidence.py tools/wz-donor/extract_evan_profile.py
           tools/wz-donor/verify_client_server_parity.py tools/wz-donor/verify_region_staging_contract.py tools/wz-donor/stage_region_batch.py
           tools/wz-donor/preview_drop_contract.py
           tools/wz-donor/test_wz_diff.py tools/wz-donor/test_import_manifest.py tools/wz-donor/test_render_review_report.py
           tools/wz-donor/test_profile_item_candidates.py tools/wz-donor/test_summarize_item_profile_shapes.py
           tools/wz-donor/test_shortlist_etc_material_review.py tools/wz-donor/test_cross_reference_item_shortlist.py
-          tools/wz-donor/test_profile_region_cluster.py tools/wz-donor/test_extract_region_quest_evidence.py
+          tools/wz-donor/test_profile_region_cluster.py tools/wz-donor/test_extract_region_quest_evidence.py tools/wz-donor/test_extract_evan_profile.py
           tools/wz-donor/test_verify_client_server_parity.py tools/wz-donor/test_verify_region_staging_contract.py tools/wz-donor/test_stage_region_batch.py
           tools/wz-donor/test_preview_drop_contract.py
       - name: Run donor regression tests
@@ -49,6 +49,7 @@ jobs:
           python tools/wz-donor/test_cross_reference_item_shortlist.py
           python tools/wz-donor/test_profile_region_cluster.py
           python tools/wz-donor/test_extract_region_quest_evidence.py
+          python tools/wz-donor/test_extract_evan_profile.py
           python tools/wz-donor/test_verify_client_server_parity.py
           python tools/wz-donor/test_verify_region_staging_contract.py
           python tools/wz-donor/test_stage_region_batch.py
