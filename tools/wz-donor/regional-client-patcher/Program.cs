@@ -16,9 +16,10 @@ foreach(var family in families) foreach(var root in new[]{targetDir,donorDir}) i
 Directory.CreateDirectory(outputDir); foreach(var family in families) if(File.Exists(Path.Combine(outputDir,family))) throw new IOException($"Refusing existing candidate {family}");
 using var contractDoc=JsonDocument.Parse(File.ReadAllText(contractPath)); var c=contractDoc.RootElement;
 foreach(var flag in new[]{"approved","importAllowed","automaticImport","productionApplyAllowed"}) if(c.TryGetProperty(flag,out var fv) && fv.ValueKind!=JsonValueKind.False) throw new InvalidDataException($"{flag} must remain false");
-static int[] Ints(JsonElement e,string name)=>e.GetProperty(name).EnumerateArray().Select(x=>x.GetInt32()).ToArray();
+static int ParseId(JsonElement x)=>x.ValueKind==JsonValueKind.Number?x.GetInt32():int.Parse(x.GetString()??throw new InvalidDataException("Missing content ID"));
+static int[] Ints(JsonElement e,string name)=>e.GetProperty(name).EnumerateArray().Select(ParseId).ToArray();
 var maps=Ints(c,"maps"); var mobs=Ints(c,"mobs"); var npcs=Ints(c,"castleNpcs"); var items=Ints(c,"items"); var quests=Ints(c,"questIds");
-var replaceNpc=new HashSet<int>(c.GetProperty("deliberateReplacementCollisions").EnumerateArray().Select(x=>int.Parse(x.GetProperty("contentId").GetString()!)));
+var replaceNpc=new HashSet<int>(c.GetProperty("deliberateReplacementCollisions").EnumerateArray().Select(x=>ParseId(x.GetProperty("contentId"))));
 static string Sha(string p){using var s=File.OpenRead(p);return Convert.ToHexString(SHA256.HashData(s)).ToLowerInvariant();}
 static WzFile OpenTarget(string p){var w=new WzFile(p,WzMapleVersion.GMS);var st=w.ParseWzFile();if(st!=WzFileParseStatus.Success){w.Dispose();throw new InvalidDataException($"Target parse failed {Path.GetFileName(p)}: {st}");}return w;}
 static WzFile OpenDonor(string p){var w=new WzFile(p,95,WzMapleVersion.GMS);var st=w.ParseWzFile();if(st!=WzFileParseStatus.Success){w.Dispose();throw new InvalidDataException($"Donor parse failed {Path.GetFileName(p)}: {st}");}return w;}
