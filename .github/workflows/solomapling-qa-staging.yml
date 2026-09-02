@@ -48,13 +48,28 @@ jobs:
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_QA_USER@$EVERLEAF_QA_HOST" "bash -s" <<'REMOTE'
           set -euo pipefail
           base=/opt/everleaf/qa-agent-hub
-          test -d "$base/.git"
-          test -f "$base/deploy/qa/docker-compose.qa.yml"
-          test -f "$base/deploy/qa/.env.qa"
-          grep -q 'dedicated Docker Compose project' "$base/deploy/qa/README.md"
-          grep -q 'everleaf-qa-db' "$base/deploy/qa/docker-compose.qa.yml"
-          grep -q '127.0.0.1:' "$base/deploy/qa/docker-compose.qa.yml"
-          ! grep -q '/opt/everleaf/server' "$base/deploy/qa/docker-compose.qa.yml"
+          check() {
+            name="$1"
+            shift
+            if "$@"; then
+              echo "[PASS] $name"
+            else
+              echo "[FAIL] $name" >&2
+              exit 1
+            fi
+          }
+
+          check 'QA repository is a Git worktree' git -C "$base" rev-parse --is-inside-work-tree
+          check 'QA compose file exists' test -f "$base/deploy/qa/docker-compose.qa.yml"
+          check 'private QA env exists' test -f "$base/deploy/qa/.env.qa"
+          check 'QA isolation documentation present' grep -q 'dedicated Docker Compose project' "$base/deploy/qa/README.md"
+          check 'dedicated QA DB volume configured' grep -q 'everleaf-qa-db' "$base/deploy/qa/docker-compose.qa.yml"
+          check 'QA ports are loopback-bound' grep -q '127.0.0.1:' "$base/deploy/qa/docker-compose.qa.yml"
+          if grep -q '/opt/everleaf/server' "$base/deploy/qa/docker-compose.qa.yml"; then
+            echo '[FAIL] QA compose references production server path' >&2
+            exit 1
+          fi
+          echo '[PASS] QA compose does not reference production server path'
           echo 'Disposable QA boundary verified.'
           REMOTE
 
