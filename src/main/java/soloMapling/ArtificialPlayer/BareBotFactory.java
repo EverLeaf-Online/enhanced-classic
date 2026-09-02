@@ -88,6 +88,17 @@ public final class BareBotFactory {
 
         channel.addPlayer(bot);
         world.getPlayerStorage().addPlayer(bot);
+
+        // Mirror the real PlayerLoggedinHandler transition after channel/world
+        // registration. loadCharFromDB leaves awayFromWorld=true, which makes
+        // isLoggedinWorld() false. EverLeaf's spawn-relevant loot pipeline only
+        // considers characters that are actually in the channel world, so an
+        // otherwise valid headless bot could earn EXP while being excluded from
+        // the monster's relevant-drop calculation. Marking the bot entered here
+        // keeps normal Monster -> LootManager -> MapleMap drop generation intact
+        // instead of adding a bot-only drop path.
+        bot.setEnteredChannelWorld();
+
         map.addPlayer(bot);
         return bot;
     }
