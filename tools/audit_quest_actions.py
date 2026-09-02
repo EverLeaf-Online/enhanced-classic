@@ -13,7 +13,7 @@ import json
 import re
 import sys
 import xml.etree.ElementTree as ET
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,13 +29,10 @@ NUMERIC_FILE = re.compile(r"^(\d+)\.img\.xml$")
 INT_MIN = -(2**31)
 INT_MAX = 2**31 - 1
 
-# These are the Act.img names for which Quest.getAction() returns a handler.
 EXECUTABLE_ACTIONS = {
     "exp", "money", "item", "quest", "skill", "nextQuest", "pop",
     "buffItemID", "petskill", "pettameness", "petspeed", "info",
 }
-# Known WZ metadata/control fields mapped by QuestActionType but intentionally
-# not instantiated by Quest.getAction(). Do not confuse these with rewards.
 KNOWN_METADATA = {"no", "yes", "npc", "lvmin", "normalAutoStart", "0"}
 SCALAR_INT_ACTIONS = {
     "exp", "money", "nextQuest", "pop", "buffItemID", "petskill",
@@ -101,7 +98,7 @@ def spawned_npcs() -> set[str]:
         if life is None:
             continue
         for entry in life:
-            if entry.tag != "imgdir"" or norm(direct_value(entry, "type")) != "n":
+            if entry.tag != "imgdir" or norm(direct_value(entry, "type")) != "n":
                 continue
             npc = norm(direct_value(entry, "id"))
             if npc.isdigit() and int(npc) > 0:
@@ -260,11 +257,8 @@ def main() -> int:
                             report(f"Quest {qid} quest-state action has invalid state {state_raw!r} for target {target}", release_facing, failures, reviews)
 
                 elif name == "item":
-                    # Item/action references and quantities are covered by the dedicated
-                    # quest content-reference audit; count here to prove runtime coverage.
                     pass
                 elif name == "info":
-                    # InfoAction intentionally accepts arbitrary strings.
                     pass
 
     if unknown_counts:
