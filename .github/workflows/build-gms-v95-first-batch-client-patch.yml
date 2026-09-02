@@ -145,9 +145,15 @@ jobs:
           $after = & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" `
             "set -e; sha256sum '$remoteLiveItem' '$remoteLiveString' '$remoteDonorItem' '$remoteDonorString'"
           if ($LASTEXITCODE -ne 0) { throw 'Failed to re-hash Oracle source WZ files' }
-          $before = Get-Content -Raw (Join-Path $env:RUNNER_TEMP 'REMOTE_SOURCE_HASHES_BEFORE.txt')
-          $afterText = ($after -join "`n") + "`n"
-          if ($before -ne $afterText) { throw 'Oracle source WZ hashes changed during candidate build' }
+          $beforeLines = Get-Content (Join-Path $env:RUNNER_TEMP 'REMOTE_SOURCE_HASHES_BEFORE.txt') | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+          $afterLines = $after | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+          if ($beforeLines.Count -ne $afterLines.Count) { throw 'Oracle source WZ hash record count changed during candidate build' }
+          for ($i = 0; $i -lt $beforeLines.Count; $i++) {
+            if ($beforeLines[$i] -ne $afterLines[$i]) {
+              throw "Oracle source WZ hash changed at record $i`nBEFORE: $($beforeLines[$i])`nAFTER: $($afterLines[$i])"
+            }
+          }
+          Write-Host 'Oracle source WZ hashes are byte-identical before and after candidate build.'
 
       - name: Store candidate privately on Oracle after release merge only
         if: github.event_name == 'push'
