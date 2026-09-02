@@ -28,13 +28,28 @@ def patch_maple_map() -> None:
         "private final List<Rope> ropes",
     )
 
-    methods = """    public void addRope(Rope rope) {\n        ropes.add(rope);\n    }\n\n    public List<Rope> getRopes() {\n        return ropes;\n    }\n\n    public Collection<Portal> getPortals() {\n        return Collections.unmodifiableCollection(portals.values());\n    }\n\n    public float getFootholdSpeed() {\n        return footholdSpeed;\n    }\n\n    public void setFootholdSpeed(float footholdSpeed) {\n        this.footholdSpeed = footholdSpeed;\n    }\n\n    public boolean isSwim() {\n        return swim;\n    }\n\n    public void setSwim(boolean swim) {\n        this.swim = swim;\n    }\n\n"""
+    terrain_methods = """    public void addRope(Rope rope) {\n        ropes.add(rope);\n    }\n\n    public List<Rope> getRopes() {\n        return ropes;\n    }\n\n    public float getFootholdSpeed() {\n        return footholdSpeed;\n    }\n\n    public void setFootholdSpeed(float footholdSpeed) {\n        this.footholdSpeed = footholdSpeed;\n    }\n\n    public boolean isSwim() {\n        return swim;\n    }\n\n    public void setSwim(boolean swim) {\n        this.swim = swim;\n    }\n\n"""
     text = replace_once(
         text,
         "    public void setMapPointBoundings(int px, int py, int h, int w) {\n",
-        methods + "    public void setMapPointBoundings(int px, int py, int h, int w) {\n",
-        "public Collection<Portal> getPortals()",
+        terrain_methods + "    public void setMapPointBoundings(int px, int py, int h, int w) {\n",
+        "public List<Rope> getRopes()",
     )
+
+    # Cosmic left an old GCMove portal-enumeration method commented out. A
+    # substring marker would mistake that comment for a live method, so revive
+    # the exact commented block when present; otherwise add the accessor next
+    # to the existing portal getters.
+    commented_portals = """    /*\n    public Collection<Portal> getPortals() {\n        return Collections.unmodifiableCollection(portals.values());\n    }\n    */\n"""
+    active_portals = """    public Collection<Portal> getPortals() {\n        return Collections.unmodifiableCollection(portals.values());\n    }\n"""
+    if commented_portals in text:
+        text = text.replace(commented_portals, active_portals, 1)
+    elif active_portals not in text:
+        portal_anchor = """    public Portal getPortal(int portalid) {\n        return portals.get(portalid);\n    }\n"""
+        if portal_anchor not in text:
+            raise SystemExit("Expected MapleMap portal getter anchor not found")
+        text = text.replace(portal_anchor, portal_anchor + "\n" + active_portals, 1)
+
     MAPLE_MAP.write_text(text, encoding="utf-8")
 
 
