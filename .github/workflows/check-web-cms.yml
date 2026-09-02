@@ -27,12 +27,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
-          cache-dependency-path: web/package.json
+          cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Syntax-check server sources
         run: |
@@ -42,9 +42,9 @@ jobs:
         run: |
           node - <<'NODE'
           const env = require('./src/config/env');
-          const expected = [7575,7576,7577,7578,7579,7580,7581,7582];
+          const expected = Array.from({ length: 20 }, (_, index) => 7575 + index);
           if (JSON.stringify(env.game.channelPorts) !== JSON.stringify(expected)) {
-            throw new Error(`Expected 8 EverLeaf channels, got ${env.game.channelPorts}`);
+            throw new Error(`Expected 20 EverLeaf channels (${expected.join(',')}), got ${env.game.channelPorts}`);
           }
           if (env.registration.enabled) {
             throw new Error('Registration must default disabled unless explicitly configured.');
@@ -54,6 +54,9 @@ jobs:
           }
           if (env.vote.rewardNx !== 1500) {
             throw new Error(`Default verified vote reward must be 1,500 NX, got ${env.vote.rewardNx}`);
+          }
+          if (env.gameDb.accountVotePoints !== 'votepoints') {
+            throw new Error(`Expected vote-points column to default to votepoints, got ${env.gameDb.accountVotePoints}`);
           }
           NODE
 
