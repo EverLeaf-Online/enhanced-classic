@@ -1,0 +1,106 @@
+name: Stage v95 WZ binaries on Oracle
+
+on:
+  push:
+    branches:
+      - release-dev
+    paths:
+      - .github/workflows/stage-v95-wz-binaries.yml
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Download original v95 WZ binaries to private staging
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          target=/opt/everleaf/private/wz-binaries/gms-v95.4
+          mkdir -p "$target"
+          cd "$target"
+
+          files=(
+            Base.wz
+            Character.wz
+            Effect.wz
+            Etc.wz
+            Item.wz
+            List.wz
+            Map.wz
+            Mob.wz
+            Morph.wz
+            Npc.wz
+            Quest.wz
+            Reactor.wz
+            Skill.wz
+            Sound.wz
+            String.wz
+            TamingMob.wz
+          )
+
+          base='https://sourceforge.net/projects/maplestoryv95/files/MapleStory'
+          for file in "${files[@]}"; do
+            tmp="${file}.part"
+            echo "Downloading $file"
+            curl --fail --location --retry 8 --retry-delay 5 --connect-timeout 30 \
+              --user-agent 'Mozilla/5.0 EverLeaf-v95-archive' \
+              -o "$tmp" "$base/$file/download"
+            size=$(stat -c '%s' "$tmp")
+            if [ "$size" -lt 1024 ]; then
+              echo "Refusing suspiciously small download for $file: $size bytes" >&2
+              exit 1
+            fi
+            mv -f "$tmp" "$file"
+          done
+
+          sha256sum -- "${files[@]}" > SHA256SUMS.txt
+          stat -c '%n\t%s' -- "${files[@]}" > SIZES.tsv
+          printf 'source\thttps://sourceforge.net/projects/maplestoryv95/files/MapleStory/\nversion\tv95.4\ncreated_utc\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > SOURCE.tsv
+          du -sh . > TOTAL_SIZE.txt
+
+          echo '=== staged files ==='
+          cat SIZES.tsv
+          echo '=== total ==='
+          cat TOTAL_SIZE.txt
+          echo '=== sha256 ==='
+          cat SHA256SUMS.txt
+          REMOTE
+
+      - name: Verify staged WZ headers and manifest remotely
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/everleaf/private/wz-binaries/gms-v95.4
+          sha256sum -c SHA256SUMS.txt
+          test "$(find . -maxdepth 1 -type f -name '*.wz' | wc -l)" -eq 16
+          for file in *.wz; do
+            test -s "$file"
+          done
+          echo "v95 binary WZ staging verified"
+          REMOTE
