@@ -23,6 +23,9 @@ jobs:
           distribution: 'corretto'
           cache: 'maven'
 
+      - name: Apply EverLeaf configuration and SoloMapling host hooks
+        run: python3 tools/apply_everleaf_config.py
+
       - name: Checkout pinned SoloMapling v0.3
         uses: actions/checkout@v5
         with:
