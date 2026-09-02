@@ -170,7 +170,7 @@ public final class DisposableQaSmokeRunner {
             log.error("SOLOMAPLING_QA_SMOKE_RESULT FAIL error={}", t.toString(), t);
         } finally {
             if (combatTarget != null && combatTarget.isAlive() && bot.getMap() != null) {
-                bot.getMap().killMonster(combatTarget, null, false);
+                bot.getMap().killMonster(combatTarget, null, false, 1, (short) 0);
             }
             GCMovement.disable(bot);
             BotAttackDriver.clearBot(bot.getId());
