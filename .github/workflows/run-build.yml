@@ -189,6 +189,8 @@ jobs:
         run: python3 tools/audit_world_integrity.py
       - name: Audit release-facing NPC and portal integrity
         run: python3 tools/audit_world_release.py
+      - name: Audit world content completeness
+        run: python3 tools/audit_world_content_completeness.py
       - name: Review active NPC script coverage
         run: python3 tools/audit_active_npc_scripts.py
       - name: Audit portal script filename case
@@ -209,6 +211,8 @@ jobs:
         run: python3 tools/audit_quest_scripts.py
       - name: Audit quest actions and rewards
         run: python3 tools/audit_quest_actions.py
+      - name: Audit quest gameplay completeness
+        run: python3 tools/audit_quest_gameplay_completeness.py
       - name: Ensure Maven wrapper is executable
         run: chmod +x mvnw
       - name: Build with Maven (compile -> test -> package)
