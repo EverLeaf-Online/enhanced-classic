@@ -9,6 +9,7 @@ on:
       - 'tools/wz-donor/profile_item_candidates.py'
       - 'tools/wz-donor/summarize_item_profile_shapes.py'
       - 'tools/wz-donor/shortlist_etc_material_review.py'
+      - 'tools/wz-donor/cross_reference_item_shortlist.py'
       - 'tools/wz-donor/wz_diff.py'
       - 'tools/wz-donor/build_import_manifest.py'
   workflow_dispatch:
@@ -27,12 +28,10 @@ jobs:
     steps:
       - name: Checkout EverLeaf
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
@@ -42,59 +41,33 @@ jobs:
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
           chmod 600 ~/.ssh/id_everleaf
-          if [ -n "$SSH_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          else
-            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
-          fi
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
           chmod 600 ~/.ssh/known_hosts
-
       - name: Fetch validated core7 and String XML archives
         run: |
           set -euo pipefail
           remote=/opt/everleaf/private/wz-donors
           for archive in gms-v95-core7.zip gms-v95-string.zip; do
-            remote_hash="$(ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-              "set -e; cd '$remote'; test -f '$archive'; unzip -t '$archive' >/dev/null; sha256sum '$archive'" | awk '{print $1}')"
+            remote_hash="$(ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "set -e; cd '$remote'; test -f '$archive'; unzip -t '$archive' >/dev/null; sha256sum '$archive'" | awk '{print $1}')"
             test "${#remote_hash}" -eq 64
-            scp -i ~/.ssh/id_everleaf \
-              "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$remote/$archive" \
-              "$RUNNER_TEMP/$archive"
-            local_hash="$(sha256sum "$RUNNER_TEMP/$archive" | awk '{print $1}')"
-            test "$local_hash" = "$remote_hash"
-            echo "$archive SHA256: $local_hash"
+            scp -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$remote/$archive" "$RUNNER_TEMP/$archive"
+            test "$(sha256sum "$RUNNER_TEMP/$archive" | awk '{print $1}')" = "$remote_hash"
           done
-          test "$(sha256sum "$RUNNER_TEMP/gms-v95-core7.zip" | awk '{print $1}')" = \
-            '62e106f8437ce04443c797c0514e14d430fcc0a10ae4131f16567f540a8d5d3c'
+          test "$(sha256sum "$RUNNER_TEMP/gms-v95-core7.zip" | awk '{print $1}')" = '62e106f8437ce04443c797c0514e14d430fcc0a10ae4131f16567f540a8d5d3c'
           mkdir -p "$RUNNER_TEMP/gms-v95-core7" "$RUNNER_TEMP/gms-v95-string"
           unzip -q "$RUNNER_TEMP/gms-v95-core7.zip" -d "$RUNNER_TEMP/gms-v95-core7"
           unzip -q "$RUNNER_TEMP/gms-v95-string.zip" -d "$RUNNER_TEMP/gms-v95-string"
           test "$(find "$RUNNER_TEMP/gms-v95-core7" -type f -name '*.xml' | wc -l)" -eq 14527
-          string_count="$(find "$RUNNER_TEMP/gms-v95-string" -type f -name '*.xml' | wc -l)"
-          echo "String XML files: $string_count"
-          test "$string_count" -ge 5
-
+          test "$(find "$RUNNER_TEMP/gms-v95-string" -type f -name '*.xml' | wc -l)" -ge 5
       - name: Recompute filtered item manifest
         run: |
           set -euo pipefail
-          python tools/wz-donor/wz_diff.py \
-            --baseline wz \
-            --donor "$RUNNER_TEMP/gms-v95-core7" \
-            --donor-id gms-v95-core7 \
-            --output "$RUNNER_TEMP/wz-gms-v95-core7-diff.json"
-          python tools/wz-donor/build_import_manifest.py \
-            "$RUNNER_TEMP/wz-gms-v95-core7-diff.json" \
-            --output "$RUNNER_TEMP/wz-gms-v95-core7-import-manifest.json"
-
+          python tools/wz-donor/wz_diff.py --baseline wz --donor "$RUNNER_TEMP/gms-v95-core7" --donor-id gms-v95-core7 --output "$RUNNER_TEMP/wz-gms-v95-core7-diff.json"
+          python tools/wz-donor/build_import_manifest.py "$RUNNER_TEMP/wz-gms-v95-core7-diff.json" --output "$RUNNER_TEMP/wz-gms-v95-core7-import-manifest.json"
       - name: Profile item candidates with v95 String and v83 semantic parity
         run: |
           set -euo pipefail
-          python tools/wz-donor/profile_item_candidates.py \
-            "$RUNNER_TEMP/wz-gms-v95-core7-import-manifest.json" \
-            --donor "$RUNNER_TEMP/gms-v95-core7" \
-            --strings "$RUNNER_TEMP/gms-v95-string" \
-            --baseline wz \
-            --output "$RUNNER_TEMP/wz-gms-v95-item-profiles.json"
+          python tools/wz-donor/profile_item_candidates.py "$RUNNER_TEMP/wz-gms-v95-core7-import-manifest.json" --donor "$RUNNER_TEMP/gms-v95-core7" --strings "$RUNNER_TEMP/gms-v95-string" --baseline wz --output "$RUNNER_TEMP/wz-gms-v95-item-profiles.json"
           python - "$RUNNER_TEMP/wz-gms-v95-item-profiles.json" <<'PY' | tee "$RUNNER_TEMP/wz-gms-v95-simple-consume.txt"
           import json, sys
           report=json.load(open(sys.argv[1], encoding='utf-8'))
@@ -103,50 +76,25 @@ jobs:
           print('baseline duplicate index loaded:', report['baselineDuplicateIndexLoaded'])
           simple=[p for p in report['profiles'] if p['classification']=='simple-consume']
           duplicates=[p for p in report['profiles'] if p['classification']=='semantic-duplicate']
-          print('semantic-duplicate count:', len(duplicates))
-          print('simple-consume count:', len(simple))
+          print('semantic-duplicate count:', len(duplicates)); print('simple-consume count:', len(simple))
           for p in simple:
-              desc=(p.get('description') or '').replace('\n',' ').strip()
-              restore=','.join(f"{k}={v:g}" for k,v in sorted(p['restoreValues'].items()))
+              desc=(p.get('description') or '').replace('\n',' ').strip(); restore=','.join(f"{k}={v:g}" for k,v in sorted(p['restoreValues'].items()))
               print(f"{p['contentId']}\t{p.get('name') or ''}\t{restore}\t{desc}")
           PY
-
       - name: Summarize Etc structural shapes and build review-only shortlist
         run: |
           set -euo pipefail
-          python tools/wz-donor/summarize_item_profile_shapes.py \
-            "$RUNNER_TEMP/wz-gms-v95-item-profiles.json" \
-            --family Etc \
-            --sample-limit 10 \
-            --output "$RUNNER_TEMP/wz-gms-v95-etc-shapes.json" \
-            | tee "$RUNNER_TEMP/wz-gms-v95-etc-shapes.txt"
-          python tools/wz-donor/shortlist_etc_material_review.py \
-            "$RUNNER_TEMP/wz-gms-v95-item-profiles.json" \
-            --output "$RUNNER_TEMP/wz-gms-v95-etc-review-shortlist.json" \
-            | tee "$RUNNER_TEMP/wz-gms-v95-etc-review-shortlist.txt"
+          python tools/wz-donor/summarize_item_profile_shapes.py "$RUNNER_TEMP/wz-gms-v95-item-profiles.json" --family Etc --sample-limit 10 --output "$RUNNER_TEMP/wz-gms-v95-etc-shapes.json" | tee "$RUNNER_TEMP/wz-gms-v95-etc-shapes.txt"
+          python tools/wz-donor/shortlist_etc_material_review.py "$RUNNER_TEMP/wz-gms-v95-item-profiles.json" --output "$RUNNER_TEMP/wz-gms-v95-etc-review-shortlist.json" | tee "$RUNNER_TEMP/wz-gms-v95-etc-review-shortlist.txt"
+          python tools/wz-donor/cross_reference_item_shortlist.py "$RUNNER_TEMP/wz-gms-v95-etc-review-shortlist.json" --donor "$RUNNER_TEMP/gms-v95-core7" --baseline . --output "$RUNNER_TEMP/wz-gms-v95-etc-cross-references.json" | tee "$RUNNER_TEMP/wz-gms-v95-etc-cross-references.txt"
           {
-            echo '## GMS v95 conservative item profile'
-            echo
-            head -n 4 "$RUNNER_TEMP/wz-gms-v95-simple-consume.txt"
-            echo
-            echo '### First simple-consume candidates'
-            echo '```text'
-            tail -n +5 "$RUNNER_TEMP/wz-gms-v95-simple-consume.txt" | head -n 50
-            echo '```'
-            echo
-            echo '### Etc structural review'
-            echo '```text'
-            cat "$RUNNER_TEMP/wz-gms-v95-etc-shapes.txt"
-            echo '```'
-            echo
-            echo '### Review-only ordinary-looking Etc shortlist'
-            echo '```text'
-            cat "$RUNNER_TEMP/wz-gms-v95-etc-review-shortlist.txt"
-            echo '```'
-            echo
-            echo 'This shortlist is not approved and does not authorize import.'
+            echo '## GMS v95 conservative item profile'; echo; head -n 4 "$RUNNER_TEMP/wz-gms-v95-simple-consume.txt"; echo
+            echo '### First simple-consume candidates'; echo '```text'; tail -n +5 "$RUNNER_TEMP/wz-gms-v95-simple-consume.txt" | head -n 50; echo '```'; echo
+            echo '### Etc structural review'; echo '```text'; cat "$RUNNER_TEMP/wz-gms-v95-etc-shapes.txt"; echo '```'; echo
+            echo '### Review-only ordinary-looking Etc shortlist'; echo '```text'; cat "$RUNNER_TEMP/wz-gms-v95-etc-review-shortlist.txt"; echo '```'; echo
+            echo '### Cross-reference evidence for shortlist'; echo '```text'; cat "$RUNNER_TEMP/wz-gms-v95-etc-cross-references.txt"; echo '```'; echo
+            echo 'Neither the shortlist nor cross-reference report approves or authorizes import.'
           } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Upload item profile analysis
         uses: actions/upload-artifact@v4
         with:
@@ -160,5 +108,7 @@ jobs:
             ${{ runner.temp }}/wz-gms-v95-etc-shapes.txt
             ${{ runner.temp }}/wz-gms-v95-etc-review-shortlist.json
             ${{ runner.temp }}/wz-gms-v95-etc-review-shortlist.txt
+            ${{ runner.temp }}/wz-gms-v95-etc-cross-references.json
+            ${{ runner.temp }}/wz-gms-v95-etc-cross-references.txt
           retention-days: 14
           if-no-files-found: error
