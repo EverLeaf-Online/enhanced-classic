@@ -15,12 +15,13 @@
 
         <RollingFile name="File"
                      fileName="logs/${filename}.log"
-                     filePattern="logs/$${date:yyyy-MM}/$${date:yyyy-MM-dd}/${filename}-%d{yyyy-MM-dd_HH-mm-ss}-%i.log">
+                     filePattern="logs/$${date:yyyy-MM}/$${date:yyyy-MM-dd}/${filename}-%d{yyyy-MM-dd_HH-mm-ss}-%i.log.gz">
             <PatternLayout>
                 <Pattern>${standard-pattern}</Pattern>
             </PatternLayout>
             <Policies>
                 <OnStartupTriggeringPolicy minSize="0"/>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
                 <SizeBasedTriggeringPolicy size="20 MB"/>
             </Policies>
         </RollingFile>
@@ -31,41 +32,53 @@
             </PatternLayout>
         </Console>
 
-        <File name="MonitoredPacketFile" fileName="logs/monitored-packets.log">
+        <RollingFile name="MonitoredPacketFile" fileName="logs/monitored-packets.log"
+                     filePattern="logs/audit/monitored-packets-%d{yyyy-MM-dd}-%i.log.gz">
             <PatternLayout>
                 <Pattern>${standard-pattern}</Pattern>
             </PatternLayout>
-        </File>
+            <Policies><TimeBasedTriggeringPolicy/><SizeBasedTriggeringPolicy size="20 MB"/></Policies>
+        </RollingFile>
 
-        <File name="TradeFile" fileName="logs/trades.log">
+        <RollingFile name="TradeFile" fileName="logs/trades.log"
+                     filePattern="logs/audit/trades-%d{yyyy-MM-dd}-%i.log.gz">
             <PatternLayout>
                 <Pattern>${standard-pattern}</Pattern>
             </PatternLayout>
-        </File>
+            <Policies><TimeBasedTriggeringPolicy/><SizeBasedTriggeringPolicy size="20 MB"/></Policies>
+        </RollingFile>
 
-        <File name="ExpeditionFile" fileName="logs/expeditions.log">
+        <RollingFile name="ExpeditionFile" fileName="logs/expeditions.log"
+                     filePattern="logs/audit/expeditions-%d{yyyy-MM-dd}-%i.log.gz">
             <PatternLayout>
                 <Pattern>${standard-pattern}</Pattern>
             </PatternLayout>
-        </File>
+            <Policies><TimeBasedTriggeringPolicy/><SizeBasedTriggeringPolicy size="20 MB"/></Policies>
+        </RollingFile>
 
-        <File name="ChatFile" fileName="logs/chat.log">
+        <RollingFile name="ChatFile" fileName="logs/chat.log"
+                     filePattern="logs/audit/chat-%d{yyyy-MM-dd}-%i.log.gz">
             <PatternLayout>
                 <Pattern>${standard-pattern}</Pattern>
             </PatternLayout>
-        </File>
+            <Policies><TimeBasedTriggeringPolicy/><SizeBasedTriggeringPolicy size="20 MB"/></Policies>
+        </RollingFile>
 
-        <File name="GachaponFile" fileName="logs/gachapon.log">
+        <RollingFile name="GachaponFile" fileName="logs/gachapon.log"
+                     filePattern="logs/audit/gachapon-%d{yyyy-MM-dd}-%i.log.gz">
             <PatternLayout>
                 <Pattern>${standard-pattern}</Pattern>
             </PatternLayout>
-        </File>
+            <Policies><TimeBasedTriggeringPolicy/><SizeBasedTriggeringPolicy size="20 MB"/></Policies>
+        </RollingFile>
 
-        <File name="MapleLeafFile" fileName="logs/mapleleaf.log">
+        <RollingFile name="MapleLeafFile" fileName="logs/mapleleaf.log"
+                     filePattern="logs/audit/mapleleaf-%d{yyyy-MM-dd}-%i.log.gz">
             <PatternLayout>
                 <Pattern>${standard-pattern}</Pattern>
             </PatternLayout>
-        </File>
+            <Policies><TimeBasedTriggeringPolicy/><SizeBasedTriggeringPolicy size="20 MB"/></Policies>
+        </RollingFile>
     </Appenders>
 
     <Loggers>
