@@ -51,7 +51,14 @@ public final class BareBotFactory {
             throw new IllegalStateException("SoloMapling QA world/channel is not available");
         }
 
-        Character bot = Character.loadCharFromDB(templateCharacterId, BotClientHandler.getBotClient(), false);
+        // Load through EverLeaf's channel-server character path. The non-channel
+        // load path intentionally leaves Character.loggedIn=false; that is enough
+        // for damage/EXP bookkeeping, but isLoggedinWorld() remains false and the
+        // spawn-relevant loot pipeline filters the bot out. Channel loading gives
+        // the artificial player the same quest/inventory/login state normal map
+        // players have, while the headless BotClient still suppresses network and
+        // account-session side effects.
+        Character bot = Character.loadCharFromDB(templateCharacterId, BotClientHandler.getBotClient(), true);
         if (bot == null) {
             throw new IllegalStateException("Could not load QA bot template character " + templateCharacterId);
         }
@@ -74,30 +81,21 @@ public final class BareBotFactory {
         bot.setPosition(position);
         bot.setStance(5);
 
-        // loadCharFromDB does not execute the normal PlayerLoggedinHandler rate
-        // initialization. Apply the current EverLeaf world rates so bot-attributed
-        // EXP/meso/drop smoke tests use the same world multipliers as players.
+        // PlayerLoggedinHandler normally applies world rates after loading.
         bot.setWorldRates();
 
         // MapleMap.addPlayer() sends existing map objects to the joining client's
-        // player. A normal network client has this field populated by the login
-        // handler before map entry; the headless client does not. Attach the bot
-        // first so visibility checks such as sendSpawnData(client) can safely call
-        // client.getPlayer().gmLevel().
+        // player. Attach the bot before registration so headless visibility checks
+        // can safely resolve the current artificial player.
         BotClientHandler.getBotClient().setPlayer(bot);
 
         channel.addPlayer(bot);
         world.getPlayerStorage().addPlayer(bot);
-
-        // Mirror the real PlayerLoggedinHandler transition after channel/world
-        // registration. loadCharFromDB leaves awayFromWorld=true, which makes
-        // isLoggedinWorld() false. EverLeaf's spawn-relevant loot pipeline only
-        // considers characters that are actually in the channel world, so an
-        // otherwise valid headless bot could earn EXP while being excluded from
-        // the monster's relevant-drop calculation. Marking the bot entered here
-        // keeps normal Monster -> LootManager -> MapleMap drop generation intact
-        // instead of adding a bot-only drop path.
         bot.setEnteredChannelWorld();
+
+        if (!bot.isLoggedinWorld()) {
+            throw new IllegalStateException("SoloMapling QA bot failed to enter logged-in channel world state");
+        }
 
         map.addPlayer(bot);
         return bot;
