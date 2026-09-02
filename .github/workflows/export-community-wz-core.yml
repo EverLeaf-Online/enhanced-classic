@@ -21,7 +21,21 @@ env:
   COMMUNITY_WZ_ROOT: /home/ubuntu/everleaf-staging/community-wz/extracted/Community Repack WZs
 
 jobs:
+  prepare-ssh:
+    runs-on: ubuntu-24.04
+    outputs:
+      known_hosts_b64: ${{ steps.hostkeys.outputs.known_hosts_b64 }}
+    steps:
+      - name: Capture Oracle SSH host keys on Linux
+        id: hostkeys
+        run: |
+          set -euo pipefail
+          ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$RUNNER_TEMP/known_hosts"
+          test -s "$RUNNER_TEMP/known_hosts"
+          echo "known_hosts_b64=$(base64 -w0 "$RUNNER_TEMP/known_hosts")" >> "$GITHUB_OUTPUT"
+
   export-and-analyze:
+    needs: prepare-ssh
     runs-on: windows-2025
     timeout-minutes: 120
     steps:
@@ -37,19 +51,17 @@ jobs:
         shell: pwsh
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+          KNOWN_HOSTS_B64: ${{ needs.prepare-ssh.outputs.known_hosts_b64 }}
         run: |
           $ErrorActionPreference = 'Stop'
+          if (-not $env:KNOWN_HOSTS_B64) { throw 'Linux host-key capture returned no data' }
           $sshDir = Join-Path $HOME '.ssh'
           New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
           $keyPath = Join-Path $sshDir 'id_everleaf'
           [IO.File]::WriteAllText($keyPath, ($env:SSH_PRIVATE_KEY -replace "`r", "") + "`n")
           $knownHosts = Join-Path $sshDir 'known_hosts'
-          if ($env:SSH_KNOWN_HOSTS) {
-            [IO.File]::WriteAllText($knownHosts, ($env:SSH_KNOWN_HOSTS -replace "`r", "") + "`n")
-          } else {
-            ssh-keyscan -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Out-File -Encoding ascii $knownHosts
-          }
+          [IO.File]::WriteAllBytes($knownHosts, [Convert]::FromBase64String($env:KNOWN_HOSTS_B64))
+          if (-not (Test-Path $knownHosts) -or (Get-Item $knownHosts).Length -eq 0) { throw 'known_hosts is empty' }
 
       - name: Fetch only first-wave community donor families
         shell: pwsh
