@@ -14,13 +14,13 @@ def main() -> int:
     manifest={"clusterId":"fixture","donorId":"fixture-donor","mapPrefixes":["800040"],"mobPrefixes":["94004"],"itemIds":[4000337],"approved":False}
     map_xml='''<imgdir name="800040000.img"><imgdir name="life"><imgdir name="0"><string name="type" value="m"/><string name="id" value="9400400"/></imgdir><imgdir name="1"><string name="type" value="n"/><string name="id" value="9000000"/></imgdir></imgdir><imgdir name="reactor"><imgdir name="0"><string name="id" value="2001000"/></imgdir></imgdir><imgdir name="portal"><imgdir name="0"><int name="tm" value="800040100"/><string name="script" value="ninja_enter"/></imgdir><imgdir name="1"><int name="tm" value="100000000"/></imgdir></imgdir></imgdir>'''
     quest_xml='''<imgdir name="Check.img"><imgdir name="0"><imgdir name="8165"><imgdir name="0"><int name="item" value="4000337"/></imgdir><imgdir name="1"><int name="mob" value="9400400"/></imgdir></imgdir></imgdir></imgdir>'''
-    mob_xml='''<imgdir name="9400400.img"><imgdir name="info"><imgdir name="revive"><int name="0" value="9400411"/></imgdir><string name="link" value="9400399"/></imgdir></imgdir>'''
+    mob_xml='''<imgdir name="9400400.img"><imgdir name="info"><imgdir name="revive"><int name="0" value="9500000"/></imgdir><string name="link" value="9400399"/></imgdir></imgdir>'''
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp); donor=root/'donor'; baseline=root/'baseline'
         write(donor/'Map.wz'/'Map8'/'800040000.img.xml',map_xml)
         write(donor/'Map.wz'/'Map8'/'800040100.img.xml','<imgdir name="800040100.img"/>')
         write(donor/'Mob.wz'/'9400400.img.xml',mob_xml)
-        write(donor/'Mob.wz'/'9400411.img.xml','<imgdir name="9400411.img"><imgdir name="info"/></imgdir>')
+        write(donor/'Mob.wz'/'9500000.img.xml','<imgdir name="9500000.img"><imgdir name="info"/></imgdir>')
         write(donor/'Npc.wz'/'9000000.img.xml','<imgdir name="9000000.img"><imgdir name="new"/></imgdir>')
         write(donor/'Reactor.wz'/'2001000.img.xml','<imgdir name="2001000.img"/>')
         write(donor/'Quest.wz'/'Check.img.xml',quest_xml)
@@ -34,8 +34,8 @@ def main() -> int:
     assert report['counts']['maps']==2
     assert report['counts']['mapReferencedMobs']==2
     assert report['counts']['reviveDependencyMobsAdded']==1
-    assert report['reviveDependencyMobsAdded']==['9400411']
-    assert report['mobDependencies']['9400400']['reviveMobs']==['9400411']
+    assert report['reviveDependencyMobsAdded']==['9500000']
+    assert report['mobDependencies']['9400400']['reviveMobs']==['9500000']
     assert report['mobDependencies']['9400400']['linkedMobs']==['9400399']
     assert report['counts']['mapReferencedNpcs']==1
     assert report['counts']['mapReferencedReactors']==1
