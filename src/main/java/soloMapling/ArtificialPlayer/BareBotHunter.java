@@ -3,7 +3,7 @@ package soloMapling.ArtificialPlayer;
 import client.Character;
 import server.TimerManager;
 import server.life.Monster;
-import soloMapling.ArtificialPlayer.BotCommandsPack.BotAttack;
+import soloMapling.ArtificialPlayer.BotAttackSystem.BotAttackDriver;
 import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovement;
 
 import java.awt.Point;
@@ -13,54 +13,43 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 
 /**
- * Controlled autonomous combat loop for the live QA bot.
- *
- * <p>This stitches together the already-vendored SoloMapling GCMove runtime and
- * SoloMapling attack-animation helper while keeping EverLeaf's existing monster
- * damage/kill/drop path authoritative. It deliberately stays on the current map;
- * portal/travel testing remains an explicit QA action.</p>
+ * Controlled autonomous QA wrapper around SoloMapling's real GCMove + BotAttackSystem.
+ * It selects/chases targets; class/weapon attack selection, visible attack packets,
+ * cooldowns and damage are delegated to BotAttackDriver.
  */
 public final class BareBotHunter {
-    private static final long TICK_MS = 350;
-    private static final long ATTACK_COOLDOWN_MS = 850;
+    private static final long TICK_MS = 250;
     private static final double SEEK_DISTANCE_SQ = 1_400.0 * 1_400.0;
-    private static final int ATTACK_X = 95;
-    private static final int ATTACK_Y = 85;
-    private static final int APPROACH_OFFSET = 55;
-    private static final int DEFAULT_DAMAGE = 250;
+    private static final int APPROACH_MARGIN = 20;
     private static final Map<Integer, Hunt> hunts = new ConcurrentHashMap<>();
 
-    private BareBotHunter() {
-    }
+    private BareBotHunter() {}
 
     public static boolean start(Character bot) {
-        return start(bot, DEFAULT_DAMAGE);
-    }
-
-    public static boolean start(Character bot, int damage) {
-        if (bot == null || bot.getMap() == null || damage < 1 || damage > 1_000_000) {
-            return false;
-        }
+        if (bot == null || bot.getMap() == null) return false;
         stop(bot);
         BareBotAutopilot.stop(bot);
+        GCMovement.enable(bot);
 
-        Hunt hunt = new Hunt(bot, damage, bot.getMapId());
+        Hunt hunt = new Hunt(bot, bot.getMapId());
         ScheduledFuture<?> task = TimerManager.getInstance().register(hunt, TICK_MS, TICK_MS);
         hunt.task = task;
         hunts.put(bot.getId(), hunt);
         return true;
     }
 
+    /** Compatibility overload for the earlier fixed-damage QA command. */
+    public static boolean start(Character bot, int ignoredDamage) {
+        return start(bot);
+    }
+
     public static boolean stop(Character bot) {
-        if (bot == null) {
-            return false;
-        }
+        if (bot == null) return false;
         Hunt hunt = hunts.remove(bot.getId());
-        if (hunt == null) {
-            return false;
-        }
+        if (hunt == null) return false;
         hunt.cancel();
-        GCMovement.disable(bot);
+        GCMovement.stop(bot);
+        BotAttackDriver.clearBot(bot.getId());
         return true;
     }
 
@@ -70,14 +59,11 @@ public final class BareBotHunter {
 
     private static final class Hunt implements Runnable {
         private final Character bot;
-        private final int damage;
         private final int mapId;
         private volatile ScheduledFuture<?> task;
-        private long nextAttackAt;
 
-        private Hunt(Character bot, int damage, int mapId) {
+        private Hunt(Character bot, int mapId) {
             this.bot = bot;
-            this.damage = damage;
             this.mapId = mapId;
         }
 
@@ -89,59 +75,41 @@ public final class BareBotHunter {
             }
 
             Monster target = nearestMonster(bot);
-            if (target == null) {
-                return;
-            }
+            if (target == null || target.getPosition() == null || bot.getPosition() == null) return;
 
             Point botPos = bot.getPosition();
             Point mobPos = target.getPosition();
-            if (botPos == null || mobPos == null) {
-                return;
-            }
-
+            int reachX = Math.max(70, BotAttackDriver.attackReachX(bot));
+            int reachY = Math.max(60, BotAttackDriver.attackReachY(bot));
             int dx = mobPos.x - botPos.x;
             int dy = mobPos.y - botPos.y;
-            if (Math.abs(dx) > ATTACK_X || Math.abs(dy) > ATTACK_Y) {
-                int approachX = mobPos.x + (dx >= 0 ? -APPROACH_OFFSET : APPROACH_OFFSET);
+
+            if (Math.abs(dx) > Math.max(1, reachX - APPROACH_MARGIN) || Math.abs(dy) > reachY) {
+                int offset = Math.max(25, reachX - APPROACH_MARGIN);
+                int approachX = mobPos.x + (dx >= 0 ? -offset : offset);
                 try {
                     GCMovement.move(bot, approachX, mobPos.y);
                 } catch (RuntimeException ignored) {
-                    // GCMove diagnostics retain the actionable navigation failure; keep the hunt alive
-                    // so a moving monster or a later graph warmup can recover naturally.
+                    // GCMove diagnostics retain navigation failures; later ticks may recover.
                 }
                 return;
             }
 
-            boolean left = mobPos.x < botPos.x;
-            if (GCMovement.isEnabled(bot)) {
-                GCMovement.face(bot, left);
-            }
-
-            long now = System.currentTimeMillis();
-            if (now < nextAttackAt) {
-                return;
-            }
-            nextAttackAt = now + ATTACK_COOLDOWN_MS;
-
-            BotAttack.basicSwing(bot);
-            BareBotCombat.strikeNearest(bot, damage);
+            GCMovement.stop(bot);
+            BotAttackDriver.botAttack(bot);
         }
 
         private void cancel() {
-            ScheduledFuture<?> currentTask = task;
-            if (currentTask != null) {
-                currentTask.cancel(false);
-            }
+            ScheduledFuture<?> current = task;
+            if (current != null) current.cancel(false);
         }
     }
 
     private static Monster nearestMonster(Character bot) {
         Point botPos = bot.getPosition();
-        if (botPos == null) {
-            return null;
-        }
+        if (botPos == null) return null;
         return bot.getMap().getAllMonsters().stream()
-                .filter(monster -> monster != null && monster.getHp() > 0 && monster.getPosition() != null)
+                .filter(monster -> monster != null && monster.isAlive() && monster.getPosition() != null)
                 .filter(monster -> botPos.distanceSq(monster.getPosition()) <= SEEK_DISTANCE_SQ)
                 .min(Comparator.comparingDouble(monster -> botPos.distanceSq(monster.getPosition())))
                 .orElse(null);
