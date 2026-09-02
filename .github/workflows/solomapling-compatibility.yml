@@ -33,7 +33,7 @@ jobs:
           ref: 47b61b5381118ebdc1064ddbd0b1c32f75778871
           path: .solomapling-upstream
 
-      - name: Overlay pinned GCMove core sources
+      - name: Overlay exact pinned GCMove sources
         shell: bash
         run: |
           set -euo pipefail
@@ -42,17 +42,7 @@ jobs:
           mkdir -p "$target"
           cp "$upstream"/*.java "$target"/
 
-          # Keep the compatibility checkpoint focused on GCMove's physics/navigation
-          # core. These files are higher-level social/travel adapters whose external
-          # SoloMapling dependencies are intentionally integrated in the next batch.
-          rm -f \
-            "$target/BotPlayerReaction.java" \
-            "$target/GCMovement.java" \
-            "$target/GCTaxi.java" \
-            "$target/GCTravel.java" \
-            "$target/GCWorldGraph.java"
-
-      - name: Compile GCMove physics/navigation core against EverLeaf
+      - name: Compile full GCMove system against EverLeaf
         shell: bash
         run: |
           set -euo pipefail
