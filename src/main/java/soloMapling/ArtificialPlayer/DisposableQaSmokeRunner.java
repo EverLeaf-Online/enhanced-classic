@@ -6,9 +6,12 @@ import net.server.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.TimerManager;
+import server.life.LifeFactory;
+import server.life.Monster;
 import server.maps.Foothold;
 import server.maps.MapleMap;
 import server.maps.Portal;
+import soloMapling.ArtificialPlayer.BotAttackSystem.BotAttackDriver;
 import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovement;
 import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovementDiagnostics;
 import tools.DatabaseConnection;
@@ -31,6 +34,7 @@ public final class DisposableQaSmokeRunner {
     private static final String ARM_ENV = "EVERLEAF_SOLOMAPLING_SMOKE";
     private static final String ARM_TOKEN = "I_UNDERSTAND_DISPOSABLE_QA_ONLY";
     private static final String QA_DB_HOST = "qa-db";
+    private static final int COMBAT_SMOKE_MONSTER_ID = 100100; // Snail: harmless disposable QA target.
     private static final AtomicBoolean started = new AtomicBoolean(false);
 
     private DisposableQaSmokeRunner() {
@@ -106,6 +110,7 @@ public final class DisposableQaSmokeRunner {
         } catch (Throwable t) {
             if (bot != null) {
                 GCMovement.disable(bot);
+                BotAttackDriver.clearBot(bot.getId());
                 BareBotFactory.removeBareBot(bot);
             }
             log.error("SOLOMAPLING_QA_SMOKE_RESULT FAIL error={}", t.toString(), t);
@@ -113,6 +118,7 @@ public final class DisposableQaSmokeRunner {
     }
 
     private static void finish(Character bot, Point initial, Point target) {
+        Monster combatTarget = null;
         try {
             Point end = bot.getPosition() == null ? null : new Point(bot.getPosition());
             GCMovementDiagnostics.Snapshot snapshot = GCMovementDiagnostics.snapshot(bot);
@@ -123,18 +129,51 @@ public final class DisposableQaSmokeRunner {
 
             log.info("SOLOMAPLING_QA_SMOKE_FINAL {} moved={} initialDistance={} finalDistance={}",
                     GCMovementDiagnostics.describe(bot), Math.round(moved), Math.round(initialDistance), Math.round(finalDistance));
-            if (progressed) {
-                log.info("SOLOMAPLING_QA_SMOKE_RESULT PASS map={} start={} end={} target={}",
-                        bot.getMapId(), point(initial), point(end), point(target));
-            } else {
+
+            if (!progressed) {
                 log.error("SOLOMAPLING_QA_SMOKE_RESULT FAIL reason=no-progress map={} start={} end={} target={} mode={} stuckMs={} decision={} block={}",
                         bot.getMapId(), point(initial), point(end), point(target), snapshot.mode(), snapshot.stuckMs(),
                         snapshot.lastDecision(), snapshot.blockReason());
+                return;
             }
+
+            if (end == null || bot.getMap() == null) {
+                log.error("SOLOMAPLING_QA_SMOKE_RESULT FAIL reason=combat-no-bot-position");
+                return;
+            }
+
+            combatTarget = LifeFactory.getMonster(COMBAT_SMOKE_MONSTER_ID);
+            if (combatTarget == null) {
+                log.error("SOLOMAPLING_QA_SMOKE_RESULT FAIL reason=combat-monster-template-missing id={}", COMBAT_SMOKE_MONSTER_ID);
+                return;
+            }
+
+            Point combatSpawn = new Point(end.x + 35, end.y);
+            bot.getMap().spawnMonsterOnGroundBelow(combatTarget, combatSpawn);
+            long hpBefore = combatTarget.getHp();
+            BotAttackDriver.AttackResult attack = BotAttackDriver.forceSingle(bot);
+            long hpAfter = combatTarget.getHp();
+            boolean combatPassed = attack.hit() && (hpAfter < hpBefore || !combatTarget.isAlive());
+
+            log.info("SOLOMAPLING_QA_SMOKE_COMBAT hit={} monster={} damage={} killed={} hpBefore={} hpAfter={} reason={}",
+                    attack.hit(), attack.monsterName(), attack.damage(), attack.killed(), hpBefore, hpAfter, attack.reason());
+
+            if (!combatPassed) {
+                log.error("SOLOMAPLING_QA_SMOKE_RESULT FAIL reason=combat-no-damage hit={} hpBefore={} hpAfter={} attackReason={}",
+                        attack.hit(), hpBefore, hpAfter, attack.reason());
+                return;
+            }
+
+            log.info("SOLOMAPLING_QA_SMOKE_RESULT PASS map={} start={} end={} target={} combatHit=true combatDamage={}",
+                    bot.getMapId(), point(initial), point(end), point(target), attack.damage());
         } catch (Throwable t) {
             log.error("SOLOMAPLING_QA_SMOKE_RESULT FAIL error={}", t.toString(), t);
         } finally {
+            if (combatTarget != null && combatTarget.isAlive() && bot.getMap() != null) {
+                bot.getMap().killMonster(combatTarget, null, false);
+            }
             GCMovement.disable(bot);
+            BotAttackDriver.clearBot(bot.getId());
             BareBotFactory.removeBareBot(bot);
             log.info("SOLOMAPLING_QA_SMOKE_CLEANUP botRemoved=true gcMoveEnabled={}", GCMovement.isEnabled(bot));
         }
