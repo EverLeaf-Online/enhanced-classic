@@ -32,11 +32,13 @@ jobs:
           tools/wz-donor/build_import_manifest.py
           tools/wz-donor/render_review_report.py
           tools/wz-donor/profile_item_candidates.py
+          tools/wz-donor/summarize_item_profile_shapes.py
           tools/wz-donor/verify_client_server_parity.py
           tools/wz-donor/test_wz_diff.py
           tools/wz-donor/test_import_manifest.py
           tools/wz-donor/test_render_review_report.py
           tools/wz-donor/test_profile_item_candidates.py
+          tools/wz-donor/test_summarize_item_profile_shapes.py
           tools/wz-donor/test_verify_client_server_parity.py
 
       - name: Run donor regression tests
@@ -45,4 +47,5 @@ jobs:
           python tools/wz-donor/test_import_manifest.py
           python tools/wz-donor/test_render_review_report.py
           python tools/wz-donor/test_profile_item_candidates.py
+          python tools/wz-donor/test_summarize_item_profile_shapes.py
           python tools/wz-donor/test_verify_client_server_parity.py
