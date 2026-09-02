@@ -102,7 +102,9 @@ def merge_item_nodes(donor:Path,staging:Path,ids:list[str]):
     return rows
 def merge_string_file(string_donor:Path,staging:Path,filename:str,ids:list[str],replace:set[str]|None=None,require_all:bool=True):
     src=string_donor/'String.wz'/filename;dst=staging/'String.wz'/filename
-    if not src.is_file() or not dst.is_file():raise ValueError(f'String file missing {filename}')
+    if not src.is_file() or not dst.is_file():
+        if not require_all:return []
+        raise ValueError(f'String file missing {filename}')
     return merge_named_nodes_file(src,dst,ids,f'String.wz/{filename}',replace,require_all)
 def merge_quests(donor:Path,staging:Path,ids:list[str]):
     rows=[]
