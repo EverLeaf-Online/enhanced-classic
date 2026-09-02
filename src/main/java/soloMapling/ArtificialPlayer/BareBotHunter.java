@@ -16,9 +16,8 @@ import java.util.concurrent.ScheduledFuture;
 
 /**
  * Controlled autonomous QA wrapper around SoloMapling's real GCMove + BotAttackSystem.
- * It selects/chases targets, loots EverLeaf-owned drops, and keeps running through
- * transient failures; class/weapon attack selection, visible attack packets,
- * cooldowns and damage are delegated to BotAttackDriver.
+ * It selects/chases targets, maintains learned buffs, uses real inventory consumables,
+ * loots EverLeaf-owned drops, and keeps running through transient failures.
  */
 public final class BareBotHunter {
     private static final Logger log = LoggerFactory.getLogger(BareBotHunter.class);
@@ -41,7 +40,6 @@ public final class BareBotHunter {
         return true;
     }
 
-    /** Compatibility overload for the earlier fixed-damage QA command. */
     public static boolean start(Character bot, int ignoredDamage) {
         return start(bot);
     }
@@ -54,6 +52,8 @@ public final class BareBotHunter {
         GCMovement.stop(bot);
         BotAttackDriver.clearBot(bot.getId());
         BotLootDriver.clearBot(bot.getId());
+        BotBuffDriver.clearBot(bot.getId());
+        BotConsumableDriver.clearBot(bot.getId());
         return true;
     }
 
@@ -77,9 +77,6 @@ public final class BareBotHunter {
             try {
                 tick();
             } catch (Throwable t) {
-                // ScheduledExecutorService suppresses every future execution after an
-                // uncaught exception. A transient navigation/combat/loot failure must
-                // never permanently kill an active QA hunt session.
                 long now = System.currentTimeMillis();
                 if (now - lastFailureLogAt >= 5_000L) {
                     lastFailureLogAt = now;
@@ -95,20 +92,16 @@ public final class BareBotHunter {
                 return;
             }
 
-            // Loot bot-owned drops before acquiring another target. The loot driver
-            // delegates the transaction to Character.pickupItem(), so EverLeaf's
-            // normal ownership/inventory/quest/meso checks remain authoritative.
+            BotConsumableDriver.UseResult consumable = BotConsumableDriver.tick(bot);
+            if (consumable.used()) return;
+            BotBuffDriver.BuffResult buff = BotBuffDriver.tick(bot);
+            if (buff.applied()) return;
+
             BotLootDriver.LootResult loot = BotLootDriver.tick(bot);
-            if (loot.found()) {
-                return;
-            }
+            if (loot.found()) return;
 
             Monster target = nearestMonster(bot);
-            if (target == null || target.getPosition() == null || bot.getPosition() == null) {
-                // Keep the scheduled hunt alive while a map is temporarily empty so
-                // respawns can be acquired without issuing !qabot hunt start again.
-                return;
-            }
+            if (target == null || target.getPosition() == null || bot.getPosition() == null) return;
 
             Point botPos = bot.getPosition();
             Point mobPos = target.getPosition();
@@ -141,11 +134,6 @@ public final class BareBotHunter {
     private static Monster nearestMonster(Character bot) {
         Point botPos = bot.getPosition();
         if (botPos == null) return null;
-
-        // Do not impose a short seek radius here. On sparse or partially cleared maps,
-        // the nearest living target may be across the map; GCMove is responsible for
-        // deciding how to traverse toward it. Keeping acquisition map-wide prevents a
-        // healthy hunt session from appearing to stop after clearing a local cluster.
         return bot.getMap().getAllMonsters().stream()
                 .filter(monster -> monster != null && monster.isAlive() && monster.getPosition() != null)
                 .min(Comparator.comparingDouble(monster -> botPos.distanceSq(monster.getPosition())))
