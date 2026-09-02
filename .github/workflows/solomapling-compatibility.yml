@@ -85,3 +85,11 @@ jobs:
           set -euo pipefail
           chmod +x mvnw
           ./mvnw -B -DskipTests compile --file pom.xml
+
+      - name: Run focused GCMove lifecycle smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B \
+            -Dtest=soloMapling.ArtificialPlayer.GCMoveSystem.GCMovementDiagnosticsTest,soloMapling.ArtificialPlayer.GCMoveSystem.GCMovementLifecycleTest \
+            test --file pom.xml
