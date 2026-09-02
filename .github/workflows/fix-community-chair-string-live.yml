@@ -1,0 +1,119 @@
+name: Fix community chair String XML live
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/fix-community-chair-string-live.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-community-chair-live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Add chair names to live server String XML and restart
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          INS="$CURRENT/wz/String.wz/Ins.img.xml"
+          ITEM="$CURRENT/wz/Item.wz/Install/0301.img.xml"
+          BACKUP="/tmp/everleaf-chair-string-$(date +%s).xml"
+
+          test -s "$INS"
+          test -s "$ITEM"
+          for id in 3010020 3010021 3010027; do grep -q "$id" "$ITEM"; done
+          cp "$INS" "$BACKUP"
+
+          sudo python3 - "$INS" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          path = sys.argv[1]
+          entries = {
+              '3010020': ('Kotatsu', 'A cozy kotatsu chair.'),
+              '3010021': ('Wooden Tub', 'A relaxing wooden tub chair.'),
+              '3010027': ('Cheetos Flag', 'A special Cheetos flag chair.'),
+          }
+
+          tree = ET.parse(path)
+          root = tree.getroot()
+          by_id = {node.get('name'): node for node in root.findall('imgdir')}
+          for item_id, (name, desc) in entries.items():
+              node = by_id.get(item_id)
+              if node is None:
+                  node = ET.Element('imgdir', {'name': item_id})
+                  root.append(node)
+              strings = {child.get('name'): child for child in node.findall('string')}
+              name_node = strings.get('name')
+              if name_node is None:
+                  name_node = ET.SubElement(node, 'string', {'name': 'name'})
+              name_node.set('value', name)
+              desc_node = strings.get('desc')
+              if desc_node is None:
+                  desc_node = ET.SubElement(node, 'string', {'name': 'desc'})
+              desc_node.set('value', desc)
+
+          ET.indent(tree, space='  ')
+          tree.write(path + '.new', encoding='UTF-8', xml_declaration=True)
+          ET.parse(path + '.new')
+          PY
+
+          for id in 3010020 3010021 3010027; do grep -q "name=\"$id\"" "$INS.new"; done
+          sudo install -m 644 "$INS.new" "$INS"
+          rm -f "$INS.new"
+
+          rollback() {
+            echo 'Chair String XML verification failed; restoring backup.' >&2
+            sudo install -m 644 "$BACKUP" "$INS"
+            sudo systemctl restart everleaf.service || true
+          }
+          trap rollback ERR
+
+          sudo systemctl restart everleaf.service
+          for i in $(seq 1 30); do
+            if systemctl is-active --quiet everleaf.service && ss -ltn | grep -q ':8484 '; then
+              break
+            fi
+            sleep 2
+          done
+          systemctl is-active --quiet everleaf.service
+          ss -ltn | grep -q ':8484 '
+          for id in 3010020 3010021 3010027; do grep -q "name=\"$id\"" "$INS"; done
+          grep -q 'value="Kotatsu"' "$INS"
+          grep -q 'value="Wooden Tub"' "$INS"
+          grep -q 'value="Cheetos Flag"' "$INS"
+          trap - ERR
+          echo COMMUNITY_CHAIR_STRING_LIVE_OK
+          REMOTE
