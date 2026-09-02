@@ -1,0 +1,71 @@
+name: Inventory private EverLeaf client WZ assets
+
+on:
+  push:
+    branches:
+      - wz/client-wz-inventory
+    paths:
+      - '.github/workflows/inventory-private-client-wz.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inventory likely private client assets without modifying them
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' > "$RUNNER_TEMP/client-wz-inventory.txt" <<'REMOTE'
+          set -euo pipefail
+          echo '# EverLeaf private client WZ inventory'
+          echo '# Read-only search; no files copied or modified.'
+          echo
+          roots=()
+          for root in /opt/everleaf /home/ubuntu /srv/everleaf; do
+            [ -d "$root" ] && roots+=("$root")
+          done
+          if [ "${#roots[@]}" -eq 0 ]; then
+            echo 'No expected private roots found.'
+            exit 0
+          fi
+          find "${roots[@]}" -maxdepth 8 -type f \
+            \( -iname 'Item.wz' -o -iname 'String.wz' -o -iname 'EverLeaf.exe' -o -iname 'MapleStory.exe' \) \
+            -printf '%p\t%s bytes\t%TY-%Tm-%Td %TH:%TM:%TS\n' 2>/dev/null | sort
+          echo
+          echo '# Candidate client/container archives'
+          find "${roots[@]}" -maxdepth 8 -type f \
+            \( -iname '*client*.zip' -o -iname '*client*.7z' -o -iname '*client*.rar' -o -iname '*everleaf*.zip' -o -iname '*everleaf*.7z' -o -iname '*everleaf*.rar' \) \
+            -printf '%p\t%s bytes\t%TY-%Tm-%Td %TH:%TM:%TS\n' 2>/dev/null | sort | head -n 200
+          REMOTE
+          cat "$RUNNER_TEMP/client-wz-inventory.txt"
+
+      - name: Upload inventory report
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-client-wz-inventory-${{ github.sha }}
+          path: ${{ runner.temp }}/client-wz-inventory.txt
+          retention-days: 3
+          if-no-files-found: error
