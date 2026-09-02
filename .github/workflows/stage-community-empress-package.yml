@@ -89,13 +89,27 @@ jobs:
             "$PACKAGE" \
             "$RUNNER_TEMP/community-core-diff.json" \
             --output "$RUNNER_TEMP/package-evaluation.json"
-          python - "$RUNNER_TEMP/package-evaluation.json" <<'PY'
+          python tools/wz-donor/summarize_package_dependencies.py \
+            "$RUNNER_TEMP/package-evaluation.json" \
+            --output "$RUNNER_TEMP/package-dependencies.json"
+
+          python - "$RUNNER_TEMP/package-evaluation.json" "$RUNNER_TEMP/package-dependencies.json" "$GITHUB_STEP_SUMMARY" <<'PY'
           import json, sys
-          report=json.load(open(sys.argv[1], encoding='utf-8'))
-          assert report['selectedCount'] == 91, report['selectedCount']
-          assert report['missingSelectedDependencyCount'] == 0, report.get('missingSelectedDependencies')
-          assert report['counts']['missing-from-donor'] == 0, report['counts']
-          assert report['readyForImportReview'] is True, report
+          evaluation=json.load(open(sys.argv[1], encoding='utf-8'))
+          deps=json.load(open(sys.argv[2], encoding='utf-8'))
+          with open(sys.argv[3], 'a', encoding='utf-8') as out:
+              out.write('## Community Future Henesys / Empress dependency gate\n')
+              out.write(f"- Selected IDs: **{evaluation['selectedCount']}**\n")
+              out.write(f"- Donor-new: **{evaluation['counts']['donor-new']}**\n")
+              out.write(f"- Missing donor IDs: **{evaluation['counts']['missing-from-donor']}**\n")
+              out.write(f"- Unresolved references: **{deps['missingReferenceCount']}**\n")
+              out.write(f"- Unique unresolved targets: **{deps['uniqueMissingTargetCount']}**\n")
+              if deps['countsByTargetCategory']:
+                  out.write('- Unresolved by target: ' + ', '.join(f"{k}={v}" for k,v in deps['countsByTargetCategory'].items()) + '\n')
+          assert evaluation['selectedCount'] == 91, evaluation['selectedCount']
+          assert evaluation['counts']['missing-from-donor'] == 0, evaluation['counts']
+          assert evaluation['missingSelectedDependencyCount'] == 0, evaluation.get('missingSelectedDependencies')
+          assert evaluation['readyForImportReview'] is True, evaluation
           print('Package evaluation gate passed: 91 selected, none missing, dependencies satisfied.')
           PY
 
@@ -147,13 +161,15 @@ jobs:
           PY
 
       - name: Upload staging evidence only
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: community-empress-future-henesys-001-staging-${{ github.sha }}
           path: |
             ${{ runner.temp }}/community-core-diff.json
             ${{ runner.temp }}/package-evaluation.json
+            ${{ runner.temp }}/package-dependencies.json
             ${{ runner.temp }}/staging-wz/STAGING_PACKAGE_REPORT.json
             ${{ runner.temp }}/staging-diff.json
           retention-days: 14
-          if-no-files-found: error
+          if-no-files-found: warn
