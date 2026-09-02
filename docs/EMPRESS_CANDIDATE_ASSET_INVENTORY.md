@@ -2,6 +2,18 @@
 
 Source reviewed: `wz.zip` server-side WZ XML dump supplied for the Gate to the Future / Future Henesys / Knight Stronghold / Cygnus content set.
 
+## Community donor verification
+
+The supplied community XML archive is now pinned as the server-side reference for this package:
+
+- SHA-256: `fd9d788d2b658f5e91877faf9e55d0fd841c735afaab60a15e6bf203b8b3ceaa`
+- archive entries: `44,281`
+- selected Empress package server XML: `91` files (`42` maps, `34` mobs, `15` NPCs)
+
+The matching community client archive was integrity-tested before extraction and contains all 17 expected WZ families. A full hash comparison against the current EverLeaf launcher payload found 6 byte-identical WZs and 11 differing WZs. The differing families include every major client family needed by this package (`Map.wz`, `Mob.wz`, `Npc.wz`, `Reactor.wz`, `String.wz`) plus supporting `Effect.wz` and `Sound.wz`. This confirms the community pack must remain a donor: the final EverLeaf client WZs are to be merged from the selected nodes, not replaced wholesale.
+
+A staging-only GitHub/Oracle workflow now exports the first-wave donor families through MapleLib at the v83 patch format and performs the existing node-level donor diff. Nothing in this evidence step deploys or modifies the live server.
+
 ## Confirmed package scope
 
 Treat the following as one atomic content package. Do not ship only the final boss maps.
