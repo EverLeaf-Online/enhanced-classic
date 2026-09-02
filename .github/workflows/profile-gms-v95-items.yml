@@ -84,33 +84,38 @@ jobs:
             "$RUNNER_TEMP/wz-gms-v95-core7-diff.json" \
             --output "$RUNNER_TEMP/wz-gms-v95-core7-import-manifest.json"
 
-      - name: Profile item candidates with v95 String parity
+      - name: Profile item candidates with v95 String and v83 semantic parity
         run: |
           set -euo pipefail
           python tools/wz-donor/profile_item_candidates.py \
             "$RUNNER_TEMP/wz-gms-v95-core7-import-manifest.json" \
             --donor "$RUNNER_TEMP/gms-v95-core7" \
             --strings "$RUNNER_TEMP/gms-v95-string" \
+            --baseline wz \
             --output "$RUNNER_TEMP/wz-gms-v95-item-profiles.json"
           python - "$RUNNER_TEMP/wz-gms-v95-item-profiles.json" <<'PY' | tee "$RUNNER_TEMP/wz-gms-v95-simple-consume.txt"
           import json, sys
           report=json.load(open(sys.argv[1], encoding='utf-8'))
           print('classification counts:', json.dumps(report['classificationCounts'], sort_keys=True))
           print('family counts:', json.dumps(report['familyCounts'], sort_keys=True))
+          print('baseline duplicate index loaded:', report['baselineDuplicateIndexLoaded'])
           simple=[p for p in report['profiles'] if p['classification']=='simple-consume']
+          duplicates=[p for p in report['profiles'] if p['classification']=='semantic-duplicate']
+          print('semantic-duplicate count:', len(duplicates))
           print('simple-consume count:', len(simple))
           for p in simple:
               desc=(p.get('description') or '').replace('\n',' ').strip()
-              print(f"{p['contentId']}\t{p.get('name') or ''}\t{','.join(p['specProperties'])}\t{desc}")
+              restore=','.join(f"{k}={v:g}" for k,v in sorted(p['restoreValues'].items()))
+              print(f"{p['contentId']}\t{p.get('name') or ''}\t{restore}\t{desc}")
           PY
           {
             echo '## GMS v95 conservative item profile'
             echo
-            head -n 2 "$RUNNER_TEMP/wz-gms-v95-simple-consume.txt"
+            head -n 4 "$RUNNER_TEMP/wz-gms-v95-simple-consume.txt"
             echo
             echo '### First simple-consume candidates'
             echo '```text'
-            tail -n +3 "$RUNNER_TEMP/wz-gms-v95-simple-consume.txt" | head -n 50
+            tail -n +5 "$RUNNER_TEMP/wz-gms-v95-simple-consume.txt" | head -n 50
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
