@@ -17,7 +17,26 @@ env:
   EVERLEAF_DEPLOY_USER: ubuntu
 
 jobs:
+  ssh-host:
+    runs-on: ubuntu-24.04
+    outputs:
+      known_hosts: ${{ steps.keys.outputs.known_hosts }}
+    steps:
+      - name: Resolve Oracle SSH host keys
+        id: keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          keys="$(ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST")"
+          test -n "$keys"
+          {
+            echo 'known_hosts<<EOF'
+            printf '%s\n' "$keys"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
   diagnose:
+    needs: ssh-host
     runs-on: windows-2025
     timeout-minutes: 30
     steps:
@@ -33,19 +52,16 @@ jobs:
         shell: pwsh
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+          SSH_KNOWN_HOSTS: ${{ needs.ssh-host.outputs.known_hosts }}
         run: |
           $ErrorActionPreference = 'Stop'
+          if (-not $env:SSH_KNOWN_HOSTS) { throw 'Linux SSH host-key discovery returned no keys' }
           $sshDir = Join-Path $HOME '.ssh'
           New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
           $keyPath = Join-Path $sshDir 'id_everleaf'
           [IO.File]::WriteAllText($keyPath, ($env:SSH_PRIVATE_KEY -replace "`r", "") + "`n")
           $knownHosts = Join-Path $sshDir 'known_hosts'
-          if ($env:SSH_KNOWN_HOSTS) {
-            [IO.File]::WriteAllText($knownHosts, ($env:SSH_KNOWN_HOSTS -replace "`r", "") + "`n")
-          } else {
-            ssh-keyscan -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $knownHosts
-          }
+          [IO.File]::WriteAllText($knownHosts, ($env:SSH_KNOWN_HOSTS -replace "`r", "") + "`n")
 
       - name: Fetch only Character donor inputs
         shell: pwsh
