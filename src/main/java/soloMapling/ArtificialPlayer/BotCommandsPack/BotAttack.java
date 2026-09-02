@@ -30,7 +30,7 @@ public final class BotAttack {
         }
 
         Boolean gcFacing = GCMovement.isFacingLeft(chr);
-        boolean facingLeft = gcFacing != null ? gcFacing : (chr.getStance() & 1) == 0;
+        boolean facingLeft = gcFacing != null && gcFacing;
         int facingMask = facingLeft ? BotAttackData.FACING_LEFT_MASK : BotAttackData.FACING_RIGHT_MASK;
         WeaponType weaponType = resolveEquippedWeaponType(chr);
         int bodyActionId = BotAttackData.randomActionFor(weaponType);
