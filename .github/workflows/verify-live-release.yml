@@ -44,7 +44,7 @@ jobs:
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' > /tmp/live-status.txt <<'REMOTE'
           set -euo pipefail
-          SERVER_RELEASE="$(awk '{print $1}' /opt/everleaf/LAST_DEPLOYED_RELEASE 2>/dev/null || true)"
+          SERVER_RELEASE="$(awk '{print $1}' /opt/everleaf/.deployed-release 2>/dev/null || awk '{print $1}' /opt/everleaf/LAST_DEPLOYED_RELEASE 2>/dev/null || true)"
           CURRENT_RELEASE="$(readlink -f /opt/everleaf/current)"
           CLIENT_VERSION="$(node -e "const m=require('/opt/everleaf/patches/manifest.json');process.stdout.write(String(m.version))")"
           LAUNCHER_VERSION="$(node -e "const m=require('/opt/everleaf/patches/manifest.json');process.stdout.write(String(m.launcher&&m.launcher.version||''))")"
@@ -69,7 +69,7 @@ jobs:
           curl -fsS --max-time 20 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" >/dev/null
           curl -fsS --max-time 60 "https://$EVERLEAF_PUBLIC_HOST/launcher/download" -o /tmp/launcher.zip
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do curl -fsS --max-time 60 "https://$EVERLEAF_PUBLIC_HOST/patches/$f" -o "/tmp/$f"; test -s "/tmp/$f"; done
-          for port in 8484 7575 7576 7577 7578 7579 7580 7581 7582; do timeout 5 bash -c "</dev/tcp/$EVERLEAF_DEPLOY_HOST/$port"; done
+          for port in 8484 $(seq 7575 7594); do timeout 5 bash -c "</dev/tcp/$EVERLEAF_DEPLOY_HOST/$port"; done
 
       - name: Publish sanitized live status
         run: |
@@ -91,7 +91,7 @@ jobs:
           - Managed client files: \`$count/36\`
           - Game service: active
           - Internal channel verifier: passed
-          - Public login + CH1-CH8 ports: passed
+          - Public login + CH1-CH20 ports: passed
           - Public launcher download: passed
           - Public client patch endpoints: passed
           EOF
