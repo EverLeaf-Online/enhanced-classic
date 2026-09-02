@@ -6,13 +6,15 @@
   "rows": [
     {"dropperId": 9400400, "itemId": 4000337, "minimumQuantity": 1, "maximumQuantity": 1, "questId": 0, "chance": 400000, "source": "v3921358/GMS111_Scripts@6695e72027ee439e91e8ba461b79d240eaa9b0d9:数据库资料/冒险岛掉率/江户村/9400400 下忍 25.txt"},
     {"dropperId": 9400401, "itemId": 4000338, "minimumQuantity": 1, "maximumQuantity": 1, "questId": 0, "chance": 400000, "source": "v3921358/GMS111_Scripts@6695e72027ee439e91e8ba461b79d240eaa9b0d9:数据库资料/冒险岛掉率/江户村/9400401 中忍 50.txt"},
+    {"dropperId": 9400402, "itemId": 4000339, "minimumQuantity": 1, "maximumQuantity": 1, "questId": 0, "chance": 400000, "source": "v3921358/GMS111_Scripts@6695e72027ee439e91e8ba461b79d240eaa9b0d9:数据库资料/冒险岛掉率/江户村/9400402 上忍 80.txt"},
     {"dropperId": 9400403, "itemId": 4000340, "minimumQuantity": 1, "maximumQuantity": 1, "questId": 0, "chance": 400000, "source": "v3921358/GMS111_Scripts@6695e72027ee439e91e8ba461b79d240eaa9b0d9:数据库资料/冒险岛掉率/江户村/9400403 忍者头头 100.txt"},
+    {"dropperId": 9400404, "itemId": 4000341, "minimumQuantity": 1, "maximumQuantity": 1, "questId": 0, "chance": 400000, "source": "v3921358/GMS111_Scripts@6695e72027ee439e91e8ba461b79d240eaa9b0d9:数据库资料/冒险岛掉率/江户村/9400404 枪武士 30.txt"},
     {"dropperId": 9400405, "itemId": 4000342, "minimumQuantity": 1, "maximumQuantity": 1, "questId": 0, "chance": 400000, "source": "v3921358/GMS111_Scripts@6695e72027ee439e91e8ba461b79d240eaa9b0d9:数据库资料/冒险岛掉率/江户村/9400405 盔甲武士 120@.txt"},
     {"dropperId": 9400406, "itemId": 4000344, "minimumQuantity": 1, "maximumQuantity": 1, "questId": 0, "chance": 400000, "source": "v3921358/GMS111_Scripts@6695e72027ee439e91e8ba461b79d240eaa9b0d9:数据库资料/冒险岛掉率/江户村/9400406 女忍者 60.txt"},
     {"dropperId": 9400409, "itemId": 4000345, "minimumQuantity": 1, "maximumQuantity": 1, "questId": 0, "chance": 400000, "source": "v3921358/GMS111_Scripts@6695e72027ee439e91e8ba461b79d240eaa9b0d9:数据库资料/冒险岛掉率/江户村/9400409 大青蛙 180@.txt"},
     {"dropperId": 9400409, "itemId": 4000346, "minimumQuantity": 1, "maximumQuantity": 1, "questId": 0, "chance": 400000, "source": "v3921358/GMS111_Scripts@6695e72027ee439e91e8ba461b79d240eaa9b0d9:数据库资料/冒险岛掉率/江户村/9400409 大青蛙 180@.txt"}
   ],
-  "unresolvedItems": [4000339, 4000341, 4000343],
+  "unresolvedItems": [4000343],
   "bossFormPolicy": {
     "initialMobId": 9400408,
     "finalMobId": 9400409,
@@ -23,5 +25,5 @@
   "approved": false,
   "applyAllowed": false,
   "automaticApply": false,
-  "note": "Review contract only. No database rows are changed by this file. Three regional items remain unresolved and must not be synthesized."
+  "note": "Review contract only. No database rows are changed by this file. Toad Oil (4000343) remains unresolved and must not be synthesized."
 }
