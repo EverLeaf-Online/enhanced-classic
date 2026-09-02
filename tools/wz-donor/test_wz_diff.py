@@ -35,9 +35,9 @@ class WzDiffTest(unittest.TestCase):
             report = wz_diff.compare(wz_diff.inventory(baseline), wz_diff.inventory(donor))
             mobs = report["categories"]["mobs"]
 
-            self.assertEqual(["0100101"], mobs["newIds"])
-            self.assertEqual(["0100100"], mobs["collisionIds"])
-            self.assertEqual(["0100100"], mobs["changedCollisionIds"])
+            self.assertEqual(["100101"], mobs["newIds"])
+            self.assertEqual(["100100"], mobs["collisionIds"])
+            self.assertEqual(["100100"], mobs["changedCollisionIds"])
 
     def test_extracts_map_life_and_portal_dependencies(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -70,6 +70,79 @@ class WzDiffTest(unittest.TestCase):
             missing = dependencies["missingReferences"][0]
             self.assertEqual("npcs", missing["target_category"])
             self.assertEqual("9000000", missing["target_id"])
+
+    def test_grouped_item_files_inventory_real_child_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            baseline = workspace / "baseline"
+            donor = workspace / "donor"
+
+            write_xml(
+                baseline,
+                "Item.wz/Consume/0200.img.xml",
+                '''<imgdir name="0200.img">
+                  <imgdir name="02000000"><imgdir name="info"><int name="price" value="25"/></imgdir></imgdir>
+                </imgdir>''',
+            )
+            write_xml(
+                donor,
+                "Item.wz/Consume/0200.img.xml",
+                '''<imgdir name="0200.img">
+                  <imgdir name="02000000"><imgdir name="info"><int name="price" value="25"/></imgdir></imgdir>
+                  <imgdir name="02000001"><imgdir name="info"><int name="price" value="80"/></imgdir></imgdir>
+                </imgdir>''',
+            )
+
+            report = wz_diff.compare(wz_diff.inventory(baseline), wz_diff.inventory(donor))
+            items = report["categories"]["items"]
+
+            self.assertEqual(["2000001"], items["newIds"])
+            self.assertEqual(["2000000"], items["collisionIds"])
+            self.assertEqual([], items["changedCollisionIds"])
+            self.assertNotIn("200", items["newIds"])
+
+    def test_grouped_item_dependency_scan_is_scoped_to_item(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            baseline = workspace / "baseline"
+            donor = workspace / "donor"
+
+            write_xml(
+                donor,
+                "Item.wz/Etc/0400.img.xml",
+                '''<imgdir name="0400.img">
+                  <imgdir name="04000000"><int name="itemid" value="02000000"/></imgdir>
+                  <imgdir name="04000001"><int name="itemid" value="02000001"/></imgdir>
+                </imgdir>''',
+            )
+            write_xml(
+                donor,
+                "Item.wz/Consume/0200.img.xml",
+                '''<imgdir name="0200.img">
+                  <imgdir name="02000000"/>
+                  <imgdir name="02000001"/>
+                </imgdir>''',
+            )
+
+            inventory = wz_diff.inventory(donor)
+            refs = wz_diff.references_for_entry(donor, inventory["items"]["4000000"])
+
+            self.assertEqual(1, len(refs))
+            ref = next(iter(refs))
+            self.assertEqual("4000000", ref.source_id)
+            self.assertEqual("2000000", ref.target_id)
+
+    def test_single_item_file_falls_back_to_filename_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tree = Path(tmp)
+            write_xml(
+                tree,
+                "Item.wz/Pet/5000038.img.xml",
+                '<imgdir name="5000038.img"><imgdir name="info"><int name="life" value="90"/></imgdir></imgdir>',
+            )
+
+            inventory = wz_diff.inventory(tree)
+            self.assertEqual({"5000038"}, set(inventory["items"]))
 
     def test_quest_nested_ids_are_inventoried(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

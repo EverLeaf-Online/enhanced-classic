@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Iterable
 
 NUMERIC_STEM = re.compile(r"^(\d{4,10})(?:\.img)?$")
-ID_VALUE = re.compile(r"^\d{4,10}$")
+ID_VALUE = re.compile(r"^\d{1,10}$")
 
 CATEGORY_ROOTS = {
     "maps": ("Map.wz",),
@@ -71,6 +71,13 @@ class Reference:
     relative_path: str
 
 
+def canonical_id(value: str | None) -> str | None:
+    """Normalize numeric WZ IDs to the integer form used by server references."""
+    if not value or not ID_VALUE.match(value):
+        return None
+    return str(int(value))
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as fh:
@@ -79,12 +86,28 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _semantic_element(node: ET.Element) -> tuple:
+    """Return a stable XML representation that ignores formatting whitespace."""
+    text = (node.text or "").strip()
+    return (
+        node.tag,
+        tuple(sorted(node.attrib.items())),
+        text,
+        tuple(_semantic_element(child) for child in list(node)),
+    )
+
+
+def sha256_element(node: ET.Element) -> str:
+    payload = json.dumps(_semantic_element(node), ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def normalize_stem(path: Path) -> str | None:
     name = path.name
     if name.endswith(".xml"):
         name = name[:-4]
     match = NUMERIC_STEM.match(name)
-    return match.group(1) if match else None
+    return canonical_id(match.group(1)) if match else None
 
 
 def first_level_numeric_ids(path: Path) -> set[str]:
@@ -100,12 +123,43 @@ def first_level_numeric_ids(path: Path) -> set[str]:
         node, depth = frontier.pop()
         if depth > 4:
             continue
-        name = node.attrib.get("name")
-        if name and ID_VALUE.match(name):
-            found.add(name)
+        content_id = canonical_id(node.attrib.get("name"))
+        if content_id:
+            found.add(content_id)
         if depth < 4:
             frontier.extend((child, depth + 1) for child in list(node))
     return found
+
+
+def item_entries(path: Path, relative_path: str) -> list[Entry]:
+    """Inventory real Item.wz IDs rather than grouped container filenames.
+
+    Classic Item.wz families such as Consume/Install/Etc/Cash group many actual
+    items under files like ``0200.img.xml``. Their direct child imgdirs are the
+    real item IDs. Pet files are generally one item per file and therefore fall
+    back to the filename ID when no numeric direct children exist.
+    """
+    try:
+        root = ET.parse(path).getroot()
+    except (ET.ParseError, OSError):
+        return []
+
+    nested: list[Entry] = []
+    for child in list(root):
+        if child.tag != "imgdir":
+            continue
+        content_id = canonical_id(child.attrib.get("name"))
+        if not content_id:
+            continue
+        nested.append(Entry("items", content_id, relative_path, sha256_element(child)))
+
+    if nested:
+        return nested
+
+    file_id = normalize_stem(path)
+    if file_id:
+        return [Entry("items", file_id, relative_path, sha256_file(path))]
+    return []
 
 
 def iter_xml(root: Path) -> Iterable[Path]:
@@ -122,6 +176,12 @@ def inventory(tree: Path) -> dict[str, dict[str, Entry]]:
             base = tree / wz_root
             for xml_path in iter_xml(base):
                 rel = xml_path.relative_to(tree).as_posix()
+
+                if category == "items":
+                    for entry in item_entries(xml_path, rel):
+                        result[category].setdefault(entry.content_id, entry)
+                    continue
+
                 file_id = normalize_stem(xml_path)
                 digest = sha256_file(xml_path)
                 if file_id:
@@ -148,17 +208,30 @@ def _add_reference(
     property_name: str,
     relative_path: str,
 ) -> None:
-    if target_id and ID_VALUE.match(target_id):
+    normalized_target = canonical_id(target_id)
+    if normalized_target is not None:
         output.add(
             Reference(
                 source_category,
                 source_id,
                 target_category,
-                target_id,
+                normalized_target,
                 property_name,
                 relative_path,
             )
         )
+
+
+def _scope_entry_root(root: ET.Element, entry: Entry) -> ET.Element:
+    """Limit grouped Item.wz dependency scanning to the selected item node."""
+    if entry.category != "items":
+        return root
+    for child in list(root):
+        if child.tag != "imgdir":
+            continue
+        if canonical_id(child.attrib.get("name")) == entry.content_id:
+            return child
+    return root
 
 
 def references_for_entry(tree: Path, entry: Entry) -> set[Reference]:
@@ -173,6 +246,7 @@ def references_for_entry(tree: Path, entry: Entry) -> set[Reference]:
     except (ET.ParseError, OSError):
         return set()
 
+    root = _scope_entry_root(root, entry)
     refs: set[Reference] = set()
 
     for node in root.iter():
