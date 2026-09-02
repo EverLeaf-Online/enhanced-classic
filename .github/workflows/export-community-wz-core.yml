@@ -133,7 +133,7 @@ jobs:
             $destination = Join-Path $outputDir $family
             $out = [IO.File]::Open($destination, [IO.FileMode]::Create, [IO.FileAccess]::Write)
             try {
-              Get-ChildItem $familyChunks -Filter "$safe.part.*" -File | Sort-Object Name | ForEach-Object {
+              Get-ChildItem $familyChunks -Filter "everleaf-community-$safe.part.*" -File | Sort-Object Name | ForEach-Object {
                 $input = [IO.File]::OpenRead($_.FullName)
                 try { $input.CopyTo($out) } finally { $input.Dispose() }
               }
