@@ -61,6 +61,7 @@ jobs:
           set -euo pipefail
           STAGE=__STAGE__
           DONOR="__DONOR__"
+          FILES=/opt/everleaf/patches/files
           CURRENT="$(readlink -f /opt/everleaf/current)"
           BACKUP="$(cat /opt/everleaf/backups/community-wholesale-test/LATEST)"
           test -d "$BACKUP/client-files"
@@ -72,8 +73,11 @@ jobs:
           WZ_COUNT="$(find "$DONOR" -maxdepth 1 -type f -name '*.wz' | wc -l)"
           test "$WZ_COUNT" -ge 17
           for f in Character.wz Item.wz Map.wz Mob.wz Npc.wz Quest.wz Reactor.wz Skill.wz String.wz UI.wz; do test -s "$DONOR/$f"; done
+          DONOR_DEV="$(stat -c %d "$DONOR")"
+          FILES_DEV="$(stat -c %d "$FILES")"
+          test "$DONOR_DEV" = "$FILES_DEV"
           sudo rm -rf "$CURRENT/wz.community-new" "$CURRENT/wz.community-old"
-          echo "PRECHECK_OK DONOR_WZ_COUNT=$WZ_COUNT BACKUP=$BACKUP"
+          echo "PRECHECK_OK DONOR_WZ_COUNT=$WZ_COUNT BACKUP=$BACKUP DEVICE=$DONOR_DEV"
           df -h / /opt /home || true
           '@
           $script=$script.Replace('__STAGE__',$env:VERIFIED_STAGE).Replace('__DONOR__',$env:COMMUNITY_WZ_ROOT)
@@ -100,6 +104,7 @@ jobs:
           test -s "$BACKUP/client-files/EverLeaf_UI.wz"
           test -s "$STAGE/community-full-xml.zip"
           test "$(find "$DONOR" -maxdepth 1 -type f -name '*.wz' | wc -l)" -ge 17
+          test "$(stat -c %d "$DONOR")" = "$(stat -c %d "$FILES")"
           ROLLBACK=1
           rollback(){
             if [ "$ROLLBACK" = 1 ]; then
@@ -120,9 +125,9 @@ jobs:
           for d in Item.wz Map.wz Mob.wz Npc.wz Quest.wz Reactor.wz Skill.wz String.wz; do test -d "$NEW_SERVER/$d"; done
           XML_COUNT="$(find "$NEW_SERVER" -type f -name '*.xml' | wc -l)"
           test "$XML_COUNT" -gt 15000
-          echo 'Removing standard live WZs while preserving EverLeaf custom UI overlay'
+          echo 'Replacing standard live WZs with same-filesystem hardlinks to persistent VM donor files'
           sudo find "$FILES" -maxdepth 1 -type f -name '*.wz' ! -name 'EverLeaf_UI.wz' -delete
-          sudo cp -a "$DONOR/"*.wz "$FILES/"
+          sudo ln "$DONOR/"*.wz "$FILES/"
           test -s "$FILES/EverLeaf_UI.wz"
           WZ_COUNT="$(find "$FILES" -maxdepth 1 -type f -name '*.wz' | wc -l)"
           test "$WZ_COUNT" -ge 18
@@ -132,6 +137,8 @@ jobs:
           GENERATED="$STAGE/manifest.json"
           LAUNCHER_PATCH_ROOT="$PATCH" LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" LAUNCHER_MANIFEST_PATH="$GENERATED" LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" node /opt/everleaf/web/scripts/build-patch-manifest.js '__SHA__'
           sudo install -m 644 "$GENERATED" "$PATCH/manifest.json"
+          test -s "$PATCH/manifest.json"
+          cmp -s "$GENERATED" "$PATCH/manifest.json"
           sudo systemctl restart everleaf.service
           for i in $(seq 1 45); do
             if systemctl is-active --quiet everleaf.service && ss -ltn | grep -q ':8484 '; then break; fi
@@ -139,7 +146,6 @@ jobs:
           done
           systemctl is-active --quiet everleaf.service
           ss -ltn | grep -q ':8484 '
-          curl -fsS http://127.0.0.1:3000/patches/manifest.json >/dev/null
           for f in Item.wz String.wz Map.wz Mob.wz Npc.wz Skill.wz UI.wz EverLeaf_UI.wz; do test -s "$FILES/$f"; done
           ROLLBACK=0
           trap - ERR
@@ -161,6 +167,7 @@ jobs:
           CURRENT="$(readlink -f /opt/everleaf/current)"
           systemctl is-active --quiet everleaf.service
           ss -ltn | grep -q ':8484 '
+          test -s /opt/everleaf/patches/manifest.json
           WZ_COUNT="$(find /opt/everleaf/patches/files -maxdepth 1 -type f -name '*.wz' | wc -l)"
           XML_COUNT="$(find "$CURRENT/wz" -type f -name '*.xml' | wc -l)"
           test "$WZ_COUNT" -ge 18
