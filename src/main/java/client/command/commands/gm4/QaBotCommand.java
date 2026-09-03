@@ -3,6 +3,7 @@ package client.command.commands.gm4;
 import client.Character;
 import client.Client;
 import client.command.Command;
+import client.inventory.InventoryType;
 import soloMapling.ArtificialPlayer.BareBotAutopilot;
 import soloMapling.ArtificialPlayer.BareBotCombat;
 import soloMapling.ArtificialPlayer.BareBotFactory;
@@ -10,7 +11,9 @@ import soloMapling.ArtificialPlayer.BareBotHunter;
 import soloMapling.ArtificialPlayer.BareBotMovement;
 import soloMapling.ArtificialPlayer.BareBotPortal;
 import soloMapling.ArtificialPlayer.BotLootDriver;
+import soloMapling.ArtificialPlayer.BotNpcDriver;
 import soloMapling.ArtificialPlayer.BotQaProfile;
+import soloMapling.ArtificialPlayer.BotShopDriver;
 import soloMapling.ArtificialPlayer.BotAttackSystem.BotAttackDriver;
 import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovement;
 import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovementDiagnostics;
@@ -28,7 +31,7 @@ public class QaBotCommand extends Command {
     private static final Map<Integer, Character> spawnedByGm = new ConcurrentHashMap<>();
 
     {
-        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|status|job|nudge|move|gcmove|gcstop|strike|attack|hunt|patrol|portal");
+        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|status|job|npc|shop|nudge|move|gcmove|gcstop|strike|attack|hunt|patrol|portal");
     }
 
     @Override
@@ -49,6 +52,8 @@ public class QaBotCommand extends Command {
             case "remove" -> remove(c);
             case "status" -> status(c);
             case "job", "profile" -> profile(c, params);
+            case "npc" -> npc(c, params);
+            case "shop" -> shop(c, params);
             case "nudge" -> nudge(c, params);
             case "move" -> move(c, params);
             case "gcmove" -> gcMove(c, params);
@@ -134,6 +139,102 @@ public class QaBotCommand extends Command {
                 + " with " + result.learnedSkills() + " QA combat/support skills maxed.");
     }
 
+    private static void npc(Client c, String[] params) {
+        if (params.length < 2 || params.length > 3) { usage(c); return; }
+        Character bot = getBot(c);
+        if (bot == null) return;
+        String mode = params[1].toLowerCase();
+        BotNpcDriver.InteractionResult result;
+        if (mode.equals("nearest")) {
+            stopAll(bot);
+            result = BotNpcDriver.startNearest(bot);
+        } else if (mode.equals("next")) {
+            int selection = 0;
+            if (params.length == 3) {
+                try { selection = Integer.parseInt(params[2]); }
+                catch (NumberFormatException e) { c.getPlayer().yellowMessage("npc next selection must be an integer."); return; }
+            }
+            result = BotNpcDriver.next(bot, selection);
+        } else if (mode.equals("cancel")) {
+            BotNpcDriver.cancel(bot);
+            c.getPlayer().yellowMessage("QA bot NPC dialogue cancelled.");
+            return;
+        } else {
+            if (params.length != 2) { usage(c); return; }
+            int npcId;
+            try { npcId = Integer.parseInt(params[1]); }
+            catch (NumberFormatException e) { c.getPlayer().yellowMessage("npc requires nearest, next [selection], cancel, or an NPC id."); return; }
+            stopAll(bot);
+            result = BotNpcDriver.start(bot, npcId);
+        }
+        if (result.success()) {
+            c.getPlayer().yellowMessage("QA bot NPC interaction " + result.reason() + " npc=" + result.npcId()
+                    + (result.npcName().isEmpty() ? "." : " (" + result.npcName() + ")."));
+        } else {
+            c.getPlayer().yellowMessage("QA bot NPC interaction failed: " + result.reason() + ".");
+        }
+    }
+
+    private static void shop(Client c, String[] params) {
+        if (params.length < 2) { usage(c); return; }
+        Character bot = getBot(c);
+        if (bot == null) return;
+        String mode = params[1].toLowerCase();
+        try {
+            switch (mode) {
+                case "nearest", "open" -> {
+                    stopAll(bot);
+                    BotShopDriver.ShopResult result = params.length == 3
+                            ? BotShopDriver.open(bot, Integer.parseInt(params[2]))
+                            : BotShopDriver.openNearest(bot);
+                    reportShop(c, result);
+                }
+                case "buy" -> {
+                    if (params.length != 5) { usage(c); return; }
+                    BotShopDriver.ShopResult result = BotShopDriver.buy(bot,
+                            Integer.parseInt(params[2]), Integer.parseInt(params[3]), Short.parseShort(params[4]));
+                    reportShop(c, result);
+                }
+                case "sell" -> {
+                    if (params.length != 6) { usage(c); return; }
+                    InventoryType type = InventoryType.getByType(Byte.parseByte(params[3]));
+                    if (type == null || type == InventoryType.UNDEFINED || type == InventoryType.EQUIPPED) {
+                        c.getPlayer().yellowMessage("shop sell inventory type must be 1=EQUIP, 2=USE, 3=SETUP, 4=ETC, or 5=CASH.");
+                        return;
+                    }
+                    BotShopDriver.ShopResult result = BotShopDriver.sell(bot, Integer.parseInt(params[2]), type,
+                            Short.parseShort(params[4]), Short.parseShort(params[5]));
+                    reportShop(c, result);
+                }
+                case "recharge" -> {
+                    if (params.length != 4) { usage(c); return; }
+                    BotShopDriver.ShopResult result = BotShopDriver.recharge(bot,
+                            Integer.parseInt(params[2]), Short.parseShort(params[3]));
+                    reportShop(c, result);
+                }
+                case "restock" -> {
+                    if (params.length != 2) { usage(c); return; }
+                    BotShopDriver.RestockResult result = BotShopDriver.tickRestock(bot);
+                    c.getPlayer().yellowMessage("QA restock: " + result.reason()
+                            + " npc=" + result.npcId() + " bought=" + result.bought() + " recharged=" + result.recharged() + ".");
+                }
+                default -> usage(c);
+            }
+        } catch (NumberFormatException e) {
+            c.getPlayer().yellowMessage("QA shop command contains an invalid numeric value.");
+        }
+    }
+
+    private static void reportShop(Client c, BotShopDriver.ShopResult result) {
+        if (!result.success()) {
+            c.getPlayer().yellowMessage("QA shop action failed: " + result.reason() + ".");
+            return;
+        }
+        c.getPlayer().yellowMessage("QA shop " + result.reason() + ": npc=" + result.npcId()
+                + " shop=" + result.shopId() + " item=" + result.itemId()
+                + " qty=" + result.quantity() + " mesos=" + result.mesos() + ".");
+    }
+
     private static void nudge(Client c, String[] params) {
         if (params.length != 2) { usage(c); return; }
         Character bot = getBot(c);
@@ -200,12 +301,8 @@ public class QaBotCommand extends Command {
         if (bot == null) return;
         int damage = 1;
         if (params.length == 2) {
-            try {
-                damage = Integer.parseInt(params[1]);
-            } catch (NumberFormatException e) {
-                c.getPlayer().yellowMessage("strike damage must be an integer.");
-                return;
-            }
+            try { damage = Integer.parseInt(params[1]); }
+            catch (NumberFormatException e) { c.getPlayer().yellowMessage("strike damage must be an integer."); return; }
         }
         BareBotCombat.StrikeResult result = BareBotCombat.strikeNearest(bot, damage);
         if (!result.hit()) {
@@ -226,10 +323,7 @@ public class QaBotCommand extends Command {
             case "single" -> result = BotAttackDriver.forceSingle(bot);
             case "aoe" -> result = BotAttackDriver.forceAoe(bot);
             case "ult", "ultimate" -> result = BotAttackDriver.forceUltimate(bot);
-            default -> {
-                c.getPlayer().yellowMessage("attack mode must be single, aoe, or ult.");
-                return;
-            }
+            default -> { c.getPlayer().yellowMessage("attack mode must be single, aoe, or ult."); return; }
         }
         if (!result.hit()) {
             c.getPlayer().yellowMessage("QA bot attack skipped: " + result.reason());
@@ -280,19 +374,12 @@ public class QaBotCommand extends Command {
         Character bot = getBot(c);
         if (bot == null) return;
         int portalId;
-        try {
-            portalId = Integer.parseInt(params[1]);
-        } catch (NumberFormatException e) {
-            c.getPlayer().yellowMessage("portal requires an integer portal id.");
-            return;
-        }
+        try { portalId = Integer.parseInt(params[1]); }
+        catch (NumberFormatException e) { c.getPlayer().yellowMessage("portal requires an integer portal id."); return; }
         stopAll(bot);
         BareBotPortal.PortalResult result = BareBotPortal.enter(bot, portalId);
-        if (result.success()) {
-            c.getPlayer().yellowMessage("QA bot traversed portal " + portalId + ": " + result.fromMapId() + " -> " + result.toMapId() + ".");
-        } else {
-            c.getPlayer().yellowMessage("QA bot portal traversal failed: " + result.reason());
-        }
+        if (result.success()) c.getPlayer().yellowMessage("QA bot traversed portal " + portalId + ": " + result.fromMapId() + " -> " + result.toMapId() + ".");
+        else c.getPlayer().yellowMessage("QA bot portal traversal failed: " + result.reason());
     }
 
     private static void stopAll(Character bot) {
@@ -300,6 +387,7 @@ public class QaBotCommand extends Command {
         BareBotAutopilot.stop(bot);
         GCMovement.disable(bot);
         BotAttackDriver.clearBot(bot.getId());
+        BotNpcDriver.cancel(bot);
     }
 
     private static boolean onQaChannel(Client c) {
@@ -315,6 +403,6 @@ public class QaBotCommand extends Command {
     }
 
     private static void usage(Client c) {
-        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|status|job <jobId>|nudge <dx>|move <x> <y>|gcmove <x> <y>|gcstop|strike [damage]|attack [single|aoe|ult]|hunt start|stop|patrol start|stop|portal <id>");
+        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|status|job <jobId>|npc nearest|<npcId>|next [selection]|cancel|shop nearest|open [npcId]|buy <npcId> <itemId> <qty>|sell <npcId> <invType> <slot> <qty>|recharge <npcId> <useSlot>|restock|nudge <dx>|move <x> <y>|gcmove <x> <y>|gcstop|strike [damage]|attack [single|aoe|ult]|hunt start|stop|patrol start|stop|portal <id>");
     }
 }
