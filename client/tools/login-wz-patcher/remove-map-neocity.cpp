@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
     }
 
     const int expected = CountCanvases(neoCity);
-    if (expected != 32) {
+    if (expected != 41) {
         std::cerr << "Unexpected Neo City canvas count " << expected << "; refusing broad patch.\n";
         return 8;
     }
