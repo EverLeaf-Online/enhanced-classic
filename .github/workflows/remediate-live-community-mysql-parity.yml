@@ -1,0 +1,211 @@
+name: Remediate live Community MySQL parity
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/remediate-live-community-mysql-parity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh remediation-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts
+          fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+
+      - name: Apply Community mob drop parity remediation
+        run: |
+          set -euo pipefail
+          cat > /tmp/remediate-community-mysql.py <<'PY'
+          from pathlib import Path
+          import json, math, re, subprocess, xml.etree.ElementTree as ET
+
+          current = Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'], text=True).strip()) / 'wz'
+          backup = Path(Path('/opt/everleaf/backups/community-wholesale-test/LATEST').read_text().strip()) / 'server-wz-xml'
+
+          def file_ids(root, fam, minlen=4):
+              out=set()
+              for p in (root/fam).rglob('*.xml'):
+                  m=re.match(r'^(\d{%d,10})(?:\.img)?\.xml$' % minlen, p.name)
+                  if m: out.add(int(m.group(1)))
+              return out
+
+          new_mobs = file_ids(current,'Mob.wz') - file_ids(backup,'Mob.wz')
+          placed_mobs=set()
+          for p in (current/'Map.wz').rglob('*.xml'):
+              try: root=ET.parse(p).getroot()
+              except Exception: continue
+              for e in root.iter():
+                  if e.attrib.get('name') == 'id':
+                      v=e.attrib.get('value','')
+                      if v.isdigit() and int(v) in new_mobs: placed_mobs.add(int(v))
+
+          def mysql(sql):
+              return subprocess.check_output(['sudo','mysql','-NBe',sql], text=True)
+
+          existing=set(map(int, [x for x in mysql('SELECT DISTINCT dropperid FROM cosmic.drop_data').splitlines() if x.strip()]))
+          missing=sorted(placed_mobs-existing)
+
+          # Parse mob level/boss directly from the live server XML. This follows Cosmic's
+          # native MesoFetcher policy instead of inventing item tables for post-v83 mobs.
+          mob_files={}
+          for p in (current/'Mob.wz').rglob('*.xml'):
+              m=re.match(r'^(\d{4,10})(?:\.img)?\.xml$',p.name)
+              if m: mob_files[int(m.group(1))]=p
+
+          def mob_stats(mid):
+              p=mob_files.get(mid)
+              level=1; boss=False
+              if p:
+                  try:
+                      root=ET.parse(p).getroot()
+                      for e in root.iter():
+                          n=e.attrib.get('name'); v=e.attrib.get('value','')
+                          if n=='level' and v.lstrip('-').isdigit(): level=max(1,int(v))
+                          elif n=='boss' and v.lstrip('-').isdigit(): boss=int(v)!=0
+                  except Exception: pass
+              return level,boss
+
+          def meso_range(level,boss):
+              if level < 90:
+                  lo=int(30.32032228 * math.exp(0.03281144930 * level))
+                  hi=int(44.45878459 * math.exp(0.03289611686 * level))
+              else:
+                  lo=int(72.70814714 * math.exp(0.02284640619 * level))
+                  hi=int(133.8194881 * math.exp(0.02059225059 * level))
+              if boss:
+                  lo*=3; hi*=10
+              return max(1,lo),max(1,hi)
+
+          rows=[]
+          for mid in missing:
+              level,boss=mob_stats(mid)
+              lo,hi=meso_range(level,boss)
+              rows.append((mid,0,lo,hi,0,400000,level,1 if boss else 0))
+
+          # Use one transaction, and only insert if the mob still has no drop rows at commit time.
+          if rows:
+              stmts=['START TRANSACTION;']
+              for mid,item,lo,hi,quest,chance,level,boss in rows:
+                  stmts.append(
+                    f"INSERT INTO cosmic.drop_data (dropperid,itemid,minimum_quantity,maximum_quantity,questid,chance) "
+                    f"SELECT {mid},{item},{lo},{hi},{quest},{chance} FROM DUAL "
+                    f"WHERE NOT EXISTS (SELECT 1 FROM cosmic.drop_data WHERE dropperid={mid});"
+                  )
+              stmts.append('COMMIT;')
+              subprocess.check_call(['sudo','mysql'], input='\n'.join(stmts), text=True)
+
+          after=set(map(int, [x for x in mysql('SELECT DISTINCT dropperid FROM cosmic.drop_data').splitlines() if x.strip()]))
+          still_missing=sorted(placed_mobs-after)
+          inserted=[r for r in rows if r[0] in after]
+
+          # These are not auto-created: no newly placed NPC has a dedicated NPC script,
+          # so treating all 350 as merchants would corrupt shop behavior. Reactors likewise
+          # require explicit reward evidence rather than generic rows.
+          new_npcs=file_ids(current,'Npc.wz')-file_ids(backup,'Npc.wz')
+          new_reactors=file_ids(current,'Reactor.wz')-file_ids(backup,'Reactor.wz')
+          placed_npcs=set(); placed_reactors=set()
+          for p in (current/'Map.wz').rglob('*.xml'):
+              try: root=ET.parse(p).getroot()
+              except Exception: continue
+              for e in root.iter():
+                  if e.attrib.get('name')!='id': continue
+                  v=e.attrib.get('value','')
+                  if not v.isdigit(): continue
+                  x=int(v)
+                  if x in new_npcs: placed_npcs.add(x)
+                  if x in new_reactors: placed_reactors.add(x)
+
+          shop_npcs=set(map(int,[x for x in mysql('SELECT DISTINCT npcid FROM cosmic.shops').splitlines() if x.strip()]))
+          reactor_drop_ids=set(map(int,[x for x in mysql('SELECT DISTINCT reactorid FROM cosmic.reactordrops').splitlines() if x.strip()]))
+          scripted_npcs=[]
+          repo=Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'],text=True).strip())
+          for n in placed_npcs:
+              if (repo/'scripts'/'npc'/f'{n}.js').exists(): scripted_npcs.append(n)
+
+          out={
+            'policy':'Cosmic MesoFetcher-compatible baseline for newly placed Community mobs with zero SQL drop rows',
+            'placed_new_mobs':len(placed_mobs),
+            'missing_before':len(missing),
+            'meso_rows_inserted':len(inserted),
+            'missing_after':len(still_missing),
+            'still_missing_ids':still_missing,
+            'inserted_rows':[{'mob':r[0],'item':0,'min':r[2],'max':r[3],'chance':r[5],'level':r[6],'boss':bool(r[7])} for r in inserted],
+            'placed_new_npcs':len(placed_npcs),
+            'placed_new_npcs_with_shop_rows':len(placed_npcs & shop_npcs),
+            'placed_new_npcs_with_dedicated_scripts':len(scripted_npcs),
+            'npc_shop_action':'none: placement alone is not evidence an NPC is a merchant',
+            'placed_new_reactors':len(placed_reactors),
+            'placed_new_reactors_with_reactordrops':len(placed_reactors & reactor_drop_ids),
+            'reactors_without_drop_rows':sorted(placed_reactors-reactor_drop_ids),
+            'reactor_action':'none without explicit source-backed reward data',
+          }
+          print(json.dumps(out,indent=2))
+          if still_missing:
+              raise SystemExit('Community mob drop parity remediation incomplete')
+          PY
+          scp /tmp/remediate-community-mysql.py everleaf-oracle:/tmp/remediate-community-mysql.py
+          ssh everleaf-oracle 'python3 /tmp/remediate-community-mysql.py' | tee remediation-output/remediation.json
+
+      - name: Verify live database and service
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee remediation-output/verification.txt
+          set -euo pipefail
+          sudo mysql -NBe "SELECT 'drop_data',COUNT(*) FROM cosmic.drop_data UNION ALL SELECT 'drop_data_global',COUNT(*) FROM cosmic.drop_data_global UNION ALL SELECT 'reactordrops',COUNT(*) FROM cosmic.reactordrops UNION ALL SELECT 'shops',COUNT(*) FROM cosmic.shops UNION ALL SELECT 'shopitems',COUNT(*) FROM cosmic.shopitems;"
+          sudo mysql -NBe "SELECT COUNT(*) FROM cosmic.drop_data WHERE chance<=0;"
+          systemctl is-active everleaf.service
+          ss -ltn | grep ':8484 '
+          echo COMMUNITY_MYSQL_REMEDIATION_OK
+          EOF
+
+      - name: Generate rollback SQL for inserted Community baseline rows
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          d=json.load(open('remediation-output/remediation.json'))
+          ids=[str(x['mob']) for x in d.get('inserted_rows',[])]
+          with open('remediation-output/rollback.sql','w') as f:
+              f.write('-- Roll back only the meso-only rows inserted by the Community parity remediation.\n')
+              for mid in ids:
+                  f.write(f"DELETE FROM cosmic.drop_data WHERE dropperid={mid} AND itemid=0 AND questid=0 AND chance=400000;\n")
+          print('rollback rows',len(ids))
+          PY
+
+      - name: Upload remediation report
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-community-mysql-remediation-${{ github.run_id }}
+          path: remediation-output/
+          retention-days: 90
