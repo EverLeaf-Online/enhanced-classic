@@ -1,3 +1,4 @@
+# Resume-only workflow: uses already verified Community candidate and existing rollback backup.
 name: Resume full community WZ + fresh XML live test
 
 on:
