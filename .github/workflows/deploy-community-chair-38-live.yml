@@ -1,0 +1,209 @@
+name: Deploy cumulative 38-chair live set
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/deploy-community-chair-38-live.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-community-chair-live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_PUBLIC_HOST: everleafms.duckdns.org
+  COMMUNITY_WZ_ROOT: /home/ubuntu/everleaf-staging/community-wz/extracted/Community Repack WZs
+  CHAIR_BATCH_COUNT: '25'
+
+jobs:
+  deploy:
+    runs-on: windows-2025
+    timeout-minutes: 75
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+        with:
+          ref: release-dev
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if ($env:SSH_KNOWN_HOSTS) { [IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n") }
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 15
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Verify current live 13-chair state and fetch WZ sources
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'community-chair-38'; $base=Join-Path $root 'base'; $donor=Join-Path $root 'donor'
+          New-Item -ItemType Directory -Force -Path $base,$donor | Out-Null
+          $ids='3010020 3010021 3010027 3010029 3010030 3010031 3010032 3010033 3010034 3010035 3010036 3010037 3010044'
+          ssh everleaf-oracle "set -e; CURRENT=\$(readlink -f /opt/everleaf/current); I=\$CURRENT/wz/Item.wz/Install/0301.img.xml; S=\$CURRENT/wz/String.wz/Ins.img.xml; test -s /opt/everleaf/patches/files/Item.wz; test -s /opt/everleaf/patches/files/String.wz; test -s '$env:COMMUNITY_WZ_ROOT/Item.wz'; test -s '$env:COMMUNITY_WZ_ROOT/String.wz'; for id in $ids; do grep -q \"\$id\" \"\$I\"; grep -q \"\$id\" \"\$S\"; done; echo LIVE_13_BASE_OK"
+          if($LASTEXITCODE){throw 'Current live 13-chair state is not intact; refusing cumulative deploy'}
+          scp 'everleaf-oracle:/opt/everleaf/patches/files/Item.wz' (Join-Path $base 'Item.wz'); if($LASTEXITCODE){throw 'live Item.wz copy failed'}
+          scp 'everleaf-oracle:/opt/everleaf/patches/files/String.wz' (Join-Path $base 'String.wz'); if($LASTEXITCODE){throw 'live String.wz copy failed'}
+          scp "everleaf-oracle`:$env:COMMUNITY_WZ_ROOT/Item.wz" (Join-Path $donor 'Item.wz'); if($LASTEXITCODE){throw 'donor Item.wz copy failed'}
+          scp "everleaf-oracle`:$env:COMMUNITY_WZ_ROOT/String.wz" (Join-Path $donor 'String.wz'); if($LASTEXITCODE){throw 'donor String.wz copy failed'}
+
+      - name: Build MapleLib patcher and exporter
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $patchDir=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafChairPatcher'; New-Item -ItemType Directory -Force -Path $patchDir | Out-Null
+          Copy-Item tools/wz-donor/client-patcher/ChairProgram.cs (Join-Path $patchDir 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup><ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup></Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $patchDir 'EverLeafChairPatcher.csproj')
+          $exportDir=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter'; New-Item -ItemType Directory -Force -Path $exportDir | Out-Null
+          Copy-Item tools/wz-donor/exporter/Program.cs (Join-Path $exportDir 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup><ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup></Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $exportDir 'EverLeafWzExporter.csproj')
+          dotnet build (Join-Path $patchDir 'EverLeafChairPatcher.csproj') -c Release
+          dotnet build (Join-Path $exportDir 'EverLeafWzExporter.csproj') -c Release
+
+      - name: Build next 25 donor-only chairs from current live base
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'community-chair-38'; $out=Join-Path $root 'candidate'
+          dotnet run --project "$env:RUNNER_TEMP/MapleLib/EverLeafChairPatcher/EverLeafChairPatcher.csproj" -c Release --no-build -- `
+            (Join-Path $root 'base/Item.wz') (Join-Path $root 'base/String.wz') (Join-Path $root 'donor/Item.wz') (Join-Path $root 'donor/String.wz') $out $env:CHAIR_BATCH_COUNT
+          if($LASTEXITCODE){throw 'Chair WZ merge failed'}
+          Get-Content (Join-Path $out 'CHAIR_PATCH_MANIFEST.json') | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Re-export and prove exact cumulative delta
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'community-chair-38'; $project="$env:RUNNER_TEMP/MapleLib/EverLeafWzExporter/EverLeafWzExporter.csproj"
+          foreach($label in @('before','after')) {
+            $input=Join-Path $root "$label-input"; $xml=Join-Path $root "$label-xml"; New-Item -ItemType Directory -Force -Path $input,$xml | Out-Null
+            if($label -eq 'before') { Copy-Item (Join-Path $root 'base/Item.wz') (Join-Path $input 'Item.wz'); Copy-Item (Join-Path $root 'base/String.wz') (Join-Path $input 'String.wz') }
+            else { Copy-Item (Join-Path $root 'candidate/Item.wz') (Join-Path $input 'Item.wz'); Copy-Item (Join-Path $root 'candidate/String.wz') (Join-Path $input 'String.wz') }
+            dotnet run --project $project -c Release --no-build -- $input $xml --patch-version=83 --probe-patch-range=1:250 Item.wz String.wz
+            if($LASTEXITCODE){throw "$label WZ export failed"}
+          }
+          python tools/wz-donor/wz_diff.py --baseline (Join-Path $root 'before-xml') --donor (Join-Path $root 'after-xml') --donor-id community-chair-38 --skip-dependencies --output (Join-Path $root 'delta.json')
+          $manifest=Get-Content (Join-Path $root 'candidate/CHAIR_PATCH_MANIFEST.json') -Raw | ConvertFrom-Json
+          $diff=Get-Content (Join-Path $root 'delta.json') -Raw | ConvertFrom-Json
+          $selected=@($manifest.selected | ForEach-Object {[string]$_.contentId} | Sort-Object)
+          $new=@($diff.categories.items.newIds | ForEach-Object {[string]$_} | Sort-Object)
+          if(($selected -join ',') -ne ($new -join ',')){throw "Exact delta mismatch. selected=$($selected -join ',') new=$($new -join ',')"}
+          if($selected.Count -ne 25){throw "Expected exactly 25 new chairs, got $($selected.Count)"}
+          $itemXml=Join-Path $root 'after-xml/Item.wz/Install/0301.img.xml'; $stringXml=Join-Path $root 'after-xml/String.wz/Ins.img.xml'
+          if(-not (Test-Path $itemXml) -or -not (Test-Path $stringXml)){throw 'Fresh server XML missing'}
+          $all=@('3010020','3010021','3010027','3010029','3010030','3010031','3010032','3010033','3010034','3010035','3010036','3010037','3010044') + $selected
+          foreach($id in $all){ if(-not (Select-String -Path $itemXml -Pattern $id -Quiet)){throw "Fresh Item XML missing cumulative ID $id"}; if(-not (Select-String -Path $stringXml -Pattern $id -Quiet)){throw "Fresh String XML missing cumulative ID $id"} }
+          if($all.Count -ne 38){throw "Expected cumulative 38 IDs, got $($all.Count)"}
+          Write-Host "CUMULATIVE_38_EXPORT_OK"
+
+      - name: Upload verified candidate to Oracle staging
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'community-chair-38'; $remote="/tmp/everleaf-community-chair-38-${{ github.run_id }}"
+          ssh everleaf-oracle "rm -rf '$remote' && mkdir -p '$remote'"
+          scp (Join-Path $root 'candidate/Item.wz') "everleaf-oracle`:$remote/Item.wz"
+          scp (Join-Path $root 'candidate/String.wz') "everleaf-oracle`:$remote/String.wz"
+          scp (Join-Path $root 'candidate/CHAIR_PATCH_MANIFEST.json') "everleaf-oracle`:$remote/CHAIR_PATCH_MANIFEST.json"
+          scp (Join-Path $root 'after-xml/Item.wz/Install/0301.img.xml') "everleaf-oracle`:$remote/0301.img.xml"
+          scp (Join-Path $root 'after-xml/String.wz/Ins.img.xml') "everleaf-oracle`:$remote/Ins.img.xml"
+          if($LASTEXITCODE){throw 'Candidate upload failed'}
+
+      - name: Deploy cumulative 38-chair state live
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $remote="/tmp/everleaf-community-chair-38-${{ github.run_id }}"
+          $localScript=Join-Path $env:RUNNER_TEMP 'deploy-chair-38.sh'
+          $script=@'
+          set -euo pipefail
+          PATCH=/opt/everleaf/patches
+          FILES="$PATCH/files"
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          ITEM_XML="$CURRENT/wz/Item.wz/Install/0301.img.xml"
+          STRING_XML="$CURRENT/wz/String.wz/Ins.img.xml"
+          STAGE=__REMOTE__
+          BACKUP="$STAGE/backup"
+          OLD_IDS='3010020 3010021 3010027 3010029 3010030 3010031 3010032 3010033 3010034 3010035 3010036 3010037 3010044'
+          mkdir -p "$BACKUP"
+          test -s "$STAGE/Item.wz"; test -s "$STAGE/String.wz"; test -s "$STAGE/0301.img.xml"; test -s "$STAGE/Ins.img.xml"; test -s "$STAGE/CHAIR_PATCH_MANIFEST.json"
+          cp "$FILES/Item.wz" "$BACKUP/Item.wz"; cp "$FILES/String.wz" "$BACKUP/String.wz"; cp "$PATCH/manifest.json" "$BACKUP/manifest.json"; cp "$ITEM_XML" "$BACKUP/0301.img.xml"; cp "$STRING_XML" "$BACKUP/Ins.img.xml"
+          rollback(){ echo 'Cumulative 38-chair verification failed; rolling back.' >&2; sudo install -m 644 "$BACKUP/Item.wz" "$FILES/Item.wz"; sudo install -m 644 "$BACKUP/String.wz" "$FILES/String.wz"; sudo install -m 644 "$BACKUP/manifest.json" "$PATCH/manifest.json"; sudo install -m 644 "$BACKUP/0301.img.xml" "$ITEM_XML"; sudo install -m 644 "$BACKUP/Ins.img.xml" "$STRING_XML"; sudo systemctl restart everleaf.service || true; }
+          trap rollback ERR
+          sudo install -m 644 "$STAGE/Item.wz" "$FILES/Item.wz.new"; sudo install -m 644 "$STAGE/String.wz" "$FILES/String.wz.new"; sudo install -m 644 "$STAGE/0301.img.xml" "$ITEM_XML.new"; sudo install -m 644 "$STAGE/Ins.img.xml" "$STRING_XML.new"
+          sudo mv -f "$FILES/Item.wz.new" "$FILES/Item.wz"; sudo mv -f "$FILES/String.wz.new" "$FILES/String.wz"; sudo mv -f "$ITEM_XML.new" "$ITEM_XML"; sudo mv -f "$STRING_XML.new" "$STRING_XML"
+          GENERATED="$STAGE/manifest.json"
+          LAUNCHER_PATCH_ROOT="$PATCH" LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" LAUNCHER_MANIFEST_PATH="$GENERATED" LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" node /opt/everleaf/web/scripts/build-patch-manifest.js '__SHA__'
+          sudo install -m 644 "$GENERATED" "$PATCH/manifest.json"
+          sudo systemctl restart everleaf.service
+          for i in $(seq 1 30); do if systemctl is-active --quiet everleaf.service && ss -ltn | grep -q ':8484 '; then break; fi; sleep 2; done
+          systemctl is-active --quiet everleaf.service; ss -ltn | grep -q ':8484 '
+          for f in Item.wz String.wz; do expected="$(sha256sum "$FILES/$f" | awk '{print $1}')"; curl -fsS "http://127.0.0.1:3000/patches/$f" -o "$STAGE/live-$f"; actual="$(sha256sum "$STAGE/live-$f" | awk '{print $1}')"; test "$actual" = "$expected"; done
+          python3 - "$STAGE/CHAIR_PATCH_MANIFEST.json" "$ITEM_XML" "$STRING_XML" <<'PY'
+          import json,sys,xml.etree.ElementTree as ET
+          m=json.load(open(sys.argv[1],encoding='utf-8'))
+          selected=[str(x['contentId']) for x in m['selected']]
+          old='3010020 3010021 3010027 3010029 3010030 3010031 3010032 3010033 3010034 3010035 3010036 3010037 3010044'.split()
+          ids=old+selected
+          assert len(selected)==25, len(selected)
+          assert len(ids)==38, len(ids)
+          def names(path):
+              root=ET.parse(path).getroot()
+              return {e.attrib.get('name','') for e in root.iter()}
+          item_names=names(sys.argv[2]); string_names=names(sys.argv[3])
+          missing_item=[i for i in ids if i not in item_names and i.zfill(8) not in item_names]
+          missing_string=[i for i in ids if i not in string_names]
+          if missing_item or missing_string:
+              raise AssertionError(f'missing_item={missing_item} missing_string={missing_string}')
+          print('SERVER_CHAIR_38_XML_OK')
+          PY
+          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
+          trap - ERR
+          echo COMMUNITY_CHAIR_38_LIVE_OK
+          '@
+          $script=$script.Replace('__REMOTE__',$remote).Replace('__SHA__','${{ github.sha }}') -replace "`r",""
+          [IO.File]::WriteAllText($localScript,$script,(New-Object Text.UTF8Encoding($false)))
+          scp $localScript "everleaf-oracle`:$remote/deploy.sh"; if($LASTEXITCODE){throw 'deploy script upload failed'}
+          ssh everleaf-oracle "chmod +x '$remote/deploy.sh' && bash '$remote/deploy.sh'"
+          if($LASTEXITCODE){throw 'Cumulative 38-chair live deployment failed or rolled back'}
+
+      - name: Verify public launcher manifest through DuckDNS
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $m=Invoke-RestMethod -Uri "https://$env:EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" -TimeoutSec 30
+          $item=@($m.files | Where-Object {$_.path -eq 'Item.wz' -or $_.name -eq 'Item.wz'})
+          $string=@($m.files | Where-Object {$_.path -eq 'String.wz' -or $_.name -eq 'String.wz'})
+          if($item.Count -ne 1 -or $string.Count -ne 1){throw 'Public manifest missing Item.wz/String.wz'}
+          Write-Host 'PUBLIC_CHAIR_38_MANIFEST_OK'
