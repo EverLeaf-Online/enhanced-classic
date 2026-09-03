@@ -3,7 +3,8 @@ name: Deploy SoloMapling Controlled Live Smoke
 on:
   push:
     branches:
-      - feature/solomapling-qa-integration
+      - feature/solomapling-autonomous-e2e
+      - release-dev
     paths:
       - 'src/main/java/soloMapling/**'
       - 'src/main/java/client/BotClient.java'
@@ -13,7 +14,8 @@ on:
       - '.github/workflows/deploy-solomapling-live-smoke.yml'
   workflow_dispatch:
 
-# Controlled deploys always build and switch the exact feature-branch head.
+# Controlled deploys always build/test and switch the exact branch head.
+# The feature branch is the live-validation lane; release-dev is the canonical deployed lane after merge.
 concurrency:
   group: everleaf-game-production
   cancel-in-progress: false
@@ -30,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout exact feature head
+      - name: Checkout exact candidate head
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
@@ -39,7 +41,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$GITHUB_REF_NAME" = 'feature/solomapling-qa-integration'
+          case "$GITHUB_REF_NAME" in
+            feature/solomapling-autonomous-e2e|release-dev) ;;
+            *) echo "Refusing SoloMapling live deployment from branch: $GITHUB_REF_NAME" >&2; exit 1 ;;
+          esac
           echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           echo "RELEASE_SHORT=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_ENV"
           echo "RELEASE_SLOT=solomapling-live-smoke-$(git rev-parse HEAD)-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
@@ -111,7 +116,7 @@ jobs:
           echo "Current release: $(readlink -f /opt/everleaf/current)"
           REMOTE
 
-      - name: Stage exact feature release source
+      - name: Stage exact candidate release source
         shell: bash
         run: |
           set -euo pipefail
@@ -127,7 +132,7 @@ jobs:
             -e 'ssh -i ~/.ssh/id_everleaf' \
             ./ "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$RELEASE_DIR/"
 
-      - name: Preserve production configuration and build candidate
+      - name: Preserve production configuration and build/test candidate
         shell: bash
         run: |
           set -euo pipefail
@@ -167,7 +172,7 @@ jobs:
           fi
           python3 tools/audit_solomapling_qa.py
           chmod +x mvnw || true
-          ./mvnw -B -DskipTests clean package
+          ./mvnw -B clean package
           test -s target/everleaf-server-1.0-SNAPSHOT.jar
           python3 tools/verify_channel_runtime.py --help >/dev/null
           printf '%s\n' "$RELEASE_DIR" > /opt/everleaf/.candidate-release

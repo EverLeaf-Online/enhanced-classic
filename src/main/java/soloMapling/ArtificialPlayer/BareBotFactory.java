@@ -1,6 +1,7 @@
 package soloMapling.ArtificialPlayer;
 
 import client.Character;
+import client.Client;
 import net.server.Server;
 import net.server.channel.Channel;
 import net.server.world.World;
@@ -9,25 +10,42 @@ import soloMapling.server.SoloMaplingConstants;
 
 import java.awt.Point;
 import java.sql.SQLException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Minimal dependency-closed slice of SoloMapling's BotGeneration flow.
+ * Dependency-closed EverLeaf bot factory built around SoloMapling's headless-player model.
  *
- * <p>This exists only to get the first controlled EverLeaf headless-bot smoke
- * test running without pulling in decoration, chatter, Free Market, party,
- * quest, or economy systems. Unlike upstream's hard-coded character-id 2
- * template, EverLeaf requires the caller to choose an existing persisted
- * character explicitly, so no special database seed row is required.</p>
+ * <p>Each synthetic player is loaded through EverLeaf's normal Character path, but receives
+ * a collision-free high character id and a dedicated headless Client. That keeps inventory,
+ * party, trade, quest and storage APIs server-authoritative while preventing synthetic players
+ * from owning a real login/account session.</p>
  */
 public final class BareBotFactory {
     private static final AtomicInteger nextBotOffset = new AtomicInteger(100);
     private static final int MAX_SYNTHETIC_OFFSET = 99_000_000;
+    private static final Map<Integer, Registration> registrations = new ConcurrentHashMap<>();
 
-    private BareBotFactory() {
+    private BareBotFactory() {}
+
+    /** Backwards-compatible controlled QA spawn on world 0/channel 1. */
+    public static Character createBareBot(int templateCharacterId, Point position, MapleMap map) throws SQLException {
+        return createBareBot(templateCharacterId, position, map,
+                SoloMaplingConstants.GameConstants.WORLD_SCANIA,
+                SoloMaplingConstants.GameConstants.CHANNEL_1);
     }
 
-    public static Character createBareBot(int templateCharacterId, Point position, MapleMap map) throws SQLException {
+    /**
+     * Creates one isolated synthetic player in the requested world/channel.
+     * The supplied map must belong to that channel's map factory.
+     */
+    public static Character createBareBot(
+            int templateCharacterId,
+            Point position,
+            MapleMap map,
+            int worldId,
+            int channelId) throws SQLException {
         if (templateCharacterId <= 0) {
             throw new IllegalArgumentException("template character id must be positive");
         }
@@ -38,40 +56,32 @@ public final class BareBotFactory {
             throw new IllegalArgumentException("position must not be null");
         }
 
-        if (BotClientHandler.getBotClient() == null) {
-            BotClientHandler.initHeadlessBotClient();
-        }
-
         Server server = Server.getInstance();
-        Channel channel = server.getChannel(
-                SoloMaplingConstants.GameConstants.WORLD_SCANIA,
-                SoloMaplingConstants.GameConstants.CHANNEL_1);
-        World world = server.getWorld(SoloMaplingConstants.GameConstants.WORLD_SCANIA);
+        Channel channel = server.getChannel(worldId, channelId);
+        World world = server.getWorld(worldId);
         if (channel == null || world == null) {
-            throw new IllegalStateException("SoloMapling QA world/channel is not available");
+            throw new IllegalStateException("SoloMapling QA world/channel is not available: "
+                    + worldId + "/" + channelId);
         }
 
-        // Load through EverLeaf's channel-server character path. The non-channel
-        // load path intentionally leaves Character.loggedIn=false; that is enough
-        // for damage/EXP bookkeeping, but isLoggedinWorld() remains false and the
-        // spawn-relevant loot pipeline filters the bot out. Channel loading gives
-        // the artificial player the same quest/inventory/login state normal map
-        // players have, while the headless BotClient still suppresses network and
-        // account-session side effects.
-        Character bot = Character.loadCharFromDB(templateCharacterId, BotClientHandler.getBotClient(), true);
+        Client botClient = BotClientHandler.createHeadlessBotClient(worldId, channelId);
+
+        // Channel loading gives the bot the same quest/inventory/login-facing state normal
+        // map players use, while BotClient suppresses network/account-session side effects.
+        Character bot = Character.loadCharFromDB(templateCharacterId, botClient, true);
         if (bot == null) {
             throw new IllegalStateException("Could not load QA bot template character " + templateCharacterId);
         }
 
         int botId = allocateSyntheticId(channel, world);
         int displayOffset = botId - SoloMaplingConstants.GameConstants.BOT_BASE_ID;
-        bot.setClient(BotClientHandler.getBotClient());
+        bot.setClient(botClient);
         bot.setID(botId);
         bot.setName("ELQA" + displayOffset);
         bot.setFame(0);
 
-        // The persisted GM is only a visual/stat template. Do not let its cloned
-        // administrative or social state leak into the artificial player.
+        // The persisted character is only a visual/stat/template source. Never let cloned
+        // administrative or social state leak into a synthetic player.
         bot.setGMLevel(0);
         bot.setParty(null);
         bot.setMessenger(null);
@@ -80,25 +90,31 @@ public final class BareBotFactory {
         bot.setMap(map);
         bot.setPosition(position);
         bot.setStance(5);
-
-        // PlayerLoggedinHandler normally applies world rates after loading.
         bot.setWorldRates();
 
-        // MapleMap.addPlayer() sends existing map objects to the joining client's
-        // player. Attach the bot before registration so headless visibility checks
-        // can safely resolve the current artificial player.
-        BotClientHandler.getBotClient().setPlayer(bot);
+        botClient.setPlayer(bot);
+        BotClientHandler.registerBotClient(botId, botClient);
 
-        channel.addPlayer(bot);
-        world.getPlayerStorage().addPlayer(bot);
-        bot.setEnteredChannelWorld();
-
-        if (!bot.isLoggedinWorld()) {
-            throw new IllegalStateException("SoloMapling QA bot failed to enter logged-in channel world state");
+        boolean registered = false;
+        try {
+            channel.addPlayer(bot);
+            world.getPlayerStorage().addPlayer(bot);
+            bot.setEnteredChannelWorld();
+            if (!bot.isLoggedinWorld()) {
+                throw new IllegalStateException("SoloMapling QA bot failed to enter logged-in channel world state");
+            }
+            map.addPlayer(bot);
+            registrations.put(botId, new Registration(channel, world, botClient));
+            registered = true;
+            return bot;
+        } finally {
+            if (!registered) {
+                BotClientHandler.unregisterBotClient(botId);
+                botClient.setPlayer(null);
+                try { channel.removePlayer(bot); } catch (RuntimeException ignored) { }
+                try { world.getPlayerStorage().removePlayer(botId); } catch (RuntimeException ignored) { }
+            }
         }
-
-        map.addPlayer(bot);
-        return bot;
     }
 
     private static int allocateSyntheticId(Channel channel, World world) {
@@ -109,7 +125,8 @@ public final class BareBotFactory {
             }
             int candidate = SoloMaplingConstants.GameConstants.BOT_BASE_ID + offset;
             if (channel.getPlayerStorage().getCharacterById(candidate) == null
-                    && world.getPlayerStorage().getCharacterById(candidate) == null) {
+                    && world.getPlayerStorage().getCharacterById(candidate) == null
+                    && !registrations.containsKey(candidate)) {
                 return candidate;
             }
         }
@@ -117,28 +134,47 @@ public final class BareBotFactory {
     }
 
     public static void removeBareBot(Character bot) {
-        if (bot == null) {
-            return;
-        }
+        if (bot == null) return;
+
+        BareBotHunter.stop(bot);
+        BareBotAutopilot.stop(bot);
+        try {
+            soloMapling.ArtificialPlayer.GCMoveSystem.GCMovement.disable(bot);
+        } catch (RuntimeException ignored) { }
 
         if (bot.getMap() != null) {
-            bot.getMap().removePlayer(bot);
+            try { bot.getMap().removePlayer(bot); } catch (RuntimeException ignored) { }
         }
 
-        Server server = Server.getInstance();
-        Channel channel = server.getChannel(
-                SoloMaplingConstants.GameConstants.WORLD_SCANIA,
-                SoloMaplingConstants.GameConstants.CHANNEL_1);
-        World world = server.getWorld(SoloMaplingConstants.GameConstants.WORLD_SCANIA);
-        if (channel != null) {
-            channel.removePlayer(bot);
-        }
-        if (world != null) {
-            world.getPlayerStorage().removePlayer(bot.getId());
+        Registration registration = registrations.remove(bot.getId());
+        if (registration != null) {
+            try { registration.channel().removePlayer(bot); } catch (RuntimeException ignored) { }
+            try { registration.world().getPlayerStorage().removePlayer(bot.getId()); } catch (RuntimeException ignored) { }
+        } else {
+            // Compatibility fallback for a bot created by an older build before the registry existed.
+            Server server = Server.getInstance();
+            Channel channel = server.getChannel(
+                    SoloMaplingConstants.GameConstants.WORLD_SCANIA,
+                    SoloMaplingConstants.GameConstants.CHANNEL_1);
+            World world = server.getWorld(SoloMaplingConstants.GameConstants.WORLD_SCANIA);
+            if (channel != null) {
+                try { channel.removePlayer(bot); } catch (RuntimeException ignored) { }
+            }
+            if (world != null) {
+                try { world.getPlayerStorage().removePlayer(bot.getId()); } catch (RuntimeException ignored) { }
+            }
         }
 
-        if (BotClientHandler.getBotClient() != null && BotClientHandler.getBotClient().getPlayer() == bot) {
-            BotClientHandler.getBotClient().setPlayer(null);
+        Client client = BotClientHandler.unregisterBotClient(bot.getId());
+        if (client == null) client = bot.getClient();
+        if (client != null && client.getPlayer() == bot) {
+            client.setPlayer(null);
         }
     }
+
+    public static int activeBotCount() {
+        return registrations.size();
+    }
+
+    private record Registration(Channel channel, World world, Client client) {}
 }

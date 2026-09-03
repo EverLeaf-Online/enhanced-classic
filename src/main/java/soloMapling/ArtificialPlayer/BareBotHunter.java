@@ -205,10 +205,18 @@ public final class BareBotHunter {
         }
 
         private void beginShopTrip() {
-            int townMapId = bot.getMap().getReturnMapId();
-            if (townMapId <= 0 || townMapId == bot.getMapId()) return;
+            int destinationMapId = BotShopMapSelector.select(bot);
+            if (destinationMapId <= 0) {
+                log.warn("SoloMapling QA could not resolve a restock destination bot={} map={}",
+                        bot.getId(), bot.getMapId());
+                return;
+            }
+            if (destinationMapId == bot.getMapId()) {
+                phase = Phase.SHOPPING;
+                return;
+            }
             stopTransientState();
-            shopMapId = townMapId;
+            shopMapId = destinationMapId;
             phase = Phase.TO_SHOP;
             startTravel(shopMapId, Phase.TO_SHOP);
         }
@@ -227,6 +235,11 @@ public final class BareBotHunter {
             if (bot.getMapId() == trainingMapId) {
                 if (trainingPosition != null) GCMovement.move(bot, trainingPosition.x, trainingPosition.y, this::resumeHunting);
                 else resumeHunting();
+                return;
+            }
+            if (trainingPosition == null) {
+                GCMovement.travel(bot, trainingMapId,
+                        ok -> { if (ok) resumeHunting(); else scheduleTravelRetry(); });
                 return;
             }
             GCMovement.travelTo(bot, trainingMapId, trainingPosition.x, trainingPosition.y,
