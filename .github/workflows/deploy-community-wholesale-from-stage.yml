@@ -1,4 +1,4 @@
-# Resume-only workflow: uses already verified Community candidate and existing rollback backup.
+# Resume-only workflow: uses existing verified XML candidate, donor WZs already on Oracle, and existing rollback backup.
 name: Resume full community WZ + fresh XML live test
 
 on:
@@ -18,6 +18,7 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   VERIFIED_STAGE: /home/ubuntu/everleaf-staging/community-wholesale-live-33701797136
+  COMMUNITY_WZ_ROOT: /home/ubuntu/everleaf-staging/community-wz/extracted/Community Repack WZs
 
 jobs:
   resume-wholesale:
@@ -52,39 +53,41 @@ jobs:
             ConnectTimeout 20
           '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
 
-      - name: Verify rollback state and free stale staging space
+      - name: Verify existing rollback, donor WZs, and XML candidate
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $script=@'
           set -euo pipefail
           STAGE=__STAGE__
+          DONOR=__DONOR__
           CURRENT="$(readlink -f /opt/everleaf/current)"
           BACKUP="$(cat /opt/everleaf/backups/community-wholesale-test/LATEST)"
           test -d "$BACKUP/client-files"
           test -d "$BACKUP/server-wz-xml"
           test -s "$BACKUP/manifest.json"
-          test -d "$STAGE/wz"
           test -s "$STAGE/community-full-xml.zip"
-          test "$(find "$STAGE/wz" -maxdepth 1 -type f -name '*.wz' | wc -l)" -ge 17
+          test -d "$DONOR"
+          WZ_COUNT="$(find "$DONOR" -maxdepth 1 -type f -name '*.wz' | wc -l)"
+          test "$WZ_COUNT" -ge 17
+          for f in Character.wz Item.wz Map.wz Mob.wz Npc.wz Quest.wz Reactor.wz Skill.wz String.wz; do test -s "$DONOR/$f"; done
           sudo rm -rf "$CURRENT/wz.community-new" "$CURRENT/wz.community-old"
-          sudo rm -rf /home/ubuntu/everleaf-staging/community-wholesale-live-33700668919
-          echo "DISK_BEFORE_DEPLOY"
+          echo "PRECHECK_OK DONOR_WZ_COUNT=$WZ_COUNT BACKUP=$BACKUP"
           df -h / /opt /home || true
-          echo "ROLLBACK_READY=$BACKUP"
           '@
-          $script=$script.Replace('__STAGE__',$env:VERIFIED_STAGE)
+          $script=$script.Replace('__STAGE__',$env:VERIFIED_STAGE).Replace('__DONOR__',$env:COMMUNITY_WZ_ROOT)
           $tmp=Join-Path $env:RUNNER_TEMP 'prepare-wholesale-resume.sh'; [IO.File]::WriteAllText($tmp,($script -replace "`r",''))
           scp $tmp 'everleaf-oracle:/tmp/prepare-wholesale-resume.sh'; if($LASTEXITCODE){throw 'prepare script upload failed'}
           ssh everleaf-oracle "bash /tmp/prepare-wholesale-resume.sh"; if($LASTEXITCODE){throw 'prepare failed'}
 
-      - name: Install verified Community WZ and fresh XML candidate
+      - name: Install Community WZs from VM donor and verified fresh XML
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $script=@'
           set -euo pipefail
           STAGE=__STAGE__
+          DONOR=__DONOR__
           PATCH=/opt/everleaf/patches
           FILES="$PATCH/files"
           CURRENT="$(readlink -f /opt/everleaf/current)"
@@ -93,11 +96,8 @@ jobs:
           test -d "$BACKUP/client-files"
           test -d "$BACKUP/server-wz-xml"
           test -s "$BACKUP/manifest.json"
-          test -d "$STAGE/wz"
           test -s "$STAGE/community-full-xml.zip"
-          SRC_DEV="$(stat -c %d "$STAGE/wz")"
-          DST_DEV="$(stat -c %d "$FILES")"
-          echo "STAGE_DEVICE=$SRC_DEV FILES_DEVICE=$DST_DEV"
+          test "$(find "$DONOR" -maxdepth 1 -type f -name '*.wz' | wc -l)" -ge 17
           ROLLBACK=1
           rollback(){
             if [ "$ROLLBACK" = 1 ]; then
@@ -118,14 +118,9 @@ jobs:
           for d in Item.wz Map.wz Mob.wz Npc.wz Quest.wz Reactor.wz Skill.wz String.wz; do test -d "$NEW_SERVER/$d"; done
           XML_COUNT="$(find "$NEW_SERVER" -type f -name '*.xml' | wc -l)"
           test "$XML_COUNT" -gt 15000
+          echo 'Removing old live WZs before copying donor set to avoid duplicate live storage'
           sudo find "$FILES" -maxdepth 1 -type f -name '*.wz' -delete
-          if [ "$SRC_DEV" = "$DST_DEV" ]; then
-            echo 'Installing WZs by same-filesystem rename to avoid duplicate disk usage'
-            sudo mv "$STAGE/wz/"*.wz "$FILES/"
-          else
-            echo 'Installing WZs by copy after old live WZ removal'
-            sudo cp -a "$STAGE/wz/"*.wz "$FILES/"
-          fi
+          sudo cp -a "$DONOR/"*.wz "$FILES/"
           WZ_COUNT="$(find "$FILES" -maxdepth 1 -type f -name '*.wz' | wc -l)"
           test "$WZ_COUNT" -ge 17
           sudo rm -rf "$SERVER_WZ.community-old"
@@ -149,7 +144,7 @@ jobs:
           echo "COMMUNITY_WHOLESALE_LIVE_OK WZ_COUNT=$WZ_COUNT XML_COUNT=$XML_COUNT BACKUP=$BACKUP"
           df -h / /opt /home || true
           '@
-          $script=$script.Replace('__STAGE__',$env:VERIFIED_STAGE).Replace('__SHA__','${{ github.sha }}')
+          $script=$script.Replace('__STAGE__',$env:VERIFIED_STAGE).Replace('__DONOR__',$env:COMMUNITY_WZ_ROOT).Replace('__SHA__','${{ github.sha }}')
           $tmp=Join-Path $env:RUNNER_TEMP 'deploy-wholesale-resume.sh'; [IO.File]::WriteAllText($tmp,($script -replace "`r",''))
           scp $tmp 'everleaf-oracle:/tmp/deploy-wholesale-resume.sh'; if($LASTEXITCODE){throw 'deploy script upload failed'}
           ssh everleaf-oracle "bash /tmp/deploy-wholesale-resume.sh"; if($LASTEXITCODE){throw 'wholesale deploy failed or rolled back'}
