@@ -1,0 +1,160 @@
+name: Audit live master status 2026-09-03
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-live-master-status-20260903.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh audit-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts
+          fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+
+      - name: Snapshot live server and content status
+        run: |
+          set -euo pipefail
+          cat > /tmp/live-master-audit.py <<'PY'
+          from pathlib import Path
+          import json, os, re, subprocess, xml.etree.ElementTree as ET
+
+          def sh(cmd):
+              return subprocess.check_output(cmd, shell=True, text=True, stderr=subprocess.STDOUT).strip()
+          def q(sql):
+              return sh("sudo mysql -NBe " + repr(sql)).splitlines()
+          root=Path(sh('readlink -f /opt/everleaf/current'))
+          wz=root/'wz'
+          scripts=root/'scripts'
+          report={}
+          report['release_root']=str(root)
+          report['service']=sh('systemctl is-active everleaf.service')
+          report['port_8484']=bool(sh("ss -ltn | grep ':8484 ' || true"))
+          report['disk_free_gb']=round(int(sh("df -B1 /opt/everleaf | awk 'NR==2{print $4}'"))/1024**3,2)
+          report['wz_files']=sorted(p.name for p in Path('/opt/everleaf/patches/files').glob('*.wz'))
+          report['wz_file_count']=len(report['wz_files'])
+          report['xml_total']=sum(1 for _ in wz.rglob('*.xml'))
+
+          fams=['Map.wz','Mob.wz','Npc.wz','Item.wz','Character.wz','Skill.wz','Reactor.wz','Quest.wz']
+          report['xml_by_family']={f:sum(1 for _ in (wz/f).rglob('*.xml')) if (wz/f).exists() else 0 for f in fams}
+          def file_ids(fam):
+              out=set()
+              base=wz/fam
+              if not base.exists(): return out
+              for p in base.rglob('*.xml'):
+                  m=re.match(r'^(\d{4,10})(?:\.img)?\.xml$',p.name)
+                  if m: out.add(int(m.group(1)))
+              return out
+          map_ids=file_ids('Map.wz'); mob_ids=file_ids('Mob.wz'); npc_ids=file_ids('Npc.wz'); reactor_ids=file_ids('Reactor.wz')
+          report['id_counts']={'maps':len(map_ids),'mobs':len(mob_ids),'npcs':len(npc_ids),'reactors':len(reactor_ids)}
+
+          future_maps=sorted(i for i in map_ids if 271000000 <= i <= 271999999)
+          future_mobs=sorted(i for i in mob_ids if 8600000 <= i <= 8699999)
+          empress_mobs=sorted(i for i in mob_ids if 8850000 <= i <= 8859999)
+          report['future_henesys']={'maps':len(future_maps),'sample_maps':future_maps[:20],'future_mobs':len(future_mobs),'empress_mobs':empress_mobs}
+
+          placed_mobs=set(); placed_npcs=set(); placed_reactors=set(); portals=0; mob_spawns=0; npc_spawns=0
+          future_portal_maps=set(); future_npc_ids=set(); future_mob_ids=set()
+          for p in (wz/'Map.wz').rglob('*.xml'):
+              fm=re.match(r'^(\d{9})(?:\.img)?\.xml$',p.name)
+              mid=int(fm.group(1)) if fm else None
+              try: x=ET.parse(p).getroot()
+              except Exception: continue
+              for node in x.iter():
+                  name=node.attrib.get('name',''); val=node.attrib.get('value','')
+                  if name=='id' and val.isdigit():
+                      z=int(val)
+                      if z in mob_ids: placed_mobs.add(z); mob_spawns += 1
+                      if z in npc_ids: placed_npcs.add(z); npc_spawns += 1
+                      if z in reactor_ids: placed_reactors.add(z)
+                      if mid and 271000000 <= mid <= 271999999:
+                          if z in mob_ids: future_mob_ids.add(z)
+                          if z in npc_ids: future_npc_ids.add(z)
+                  if name=='pn':
+                      portals += 1
+                      if mid and 271000000 <= mid <= 271999999: future_portal_maps.add(mid)
+          report['world']={'placed_unique_mobs':len(placed_mobs),'placed_unique_npcs':len(placed_npcs),'placed_unique_reactors':len(placed_reactors),'mob_id_nodes':mob_spawns,'npc_id_nodes':npc_spawns,'portal_nodes':portals}
+          report['future_henesys'].update({'maps_with_portal_nodes':len(future_portal_maps),'placed_unique_mobs':len(future_mob_ids),'placed_unique_npcs':len(future_npc_ids)})
+
+          script_dir=scripts/'npc'
+          report['npc_scripts']={'total_files':sum(1 for _ in script_dir.glob('*.js')) if script_dir.exists() else 0,
+                                 'placed_with_same_id_script':sum(1 for n in placed_npcs if (script_dir/f'{n}.js').exists()) if script_dir.exists() else 0}
+          event_dir=scripts/'event'
+          report['event_scripts']={'count':sum(1 for _ in event_dir.glob('*.js')) if event_dir.exists() else 0,
+                                   'empress_named':[p.name for p in event_dir.glob('*.js') if any(k in p.name.lower() for k in ('cygnus','empress','shinsoo'))][:30] if event_dir.exists() else []}
+          reactor_dir=scripts/'reactor'
+          report['reactor_scripts']={'count':sum(1 for _ in reactor_dir.glob('*.js')) if reactor_dir.exists() else 0,
+                                     'boss_named':[p.name for p in reactor_dir.glob('*.js') if any(k in p.name.lower() for k in ('chaos','boss','tree','cygnus','empress'))][:50] if reactor_dir.exists() else []}
+
+          report['db']={
+            'drop_data':int(q('SELECT COUNT(*) FROM cosmic.drop_data')[0]),
+            'drop_data_global':int(q('SELECT COUNT(*) FROM cosmic.drop_data_global')[0]),
+            'reactordrops':int(q('SELECT COUNT(*) FROM cosmic.reactordrops')[0]),
+            'shops':int(q('SELECT COUNT(*) FROM cosmic.shops')[0]),
+            'shopitems':int(q('SELECT COUNT(*) FROM cosmic.shopitems')[0]),
+            'nonpositive_drop_rows':int(q('SELECT COUNT(*) FROM cosmic.drop_data WHERE chance<=0')[0]),
+            'placed_mobs_without_drop_data':len(placed_mobs-set(map(int,q('SELECT DISTINCT dropperid FROM cosmic.drop_data')))),
+            'placed_npcs_with_shop':len(placed_npcs & set(map(int,q('SELECT DISTINCT npcid FROM cosmic.shops')))),
+            'placed_reactors_with_reactordrops':len(placed_reactors & set(map(int,q('SELECT DISTINCT reactorid FROM cosmic.reactordrops')))),
+          }
+          report['empress_sql']={
+            '8850010_rows':int(q('SELECT COUNT(*) FROM cosmic.drop_data WHERE dropperid=8850010')[0]),
+            '8850011_rows':int(q('SELECT COUNT(*) FROM cosmic.drop_data WHERE dropperid=8850011')[0])
+          }
+          report['health_ok']=report['service']=='active' and report['port_8484'] and report['db']['nonpositive_drop_rows']==0
+          print(json.dumps(report,indent=2,sort_keys=True))
+          PY
+          scp /tmp/live-master-audit.py everleaf-oracle:/tmp/live-master-audit.py
+          ssh everleaf-oracle 'python3 /tmp/live-master-audit.py' | tee audit-output/live-master-status.json
+
+      - name: Capture live runtime/config markers
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee audit-output/runtime.txt
+          set -euo pipefail
+          echo RELEASE=$(readlink -f /opt/everleaf/current)
+          echo SERVICE=$(systemctl is-active everleaf.service)
+          ss -ltn | grep ':8484 '
+          echo PATCH_WZ_COUNT=$(find /opt/everleaf/patches/files -maxdepth 1 -type f -name '*.wz' | wc -l)
+          echo MANIFEST_EXISTS=$(test -f /opt/everleaf/patches/manifest.json && echo yes || echo no)
+          echo ROLLBACK_EXISTS=$(test -d /opt/everleaf/backups/community-wholesale-test/20260903T005959Z && echo yes || echo no)
+          echo OSRS_UNTOUCHED=$(test -d /opt/everleafosrs && echo present || echo absent)
+          EOF
+
+      - name: Upload live master audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-live-master-status-${{ github.run_id }}
+          path: audit-output/
+          retention-days: 90
