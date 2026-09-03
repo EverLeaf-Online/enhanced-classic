@@ -8,6 +8,7 @@ import net.server.Server;
 import net.server.channel.Channel;
 import server.maps.MapleMap;
 import server.maps.Portal;
+import soloMapling.ArtificialPlayer.BotAttackSystem.BotAttackDriver;
 
 import java.awt.Point;
 import java.sql.SQLException;
@@ -143,7 +144,7 @@ public final class BotQaFleet {
         try { BareBotHunter.stop(bot); } catch (RuntimeException ignored) { }
         try { BareBotAutopilot.stop(bot); } catch (RuntimeException ignored) { }
         try { soloMapling.ArtificialPlayer.GCMoveSystem.GCMovement.disable(bot); } catch (RuntimeException ignored) { }
-        try { BotAttackSystem.BotAttackDriver.clearBot(bot.getId()); } catch (RuntimeException ignored) { }
+        try { BotAttackDriver.clearBot(bot.getId()); } catch (RuntimeException ignored) { }
         try { BotLootDriver.clearBot(bot.getId()); } catch (RuntimeException ignored) { }
         try { BotBuffDriver.clearBot(bot.getId()); } catch (RuntimeException ignored) { }
         try { BotConsumableDriver.clearBot(bot.getId()); } catch (RuntimeException ignored) { }
