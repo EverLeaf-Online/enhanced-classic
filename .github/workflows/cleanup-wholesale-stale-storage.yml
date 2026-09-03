@@ -1,0 +1,77 @@
+name: Cleanup wholesale stale storage
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/cleanup-wholesale-stale-storage.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+
+jobs:
+  cleanup:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 15
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Remove known duplicate backup and stale failed stage
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $script=@'
+          set -euo pipefail
+          KEEP_BACKUP=/opt/everleaf/backups/community-wholesale-test/20260903T005959Z
+          OLD_BACKUP=/opt/everleaf/backups/community-wholesale-test/20260903T004317Z
+          VERIFIED_STAGE=/home/ubuntu/everleaf-staging/community-wholesale-live-33701797136
+          OLD_STAGE=/home/ubuntu/everleaf-staging/community-wholesale-live-33700668919
+
+          test -d "$KEEP_BACKUP"
+          test -d "$KEEP_BACKUP/client-files"
+          test -d "$KEEP_BACKUP/server-wz-xml"
+          test -s "$KEEP_BACKUP/manifest.json"
+          test -d "$VERIFIED_STAGE"
+          test -s "$VERIFIED_STAGE/community-full-xml.zip"
+
+          echo 'DISK_BEFORE_CLEANUP'
+          df -h / /opt /home || true
+          sudo du -sh "$OLD_BACKUP" "$OLD_STAGE" 2>/dev/null || true
+
+          sudo rm -rf "$OLD_BACKUP" "$OLD_STAGE"
+
+          echo "$KEEP_BACKUP" | sudo tee /opt/everleaf/backups/community-wholesale-test/LATEST >/dev/null
+          test "$(cat /opt/everleaf/backups/community-wholesale-test/LATEST)" = "$KEEP_BACKUP"
+
+          echo 'DISK_AFTER_CLEANUP'
+          df -h / /opt /home || true
+          echo "CLEANUP_OK KEEP_BACKUP=$KEEP_BACKUP KEEP_STAGE=$VERIFIED_STAGE"
+          '@
+          $tmp=Join-Path $env:RUNNER_TEMP 'cleanup-wholesale-storage.sh'; [IO.File]::WriteAllText($tmp,($script -replace "`r",''))
+          scp $tmp 'everleaf-oracle:/tmp/cleanup-wholesale-storage.sh'; if($LASTEXITCODE){throw 'cleanup script upload failed'}
+          ssh everleaf-oracle "bash /tmp/cleanup-wholesale-storage.sh"; if($LASTEXITCODE){throw 'storage cleanup failed'}
