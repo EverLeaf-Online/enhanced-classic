@@ -76,8 +76,9 @@ jobs:
           existing=set(map(int, [x for x in mysql('SELECT DISTINCT dropperid FROM cosmic.drop_data').splitlines() if x.strip()]))
           missing=sorted(placed_mobs-existing)
 
-          # Parse mob level/boss directly from the live server XML. This follows Cosmic's
-          # native MesoFetcher policy instead of inventing item tables for post-v83 mobs.
+          # Parse mob level/boss directly from live XML and use Cosmic's native
+          # MesoFetcher formula. This creates a conservative SQL-backed baseline
+          # without fabricating unsupported item or quest drops.
           mob_files={}
           for p in (current/'Mob.wz').rglob('*.xml'):
               m=re.match(r'^(\d{4,10})(?:\.img)?\.xml$',p.name)
@@ -113,7 +114,6 @@ jobs:
               lo,hi=meso_range(level,boss)
               rows.append((mid,0,lo,hi,0,400000,level,1 if boss else 0))
 
-          # Use one transaction, and only insert if the mob still has no drop rows at commit time.
           if rows:
               stmts=['START TRANSACTION;']
               for mid,item,lo,hi,quest,chance,level,boss in rows:
@@ -123,15 +123,12 @@ jobs:
                     f"WHERE NOT EXISTS (SELECT 1 FROM cosmic.drop_data WHERE dropperid={mid});"
                   )
               stmts.append('COMMIT;')
-              subprocess.check_call(['sudo','mysql'], input='\n'.join(stmts), text=True)
+              subprocess.run(['sudo','mysql'], input='\n'.join(stmts), text=True, check=True)
 
           after=set(map(int, [x for x in mysql('SELECT DISTINCT dropperid FROM cosmic.drop_data').splitlines() if x.strip()]))
           still_missing=sorted(placed_mobs-after)
           inserted=[r for r in rows if r[0] in after]
 
-          # These are not auto-created: no newly placed NPC has a dedicated NPC script,
-          # so treating all 350 as merchants would corrupt shop behavior. Reactors likewise
-          # require explicit reward evidence rather than generic rows.
           new_npcs=file_ids(current,'Npc.wz')-file_ids(backup,'Npc.wz')
           new_reactors=file_ids(current,'Reactor.wz')-file_ids(backup,'Reactor.wz')
           placed_npcs=set(); placed_reactors=set()
