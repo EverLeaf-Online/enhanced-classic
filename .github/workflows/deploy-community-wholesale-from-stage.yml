@@ -66,11 +66,12 @@ jobs:
           test -d "$BACKUP/client-files"
           test -d "$BACKUP/server-wz-xml"
           test -s "$BACKUP/manifest.json"
+          test -s "$BACKUP/client-files/EverLeaf_UI.wz"
           test -s "$STAGE/community-full-xml.zip"
           test -d "$DONOR"
           WZ_COUNT="$(find "$DONOR" -maxdepth 1 -type f -name '*.wz' | wc -l)"
           test "$WZ_COUNT" -ge 17
-          for f in Character.wz Item.wz Map.wz Mob.wz Npc.wz Quest.wz Reactor.wz Skill.wz String.wz; do test -s "$DONOR/$f"; done
+          for f in Character.wz Item.wz Map.wz Mob.wz Npc.wz Quest.wz Reactor.wz Skill.wz String.wz UI.wz; do test -s "$DONOR/$f"; done
           sudo rm -rf "$CURRENT/wz.community-new" "$CURRENT/wz.community-old"
           echo "PRECHECK_OK DONOR_WZ_COUNT=$WZ_COUNT BACKUP=$BACKUP"
           df -h / /opt /home || true
@@ -96,6 +97,7 @@ jobs:
           test -d "$BACKUP/client-files"
           test -d "$BACKUP/server-wz-xml"
           test -s "$BACKUP/manifest.json"
+          test -s "$BACKUP/client-files/EverLeaf_UI.wz"
           test -s "$STAGE/community-full-xml.zip"
           test "$(find "$DONOR" -maxdepth 1 -type f -name '*.wz' | wc -l)" -ge 17
           ROLLBACK=1
@@ -118,11 +120,12 @@ jobs:
           for d in Item.wz Map.wz Mob.wz Npc.wz Quest.wz Reactor.wz Skill.wz String.wz; do test -d "$NEW_SERVER/$d"; done
           XML_COUNT="$(find "$NEW_SERVER" -type f -name '*.xml' | wc -l)"
           test "$XML_COUNT" -gt 15000
-          echo 'Removing old live WZs before copying donor set to avoid duplicate live storage'
-          sudo find "$FILES" -maxdepth 1 -type f -name '*.wz' -delete
+          echo 'Removing standard live WZs while preserving EverLeaf custom UI overlay'
+          sudo find "$FILES" -maxdepth 1 -type f -name '*.wz' ! -name 'EverLeaf_UI.wz' -delete
           sudo cp -a "$DONOR/"*.wz "$FILES/"
+          test -s "$FILES/EverLeaf_UI.wz"
           WZ_COUNT="$(find "$FILES" -maxdepth 1 -type f -name '*.wz' | wc -l)"
-          test "$WZ_COUNT" -ge 17
+          test "$WZ_COUNT" -ge 18
           sudo rm -rf "$SERVER_WZ.community-old"
           sudo mv "$SERVER_WZ" "$SERVER_WZ.community-old"
           sudo mv "$NEW_SERVER" "$SERVER_WZ"
@@ -137,7 +140,7 @@ jobs:
           systemctl is-active --quiet everleaf.service
           ss -ltn | grep -q ':8484 '
           curl -fsS http://127.0.0.1:3000/patches/manifest.json >/dev/null
-          for f in Item.wz String.wz Map.wz Mob.wz Npc.wz Skill.wz; do test -s "$FILES/$f"; done
+          for f in Item.wz String.wz Map.wz Mob.wz Npc.wz Skill.wz UI.wz EverLeaf_UI.wz; do test -s "$FILES/$f"; done
           ROLLBACK=0
           trap - ERR
           sudo rm -rf "$SERVER_WZ.community-old"
@@ -160,9 +163,9 @@ jobs:
           ss -ltn | grep -q ':8484 '
           WZ_COUNT="$(find /opt/everleaf/patches/files -maxdepth 1 -type f -name '*.wz' | wc -l)"
           XML_COUNT="$(find "$CURRENT/wz" -type f -name '*.xml' | wc -l)"
-          test "$WZ_COUNT" -ge 17
+          test "$WZ_COUNT" -ge 18
           test "$XML_COUNT" -gt 15000
-          for f in Item.wz String.wz Map.wz Mob.wz Npc.wz Skill.wz; do test -s "/opt/everleaf/patches/files/$f"; done
+          for f in Item.wz String.wz Map.wz Mob.wz Npc.wz Skill.wz UI.wz EverLeaf_UI.wz; do test -s "/opt/everleaf/patches/files/$f"; done
           echo "COMMUNITY_WHOLESALE_FINAL_VERIFICATION_OK WZ_COUNT=$WZ_COUNT XML_COUNT=$XML_COUNT"
           '@
           $tmp=Join-Path $env:RUNNER_TEMP 'verify-wholesale-live.sh'; [IO.File]::WriteAllText($tmp,($verify -replace "`r",''))
