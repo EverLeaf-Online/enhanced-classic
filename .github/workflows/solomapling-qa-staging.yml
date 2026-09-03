@@ -8,6 +8,7 @@ on:
       - 'Dockerfile'
       - 'src/main/java/soloMapling/**'
       - 'src/main/java/client/command/commands/gm4/QaBotCommand.java'
+      - 'src/main/java/server/Shop.java'
       - 'tools/apply_solomapling_*.py'
       - 'tools/audit_solomapling_qa.py'
       - '.github/workflows/solomapling-qa-staging.yml'
@@ -88,7 +89,8 @@ jobs:
           git -C "$base" fetch --no-tags origin feature/solomapling-qa-integration
           git -C "$base" cat-file -e "$TARGET_SHA^{commit}"
           if [ -e "$work" ]; then
-            git -C "$base" worktree remove --force "$work" 2>/dev/null || rm -rf "$work"
+            git -C "$base" worktree remove --force "$work" 2>/dev/null || true
+            sudo rm -rf "$work"
           fi
           git -C "$base" worktree prune
           git -C "$base" worktree add --detach "$work" "$TARGET_SHA"
