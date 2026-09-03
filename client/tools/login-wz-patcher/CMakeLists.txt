@@ -12,3 +12,6 @@ add_subdirectory("${LIBWZ_SOURCE}" "${CMAKE_BINARY_DIR}/libwz" EXCLUDE_FROM_ALL)
 
 add_executable(everleaf-login-wz-patcher main.cpp)
 target_link_libraries(everleaf-login-wz-patcher PRIVATE wz)
+
+add_executable(everleaf-remove-map-login-frame remove-map-login-frame.cpp)
+target_link_libraries(everleaf-remove-map-login-frame PRIVATE wz)
