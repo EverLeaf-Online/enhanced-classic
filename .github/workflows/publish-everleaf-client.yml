@@ -103,32 +103,17 @@ jobs:
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "RELEASE_SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
           set -euo pipefail
           PATCH_ROOT=/opt/everleaf/patches
+          FILES="$PATCH_ROOT/files"
           STAGE="/tmp/everleaf-client-$RELEASE_SHA"
           PAYLOAD="$STAGE/payload"
-          TEMP_PATCH="$STAGE/patch"
-          GENERATED="$STAGE/manifest.json"
-          FILES="$PATCH_ROOT/files"
           BACKUP="$STAGE/backup"
-          mkdir -p "$PAYLOAD" "$TEMP_PATCH" "$BACKUP"
+          GENERATED="$STAGE/manifest.json"
+          mkdir -p "$PAYLOAD" "$BACKUP"
           unzip -q "$STAGE/EverleafClient-overlay.zip" -d "$PAYLOAD"
 
           cmp -s "$PAYLOAD/managed-client-baseline.json" "$PATCH_ROOT/managed-client-baseline.json"
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do test -s "$PAYLOAD/$f"; done
           test "$(find "$PAYLOAD" -type f | wc -l)" -eq 4
-
-          # Reuse the live managed payload by hardlink instead of duplicating multi-GB WZ files.
-          cp -al "$FILES" "$TEMP_PATCH/files"
-          for f in config.ini dinput8.dll EverLeaf_UI.wz; do
-            rm -f "$TEMP_PATCH/files/$f"
-            cp "$PAYLOAD/$f" "$TEMP_PATCH/files/$f"
-          done
-
-          LAUNCHER_PATCH_ROOT="$TEMP_PATCH" \
-          LAUNCHER_BASELINE_PATH="$PATCH_ROOT/managed-client-baseline.json" \
-          LAUNCHER_MANIFEST_PATH="$GENERATED" \
-          LAUNCHER_PORTABLE_PATH="$PATCH_ROOT/downloads/EverLeafLauncher-portable.zip" \
-          LAUNCHER_VERSION_PATH="$PATCH_ROOT/downloads/EverLeafLauncher-version.txt" \
-          node /opt/everleaf/web/scripts/build-patch-manifest.js "$RELEASE_SHA"
 
           cp "$PATCH_ROOT/manifest.json" "$BACKUP/manifest.json"
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do cp "$FILES/$f" "$BACKUP/$f"; done
@@ -142,23 +127,23 @@ jobs:
 
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do
             sudo install -m 644 "$PAYLOAD/$f" "$FILES/$f.new"
+            sudo mv -f "$FILES/$f.new" "$FILES/$f"
           done
-          sudo install -m 644 "$GENERATED" "$PATCH_ROOT/manifest.json.new"
-          for f in config.ini dinput8.dll EverLeaf_UI.wz; do sudo mv -f "$FILES/$f.new" "$FILES/$f"; done
-          sudo mv -f "$PATCH_ROOT/manifest.json.new" "$PATCH_ROOT/manifest.json"
 
-          CHECK="$STAGE/check-manifest.json"
           LAUNCHER_PATCH_ROOT="$PATCH_ROOT" \
           LAUNCHER_BASELINE_PATH="$PATCH_ROOT/managed-client-baseline.json" \
-          LAUNCHER_MANIFEST_PATH="$CHECK" \
+          LAUNCHER_MANIFEST_PATH="$GENERATED" \
+          LAUNCHER_PORTABLE_PATH="$PATCH_ROOT/downloads/EverLeafLauncher-portable.zip" \
+          LAUNCHER_VERSION_PATH="$PATCH_ROOT/downloads/EverLeafLauncher-version.txt" \
           node /opt/everleaf/web/scripts/build-patch-manifest.js "$RELEASE_SHA"
-          cmp -s "$CHECK" "$PATCH_ROOT/manifest.json"
 
-          node - "$PATCH_ROOT/manifest.json" <<'NODE'
+          node - "$GENERATED" <<'NODE'
           const fs=require('fs'); const m=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
           if(m.version!==process.env.RELEASE_SHA) throw new Error(`Client manifest version mismatch: ${m.version}`);
           if(m.files.length!==36) throw new Error(`Expected 36 managed files, got ${m.files.length}`);
           NODE
+          sudo install -m 644 "$GENERATED" "$PATCH_ROOT/manifest.json.new"
+          sudo mv -f "$PATCH_ROOT/manifest.json.new" "$PATCH_ROOT/manifest.json"
 
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do
             expected="$(sha256sum "$FILES/$f" | awk '{print $1}')"
