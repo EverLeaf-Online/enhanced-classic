@@ -35,6 +35,9 @@ jobs:
             User ubuntu
             IdentityFile ~/.ssh/id_everleaf
             ConnectTimeout 20
+            ServerAliveInterval 20
+            ServerAliveCountMax 15
+            TCPKeepAlive yes
           EOF
 
       - name: Bundle behavior source corpus
@@ -62,7 +65,8 @@ jobs:
               for p in src.rglob(pat):
                   try: corpus.append(p.read_text(errors='ignore'))
                   except: pass
-          source='\n'.join(corpus)
+          # Precompute numeric tokens once rather than repeatedly scanning the whole source corpus.
+          source_ids=set(re.findall(r'(?<!\d)\d{4,10}(?!\d)','\n'.join(corpus)))
 
           def collect(root,fam):
               ids=set(); d=root/fam
@@ -79,11 +83,8 @@ jobs:
                       except: pass
               return ids
 
-          sets={}
-          for fam in families:
-              sets[fam]=(collect(current,fam),collect(backup_root,fam))
+          sets={fam:(collect(current,fam),collect(backup_root,fam)) for fam in families}
 
-          # Build map exposure sets only for newly added mobs/NPCs.
           new_mobs=sets['Mob.wz'][0]-sets['Mob.wz'][1]
           new_npcs=sets['Npc.wz'][0]-sets['Npc.wz'][1]
           mob_maps={}; npc_maps={}
@@ -111,7 +112,7 @@ jobs:
                   added=sorted(live-base); removed=sorted(base-live)
                   summary[fam]={'live':len(live),'baseline':len(base),'added':len(added),'removed':len(removed)}
                   for x,status in [(i,'added') for i in added]+[(i,'removed') for i in removed]:
-                      explicit=str(x) in source
+                      explicit=str(x) in source_ids
                       npc_script=(src/'scripts'/'npc'/f'{x}.js').exists() if fam=='Npc.wz' else ''
                       maps=(mob_maps.get(x,set()) if fam=='Mob.wz' else npc_maps.get(x,set()) if fam=='Npc.wz' else set())
                       w.writerow([fam,x,status,int(explicit),int(npc_script) if npc_script!='' else '',int(bool(maps)) if fam in ('Mob.wz','Npc.wz') else '', ';'.join(map(str,sorted(maps)))])
