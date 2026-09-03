@@ -25,7 +25,7 @@ jobs:
           SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh
+          mkdir -p ~/.ssh audit-output
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
           chmod 600 ~/.ssh/id_everleaf
           if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
@@ -54,7 +54,7 @@ jobs:
           set -euo pipefail
           cat > /tmp/audit-community.py <<'PY'
           from pathlib import Path
-          import json, re, shutil, subprocess, xml.etree.ElementTree as ET
+          import json, re, subprocess, xml.etree.ElementTree as ET
 
           current = Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'], text=True).strip())
           live = current / 'wz'
@@ -68,14 +68,10 @@ jobs:
               d=root/family
               if not d.exists(): return out
               for p in d.rglob('*.xml'):
-                  name=p.name
-                  m=re.match(r'^(\d{4,10})(?:\.img)?\.xml$', name)
+                  m=re.match(r'^(\d{4,10})(?:\.img)?\.xml$', p.name)
                   if m: out.add(int(m.group(1)))
-                  # Item/skill/string serializers often group many IDs in one XML;
-                  # collect immediate numeric children without walking animation/frame nodes.
                   try:
-                      tree=ET.parse(p)
-                      r=tree.getroot()
+                      r=ET.parse(p).getroot()
                       for child in list(r):
                           n=child.attrib.get('name','')
                           if n.isdigit() and 4 <= len(n) <= 10:
@@ -99,7 +95,16 @@ jobs:
               old_ids=numeric_ids(base,fam)
               added=sorted(live_ids-old_ids)
               refs=[i for i in added if str(i) in source]
-              entry={'live_ids':len(live_ids),'baseline_ids':len(old_ids),'added_ids':len(added),'explicit_server_refs':len(refs),'no_explicit_server_ref':len(added)-len(refs),'sample_added':added[:80],'sample_no_explicit_ref':[i for i in added if i not in set(refs)][:80]}
+              refset=set(refs)
+              entry={
+                  'live_ids':len(live_ids),
+                  'baseline_ids':len(old_ids),
+                  'added_ids':len(added),
+                  'explicit_server_refs':len(refs),
+                  'no_explicit_server_ref':len(added)-len(refs),
+                  'sample_added':added[:80],
+                  'sample_no_explicit_ref':[i for i in added if i not in refset][:80],
+              }
               if fam=='Npc.wz':
                   scripts=src/'scripts'/'npc'
                   scripted=[i for i in added if (scripts/f'{i}.js').exists()]
@@ -108,17 +113,15 @@ jobs:
                   entry['sample_added_without_npc_script']=[i for i in added if not (scripts/f'{i}.js').exists()][:80]
               result['families'][fam]=entry
 
-          print('COMMUNITY_UNLOCKED_AUDIT_JSON_BEGIN')
           print(json.dumps(result, indent=2))
-          print('COMMUNITY_UNLOCKED_AUDIT_JSON_END')
           PY
           scp /tmp/audit-community.py everleaf-oracle:/tmp/audit-community.py
-          ssh everleaf-oracle 'set -euo pipefail; rm -rf /tmp/everleaf-community-audit-src; mkdir -p /tmp/everleaf-community-audit-src; tar -xzf /tmp/everleaf-audit-src.tgz -C /tmp/everleaf-community-audit-src; python3 /tmp/audit-community.py'
+          ssh everleaf-oracle 'set -euo pipefail; rm -rf /tmp/everleaf-community-audit-src; mkdir -p /tmp/everleaf-community-audit-src; tar -xzf /tmp/everleaf-audit-src.tgz -C /tmp/everleaf-community-audit-src; python3 /tmp/audit-community.py' | tee audit-output/community-unlocked-audit.json
 
       - name: Inspect live drop/shop/economy database surfaces
         run: |
           set -euo pipefail
-          ssh everleaf-oracle 'bash -s' <<'EOF'
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee audit-output/economy-db-surfaces.txt
           set -euo pipefail
           echo ECONOMY_DB_SURFACES_BEGIN
           sudo mysql -NBe "SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema NOT IN ('information_schema','mysql','performance_schema','sys') AND (LOWER(table_name) LIKE '%drop%' OR LOWER(table_name) LIKE '%shop%' OR LOWER(table_name) LIKE '%gach%' OR LOWER(table_name) LIKE '%reward%' OR LOWER(table_name) LIKE '%item%') ORDER BY table_schema, table_name;" || true
@@ -131,8 +134,35 @@ jobs:
       - name: Re-run existing economy/drop audits against current release source
         run: |
           set -euo pipefail
-          python3 tools/audit_economy_balance.py
-          python3 tools/audit_reward_sources.py
-          python3 tools/audit_items_equipment.py
-          python3 tools/audit_world_integrity.py
-          echo EXISTING_RELEASE_AUDITS_OK
+          {
+            python3 tools/audit_economy_balance.py
+            python3 tools/audit_reward_sources.py
+            python3 tools/audit_items_equipment.py
+            python3 tools/audit_world_integrity.py
+            echo EXISTING_RELEASE_AUDITS_OK
+          } | tee audit-output/release-audits.txt
+
+      - name: Save audit metadata
+        if: always()
+        run: |
+          set -euo pipefail
+          cat > audit-output/README.txt <<EOF
+          EverLeaf live Community audit
+          Commit: $GITHUB_SHA
+          Run: $GITHUB_RUN_ID
+          Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          Files:
+          - community-unlocked-audit.json: live-vs-pre-wholesale ID inventory and explicit server-reference coverage
+          - economy-db-surfaces.txt: live MySQL drop/shop/gachapon/reward/item table surface inventory
+          - release-audits.txt: existing economy/reward/item/world audit results
+          EOF
+
+      - name: Upload durable Community audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-community-live-audit-${{ github.run_id }}
+          path: audit-output/
+          if-no-files-found: warn
+          retention-days: 90
