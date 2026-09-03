@@ -125,6 +125,18 @@ jobs:
           sudo cp -al "$current"/. "$RELEASE"/
           test "$(find "$RELEASE/wz" -type f -name '*.xml' | wc -l)" -eq 44236
 
+          # Detach the candidate config from the live hardlink before changing it.
+          # The old live release contains one retired bot-bootstrap key that the
+          # current ServerConfig intentionally no longer exposes. Keep every other
+          # production setting exactly as-is and remove only that stale property.
+          sudo cp "$RELEASE/config.yaml" "$RELEASE/config.yaml.candidate"
+          sudo mv -f "$RELEASE/config.yaml.candidate" "$RELEASE/config.yaml"
+          sudo sed -i '/^[[:space:]]*SPAWN_BOTS_ON_STARTUP[[:space:]]*:/d' "$RELEASE/config.yaml"
+          if grep -Eq '^[[:space:]]*SPAWN_BOTS_ON_STARTUP[[:space:]]*:' "$RELEASE/config.yaml"; then
+            echo 'stale SPAWN_BOTS_ON_STARTUP key remains in candidate config' >&2
+            exit 1
+          fi
+
           sudo rm -f "$RELEASE/target/everleaf-server-1.0-SNAPSHOT.jar"
           sudo rm -rf "$RELEASE/scripts"
           sudo install -d -m 755 -o ubuntu -g ubuntu "$RELEASE/target"
@@ -141,6 +153,8 @@ jobs:
           ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "RELEASE='$release' bash -s" <<'REMOTE'
           set -euo pipefail
           test -s "$RELEASE/target/everleaf-server-1.0-SNAPSHOT.jar"
+          test -s "$RELEASE/config.yaml"
+          ! grep -Eq '^[[:space:]]*SPAWN_BOTS_ON_STARTUP[[:space:]]*:' "$RELEASE/config.yaml"
           test -f "$RELEASE/scripts/event/CygnusBattle.js"
           test -f "$RELEASE/scripts/npc/2143004.js"
           test -f "$RELEASE/scripts/portal/out_cygnusBackGarden.js"
