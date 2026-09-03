@@ -18,7 +18,7 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
-  EVERLEAF_PUBLIC_HOST: everleafms.online
+  EVERLEAF_PUBLIC_HOST: everleafms.duckdns.org
 
 jobs:
   build-and-publish:
@@ -28,6 +28,10 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: release-dev
+
+      - name: Apply Community UI preference
+        shell: pwsh
+        run: python client/scripts/apply-community-ui-preference.py
 
       - name: Configure MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -45,6 +49,8 @@ jobs:
           $actual = @(Get-ChildItem $package -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath((Resolve-Path $package), $_.FullName).Replace('\\','/') })
           foreach ($name in $required) { if ($name -notin $actual) { throw "Missing managed overlay: $name" } }
           if ($actual.Count -ne $required.Count) { throw "Managed overlay contains unexpected files: $($actual -join ', ')" }
+          $config = Get-Content "$package/config.ini" -Raw
+          if (-not ($config -match 'PreferCommunityUI=true')) { throw "Managed client does not default to Community UI" }
           Compress-Archive -Path "$package/*" -DestinationPath "EverleafClient-overlay.zip"
           Get-FileHash "EverleafClient-overlay.zip" -Algorithm SHA256
 
