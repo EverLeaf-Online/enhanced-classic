@@ -1,0 +1,98 @@
+name: Audit live Empress runtime inputs
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-live-empress-runtime-inputs.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh audit-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+      - name: Inspect live Empress maps
+        run: |
+          set -euo pipefail
+          cat > /tmp/empress-inputs.py <<'PY'
+          from pathlib import Path
+          import os,re,json,xml.etree.ElementTree as ET
+          root=Path(os.path.realpath('/opt/everleaf/current'))/'wz'
+          print('WZROOT='+str(root))
+          for p in sorted((root/'Map.wz').rglob('271*.img.xml')):
+              m=re.match(r'^(271\d{6})\.img\.xml$',p.name)
+              if not m: continue
+              mid=int(m.group(1))
+              if mid>271040300: continue
+              t=ET.parse(p).getroot()
+              def cm(n): return {c.attrib.get('name',''):c.attrib.get('value','') for c in list(n)}
+              portals=[];npcs=[];mobs=[];reactors=[]
+              for sec in t.iter():
+                  n=sec.attrib.get('name','')
+                  if n=='portal':
+                      for x in list(sec):
+                          d=cm(x); portals.append({k:d.get(k,'') for k in ('pn','pt','tm','tn','script','x','y')})
+                  elif n=='life':
+                      for x in list(sec):
+                          d=cm(x)
+                          if d.get('type')=='n': npcs.append({k:d.get(k,'') for k in ('id','x','y','fh')})
+                          elif d.get('type')=='m': mobs.append({k:d.get(k,'') for k in ('id','x','y','fh','mobTime')})
+                  elif n=='reactor':
+                      for x in list(sec):
+                          d=cm(x); reactors.append({k:d.get(k,'') for k in ('id','x','y','name')})
+              print('MAP',mid,'PORTALS',json.dumps(portals,separators=(',',':')))
+              print('MAP',mid,'NPCS',json.dumps(npcs,separators=(',',':')))
+              print('MAP',mid,'MOBS',json.dumps(mobs,separators=(',',':')))
+              print('MAP',mid,'REACTORS',json.dumps(reactors,separators=(',',':')))
+          for mobid in range(8850000,8850012):
+              fs=list((root/'Mob.wz').rglob(f'{mobid}.img.xml'))
+              if not fs: print('MOB',mobid,'MISSING'); continue
+              t=ET.parse(fs[0]).getroot(); st={}
+              for x in t.iter():
+                  n=x.attrib.get('name','')
+                  if n in ('maxHP','maxMP','exp','level','PADamage','MADamage','boss','removeAfter'):
+                      st[n]=x.attrib.get('value','')
+              print('MOB',mobid,json.dumps(st,separators=(',',':')))
+          PY
+          scp /tmp/empress-inputs.py everleaf-oracle:/tmp/empress-inputs.py
+          ssh everleaf-oracle 'python3 /tmp/empress-inputs.py' | tee audit-output/empress-inputs.txt
+      - name: Inspect scripts
+        run: |
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee audit-output/scripts.txt
+          set -euo pipefail
+          current=$(readlink -f /opt/everleaf/current)
+          echo SERVICE=$(systemctl is-active everleaf.service)
+          find "$current/scripts/event" -maxdepth 1 -type f -printf '%f\n' | sort | grep -Ei 'cygn|empress|horntail|pink|zakum' || true
+          for f in out_cygnusBackGarden back_cygnus; do test -f "$current/scripts/portal/$f.js" && echo "$f PRESENT" || echo "$f MISSING"; done
+          for id in 2142000 2142001 2142002 2142003 2142004 2142005 2142006 2142007 2142008 2142009 2142010 2143000 2143001 2143003 2143004; do test -f "$current/scripts/npc/$id.js" && echo "$id PRESENT" || echo "$id MISSING"; done
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: live-empress-runtime-inputs-${{ github.run_id }}
+          path: audit-output/
+          retention-days: 30
