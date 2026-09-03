@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Hard release gate for EverLeaf's Fallen Cygnus / Empress encounter."""
 from pathlib import Path
-import re
 
 ROOT = Path(__file__).resolve().parents[1]
 EVENT = ROOT / "scripts/event/CygnusBattle.js"
@@ -29,8 +28,11 @@ need('getEventManager("CygnusBattle")' in n, "Another Informant does not launch 
 need("ExpeditionType.CYGNUS" in n, "Another Informant is not bound to CYGNUS expedition")
 need("var eventTime = 60" in e, "Cygnus timer is not 60 minutes")
 need("8850010" in e and "8850011" in e, "Shinsoo/final Cygnus phases missing")
-for mobid in range(8850000,8850012):
-    need(str(mobid) in e, f"encounter does not handle mob {mobid}")
+# The ten Chief Knight bodies are deliberately spawned/handled as two contiguous five-ID ranges.
+need("8850000+i" in e and "i<5" in e, "phase-1 Chief Knight spawn range 8850000-8850004 missing")
+need("8850005+i" in e and "i<5" in e, "phase-2 Chief Knight spawn range 8850005-8850009 missing")
+need("id >= 8850000 && id <= 8850004" in e, "phase-1 Chief Knight kill coverage 8850000-8850004 missing")
+need("id >= 8850005 && id <= 8850009" in e, "phase-2 Chief Knight kill coverage 8850005-8850009 missing")
 need("mob.disableDrops()" in e, "encounter mobs are not drop-suppressed")
 need("id == 8850011" in e, "final clear is not explicitly tied to 8850011")
 need("finishPlayer" in e and "CygnusRewardPolicy" in e, "final-body reward finalization missing")
