@@ -1,0 +1,228 @@
+name: Deploy full community WZ + fresh XML live test
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/deploy-community-wholesale-live.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-community-wholesale-live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  COMMUNITY_WZ_ROOT: /home/ubuntu/everleaf-staging/community-wz/extracted/Community Repack WZs
+
+jobs:
+  wholesale:
+    runs-on: windows-2025
+    timeout-minutes: 180
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+        with:
+          ref: release-dev
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 15
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Create immutable live backup before test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $script=@'
+          set -euo pipefail
+          TS="$(date -u +%Y%m%dT%H%M%SZ)"
+          ROOT="/opt/everleaf/backups/community-wholesale-test/$TS"
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          PATCH=/opt/everleaf/patches
+          sudo mkdir -p "$ROOT"
+          sudo cp -a "$PATCH/files" "$ROOT/client-files"
+          sudo cp -a "$CURRENT/wz" "$ROOT/server-wz-xml"
+          sudo cp -a "$PATCH/manifest.json" "$ROOT/manifest.json"
+          sudo sh -c "find '$ROOT/client-files' -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > '$ROOT/client-files.sha256'"
+          sudo tar -C "$ROOT" -czf "$ROOT/server-wz-xml.tar.gz" server-wz-xml
+          sudo sha256sum "$ROOT/server-wz-xml.tar.gz" "$ROOT/manifest.json" | sudo tee "$ROOT/backup.sha256" >/dev/null
+          echo "$ROOT" | sudo tee /opt/everleaf/backups/community-wholesale-test/LATEST >/dev/null
+          echo "BACKUP_OK=$ROOT"
+          '@
+          $tmp=Join-Path $env:RUNNER_TEMP 'backup.sh'; [IO.File]::WriteAllText($tmp,($script -replace "`r",''))
+          scp $tmp 'everleaf-oracle:/tmp/everleaf-wholesale-backup.sh'; if($LASTEXITCODE){throw 'backup script upload failed'}
+          ssh everleaf-oracle "bash /tmp/everleaf-wholesale-backup.sh"; if($LASTEXITCODE){throw 'live backup failed'}
+
+      - name: Fetch complete Community donor WZ set
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'community-wholesale'; $input=Join-Path $root 'wz'; New-Item -ItemType Directory -Force -Path $input | Out-Null
+          $listing = ssh everleaf-oracle "set -e; find '$env:COMMUNITY_WZ_ROOT' -maxdepth 1 -type f -name '*.wz' -printf '%f\n' | sort"
+          if($LASTEXITCODE){throw 'donor inventory failed'}
+          $families=@($listing | Where-Object {$_.Trim()})
+          if($families.Count -lt 17){throw "Expected at least 17 donor WZs, found $($families.Count)"}
+          $families | Set-Content -Encoding ascii (Join-Path $root 'families.txt')
+          foreach($family in $families){
+            Write-Host "Fetching $family"
+            $remote="$env:COMMUNITY_WZ_ROOT/$family"
+            $dest=Join-Path $input $family
+            $ok=$false
+            for($attempt=1;$attempt -le 4 -and -not $ok;$attempt++){
+              scp "everleaf-oracle`:$remote" $dest
+              if($LASTEXITCODE -eq 0 -and (Test-Path $dest) -and (Get-Item $dest).Length -gt 0){$ok=$true}else{Remove-Item -Force -ErrorAction SilentlyContinue $dest; Start-Sleep -Seconds (3*$attempt)}
+            }
+            if(-not $ok){throw "Failed to fetch $family"}
+          }
+          Get-ChildItem $input -Filter '*.wz' | Select-Object Name,Length
+
+      - name: Build MapleLib exporter
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter'; New-Item -ItemType Directory -Force -Path $tool | Out-Null
+          Copy-Item tools/wz-donor/exporter/Program.cs (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup><ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup></Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafWzExporter.csproj')
+          dotnet build (Join-Path $tool 'EverLeafWzExporter.csproj') -c Release
+
+      - name: Fresh-export Community WZ binaries to complete server XML tree
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'community-wholesale'; $input=Join-Path $root 'wz'; $xml=Join-Path $root 'xml'; New-Item -ItemType Directory -Force -Path $xml | Out-Null
+          $project=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter/EverLeafWzExporter.csproj'
+          $critical=@('Character.wz','Etc.wz','Item.wz','Map.wz','Mob.wz','Npc.wz','Quest.wz','Reactor.wz','Skill.wz','String.wz')
+          $success=@(); $skipped=@()
+          $families=Get-Content (Join-Path $root 'families.txt')
+          foreach($family in $families){
+            Write-Host "=== Exporting $family ==="
+            & dotnet run --project $project -c Release --no-build -- $input $xml --patch-version=83 --probe-patch-range=1:250 $family
+            if($LASTEXITCODE -eq 0){$success += $family}
+            elseif($critical -contains $family){throw "Critical Community WZ export failed: $family"}
+            else {Write-Warning "Noncritical WZ did not produce server XML: $family"; $skipped += $family}
+          }
+          foreach($family in $critical){if(-not ($success -contains $family)){throw "Critical export missing: $family"}}
+          $count=(Get-ChildItem $xml -Filter '*.xml' -File -Recurse | Measure-Object).Count
+          if($count -lt 15000){throw "Fresh full XML export unexpectedly small: $count"}
+          "SUCCESS=$($success -join ',')" | Set-Content (Join-Path $root 'export-status.txt')
+          "NONCRITICAL_SKIPPED=$($skipped -join ',')" | Add-Content (Join-Path $root 'export-status.txt')
+          "XML_COUNT=$count" | Add-Content (Join-Path $root 'export-status.txt')
+          Get-Content (Join-Path $root 'export-status.txt')
+
+      - name: Package and upload verified Community replacement candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'community-wholesale'; $xml=Join-Path $root 'xml'; $zip=Join-Path $root 'community-full-xml.zip'
+          Compress-Archive -Path (Join-Path $xml '*') -DestinationPath $zip -CompressionLevel Optimal
+          $stage="/home/ubuntu/everleaf-staging/community-wholesale-live-${{ github.run_id }}"
+          ssh everleaf-oracle "rm -rf '$stage' && mkdir -p '$stage/wz'"
+          scp $zip "everleaf-oracle`:$stage/community-full-xml.zip"; if($LASTEXITCODE){throw 'XML candidate upload failed'}
+          scp (Join-Path $root 'export-status.txt') "everleaf-oracle`:$stage/export-status.txt"; if($LASTEXITCODE){throw 'status upload failed'}
+          $families=Get-Content (Join-Path $root 'families.txt')
+          foreach($family in $families){scp (Join-Path $root "wz/$family") "everleaf-oracle`:$stage/wz/$family"; if($LASTEXITCODE){throw "candidate WZ upload failed: $family"}}
+          ssh everleaf-oracle "set -e; unzip -t '$stage/community-full-xml.zip' >/dev/null; test \$(find '$stage/wz' -maxdepth 1 -type f -name '*.wz' | wc -l) -ge 17; echo WHOLESALE_CANDIDATE_STAGED_OK"
+          if($LASTEXITCODE){throw 'remote candidate verification failed'}
+
+      - name: Replace live client WZ and server XML with Community candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $stage="/home/ubuntu/everleaf-staging/community-wholesale-live-${{ github.run_id }}"
+          $script=@'
+          set -euo pipefail
+          STAGE=__STAGE__
+          PATCH=/opt/everleaf/patches
+          FILES="$PATCH/files"
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          SERVER_WZ="$CURRENT/wz"
+          BACKUP="$(cat /opt/everleaf/backups/community-wholesale-test/LATEST)"
+          test -d "$BACKUP/client-files"
+          test -d "$BACKUP/server-wz-xml"
+          test -s "$BACKUP/manifest.json"
+          test -d "$STAGE/wz"
+          test -s "$STAGE/community-full-xml.zip"
+          ROLLBACK=1
+          rollback(){
+            if [ "$ROLLBACK" = 1 ]; then
+              echo 'WHOLESALE_TEST_FAILED_ROLLING_BACK' >&2
+              sudo rm -rf "$FILES"
+              sudo cp -a "$BACKUP/client-files" "$FILES"
+              sudo rm -rf "$SERVER_WZ"
+              sudo cp -a "$BACKUP/server-wz-xml" "$SERVER_WZ"
+              sudo install -m 644 "$BACKUP/manifest.json" "$PATCH/manifest.json"
+              sudo systemctl restart everleaf.service || true
+            fi
+          }
+          trap rollback ERR
+          NEW_SERVER="$CURRENT/wz.community-new"
+          sudo rm -rf "$NEW_SERVER"
+          sudo mkdir -p "$NEW_SERVER"
+          sudo unzip -q "$STAGE/community-full-xml.zip" -d "$NEW_SERVER"
+          for d in Item.wz Map.wz Mob.wz Npc.wz Quest.wz Reactor.wz Skill.wz String.wz; do test -d "$NEW_SERVER/$d"; done
+          XML_COUNT="$(find "$NEW_SERVER" -type f -name '*.xml' | wc -l)"
+          test "$XML_COUNT" -gt 15000
+          sudo find "$FILES" -maxdepth 1 -type f -name '*.wz' -delete
+          sudo cp -a "$STAGE/wz/"*.wz "$FILES/"
+          WZ_COUNT="$(find "$FILES" -maxdepth 1 -type f -name '*.wz' | wc -l)"
+          test "$WZ_COUNT" -ge 17
+          sudo rm -rf "$SERVER_WZ.community-old"
+          sudo mv "$SERVER_WZ" "$SERVER_WZ.community-old"
+          sudo mv "$NEW_SERVER" "$SERVER_WZ"
+          GENERATED="$STAGE/manifest.json"
+          LAUNCHER_PATCH_ROOT="$PATCH" LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" LAUNCHER_MANIFEST_PATH="$GENERATED" LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" node /opt/everleaf/web/scripts/build-patch-manifest.js '__SHA__'
+          sudo install -m 644 "$GENERATED" "$PATCH/manifest.json"
+          sudo systemctl restart everleaf.service
+          for i in $(seq 1 45); do
+            if systemctl is-active --quiet everleaf.service && ss -ltn | grep -q ':8484 '; then break; fi
+            sleep 2
+          done
+          systemctl is-active --quiet everleaf.service
+          ss -ltn | grep -q ':8484 '
+          curl -fsS http://127.0.0.1:3000/patches/manifest.json >/dev/null
+          for f in Item.wz String.wz Map.wz Mob.wz Npc.wz Skill.wz; do test -s "$FILES/$f"; done
+          ROLLBACK=0
+          trap - ERR
+          echo "COMMUNITY_WHOLESALE_LIVE_OK WZ_COUNT=$WZ_COUNT XML_COUNT=$XML_COUNT BACKUP=$BACKUP"
+          '@
+          $script=$script.Replace('__STAGE__',$stage).Replace('__SHA__','${{ github.sha }}')
+          $tmp=Join-Path $env:RUNNER_TEMP 'deploy-wholesale.sh'; [IO.File]::WriteAllText($tmp,($script -replace "`r",''))
+          scp $tmp 'everleaf-oracle:/tmp/deploy-community-wholesale.sh'; if($LASTEXITCODE){throw 'deploy script upload failed'}
+          ssh everleaf-oracle "bash /tmp/deploy-community-wholesale.sh"; if($LASTEXITCODE){throw 'wholesale deploy failed or rolled back'}
+
+      - name: Final live verification
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ssh everleaf-oracle "set -e; CURRENT=\$(readlink -f /opt/everleaf/current); systemctl is-active --quiet everleaf.service; ss -ltn | grep -q ':8484 '; test \$(find /opt/everleaf/patches/files -maxdepth 1 -type f -name '*.wz' | wc -l) -ge 17; test \$(find \$CURRENT/wz -type f -name '*.xml' | wc -l) -gt 15000; echo COMMUNITY_WHOLESALE_FINAL_VERIFICATION_OK"
+          if($LASTEXITCODE){throw 'final live verification failed'}
