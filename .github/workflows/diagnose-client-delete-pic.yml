@@ -1,0 +1,80 @@
+name: Diagnose client delete PIC gate
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/diagnose-client-delete-pic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          KNOWN: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${KNOWN:-}" ]; then printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Fetch current production executable read-only
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_everleaf ubuntu@132.145.141.79:/opt/everleaf/patches/files/EverLeaf.exe ./EverLeaf.exe
+          sha256sum EverLeaf.exe
+      - name: Install analysis libraries
+        run: python3 -m pip install --disable-pip-version-check pefile capstone
+      - name: Trace v83 delete-character function callers
+        run: |
+          python3 - <<'PY'
+          import pefile, struct
+          from capstone import Cs, CS_ARCH_X86, CS_MODE_32
+          path='EverLeaf.exe'
+          pe=pefile.PE(path)
+          image_base=pe.OPTIONAL_HEADER.ImageBase
+          target=0x005F7C4A
+          data=open(path,'rb').read()
+          text=None
+          for s in pe.sections:
+              name=s.Name.rstrip(b'\0')
+              if name==b'.text':
+                  text=s; break
+          if text is None: raise SystemExit('no .text section')
+          raw=text.get_data(); va=image_base+text.VirtualAddress
+          print(f'IMAGE_BASE=0x{image_base:08X} TEXT_VA=0x{va:08X} TARGET=0x{target:08X}')
+          calls=[]
+          for i,b in enumerate(raw[:-5]):
+              if b!=0xE8: continue
+              rel=struct.unpack_from('<i',raw,i+1)[0]
+              src=va+i
+              dst=src+5+rel
+              if dst==target:
+                  calls.append(src)
+          print('DIRECT_CALLERS', [f'0x{x:08X}' for x in calls])
+          md=Cs(CS_ARCH_X86, CS_MODE_32)
+          md.detail=False
+          for src in calls:
+              start=max(va,src-160); end=src+96
+              off=start-va
+              chunk=raw[off:off+(end-start)]
+              print(f'--- context around 0x{src:08X} ---')
+              for ins in md.disasm(chunk,start):
+                  mark='>>' if ins.address==src else '  '
+                  print(f'{mark} {ins.address:08X}: {ins.mnemonic:8} {ins.op_str}')
+          # Also disassemble the send function itself to expose branch assumptions.
+          start=target; end=target+0x220; off=start-va
+          print('--- SendDeleteCharPacket ---')
+          for ins in md.disasm(raw[off:off+(end-start)],start):
+              print(f'{ins.address:08X}: {ins.mnemonic:8} {ins.op_str}')
+          PY
