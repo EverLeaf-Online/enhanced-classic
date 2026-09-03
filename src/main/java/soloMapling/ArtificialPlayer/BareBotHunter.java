@@ -15,15 +15,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 
-/**
- * Controlled autonomous QA wrapper around SoloMapling's real GCMove + BotAttackSystem.
- *
- * <p>Besides the map-local hunt loop, this controller owns the Batch-4 lifecycle:
- * normal EverLeaf death/respawn, stale movement cleanup, return-to-training travel,
- * cross-map shop trips, return from restocking, route-failure recovery and conservative
- * level-aware map progression. GCTravel itself provides per-hop route recalculation,
- * portal retries, soft-lock detection and hard stuck recovery.</p>
- */
+/** Controlled autonomous QA hunter with death recovery, cross-map restocking and progression. */
 public final class BareBotHunter {
     private static final Logger log = LoggerFactory.getLogger(BareBotHunter.class);
     private static final long TICK_MS = 250;
@@ -35,21 +27,17 @@ public final class BareBotHunter {
     private BareBotHunter() {}
 
     public static boolean start(Character bot) {
-        if (bot == null || bot.getMap() == null) return false;
+        if (bot == null || bot.getMap() == null || bot.getPosition() == null) return false;
         stop(bot);
         BareBotAutopilot.stop(bot);
         GCMovement.enable(bot);
-
         Hunt hunt = new Hunt(bot, bot.getMapId(), new Point(bot.getPosition()));
-        ScheduledFuture<?> task = TimerManager.getInstance().register(hunt, TICK_MS, TICK_MS);
-        hunt.task = task;
+        hunt.task = TimerManager.getInstance().register(hunt, TICK_MS, TICK_MS);
         hunts.put(bot.getId(), hunt);
         return true;
     }
 
-    public static boolean start(Character bot, int ignoredDamage) {
-        return start(bot);
-    }
+    public static boolean start(Character bot, int ignoredDamage) { return start(bot); }
 
     public static boolean stop(Character bot) {
         if (bot == null) return false;
@@ -65,23 +53,14 @@ public final class BareBotHunter {
         return true;
     }
 
-    public static boolean isHunting(Character bot) {
-        return bot != null && hunts.containsKey(bot.getId());
-    }
+    public static boolean isHunting(Character bot) { return bot != null && hunts.containsKey(bot.getId()); }
 
     public static String phase(Character bot) {
         Hunt hunt = bot == null ? null : hunts.get(bot.getId());
         return hunt == null ? "stopped" : hunt.phase.name().toLowerCase();
     }
 
-    private enum Phase {
-        HUNTING,
-        RECOVERING,
-        TO_SHOP,
-        SHOPPING,
-        RETURNING,
-        PROGRESSING
-    }
+    private enum Phase { HUNTING, RECOVERING, TO_SHOP, SHOPPING, RETURNING, PROGRESSING }
 
     private static final class Hunt implements Runnable {
         private final Character bot;
@@ -90,22 +69,22 @@ public final class BareBotHunter {
         private volatile Phase phase = Phase.HUNTING;
         private volatile ScheduledFuture<?> task;
         private volatile int pendingTrainingMapId = -1;
+        private volatile int shopMapId = -1;
         private int lastProgressionLevel;
         private long nextTravelRetryAt;
         private long lastFailureLogAt;
 
         private Hunt(Character bot, int mapId, Point position) {
             this.bot = bot;
-            this.trainingMapId = mapId;
-            this.trainingPosition = position;
-            this.lastProgressionLevel = Math.max(1, bot.getLevel());
+            trainingMapId = mapId;
+            trainingPosition = position;
+            lastProgressionLevel = Math.max(1, bot.getLevel());
         }
 
         @Override
         public void run() {
-            try {
-                tick();
-            } catch (Throwable t) {
+            try { tick(); }
+            catch (Throwable t) {
                 long now = System.currentTimeMillis();
                 if (now - lastFailureLogAt >= 5_000L) {
                     lastFailureLogAt = now;
@@ -116,16 +95,8 @@ public final class BareBotHunter {
         }
 
         private void tick() {
-            if (bot.getMap() == null || !BotHelpers.isBot(bot)) {
-                stop(bot);
-                return;
-            }
-
-            if (!bot.isAlive()) {
-                recoverFromDeath();
-                return;
-            }
-
+            if (bot.getMap() == null || !BotHelpers.isBot(bot)) { stop(bot); return; }
+            if (!bot.isAlive()) { recoverFromDeath(); return; }
             switch (phase) {
                 case RECOVERING, RETURNING, TO_SHOP, PROGRESSING -> tickTravel();
                 case SHOPPING -> tickShopping();
@@ -134,36 +105,33 @@ public final class BareBotHunter {
         }
 
         private void recoverFromDeath() {
-            if (phase == Phase.RECOVERING) return;
+            long now = System.currentTimeMillis();
+            if (phase == Phase.RECOVERING && now < nextTravelRetryAt) return;
             phase = Phase.RECOVERING;
             stopTransientState();
-
             int returnMapId = bot.getMap().getReturnMapId();
             try {
-                // Use the same Character.respawn path invoked by ChangeMapHandler for a dead real player.
-                bot.respawn(returnMapId);
+                bot.respawn(returnMapId); // same normal Character path used by ChangeMapHandler
             } catch (RuntimeException e) {
                 log.warn("SoloMapling QA death respawn failed bot={} returnMap={}", bot.getId(), returnMapId, e);
-                nextTravelRetryAt = System.currentTimeMillis() + TRAVEL_RETRY_MS;
+                nextTravelRetryAt = now + TRAVEL_RETRY_MS;
                 return;
             }
-
-            if (bot.isAlive()) {
-                beginReturnToTraining(Phase.RETURNING);
-            }
+            if (bot.isAlive()) beginReturnToTraining();
+            else nextTravelRetryAt = now + TRAVEL_RETRY_MS;
         }
 
         private void tickTravel() {
-            if (!bot.isAlive()) return;
+            if (!bot.isAlive() || GCMovement.isTraveling(bot)) return;
+            long now = System.currentTimeMillis();
             if (phase == Phase.RECOVERING) {
-                if (System.currentTimeMillis() >= nextTravelRetryAt) recoverFromDeath();
+                if (now >= nextTravelRetryAt) recoverFromDeath();
                 return;
             }
-            // GCTravel owns active route execution and recomputes from the live map every poll.
-            if (GCMovement.isTraveling(bot)) return;
-
             if (phase == Phase.TO_SHOP) {
-                phase = Phase.SHOPPING;
+                if (shopMapId > 0 && bot.getMapId() == shopMapId) phase = Phase.SHOPPING;
+                else if (shopMapId > 0) retryTravel(shopMapId, Phase.TO_SHOP);
+                else beginReturnToTraining();
                 return;
             }
             if (phase == Phase.RETURNING) {
@@ -178,68 +146,44 @@ public final class BareBotHunter {
                     pendingTrainingMapId = -1;
                     lastProgressionLevel = Math.max(lastProgressionLevel, bot.getLevel());
                     resumeHunting();
-                } else if (pendingTrainingMapId > 0) {
-                    retryTravel(pendingTrainingMapId, Phase.PROGRESSING);
-                } else {
-                    resumeHunting();
-                }
+                } else if (pendingTrainingMapId > 0) retryTravel(pendingTrainingMapId, Phase.PROGRESSING);
+                else resumeHunting();
             }
         }
 
         private void tickShopping() {
             BotShopDriver.RestockResult restock = BotShopDriver.tickRestock(bot);
             if (restock.active()) return;
-
-            if ("stocked".equals(restock.reason())) {
-                beginReturnToTraining(Phase.RETURNING);
-                return;
-            }
-
+            if ("stocked".equals(restock.reason())) { beginReturnToTraining(); return; }
             if ("no-shop-on-map".equals(restock.reason()) || "shop-unavailable".equals(restock.reason())) {
-                // A return map without a usable shop is not fatal. Resume the original scenario rather
-                // than deadlocking the bot in town; diagnostics retain the failed restock reason.
                 log.warn("SoloMapling QA restock trip found no usable shop bot={} map={} reason={}",
                         bot.getId(), bot.getMapId(), restock.reason());
-                beginReturnToTraining(Phase.RETURNING);
+                beginReturnToTraining();
                 return;
             }
-
-            // A shop attempted a transaction but could not satisfy it (mesos/inventory/etc.).
-            // Those are valid QA outcomes, not infinite retry conditions.
-            if (restock.attempted()) beginReturnToTraining(Phase.RETURNING);
+            if (restock.attempted()) beginReturnToTraining();
         }
 
         private void tickHunting() {
-            if (bot.getMapId() != trainingMapId) {
-                beginReturnToTraining(Phase.RETURNING);
-                return;
-            }
+            if (bot.getMapId() != trainingMapId) { beginReturnToTraining(); return; }
 
             BotConsumableDriver.UseResult consumable = BotConsumableDriver.tick(bot);
             if (consumable.used()) return;
-
             BotBuffDriver.BuffResult buff = BotBuffDriver.tick(bot);
             if (buff.applied()) return;
 
             BotShopDriver.RestockResult restock = BotShopDriver.tickRestock(bot);
             if (restock.active()) return;
-            if ("no-shop-on-map".equals(restock.reason())) {
-                beginShopTrip();
-                return;
-            }
+            if ("no-shop-on-map".equals(restock.reason())) { beginShopTrip(); return; }
 
             if (bot.getLevel() >= lastProgressionLevel + PROGRESSION_LEVEL_STEP) {
                 int target = BotTrainingMapSelector.select(bot, trainingMapId);
                 lastProgressionLevel = bot.getLevel();
-                if (target != trainingMapId) {
-                    beginProgression(target);
-                    return;
-                }
+                if (target != trainingMapId) { beginProgression(target); return; }
             }
 
             BotLootDriver.LootResult loot = BotLootDriver.tick(bot);
             if (loot.found()) return;
-
             Monster target = nearestMonster(bot);
             if (target == null || target.getPosition() == null || bot.getPosition() == null) return;
 
@@ -249,18 +193,13 @@ public final class BareBotHunter {
             int reachY = Math.max(60, BotAttackDriver.attackReachY(bot));
             int dx = mobPos.x - botPos.x;
             int dy = mobPos.y - botPos.y;
-
             if (Math.abs(dx) > Math.max(1, reachX - APPROACH_MARGIN) || Math.abs(dy) > reachY) {
                 int offset = Math.max(25, reachX - APPROACH_MARGIN);
                 int approachX = mobPos.x + (dx >= 0 ? -offset : offset);
-                try {
-                    GCMovement.move(bot, approachX, mobPos.y);
-                } catch (RuntimeException ignored) {
-                    // GCMove/GCTravel diagnostics retain navigation failures; later ticks recover.
-                }
+                try { GCMovement.move(bot, approachX, mobPos.y); }
+                catch (RuntimeException ignored) { }
                 return;
             }
-
             GCMovement.stop(bot);
             BotAttackDriver.botAttack(bot);
         }
@@ -269,50 +208,41 @@ public final class BareBotHunter {
             int townMapId = bot.getMap().getReturnMapId();
             if (townMapId <= 0 || townMapId == bot.getMapId()) return;
             stopTransientState();
+            shopMapId = townMapId;
             phase = Phase.TO_SHOP;
-            GCMovement.travel(bot, townMapId, ok -> {
-                if (ok) phase = Phase.SHOPPING;
-                else scheduleTravelRetry();
-            });
+            startTravel(shopMapId, Phase.TO_SHOP);
         }
 
         private void beginProgression(int targetMapId) {
             stopTransientState();
             pendingTrainingMapId = targetMapId;
             phase = Phase.PROGRESSING;
-            GCMovement.travel(bot, targetMapId, ok -> {
-                if (!ok) scheduleTravelRetry();
-            });
+            startTravel(targetMapId, Phase.PROGRESSING);
         }
 
-        private void beginReturnToTraining(Phase returnPhase) {
+        private void beginReturnToTraining() {
             stopTransientState();
-            phase = returnPhase;
+            shopMapId = -1;
+            phase = Phase.RETURNING;
             if (bot.getMapId() == trainingMapId) {
-                if (trainingPosition != null) {
-                    GCMovement.move(bot, trainingPosition.x, trainingPosition.y, this::resumeHunting);
-                } else {
-                    resumeHunting();
-                }
+                if (trainingPosition != null) GCMovement.move(bot, trainingPosition.x, trainingPosition.y, this::resumeHunting);
+                else resumeHunting();
                 return;
             }
-            GCMovement.travelTo(bot, trainingMapId,
-                    trainingPosition == null ? 0 : trainingPosition.x,
-                    trainingPosition == null ? 0 : trainingPosition.y,
-                    ok -> {
-                        if (ok) resumeHunting();
-                        else scheduleTravelRetry();
-                    });
+            GCMovement.travelTo(bot, trainingMapId, trainingPosition.x, trainingPosition.y,
+                    ok -> { if (ok) resumeHunting(); else scheduleTravelRetry(); });
+        }
+
+        private void startTravel(int mapId, Phase travelPhase) {
+            phase = travelPhase;
+            GCMovement.travel(bot, mapId, ok -> { if (!ok) scheduleTravelRetry(); });
         }
 
         private void retryTravel(int mapId, Phase travelPhase) {
             long now = System.currentTimeMillis();
             if (now < nextTravelRetryAt) return;
             nextTravelRetryAt = now + TRAVEL_RETRY_MS;
-            phase = travelPhase;
-            GCMovement.travel(bot, mapId, ok -> {
-                if (!ok) scheduleTravelRetry();
-            });
+            startTravel(mapId, travelPhase);
         }
 
         private void scheduleTravelRetry() {
