@@ -60,7 +60,7 @@ jobs:
           $script=@'
           set -euo pipefail
           STAGE=__STAGE__
-          DONOR=__DONOR__
+          DONOR="__DONOR__"
           CURRENT="$(readlink -f /opt/everleaf/current)"
           BACKUP="$(cat /opt/everleaf/backups/community-wholesale-test/LATEST)"
           test -d "$BACKUP/client-files"
@@ -87,7 +87,7 @@ jobs:
           $script=@'
           set -euo pipefail
           STAGE=__STAGE__
-          DONOR=__DONOR__
+          DONOR="__DONOR__"
           PATCH=/opt/everleaf/patches
           FILES="$PATCH/files"
           CURRENT="$(readlink -f /opt/everleaf/current)"
