@@ -1,3 +1,4 @@
+# Production-safe deployment trigger: no-PIC-character-delete-20260903
 name: Deploy Fallen Cygnus with preserved Community WZ
 
 on:
@@ -5,7 +6,6 @@ on:
     branches: [release-dev]
     paths:
       - '.github/workflows/deploy-empress-community-safe.yml'
-      - 'src/main/java/net/server/handlers/login/DeleteCharHandler.java'
   workflow_dispatch:
 
 concurrency:
