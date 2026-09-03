@@ -1,0 +1,140 @@
+name: Deploy staged 25-chair batch preserving live 13
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/deploy-community-chair-25-from-verified-stage-live.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-community-chair-live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Deploy previously verified 25-chair candidate cumulatively
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          STAGE=/tmp/everleaf-community-chair-25-33698110113
+          PATCH=/opt/everleaf/patches
+          FILES="$PATCH/files"
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          ITEM_XML="$CURRENT/wz/Item.wz/Install/0301.img.xml"
+          STRING_XML="$CURRENT/wz/String.wz/Ins.img.xml"
+          LIVE13='3010020 3010021 3010027 3010029 3010030 3010031 3010032 3010033 3010034 3010035 3010036 3010037 3010044'
+          NEW25='3010048 3010049 3010050 3010051 3010052 3010053 3010054 3010055 3010056 3010059 3010068 3010074 3010075 3010077 3010078 3010079 3010086 3010087 3010090 3010093 3010094 3010095 3010096 3010097 3010100'
+          ALL38="$LIVE13 $NEW25"
+
+          test -s "$STAGE/Item.wz"
+          test -s "$STAGE/String.wz"
+          test -s "$STAGE/0301.img.xml"
+          test -s "$STAGE/Ins.img.xml"
+          test -s "$STAGE/CHAIR_PATCH_MANIFEST.json"
+          test -s "$ITEM_XML"
+          test -s "$STRING_XML"
+
+          for id in $LIVE13; do
+            grep -q "$id" "$ITEM_XML"
+            grep -q "$id" "$STRING_XML"
+          done
+          echo LIVE_13_SERVER_STATE_OK
+
+          for id in $ALL38; do
+            grep -q "$id" "$STAGE/0301.img.xml"
+            grep -q "$id" "$STAGE/Ins.img.xml"
+          done
+          python3 - "$STAGE/0301.img.xml" "$STAGE/Ins.img.xml" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          ET.parse(sys.argv[1]); ET.parse(sys.argv[2])
+          print('STAGED_38_XML_WELL_FORMED_OK')
+          PY
+
+          BACKUP="$STAGE/cumulative-live-backup-$(date +%s)"
+          mkdir -p "$BACKUP"
+          cp "$FILES/Item.wz" "$BACKUP/Item.wz"
+          cp "$FILES/String.wz" "$BACKUP/String.wz"
+          cp "$PATCH/manifest.json" "$BACKUP/manifest.json"
+          cp "$ITEM_XML" "$BACKUP/0301.img.xml"
+          cp "$STRING_XML" "$BACKUP/Ins.img.xml"
+
+          rollback() {
+            echo 'Cumulative 38-chair verification failed; rolling back.' >&2
+            sudo install -m 644 "$BACKUP/Item.wz" "$FILES/Item.wz"
+            sudo install -m 644 "$BACKUP/String.wz" "$FILES/String.wz"
+            sudo install -m 644 "$BACKUP/manifest.json" "$PATCH/manifest.json"
+            sudo install -m 644 "$BACKUP/0301.img.xml" "$ITEM_XML"
+            sudo install -m 644 "$BACKUP/Ins.img.xml" "$STRING_XML"
+            sudo systemctl restart everleaf.service || true
+          }
+          trap rollback ERR
+
+          sudo install -m 644 "$STAGE/Item.wz" "$FILES/Item.wz.new"
+          sudo install -m 644 "$STAGE/String.wz" "$FILES/String.wz.new"
+          sudo install -m 644 "$STAGE/0301.img.xml" "$ITEM_XML.new"
+          sudo install -m 644 "$STAGE/Ins.img.xml" "$STRING_XML.new"
+          sudo mv -f "$FILES/Item.wz.new" "$FILES/Item.wz"
+          sudo mv -f "$FILES/String.wz.new" "$FILES/String.wz"
+          sudo mv -f "$ITEM_XML.new" "$ITEM_XML"
+          sudo mv -f "$STRING_XML.new" "$STRING_XML"
+
+          GENERATED="$STAGE/manifest-cumulative.json"
+          LAUNCHER_PATCH_ROOT="$PATCH" \
+          LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" \
+          LAUNCHER_MANIFEST_PATH="$GENERATED" \
+          LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" \
+          LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" \
+          node /opt/everleaf/web/scripts/build-patch-manifest.js '${{ github.sha }}'
+          sudo install -m 644 "$GENERATED" "$PATCH/manifest.json.new"
+          sudo mv -f "$PATCH/manifest.json.new" "$PATCH/manifest.json"
+
+          sudo systemctl restart everleaf.service
+          for i in $(seq 1 30); do
+            if systemctl is-active --quiet everleaf.service && ss -ltn | grep -q ':8484 '; then break; fi
+            sleep 2
+          done
+          systemctl is-active --quiet everleaf.service
+          ss -ltn | grep -q ':8484 '
+
+          for id in $ALL38; do
+            grep -q "$id" "$ITEM_XML"
+            grep -q "$id" "$STRING_XML"
+          done
+
+          for f in Item.wz String.wz; do
+            expected="$(sha256sum "$FILES/$f" | awk '{print $1}')"
+            curl -fsS "http://127.0.0.1:3000/patches/$f" -o "$STAGE/live-$f"
+            actual="$(sha256sum "$STAGE/live-$f" | awk '{print $1}')"
+            test "$actual" = "$expected"
+          done
+          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
+
+          trap - ERR
+          echo COMMUNITY_CHAIR_38_LIVE_OK
+          REMOTE
