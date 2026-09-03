@@ -125,9 +125,6 @@ jobs:
           sudo cp -al "$current"/. "$RELEASE"/
           test "$(find "$RELEASE/wz" -type f -name '*.xml' | wc -l)" -eq 44236
 
-          # Directory inodes in a cp -al clone are distinct, but regular files are
-          # hardlinked. Unlink files/directories we will replace before making the
-          # candidate writable so the active release cannot be modified indirectly.
           sudo rm -f "$RELEASE/target/everleaf-server-1.0-SNAPSHOT.jar"
           sudo rm -rf "$RELEASE/scripts"
           sudo install -d -m 755 -o ubuntu -g ubuntu "$RELEASE/target"
@@ -212,6 +209,13 @@ jobs:
             sleep 2
           done
           if [ "$healthy" -ne 1 ]; then
+            echo '=== FAILED CANDIDATE SERVICE STATUS ===' >&2
+            sudo systemctl status everleaf.service --no-pager -l >&2 || true
+            echo '=== FAILED CANDIDATE JOURNAL ===' >&2
+            sudo journalctl -u everleaf.service --since '-4 minutes' --no-pager -n 220 >&2 || true
+            echo '=== FAILED CANDIDATE LAYOUT ===' >&2
+            ls -ld "$current" "$current/target" "$current/scripts" "$current/wz" >&2 || true
+            ls -l "$current/target/everleaf-server-1.0-SNAPSHOT.jar" >&2 || true
             old=$(cat /opt/everleaf/.previous-release)
             ln -sfn "$old" /opt/everleaf/current.rollback
             mv -Tf /opt/everleaf/current.rollback /opt/everleaf/current
