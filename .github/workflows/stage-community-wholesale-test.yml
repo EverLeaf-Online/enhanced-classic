@@ -1,0 +1,102 @@
+name: Stage full community WZ/XML replacement test
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/stage-community-wholesale-test.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-community-wholesale-test
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  COMMUNITY_WZ_ROOT: /home/ubuntu/everleaf-staging/community-wz/extracted/Community Repack WZs
+
+jobs:
+  stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Back up current live WZ and XML state
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          TS="$(date -u +%Y%m%dT%H%M%SZ)"
+          ROOT="/opt/everleaf/backups/community-wholesale-test/$TS"
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          PATCH=/opt/everleaf/patches
+          mkdir -p "$ROOT"
+          cp -a "$PATCH/files" "$ROOT/client-wz"
+          cp -a "$CURRENT/wz" "$ROOT/server-wz-xml"
+          cp -a "$PATCH/manifest.json" "$ROOT/manifest.json"
+          find "$ROOT/client-wz" -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > "$ROOT/client-wz.sha256"
+          tar -C "$ROOT" -czf "$ROOT/server-wz-xml.tar.gz" server-wz-xml
+          sha256sum "$ROOT/server-wz-xml.tar.gz" "$ROOT/manifest.json" > "$ROOT/backup.sha256"
+          printf '%s\n' "$ROOT" | tee /opt/everleaf/backups/community-wholesale-test/LATEST
+          echo "BACKUP_OK=$ROOT"
+          REMOTE
+
+      - name: Build isolated community replacement staging tree
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          DONOR='/home/ubuntu/everleaf-staging/community-wz/extracted/Community Repack WZs'
+          STAGE='/home/ubuntu/everleaf-staging/community-wholesale-test'
+          CORE='/opt/everleaf/private/wz-donors/community-repack-core.zip'
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE/client-wz" "$STAGE/server-wz-xml"
+          test -d "$DONOR"
+          find "$DONOR" -maxdepth 1 -type f -name '*.wz' -print0 | xargs -0 -I{} cp -a '{}' "$STAGE/client-wz/"
+          COUNT="$(find "$STAGE/client-wz" -maxdepth 1 -type f -name '*.wz' | wc -l)"
+          test "$COUNT" -ge 17
+          test -s "$CORE"
+          unzip -q "$CORE" -d "$STAGE/server-wz-xml"
+          find "$STAGE/client-wz" -maxdepth 1 -type f -name '*.wz' -print0 | sort -z | xargs -0 sha256sum > "$STAGE/client-wz.sha256"
+          XML_COUNT="$(find "$STAGE/server-wz-xml" -type f -name '*.xml' | wc -l)"
+          test "$XML_COUNT" -gt 1000
+          cat > "$STAGE/STATUS.txt" <<EOF
+          mode=isolated-staging-only
+          donor_wz_count=$COUNT
+          exported_core_xml_count=$XML_COUNT
+          note=Full client donor WZ set staged. Available fresh community XML export currently covers Map/Mob/Npc/Reactor/String only; live was NOT replaced because the remaining server XML families must be freshly exported first.
+          EOF
+          echo COMMUNITY_WHOLESALE_STAGE_OK
+          cat "$STAGE/STATUS.txt"
+          REMOTE
+
+      - name: Verify live was not modified
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          systemctl is-active --quiet everleaf.service
+          ss -ltn | grep -q ':8484 '
+          test -s /opt/everleaf/patches/manifest.json
+          echo LIVE_UNCHANGED_AND_HEALTHY
+          REMOTE
