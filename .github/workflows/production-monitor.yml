@@ -1,0 +1,49 @@
+name: Production monitor
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ConnectTimeout 15
+          EOF
+
+      - name: Check production health
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'sudo /usr/local/sbin/everleaf-healthcheck'
+
+      - name: Verify public endpoints
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 15 https://everleafms.duckdns.org/v1/launcher/manifest >/dev/null
+          # Primary domain is enforced only once its DNS resolves publicly to the production IP.
+          primary=$(dig +short A everleafms.online | tail -n1 || true)
+          if [ "$primary" = '132.145.141.79' ]; then
+            curl -fsS --max-time 15 https://everleafms.online/v1/launcher/manifest >/dev/null
+          else
+            echo "PRIMARY_DNS_PENDING resolved=${primary:-none} expected=132.145.141.79"
+          fi
