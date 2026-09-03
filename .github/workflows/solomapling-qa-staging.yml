@@ -1,0 +1,189 @@
+name: SoloMapling disposable QA runtime smoke
+
+on:
+  push:
+    branches:
+      - feature/solomapling-qa-integration
+    paths:
+      - 'Dockerfile'
+      - 'src/main/java/soloMapling/**'
+      - 'src/main/java/client/command/commands/gm4/QaBotCommand.java'
+      - 'src/main/java/server/Shop.java'
+      - 'tools/apply_solomapling_*.py'
+      - 'tools/audit_solomapling_qa.py'
+      - '.github/workflows/solomapling-qa-staging.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_QA_HOST: 132.145.141.79
+  EVERLEAF_QA_USER: ubuntu
+  EVERLEAF_QA_BASE: /opt/everleaf/qa-agent-hub
+  EVERLEAF_QA_WORKTREE: /opt/everleaf/qa-solomapling-smoke
+
+jobs:
+  runtime-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Configure verified SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_QA_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Verify disposable QA boundary
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_QA_USER@$EVERLEAF_QA_HOST" "bash -s" <<'REMOTE'
+          set -euo pipefail
+          base=/opt/everleaf/qa-agent-hub
+          check() {
+            name="$1"
+            shift
+            if "$@"; then
+              echo "[PASS] $name"
+            else
+              echo "[FAIL] $name" >&2
+              exit 1
+            fi
+          }
+
+          check 'QA repository is a Git worktree' git -C "$base" rev-parse --is-inside-work-tree
+          check 'QA compose file exists' test -f "$base/deploy/qa/docker-compose.qa.yml"
+          check 'private QA env exists' test -f "$base/deploy/qa/.env.qa"
+          check 'QA isolation documentation present' grep -q 'dedicated Docker Compose project' "$base/deploy/qa/README.md"
+          check 'dedicated QA DB volume configured' grep -q 'everleaf-qa-db' "$base/deploy/qa/docker-compose.qa.yml"
+          check 'QA ports are loopback-bound' grep -q '127.0.0.1:' "$base/deploy/qa/docker-compose.qa.yml"
+          if grep -q '/opt/everleaf/server' "$base/deploy/qa/docker-compose.qa.yml"; then
+            echo '[FAIL] QA compose references production server path' >&2
+            exit 1
+          fi
+          echo '[PASS] QA compose does not reference production server path'
+          echo 'Disposable QA boundary verified.'
+          REMOTE
+
+      - name: Prepare exact feature worktree
+        env:
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_QA_USER@$EVERLEAF_QA_HOST" \
+            "TARGET_SHA='$TARGET_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          base=/opt/everleaf/qa-agent-hub
+          work=/opt/everleaf/qa-solomapling-smoke
+
+          git -C "$base" fetch --no-tags origin feature/solomapling-qa-integration
+          git -C "$base" cat-file -e "$TARGET_SHA^{commit}"
+          if [ -e "$work" ]; then
+            git -C "$base" worktree remove --force "$work" 2>/dev/null || true
+            sudo rm -rf "$work"
+          fi
+          git -C "$base" worktree prune
+          git -C "$base" worktree add --detach "$work" "$TARGET_SHA"
+          cp "$base/deploy/qa/.env.qa" "$work/deploy/qa/.env.qa"
+          chmod 600 "$work/deploy/qa/.env.qa"
+
+          cd "$work"
+          python3 tools/apply_everleaf_config.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('config.yaml')
+          text = path.read_text(encoding='utf-8')
+          public = '    HOST: 132.145.141.79'
+          loopback = '    HOST: 127.0.0.1'
+          if public in text:
+              text = text.replace(public, loopback, 1)
+          elif loopback not in text:
+              raise SystemExit('Could not force disposable QA HOST to loopback')
+          path.write_text(text, encoding='utf-8')
+          PY
+          grep -q '    HOST: 127.0.0.1' config.yaml
+          grep -q '    SPAWN_BOTS_ON_STARTUP: false' config.yaml
+
+          cat > deploy/qa/solomapling-smoke.override.yml <<'YAML'
+          services:
+            qa-game:
+              environment:
+                EVERLEAF_SOLOMAPLING_SMOKE: I_UNDERSTAND_DISPOSABLE_QA_ONLY
+          YAML
+          REMOTE
+
+      - name: Start isolated QA database and verify template
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_QA_USER@$EVERLEAF_QA_HOST" "bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd /opt/everleaf/qa-solomapling-smoke
+          compose=(docker compose --env-file deploy/qa/.env.qa -f deploy/qa/docker-compose.qa.yml -p everleaf-qa)
+          "${compose[@]}" up -d qa-db
+          for _ in $(seq 1 45); do
+            if "${compose[@]}" exec -T qa-db sh -lc 'mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent' >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          "${compose[@]}" exec -T qa-db sh -lc \
+            'count=$(mysql -N -uroot -p"$MYSQL_ROOT_PASSWORD" cosmic -e "SELECT COUNT(*) FROM characters c JOIN accounts a ON a.id=c.accountid WHERE a.name REGEXP '\''^qa_'\'';"); echo "qa_character_templates=$count"; test "$count" -gt 0'
+          REMOTE
+
+      - name: Build and run one armed SoloMapling smoke
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_QA_USER@$EVERLEAF_QA_HOST" "bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd /opt/everleaf/qa-solomapling-smoke
+          compose=(docker compose --env-file deploy/qa/.env.qa -f deploy/qa/docker-compose.qa.yml -f deploy/qa/solomapling-smoke.override.yml -p everleaf-qa)
+          "${compose[@]}" up -d --build --force-recreate qa-game
+
+          result=''
+          for _ in $(seq 1 90); do
+            logs=$("${compose[@]}" logs --no-color qa-game 2>&1 || true)
+            if grep -q 'SOLOMAPLING_QA_SMOKE_RESULT PASS' <<<"$logs"; then
+              result=PASS
+              break
+            fi
+            if grep -q 'SOLOMAPLING_QA_SMOKE_RESULT FAIL' <<<"$logs"; then
+              result=FAIL
+              break
+            fi
+            if ! "${compose[@]}" ps --status running qa-game | grep -q qa-game; then
+              result=CONTAINER_EXITED
+              break
+            fi
+            sleep 2
+          done
+
+          "${compose[@]}" logs --no-color qa-game | grep 'SOLOMAPLING_QA_SMOKE' || true
+          test "$result" = PASS
+          REMOTE
+
+      - name: Disarm smoke runner and keep disposable QA stack available
+        if: always()
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_QA_USER@$EVERLEAF_QA_HOST" "bash -s" <<'REMOTE'
+          set -euo pipefail
+          work=/opt/everleaf/qa-solomapling-smoke
+          if [ ! -d "$work" ] || [ ! -f "$work/deploy/qa/.env.qa" ]; then
+            exit 0
+          fi
+          cd "$work"
+          rm -f deploy/qa/solomapling-smoke.override.yml
+          compose=(docker compose --env-file deploy/qa/.env.qa -f deploy/qa/docker-compose.qa.yml -p everleaf-qa)
+          "${compose[@]}" up -d --force-recreate qa-game || true
+          echo 'SoloMapling smoke token removed; disposable QA stack remains isolated and available.'
+          REMOTE

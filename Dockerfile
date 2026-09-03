@@ -2,12 +2,12 @@
 # Optimisation performed by wejrox
 
 #
-# Cosmic JAR creation stage
+# EverLeaf JAR creation stage
 #
 FROM maven:3.9.6-amazoncorretto-21 AS jar
 
 # Build in a separated location which won't have permissions issues.
-WORKDIR /opt/cosmic
+WORKDIR /opt/everleaf
 
 # Any changes to the pom will affect the entire build, so it should be copied first.
 COPY pom.xml ./pom.xml
@@ -16,11 +16,11 @@ COPY pom.xml ./pom.xml
 # Skip compiling tests since we don't want all the dependencies to be downloaded.
 # RUN mvn -f ./pom.xml clean dependency:go-offline -Dmaven.test.skip -T 1C
 # TODO: The above command stopped working as of Java 21 upgrade due to:
-# Failed to execute goal org.apache.maven.plugins:maven-dependency-plugin:3.6.1:go-offline (default-cli) on project Cosmic: org.eclipse.aether.resolution.DependencyResolutionException: The following artifacts could
+# Failed to execute goal org.apache.maven.plugins:maven-dependency-plugin:3.6.1:go-offline (default-cli) on project Everleaf: org.eclipse.aether.resolution.DependencyResolutionException: The following artifacts could
 # not be resolved: io.netty:netty-tcnative:jar:${os.detected.classifier}:2.0.65.Final (absent): Could not find artifact io.netty:netty-tcnative:jar:${os.detected.classifier}:2.0.65.Final in central (https://repo.maven.apache.org/maven2) -> [Help 1]
 
 # Source code changes may not change dependencies, so it can go last.
-# Skip compiling tests since we don't want all the dependecies to be downloaded for plugins.
+# Skip compiling tests since we don't want all the dependencies to be downloaded for plugins.
 COPY src ./src
 RUN mvn -f ./pom.xml clean package -Dmaven.test.skip -T 1C
 
@@ -33,8 +33,9 @@ FROM amazoncorretto:21
 WORKDIR /opt/server
 # Copy the wizet files first since they're so big and won't change often.
 COPY wz ./wz
-# Copy the JAR we build earlier.
-COPY --from=jar /opt/cosmic/target/Cosmic.jar ./Server.jar
+# Copy the JAR we build earlier. The assembly plugin intentionally emits the
+# EverLeaf artifact name rather than the legacy Cosmic.jar name.
+COPY --from=jar /opt/everleaf/target/everleaf-server-1.0-SNAPSHOT.jar ./Server.jar
 # Scripts are sourced on server startup, so you can mount over them for quicker redeploy.
 COPY scripts ./scripts/
 # Config is read on server startup, so you can mount over it for quicker redeploy.
@@ -44,5 +45,3 @@ COPY config.yaml ./
 # Format for channels: WWCC, where WW is 75 plus the world number and CC is 75 plus the channel number (both zero indexed).
 EXPOSE 8484 7575 7576 7577
 ENTRYPOINT ["java", "-jar", "./Server.jar"]
-
-

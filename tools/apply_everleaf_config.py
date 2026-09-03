@@ -6,6 +6,7 @@ ensuring builds/tests use EverLeaf's intended defaults. It intentionally fails
 when expected upstream values change so configuration drift is visible in CI.
 """
 from pathlib import Path
+import subprocess
 
 CONFIG = Path("config.yaml")
 
@@ -138,7 +139,27 @@ def main() -> None:
     for old, new in replacements:
         text = replace_once(text, old, new)
 
+    # SoloMapling is QA infrastructure in EverLeaf. Keep cold-boot bot
+    # population disabled unless a controlled smoke/staging run opts in.
+    text = replace_once(
+        text,
+        "    SHUTDOWNHOOK: true\n\n    #Server Flags",
+        "    SHUTDOWNHOOK: true\n    SPAWN_BOTS_ON_STARTUP: false\n\n    #Server Flags",
+    )
+
     CONFIG.write_text(text, encoding="utf-8")
+
+    # This feature branch carries SoloMapling as an additive QA layer. Apply
+    # its narrowly-scoped host hooks through the same deterministic transform
+    # stage so CI tests the reconciled EverLeaf host code without replacing it.
+    subprocess.run(["python3", "tools/apply_solomapling_host_hooks.py"], check=True)
+    subprocess.run(["python3", "tools/apply_solomapling_nav_hooks.py"], check=True)
+    subprocess.run(["python3", "tools/apply_solomapling_movement_hooks.py"], check=True)
+    subprocess.run(["python3", "tools/apply_solomapling_map_runtime_hooks.py"], check=True)
+    subprocess.run(["python3", "tools/apply_solomapling_bootstrap_hooks.py"], check=True)
+    subprocess.run(["python3", "tools/apply_solomapling_combat_hooks.py"], check=True)
+    subprocess.run(["python3", "tools/audit_solomapling_qa.py"], check=True)
+
     print("EverLeaf development configuration applied (20 channels; public channel host; website registration required).")
 
 

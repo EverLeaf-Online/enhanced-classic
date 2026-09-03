@@ -1,0 +1,2 @@
+Forced controlled production restart requested by operator on 2026-09-02.
+This marker has no runtime effect; it exists only to trigger the guarded SoloMapling live-deploy workflow.

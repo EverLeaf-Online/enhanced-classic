@@ -6,7 +6,7 @@
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as
-    published by the Free Software Foundation version 3 as published by
+    published by
 the Free Software Foundation. You may not use, modify or distribute
 this program under any other version of the GNU Affero General Public License.
 
@@ -36,6 +36,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -58,7 +59,7 @@ public class Shop {
         rechargeableItems.add(ItemId.BLAZE_CAPSULE);
         rechargeableItems.add(ItemId.GLAZE_CAPSULE);
         rechargeableItems.add(ItemId.BALANCED_FURY);
-        rechargeableItems.remove(ItemId.DEVIL_RAIN_THROWING_STAR); // doesn't exist
+        rechargeableItems.remove(ItemId.DEVIL_RAIN_THROWING_STAR);
         for (int bulletId : ItemId.allBulletIds()) {
             rechargeableItems.add(bulletId);
         }
@@ -79,6 +80,18 @@ public class Shop {
         c.sendPacket(PacketCreator.getNPCShop(c, getNpcId(), items));
     }
 
+    /** Read-only metadata for server-side QA automation; transactions still go through buy/sell/recharge. */
+    public List<ShopItem> getItems() {
+        return Collections.unmodifiableList(items);
+    }
+
+    public short findSlotByItemId(int itemId) {
+        for (short i = 0; i < items.size(); i++) {
+            if (items.get(i).getItemId() == itemId) return i;
+        }
+        return -1;
+    }
+
     public void buy(Client c, short slot, int itemId, short quantity) {
         ShopItem item = findBySlot(slot);
         if (item == null) {
@@ -95,9 +108,6 @@ public class Shop {
             return;
         }
 
-        // Zero-price entries are added for recharge support and are not products.
-        // Legacy non-positive-price buying also contained unsafe Golden Maple Leaf
-        // arithmetic; EverLeaf has no data-driven negative-price shop entries.
         if (item.getPrice() <= 0 && item.getPitch() <= 0) {
             log.warn("Chr {} tried to buy non-purchasable shop item {} from shop {}",
                     c.getPlayer().getName(), itemId, id);
@@ -115,7 +125,7 @@ public class Shop {
             int amount = (int) rawAmount;
             if (c.getPlayer().getMeso() >= amount) {
                 if (InventoryManipulator.checkSpace(c, itemId, quantity, "")) {
-                    if (!ItemConstants.isRechargeable(itemId)) { //Pets can't be bought from shops
+                    if (!ItemConstants.isRechargeable(itemId)) {
                         InventoryManipulator.addById(c, itemId, quantity, "", -1);
                         c.getPlayer().gainMeso(-amount, false);
                     } else {
@@ -128,11 +138,9 @@ public class Shop {
                 } else {
                     c.sendPacket(PacketCreator.shopTransaction((byte) 3));
                 }
-
             } else {
                 c.sendPacket(PacketCreator.shopTransaction((byte) 2));
             }
-
         } else if (item.getPitch() > 0) {
             long rawAmount = (long) item.getPitch() * quantity;
             if (rawAmount <= 0 || rawAmount > Integer.MAX_VALUE) {
@@ -163,63 +171,41 @@ public class Shop {
     }
 
     private static boolean canSell(Item item, short quantity) {
-        if (item == null) {
-            return false;
-        }
-
+        if (item == null) return false;
         short iQuant = item.getQuantity();
-        if (iQuant == 0xFFFF) {
-            iQuant = 1;
-        } else if (iQuant < 0) {
-            return false;
-        }
-
-        if (!ItemConstants.isRechargeable(item.getItemId())) {
-            return iQuant != 0 && quantity <= iQuant;
-        }
-
+        if (iQuant == 0xFFFF) iQuant = 1;
+        else if (iQuant < 0) return false;
+        if (!ItemConstants.isRechargeable(item.getItemId())) return iQuant != 0 && quantity <= iQuant;
         return true;
     }
 
     private static short getSellingQuantity(Item item, short quantity) {
         if (ItemConstants.isRechargeable(item.getItemId())) {
             quantity = item.getQuantity();
-            if (quantity == 0xFFFF) {
-                quantity = 1;
-            }
+            if (quantity == 0xFFFF) quantity = 1;
         }
-
         return quantity;
     }
 
     static boolean isValidSellPrice(int price) {
-        // ItemInformationProvider uses -1 when Item.wz has no price. Such items
-        // are not sellable and must never be removed from inventory for zero mesos.
         return price >= 0;
     }
 
     public void sell(Client c, InventoryType type, short slot, short quantity) {
-        if (quantity == 0xFFFF || quantity == 0) {
-            quantity = 1;
-        } else if (quantity < 0) {
-            return;
-        }
+        if (quantity == 0xFFFF || quantity == 0) quantity = 1;
+        else if (quantity < 0) return;
 
         Item item = c.getPlayer().getInventory(type).getItem(slot);
         if (canSell(item, quantity)) {
             quantity = getSellingQuantity(item, quantity);
-
             ItemInformationProvider ii = ItemInformationProvider.getInstance();
             int recvMesos = ii.getPrice(item.getItemId(), quantity);
             if (!isValidSellPrice(recvMesos)) {
                 c.sendPacket(PacketCreator.shopTransaction((byte) 0x5));
                 return;
             }
-
             InventoryManipulator.removeFromSlot(c, type, (byte) slot, quantity, false);
-            if (recvMesos > 0) {
-                c.getPlayer().gainMeso(recvMesos, false);
-            }
+            if (recvMesos > 0) c.getPlayer().gainMeso(recvMesos, false);
             c.sendPacket(PacketCreator.shopTransaction((byte) 0x8));
         } else {
             c.sendPacket(PacketCreator.shopTransaction((byte) 0x5));
@@ -229,18 +215,12 @@ public class Shop {
     public void recharge(Client c, short slot) {
         ItemInformationProvider ii = ItemInformationProvider.getInstance();
         Item item = c.getPlayer().getInventory(InventoryType.USE).getItem(slot);
-        if (item == null || !ItemConstants.isRechargeable(item.getItemId())) {
-            return;
-        }
+        if (item == null || !ItemConstants.isRechargeable(item.getItemId())) return;
         short slotMax = ii.getSlotMax(c, item.getItemId());
-        if (item.getQuantity() < 0) {
-            return;
-        }
+        if (item.getQuantity() < 0) return;
         if (item.getQuantity() < slotMax) {
             int price = (int) Math.ceil(ii.getUnitPrice(item.getItemId()) * (slotMax - item.getQuantity()));
-            if (price < 0) {
-                return;
-            }
+            if (price < 0) return;
             if (c.getPlayer().getMeso() >= price) {
                 item.setQuantity(slotMax);
                 c.getPlayer().forceUpdateItem(item);
@@ -253,9 +233,7 @@ public class Shop {
     }
 
     private ShopItem findBySlot(short slot) {
-        if (slot < 0 || slot >= items.size()) {
-            return null;
-        }
+        if (slot < 0 || slot >= items.size()) return null;
         return items.get(slot);
     }
 
@@ -263,45 +241,31 @@ public class Shop {
         Shop ret = null;
         int shopId;
         try (Connection con = DatabaseConnection.getConnection()) {
-            final String query;
-            if (isShopId) {
-                query = "SELECT * FROM shops WHERE shopid = ?";
-            } else {
-                query = "SELECT * FROM shops WHERE npcid = ?";
-            }
-
-            try (PreparedStatement ps = con.prepareStatement(query.toString())) {
+            final String query = isShopId ? "SELECT * FROM shops WHERE shopid = ?" : "SELECT * FROM shops WHERE npcid = ?";
+            try (PreparedStatement ps = con.prepareStatement(query)) {
                 ps.setInt(1, id);
-
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         shopId = rs.getInt("shopid");
                         ret = new Shop(shopId, rs.getInt("npcid"));
-                    } else {
-                        return null;
-                    }
+                    } else return null;
                 }
             }
 
             try (PreparedStatement ps = con.prepareStatement("SELECT itemid, price, pitch FROM shopitems WHERE shopid = ? ORDER BY position DESC")) {
                 ps.setInt(1, shopId);
-
                 try (ResultSet rs = ps.executeQuery()) {
                     List<Integer> recharges = new ArrayList<>(rechargeableItems);
                     while (rs.next()) {
                         if (ItemConstants.isRechargeable(rs.getInt("itemid"))) {
                             ShopItem starItem = new ShopItem((short) 1, rs.getInt("itemid"), rs.getInt("price"), rs.getInt("pitch"));
                             ret.addItem(starItem);
-                            if (rechargeableItems.contains(starItem.getItemId())) {
-                                recharges.remove(Integer.valueOf(starItem.getItemId()));
-                            }
+                            if (rechargeableItems.contains(starItem.getItemId())) recharges.remove(Integer.valueOf(starItem.getItemId()));
                         } else {
                             ret.addItem(new ShopItem((short) 1000, rs.getInt("itemid"), rs.getInt("price"), rs.getInt("pitch")));
                         }
                     }
-                    for (Integer recharge : recharges) {
-                        ret.addItem(new ShopItem((short) 1000, recharge, 0, 0));
-                    }
+                    for (Integer recharge : recharges) ret.addItem(new ShopItem((short) 1000, recharge, 0, 0));
                 }
             }
         } catch (SQLException e) {
@@ -310,11 +274,6 @@ public class Shop {
         return ret;
     }
 
-    public int getNpcId() {
-        return npcId;
-    }
-
-    public int getId() {
-        return id;
-    }
+    public int getNpcId() { return npcId; }
+    public int getId() { return id; }
 }
