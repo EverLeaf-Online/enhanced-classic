@@ -44,37 +44,52 @@ jobs:
           pe=pefile.PE(path)
           image_base=pe.OPTIONAL_HEADER.ImageBase
           target=0x005F7C4A
-          data=open(path,'rb').read()
-          text=None
+          print(f'IMAGE_BASE=0x{image_base:08X} TARGET=0x{target:08X}')
+          sections=[]
           for s in pe.sections:
-              name=s.Name.rstrip(b'\0')
-              if name==b'.text':
-                  text=s; break
-          if text is None: raise SystemExit('no .text section')
-          raw=text.get_data(); va=image_base+text.VirtualAddress
-          print(f'IMAGE_BASE=0x{image_base:08X} TEXT_VA=0x{va:08X} TARGET=0x{target:08X}')
+              name=s.Name.rstrip(b'\0').decode('latin1','replace')
+              va=image_base+s.VirtualAddress
+              size=max(s.Misc_VirtualSize,s.SizeOfRawData)
+              end=va+size
+              sections.append((s,name,va,end,size))
+              print(f'SECTION name={name!r} va=0x{va:08X} end=0x{end:08X} raw=0x{s.SizeOfRawData:X} virt=0x{s.Misc_VirtualSize:X} chars=0x{s.Characteristics:08X}')
+          target_sections=[x for x in sections if x[2] <= target < x[3]]
+          if not target_sections:
+              raise SystemExit('target VA is not backed by any PE section; executable may unpack code only at runtime')
+          sec,name,va,end,size=target_sections[0]
+          raw=sec.get_data()
+          print(f'TARGET_SECTION={name!r} VA=0x{va:08X} RAW_LEN=0x{len(raw):X}')
+          target_off=target-va
+          if target_off >= len(raw):
+              raise SystemExit(f'target is in virtual tail without file-backed bytes: off=0x{target_off:X} raw=0x{len(raw):X}')
           calls=[]
-          for i,b in enumerate(raw[:-5]):
-              if b!=0xE8: continue
-              rel=struct.unpack_from('<i',raw,i+1)[0]
-              src=va+i
-              dst=src+5+rel
-              if dst==target:
-                  calls.append(src)
-          print('DIRECT_CALLERS', [f'0x{x:08X}' for x in calls])
+          # Search every file-backed executable section for direct relative CALLs to the known v83 send function.
+          for s,name_s,va_s,end_s,size_s in sections:
+              if not (s.Characteristics & 0x20000000):
+                  continue
+              blob=s.get_data()
+              for i,b in enumerate(blob[:-5]):
+                  if b!=0xE8: continue
+                  rel=struct.unpack_from('<i',blob,i+1)[0]
+                  src=va_s+i
+                  dst=src+5+rel
+                  if dst==target:
+                      calls.append((src,name_s,blob,va_s))
+          print('DIRECT_CALLERS', [f'0x{x[0]:08X}@{x[1]}' for x in calls])
           md=Cs(CS_ARCH_X86, CS_MODE_32)
           md.detail=False
-          for src in calls:
-              start=max(va,src-160); end=src+96
-              off=start-va
-              chunk=raw[off:off+(end-start)]
-              print(f'--- context around 0x{src:08X} ---')
+          for src,name_s,blob,va_s in calls:
+              start=max(va_s,src-224); finish=min(va_s+len(blob),src+128)
+              off=start-va_s
+              chunk=blob[off:off+(finish-start)]
+              print(f'--- context around caller 0x{src:08X} section={name_s} ---')
               for ins in md.disasm(chunk,start):
                   mark='>>' if ins.address==src else '  '
                   print(f'{mark} {ins.address:08X}: {ins.mnemonic:8} {ins.op_str}')
-          # Also disassemble the send function itself to expose branch assumptions.
-          start=target; end=target+0x220; off=start-va
+          start=target
+          finish=min(va+len(raw),target+0x280)
+          off=start-va
           print('--- SendDeleteCharPacket ---')
-          for ins in md.disasm(raw[off:off+(end-start)],start):
+          for ins in md.disasm(raw[off:off+(finish-start)],start):
               print(f'{ins.address:08X}: {ins.mnemonic:8} {ins.op_str}')
           PY
