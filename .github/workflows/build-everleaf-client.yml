@@ -26,6 +26,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Apply Community UI preference
+        shell: pwsh
+        run: python client/scripts/apply-community-ui-preference.py
+
       - name: Configure MSBuild
         uses: microsoft/setup-msbuild@v2
 
@@ -51,6 +55,10 @@ jobs:
           if ($source -match 'if\s*\(\(HRESULT\)v\d+\s*<\s*0\)') {
             throw "Function-pointer address is still being tested as an HRESULT"
           }
+          $main = Get-Content "client/ezorsia/ezorsia/MainMain.cpp" -Raw
+          foreach ($pattern in @('PreferCommunityUI', 'CustomLoginFrame = !preferCommunityUi', 'ownCashShopFrame = preferCommunityUi')) {
+            if (-not $main.Contains($pattern)) { throw "Missing Community UI preference marker: $pattern" }
+          }
 
       - name: Build managed client package
         shell: pwsh
@@ -68,6 +76,7 @@ jobs:
           foreach ($name in $forbidden) {
             if ($config -match [regex]::Escape($name)) { throw "Player config exposes forbidden setting: $name" }
           }
+          if (-not ($config -match 'PreferCommunityUI=true')) { throw "Managed client does not default to Community UI" }
           if (-not (Test-Path "$package/EverLeaf_UI.wz")) { throw "Missing branded EverLeaf UI file" }
           if (Test-Path "$package/EzorsiaV2_UI.wz") { throw "Legacy UI filename leaked into package" }
           Compress-Archive -Path "$package/*" -DestinationPath "EverleafClient-source-built.zip"
