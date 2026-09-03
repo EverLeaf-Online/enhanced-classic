@@ -17,7 +17,8 @@ import java.util.concurrent.ScheduledFuture;
 /**
  * Controlled autonomous QA wrapper around SoloMapling's real GCMove + BotAttackSystem.
  * It selects/chases targets, maintains learned buffs, uses real inventory consumables,
- * loots EverLeaf-owned drops, and keeps running through transient failures.
+ * restocks from real current-map NPC shops, loots EverLeaf-owned drops, and keeps
+ * running through transient failures.
  */
 public final class BareBotHunter {
     private static final Logger log = LoggerFactory.getLogger(BareBotHunter.class);
@@ -54,6 +55,7 @@ public final class BareBotHunter {
         BotLootDriver.clearBot(bot.getId());
         BotBuffDriver.clearBot(bot.getId());
         BotConsumableDriver.clearBot(bot.getId());
+        BotNpcDriver.cancel(bot);
         return true;
     }
 
@@ -94,8 +96,14 @@ public final class BareBotHunter {
 
             BotConsumableDriver.UseResult consumable = BotConsumableDriver.tick(bot);
             if (consumable.used()) return;
+
             BotBuffDriver.BuffResult buff = BotBuffDriver.tick(bot);
             if (buff.applied()) return;
+
+            // When stock is low, use the same Shop transaction methods as a real player.
+            // If no shop exists on this map the restock driver is inactive and hunting continues.
+            BotShopDriver.RestockResult restock = BotShopDriver.tickRestock(bot);
+            if (restock.active()) return;
 
             BotLootDriver.LootResult loot = BotLootDriver.tick(bot);
             if (loot.found()) return;
