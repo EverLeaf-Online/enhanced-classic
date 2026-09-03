@@ -35,11 +35,7 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
           chmod 600 ~/.ssh/id_everleaf
-          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
-            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          else
-            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
-          fi
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
           cat > ~/.ssh/config <<'EOF'
           Host everleaf-oracle
             HostName 132.145.141.79
@@ -74,32 +70,29 @@ jobs:
           test -d "$SERVER_SKILL"
           for g in $IMAGES; do test -s "$OLD_SERVER/$g.img.xml"; test ! -e "$SERVER_SKILL/$g.img.xml"; done
 
-          mkdir -p "$TOOLROOT"
-          if ! command -v dotnet >/dev/null 2>&1; then
-            mkdir -p "$DOTNET_ROOT"
+          mkdir -p "$TOOLROOT" "$DOTNET_ROOT"
+          if ! "$DOTNET_ROOT/dotnet" --list-sdks 2>/dev/null | grep -q '^10\.'; then
             curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
-            bash /tmp/dotnet-install.sh --channel 8.0 --install-dir "$DOTNET_ROOT"
+            bash /tmp/dotnet-install.sh --channel 10.0 --install-dir "$DOTNET_ROOT"
           fi
-          if [ ! -d "$TOOLROOT/MapleLib/.git" ]; then
-            git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$TOOLROOT/MapleLib"
-          fi
+          if [ ! -d "$TOOLROOT/MapleLib/.git" ]; then git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$TOOLROOT/MapleLib"; else git -C "$TOOLROOT/MapleLib" pull --ff-only; fi
           rm -rf "$TOOLROOT/Patcher"
           mkdir -p "$TOOLROOT/Patcher"
           cat > "$TOOLROOT/Patcher/Patcher.csproj" <<EOF
           <Project Sdk="Microsoft.NET.Sdk">
-            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
             <ItemGroup><ProjectReference Include="../MapleLib/MapleLib/MapleLib.csproj" /></ItemGroup>
           </Project>
           EOF
           cat > "$TOOLROOT/Patcher/Program.cs" <<'CS'
           using MapleLib.WzLib;
           using System.Security.Cryptography;
-
           if (args.Length != 3) throw new ArgumentException("usage: target donor output");
           var targetPath=args[0]; var donorPath=args[1]; var output=args[2];
           string[] names={"2001.img","2200.img","2210.img","2211.img","2212.img","2213.img","2214.img","2215.img","2216.img","2217.img","2218.img"};
           static WzFile Open(string p){ var f=new WzFile(p,WzMapleVersion.GMS); var s=f.ParseWzFile(); if(s!=WzFileParseStatus.Success){f.Dispose();throw new Exception($"parse {p}: {s}");} return f; }
           static string Sha(string p){using var fs=File.OpenRead(p); return Convert.ToHexString(SHA256.HashData(fs)).ToLowerInvariant();}
+          if(File.Exists(output)) File.Delete(output);
           using(var target=Open(targetPath)) using(var donor=Open(donorPath)){
             foreach(var n in names){
               if(target.WzDirectory.GetImageByName(n)!=null) throw new Exception($"target already has {n}");
@@ -114,26 +107,24 @@ jobs:
           using(var check=Open(output)) foreach(var n in names){ var img=check.WzDirectory.GetImageByName(n) ?? throw new Exception($"saved output missing {n}"); if(!img.ParseImage() || img.WzProperties.Count==0) throw new Exception($"saved output invalid {n}"); }
           Console.WriteLine($"EVAN_CLIENT_MERGE_OK SHA256={Sha(output)}");
           CS
-          dotnet run --project "$TOOLROOT/Patcher/Patcher.csproj" --configuration Release -- "$LIVE_CLIENT" "$OLD_CLIENT" "$TOOLROOT/Skill.wz.new"
+          "$DOTNET_ROOT/dotnet" run --project "$TOOLROOT/Patcher/Patcher.csproj" --configuration Release -- "$LIVE_CLIENT" "$OLD_CLIENT" "$TOOLROOT/Skill.wz.new"
           test -s "$TOOLROOT/Skill.wz.new"
 
           STAGE_SERVER="$CURRENT/wz.evan-skill-new"
           sudo rm -rf "$STAGE_SERVER"
           sudo cp -a "$CURRENT/wz" "$STAGE_SERVER"
           for g in $IMAGES; do sudo cp -a "$OLD_SERVER/$g.img.xml" "$STAGE_SERVER/Skill.wz/$g.img.xml"; done
-
           python3 - "$STAGE_SERVER/Skill.wz" <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET,sys
-          root=Path(sys.argv[1]); expected=[20010012,20011000,20011001,20011002,20011003,20011004,20011005,20011006,20011007,20011009,20011010,20011011,22000000,22001001,22101000,22101001,22111000,22111001,22121000,22121001,22131000,22131001,22140000,22141001,22141002,22141003,22150000,22151001,22151002,22151003,22160000,22161001,22161002,22161003,22170001,22171000,22171002,22171003,22171004,22181000,22181001,22181002,22181003]
-          seen=set()
+          root=Path(sys.argv[1]); expected={20010012,20011000,20011001,20011002,20011003,20011004,20011005,20011006,20011007,20011009,20011010,20011011,22000000,22001001,22101000,22101001,22111000,22111001,22121000,22121001,22131000,22131001,22140000,22141001,22141002,22141003,22150000,22151001,22151002,22151003,22160000,22161001,22161002,22161003,22170001,22171000,22171002,22171003,22171004,22181000,22181001,22181002,22181003}; seen=set()
           for p in root.glob('*.xml'):
             try:r=ET.parse(p).getroot()
             except:continue
             for e in r.iter():
               n=e.attrib.get('name','')
               if n.isdigit() and int(n) in expected: seen.add(int(n))
-          miss=sorted(set(expected)-seen)
+          miss=sorted(expected-seen)
           if miss: raise SystemExit(f'missing Evan IDs in staged server XML: {miss}')
           print(f'EVAN_SERVER_STAGE_OK COUNT={len(seen)}')
           PY
@@ -156,22 +147,18 @@ jobs:
           sudo rm -rf "$CURRENT/wz.evan-old"
           sudo mv "$CURRENT/wz" "$CURRENT/wz.evan-old"
           sudo mv "$STAGE_SERVER" "$CURRENT/wz"
-
           GENERATED="$TOOLROOT/manifest.json"
           LAUNCHER_PATCH_ROOT="$PATCH" LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" LAUNCHER_MANIFEST_PATH="$GENERATED" LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" node /opt/everleaf/web/scripts/build-patch-manifest.js '__SHA__'
           sudo install -m 644 "$GENERATED" "$PATCH/manifest.json"
           test -s "$PATCH/manifest.json"
-
           sudo systemctl restart everleaf.service
           for i in $(seq 1 45); do if systemctl is-active --quiet everleaf.service && ss -ltn | grep -q ':8484 '; then break; fi; sleep 2; done
           systemctl is-active --quiet everleaf.service
           ss -ltn | grep -q ':8484 '
-
           python3 - "$CURRENT/wz/Skill.wz" <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET,sys
-          root=Path(sys.argv[1]); expected={20010012,20011000,20011001,20011002,20011003,20011004,20011005,20011006,20011007,20011009,20011010,20011011,22000000,22001001,22101000,22101001,22111000,22111001,22121000,22121001,22131000,22131001,22140000,22141001,22141002,22141003,22150000,22151001,22151002,22151003,22160000,22161001,22161002,22161003,22170001,22171000,22171002,22171003,22171004,22181000,22181001,22181002,22181003}
-          seen=set()
+          root=Path(sys.argv[1]); expected={20010012,20011000,20011001,20011002,20011003,20011004,20011005,20011006,20011007,20011009,20011010,20011011,22000000,22001001,22101000,22101001,22111000,22111001,22121000,22121001,22131000,22131001,22140000,22141001,22141002,22141003,22150000,22151001,22151002,22151003,22160000,22161001,22161002,22161003,22170001,22171000,22171002,22171003,22171004,22181000,22181001,22181002,22181003}; seen=set()
           for p in root.glob('*.xml'):
             r=ET.parse(p).getroot()
             for e in r.iter():
@@ -181,7 +168,6 @@ jobs:
           if miss: raise SystemExit(f'live missing Evan IDs: {miss}')
           print(f'EVAN_LIVE_SERVER_OK COUNT={len(seen)}')
           PY
-
           ROLLBACK=0
           trap - ERR
           sudo rm -f "$FILES/Skill.wz.evan-old"
