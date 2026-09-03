@@ -1,0 +1,138 @@
+name: Audit live Community unlocked content
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-live-community-unlocked.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts
+          fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+
+      - name: Bundle server behavior sources
+        run: |
+          set -euo pipefail
+          tar -czf /tmp/everleaf-audit-src.tgz src scripts sql tools 2>/dev/null || tar -czf /tmp/everleaf-audit-src.tgz src scripts tools
+          scp /tmp/everleaf-audit-src.tgz everleaf-oracle:/tmp/everleaf-audit-src.tgz
+
+      - name: Inventory live Community delta and explicit server behavior
+        run: |
+          set -euo pipefail
+          cat > /tmp/audit-community.py <<'PY'
+          from pathlib import Path
+          import json, re, shutil, subprocess, xml.etree.ElementTree as ET
+
+          current = Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'], text=True).strip())
+          live = current / 'wz'
+          backup = Path(Path('/opt/everleaf/backups/community-wholesale-test/LATEST').read_text().strip())
+          base = backup / 'server-wz-xml'
+          src = Path('/tmp/everleaf-community-audit-src')
+          families = ['Map.wz','Mob.wz','Npc.wz','Item.wz','Skill.wz','Quest.wz','Reactor.wz']
+
+          def numeric_ids(root: Path, family: str):
+              out=set()
+              d=root/family
+              if not d.exists(): return out
+              for p in d.rglob('*.xml'):
+                  name=p.name
+                  m=re.match(r'^(\d{4,10})(?:\.img)?\.xml$', name)
+                  if m: out.add(int(m.group(1)))
+                  # Item/skill/string serializers often group many IDs in one XML;
+                  # collect immediate numeric children without walking animation/frame nodes.
+                  try:
+                      tree=ET.parse(p)
+                      r=tree.getroot()
+                      for child in list(r):
+                          n=child.attrib.get('name','')
+                          if n.isdigit() and 4 <= len(n) <= 10:
+                              out.add(int(n))
+                  except Exception:
+                      pass
+              return out
+
+          source_files=[]
+          for ext in ('*.java','*.js','*.sql','*.py'):
+              source_files.extend(src.rglob(ext))
+          chunks=[]
+          for p in source_files:
+              try: chunks.append(p.read_text(errors='ignore'))
+              except Exception: pass
+          source='\n'.join(chunks)
+
+          result={'current':str(current),'backup':str(backup),'families':{}}
+          for fam in families:
+              live_ids=numeric_ids(live,fam)
+              old_ids=numeric_ids(base,fam)
+              added=sorted(live_ids-old_ids)
+              refs=[i for i in added if str(i) in source]
+              entry={'live_ids':len(live_ids),'baseline_ids':len(old_ids),'added_ids':len(added),'explicit_server_refs':len(refs),'no_explicit_server_ref':len(added)-len(refs),'sample_added':added[:80],'sample_no_explicit_ref':[i for i in added if i not in set(refs)][:80]}
+              if fam=='Npc.wz':
+                  scripts=src/'scripts'/'npc'
+                  scripted=[i for i in added if (scripts/f'{i}.js').exists()]
+                  entry['added_with_npc_script']=len(scripted)
+                  entry['added_without_npc_script']=len(added)-len(scripted)
+                  entry['sample_added_without_npc_script']=[i for i in added if not (scripts/f'{i}.js').exists()][:80]
+              result['families'][fam]=entry
+
+          print('COMMUNITY_UNLOCKED_AUDIT_JSON_BEGIN')
+          print(json.dumps(result, indent=2))
+          print('COMMUNITY_UNLOCKED_AUDIT_JSON_END')
+          PY
+          scp /tmp/audit-community.py everleaf-oracle:/tmp/audit-community.py
+          ssh everleaf-oracle 'set -euo pipefail; rm -rf /tmp/everleaf-community-audit-src; mkdir -p /tmp/everleaf-community-audit-src; tar -xzf /tmp/everleaf-audit-src.tgz -C /tmp/everleaf-community-audit-src; python3 /tmp/audit-community.py'
+
+      - name: Inspect live drop/shop/economy database surfaces
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF'
+          set -euo pipefail
+          echo ECONOMY_DB_SURFACES_BEGIN
+          sudo mysql -NBe "SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema NOT IN ('information_schema','mysql','performance_schema','sys') AND (LOWER(table_name) LIKE '%drop%' OR LOWER(table_name) LIKE '%shop%' OR LOWER(table_name) LIKE '%gach%' OR LOWER(table_name) LIKE '%reward%' OR LOWER(table_name) LIKE '%item%') ORDER BY table_schema, table_name;" || true
+          echo ECONOMY_DB_COLUMNS_BEGIN
+          sudo mysql -NBe "SELECT table_schema, table_name, column_name, data_type FROM information_schema.columns WHERE table_schema NOT IN ('information_schema','mysql','performance_schema','sys') AND (LOWER(table_name) LIKE '%drop%' OR LOWER(table_name) LIKE '%shop%' OR LOWER(table_name) LIKE '%gach%' OR LOWER(table_name) LIKE '%reward%') ORDER BY table_schema, table_name, ordinal_position;" || true
+          echo ECONOMY_DB_COLUMNS_END
+          echo ECONOMY_DB_SURFACES_END
+          EOF
+
+      - name: Re-run existing economy/drop audits against current release source
+        run: |
+          set -euo pipefail
+          python3 tools/audit_economy_balance.py
+          python3 tools/audit_reward_sources.py
+          python3 tools/audit_items_equipment.py
+          python3 tools/audit_world_integrity.py
+          echo EXISTING_RELEASE_AUDITS_OK
