@@ -151,8 +151,18 @@ jobs:
           scp (Join-Path $root 'export-status.txt') "everleaf-oracle`:$stage/export-status.txt"; if($LASTEXITCODE){throw 'status upload failed'}
           $families=Get-Content (Join-Path $root 'families.txt')
           foreach($family in $families){scp (Join-Path $root "wz/$family") "everleaf-oracle`:$stage/wz/$family"; if($LASTEXITCODE){throw "candidate WZ upload failed: $family"}}
-          ssh everleaf-oracle "set -e; unzip -t '$stage/community-full-xml.zip' >/dev/null; test \$(find '$stage/wz' -maxdepth 1 -type f -name '*.wz' | wc -l) -ge 17; echo WHOLESALE_CANDIDATE_STAGED_OK"
-          if($LASTEXITCODE){throw 'remote candidate verification failed'}
+          $verify=@'
+          set -euo pipefail
+          STAGE=__STAGE__
+          unzip -t "$STAGE/community-full-xml.zip" >/dev/null
+          WZ_COUNT="$(find "$STAGE/wz" -maxdepth 1 -type f -name '*.wz' | wc -l)"
+          test "$WZ_COUNT" -ge 17
+          echo "WHOLESALE_CANDIDATE_STAGED_OK WZ_COUNT=$WZ_COUNT"
+          '@
+          $verify=$verify.Replace('__STAGE__',$stage)
+          $verifyPath=Join-Path $env:RUNNER_TEMP 'verify-wholesale-stage.sh'; [IO.File]::WriteAllText($verifyPath,($verify -replace "`r",''))
+          scp $verifyPath 'everleaf-oracle:/tmp/verify-wholesale-stage.sh'; if($LASTEXITCODE){throw 'candidate verification script upload failed'}
+          ssh everleaf-oracle "bash /tmp/verify-wholesale-stage.sh"; if($LASTEXITCODE){throw 'remote candidate verification failed'}
 
       - name: Replace live client WZ and server XML with Community candidate
         shell: pwsh
@@ -224,5 +234,17 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          ssh everleaf-oracle "set -e; CURRENT=\$(readlink -f /opt/everleaf/current); systemctl is-active --quiet everleaf.service; ss -ltn | grep -q ':8484 '; test \$(find /opt/everleaf/patches/files -maxdepth 1 -type f -name '*.wz' | wc -l) -ge 17; test \$(find \$CURRENT/wz -type f -name '*.xml' | wc -l) -gt 15000; echo COMMUNITY_WHOLESALE_FINAL_VERIFICATION_OK"
-          if($LASTEXITCODE){throw 'final live verification failed'}
+          $verify=@'
+          set -euo pipefail
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          systemctl is-active --quiet everleaf.service
+          ss -ltn | grep -q ':8484 '
+          WZ_COUNT="$(find /opt/everleaf/patches/files -maxdepth 1 -type f -name '*.wz' | wc -l)"
+          XML_COUNT="$(find "$CURRENT/wz" -type f -name '*.xml' | wc -l)"
+          test "$WZ_COUNT" -ge 17
+          test "$XML_COUNT" -gt 15000
+          echo "COMMUNITY_WHOLESALE_FINAL_VERIFICATION_OK WZ_COUNT=$WZ_COUNT XML_COUNT=$XML_COUNT"
+          '@
+          $verifyPath=Join-Path $env:RUNNER_TEMP 'verify-wholesale-live.sh'; [IO.File]::WriteAllText($verifyPath,($verify -replace "`r",''))
+          scp $verifyPath 'everleaf-oracle:/tmp/verify-wholesale-live.sh'; if($LASTEXITCODE){throw 'final verification script upload failed'}
+          ssh everleaf-oracle "bash /tmp/verify-wholesale-live.sh"; if($LASTEXITCODE){throw 'final live verification failed'}
