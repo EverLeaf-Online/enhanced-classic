@@ -1,0 +1,174 @@
+name: Resume full community WZ + fresh XML live test
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/deploy-community-wholesale-from-stage.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-community-wholesale-live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  VERIFIED_STAGE: /home/ubuntu/everleaf-staging/community-wholesale-live-33701797136
+
+jobs:
+  resume-wholesale:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 15
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Verify rollback state and free stale staging space
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $script=@'
+          set -euo pipefail
+          STAGE=__STAGE__
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          BACKUP="$(cat /opt/everleaf/backups/community-wholesale-test/LATEST)"
+          test -d "$BACKUP/client-files"
+          test -d "$BACKUP/server-wz-xml"
+          test -s "$BACKUP/manifest.json"
+          test -d "$STAGE/wz"
+          test -s "$STAGE/community-full-xml.zip"
+          test "$(find "$STAGE/wz" -maxdepth 1 -type f -name '*.wz' | wc -l)" -ge 17
+          sudo rm -rf "$CURRENT/wz.community-new" "$CURRENT/wz.community-old"
+          sudo rm -rf /home/ubuntu/everleaf-staging/community-wholesale-live-33700668919
+          echo "DISK_BEFORE_DEPLOY"
+          df -h / /opt /home || true
+          echo "ROLLBACK_READY=$BACKUP"
+          '@
+          $script=$script.Replace('__STAGE__',$env:VERIFIED_STAGE)
+          $tmp=Join-Path $env:RUNNER_TEMP 'prepare-wholesale-resume.sh'; [IO.File]::WriteAllText($tmp,($script -replace "`r",''))
+          scp $tmp 'everleaf-oracle:/tmp/prepare-wholesale-resume.sh'; if($LASTEXITCODE){throw 'prepare script upload failed'}
+          ssh everleaf-oracle "bash /tmp/prepare-wholesale-resume.sh"; if($LASTEXITCODE){throw 'prepare failed'}
+
+      - name: Install verified Community WZ and fresh XML candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $script=@'
+          set -euo pipefail
+          STAGE=__STAGE__
+          PATCH=/opt/everleaf/patches
+          FILES="$PATCH/files"
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          SERVER_WZ="$CURRENT/wz"
+          BACKUP="$(cat /opt/everleaf/backups/community-wholesale-test/LATEST)"
+          test -d "$BACKUP/client-files"
+          test -d "$BACKUP/server-wz-xml"
+          test -s "$BACKUP/manifest.json"
+          test -d "$STAGE/wz"
+          test -s "$STAGE/community-full-xml.zip"
+          SRC_DEV="$(stat -c %d "$STAGE/wz")"
+          DST_DEV="$(stat -c %d "$FILES")"
+          echo "STAGE_DEVICE=$SRC_DEV FILES_DEVICE=$DST_DEV"
+          ROLLBACK=1
+          rollback(){
+            if [ "$ROLLBACK" = 1 ]; then
+              echo 'WHOLESALE_TEST_FAILED_ROLLING_BACK' >&2
+              sudo rm -rf "$FILES"
+              sudo cp -a "$BACKUP/client-files" "$FILES"
+              sudo rm -rf "$SERVER_WZ"
+              sudo cp -a "$BACKUP/server-wz-xml" "$SERVER_WZ"
+              sudo install -m 644 "$BACKUP/manifest.json" "$PATCH/manifest.json"
+              sudo systemctl restart everleaf.service || true
+            fi
+          }
+          trap rollback ERR
+          NEW_SERVER="$CURRENT/wz.community-new"
+          sudo rm -rf "$NEW_SERVER"
+          sudo mkdir -p "$NEW_SERVER"
+          sudo unzip -q "$STAGE/community-full-xml.zip" -d "$NEW_SERVER"
+          for d in Item.wz Map.wz Mob.wz Npc.wz Quest.wz Reactor.wz Skill.wz String.wz; do test -d "$NEW_SERVER/$d"; done
+          XML_COUNT="$(find "$NEW_SERVER" -type f -name '*.xml' | wc -l)"
+          test "$XML_COUNT" -gt 15000
+          sudo find "$FILES" -maxdepth 1 -type f -name '*.wz' -delete
+          if [ "$SRC_DEV" = "$DST_DEV" ]; then
+            echo 'Installing WZs by same-filesystem rename to avoid duplicate disk usage'
+            sudo mv "$STAGE/wz/"*.wz "$FILES/"
+          else
+            echo 'Installing WZs by copy after old live WZ removal'
+            sudo cp -a "$STAGE/wz/"*.wz "$FILES/"
+          fi
+          WZ_COUNT="$(find "$FILES" -maxdepth 1 -type f -name '*.wz' | wc -l)"
+          test "$WZ_COUNT" -ge 17
+          sudo rm -rf "$SERVER_WZ.community-old"
+          sudo mv "$SERVER_WZ" "$SERVER_WZ.community-old"
+          sudo mv "$NEW_SERVER" "$SERVER_WZ"
+          GENERATED="$STAGE/manifest.json"
+          LAUNCHER_PATCH_ROOT="$PATCH" LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" LAUNCHER_MANIFEST_PATH="$GENERATED" LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" node /opt/everleaf/web/scripts/build-patch-manifest.js '__SHA__'
+          sudo install -m 644 "$GENERATED" "$PATCH/manifest.json"
+          sudo systemctl restart everleaf.service
+          for i in $(seq 1 45); do
+            if systemctl is-active --quiet everleaf.service && ss -ltn | grep -q ':8484 '; then break; fi
+            sleep 2
+          done
+          systemctl is-active --quiet everleaf.service
+          ss -ltn | grep -q ':8484 '
+          curl -fsS http://127.0.0.1:3000/patches/manifest.json >/dev/null
+          for f in Item.wz String.wz Map.wz Mob.wz Npc.wz Skill.wz; do test -s "$FILES/$f"; done
+          ROLLBACK=0
+          trap - ERR
+          sudo rm -rf "$SERVER_WZ.community-old"
+          echo "COMMUNITY_WHOLESALE_LIVE_OK WZ_COUNT=$WZ_COUNT XML_COUNT=$XML_COUNT BACKUP=$BACKUP"
+          df -h / /opt /home || true
+          '@
+          $script=$script.Replace('__STAGE__',$env:VERIFIED_STAGE).Replace('__SHA__','${{ github.sha }}')
+          $tmp=Join-Path $env:RUNNER_TEMP 'deploy-wholesale-resume.sh'; [IO.File]::WriteAllText($tmp,($script -replace "`r",''))
+          scp $tmp 'everleaf-oracle:/tmp/deploy-wholesale-resume.sh'; if($LASTEXITCODE){throw 'deploy script upload failed'}
+          ssh everleaf-oracle "bash /tmp/deploy-wholesale-resume.sh"; if($LASTEXITCODE){throw 'wholesale deploy failed or rolled back'}
+
+      - name: Final live verification
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $verify=@'
+          set -euo pipefail
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          systemctl is-active --quiet everleaf.service
+          ss -ltn | grep -q ':8484 '
+          WZ_COUNT="$(find /opt/everleaf/patches/files -maxdepth 1 -type f -name '*.wz' | wc -l)"
+          XML_COUNT="$(find "$CURRENT/wz" -type f -name '*.xml' | wc -l)"
+          test "$WZ_COUNT" -ge 17
+          test "$XML_COUNT" -gt 15000
+          for f in Item.wz String.wz Map.wz Mob.wz Npc.wz Skill.wz; do test -s "/opt/everleaf/patches/files/$f"; done
+          echo "COMMUNITY_WHOLESALE_FINAL_VERIFICATION_OK WZ_COUNT=$WZ_COUNT XML_COUNT=$XML_COUNT"
+          '@
+          $tmp=Join-Path $env:RUNNER_TEMP 'verify-wholesale-live.sh'; [IO.File]::WriteAllText($tmp,($verify -replace "`r",''))
+          scp $tmp 'everleaf-oracle:/tmp/verify-wholesale-live.sh'; if($LASTEXITCODE){throw 'final verification script upload failed'}
+          ssh everleaf-oracle "bash /tmp/verify-wholesale-live.sh"; if($LASTEXITCODE){throw 'final live verification failed'}
