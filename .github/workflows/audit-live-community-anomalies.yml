@@ -1,0 +1,121 @@
+name: Audit live Community anomaly details
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-live-community-anomalies.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh audit-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ConnectTimeout 20
+          EOF
+
+      - name: Dump exact economy anomaly rows
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee audit-output/economy-anomalies.txt
+          set -euo pipefail
+          echo '[normal nonpositive chance rows]'
+          sudo mysql -NBe "SELECT id,dropperid,itemid,minimum_quantity,maximum_quantity,questid,chance FROM cosmic.drop_data WHERE chance<=0 ORDER BY dropperid,itemid,questid,id;"
+          echo '[reactor duplicate groups]'
+          sudo mysql -NBe "SELECT reactorid,itemid,questid,COUNT(*) c,GROUP_CONCAT(reactordropid ORDER BY reactordropid),GROUP_CONCAT(chance ORDER BY reactordropid) FROM cosmic.reactordrops GROUP BY reactorid,itemid,questid HAVING c>1 ORDER BY reactorid,itemid,questid;"
+          echo '[shop duplicate item groups]'
+          sudo mysql -NBe "SELECT si.shopid,s.npcid,si.itemid,COUNT(*) c,GROUP_CONCAT(si.shopitemid ORDER BY si.shopitemid),GROUP_CONCAT(si.price ORDER BY si.shopitemid),GROUP_CONCAT(si.pitch ORDER BY si.shopitemid),GROUP_CONCAT(si.position ORDER BY si.shopitemid) FROM cosmic.shopitems si JOIN cosmic.shops s ON s.shopid=si.shopid GROUP BY si.shopid,s.npcid,si.itemid HAVING c>1 ORDER BY si.shopid,si.itemid;"
+          echo '[all global drops]'
+          sudo mysql -NBe "SELECT id,continent,itemid,minimum_quantity,maximum_quantity,questid,chance,comments FROM cosmic.drop_data_global ORDER BY id;"
+          EOF
+
+      - name: Inspect removed item and skill groups against live and rollback XML
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee audit-output/asset-parity-anomalies.txt
+          set -euo pipefail
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          BACKUP="$(cat /opt/everleaf/backups/community-wholesale-test/LATEST)"
+          echo '[removed item 2100904 baseline paths]'
+          find "$BACKUP/server-wz-xml/Item.wz" -type f -name '*.xml' -print0 | xargs -0 grep -l '2100904' 2>/dev/null || true
+          echo '[removed item 2100904 live paths]'
+          find "$CURRENT/wz/Item.wz" -type f -name '*.xml' -print0 | xargs -0 grep -l '2100904' 2>/dev/null || true
+          echo '[missing skill/job groups]'
+          for id in 2001 2200 2210 2211 2212 2213 2214 2215 2216 2217 2218; do
+            echo "--- $id baseline ---"
+            find "$BACKUP/server-wz-xml/Skill.wz" -type f \( -name "$id.img.xml" -o -name "$id.xml" \) -print || true
+            echo "--- $id live ---"
+            find "$CURRENT/wz/Skill.wz" -type f \( -name "$id.img.xml" -o -name "$id.xml" \) -print || true
+          done
+          EOF
+
+      - name: Inventory newly exposed mobs and NPCs actually spawned on live maps
+        run: |
+          set -euo pipefail
+          cat > /tmp/spawn-delta.py <<'PY'
+          from pathlib import Path
+          import re, subprocess, xml.etree.ElementTree as ET, json
+          current=Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'],text=True).strip())/'wz'
+          backup=Path(Path('/opt/everleaf/backups/community-wholesale-test/LATEST').read_text().strip())/'server-wz-xml'
+          def ids(root,fam):
+              out=set()
+              for p in (root/fam).rglob('*.xml'):
+                  m=re.match(r'^(\d{4,10})(?:\.img)?\.xml$',p.name)
+                  if m: out.add(int(m.group(1)))
+              return out
+          new_mobs=ids(current,'Mob.wz')-ids(backup,'Mob.wz')
+          new_npcs=ids(current,'Npc.wz')-ids(backup,'Npc.wz')
+          mob_maps={}; npc_maps={}
+          for p in (current/'Map.wz').rglob('*.xml'):
+              m=re.match(r'^(\d{6,10})(?:\.img)?\.xml$',p.name)
+              if not m: continue
+              mid=int(m.group(1))
+              try: root=ET.parse(p).getroot()
+              except: continue
+              for elem in root.iter():
+                  n=elem.attrib.get('name','')
+                  v=elem.attrib.get('value','')
+                  if n=='id' and v.isdigit():
+                      x=int(v)
+                      if x in new_mobs: mob_maps.setdefault(x,set()).add(mid)
+                      if x in new_npcs: npc_maps.setdefault(x,set()).add(mid)
+          out={
+            'new_mobs_total':len(new_mobs),'new_mobs_spawned_in_live_maps':len(mob_maps),
+            'new_npcs_total':len(new_npcs),'new_npcs_spawned_in_live_maps':len(npc_maps),
+            'sample_spawned_new_mobs':{str(k):sorted(v)[:20] for k,v in list(sorted(mob_maps.items()))[:100]},
+            'sample_spawned_new_npcs':{str(k):sorted(v)[:20] for k,v in list(sorted(npc_maps.items()))[:100]},
+          }
+          print(json.dumps(out,indent=2))
+          PY
+          scp /tmp/spawn-delta.py everleaf-oracle:/tmp/spawn-delta.py
+          ssh everleaf-oracle 'python3 /tmp/spawn-delta.py' | tee audit-output/spawned-community-delta.json
+
+      - name: Upload anomaly details
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-community-anomaly-details-${{ github.run_id }}
+          path: audit-output/
+          retention-days: 90
