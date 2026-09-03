@@ -47,8 +47,11 @@ jobs:
           assert bg.size == (800,600) and bg.mode == 'RGB'
           assert logo.size == (397,219) and logo.mode == 'RGBA'
           assert frame.size == (800,600) and frame.mode == 'RGBA'
-          assert frame.getbbox() is None, 'login frame must be fully transparent'
+          assert frame.getbbox() is None, 'UI login frame must be fully transparent'
           assert signboard.size == (368,236)
+          map_frame=Image.new('RGBA',(799,599),(0,0,0,0))
+          map_frame.save(root/'map-frame.png')
+          assert Image.open(root/'map-frame.png').getbbox() is None
           print('Borderless EverLeaf login art validated')
           PY
 
@@ -63,6 +66,7 @@ jobs:
             -DCMAKE_EXE_LINKER_FLAGS="-static -static-libstdc++ -static-libgcc"
           cmake --build "$RUNNER_TEMP/wz-build" --config Release -j2
           test -x "$RUNNER_TEMP/wz-build/everleaf-login-wz-patcher"
+          test -x "$RUNNER_TEMP/wz-build/everleaf-remove-map-login-frame"
 
       - name: Configure production SSH
         env:
@@ -93,8 +97,11 @@ jobs:
           scp "${SSH_OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/Map.wz" "$RUNNER_TEMP/Map.wz.live"
           scp "${SSH_OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/UI.wz" "$RUNNER_TEMP/UI.wz.live"
           PATCHER="$RUNNER_TEMP/wz-build/everleaf-login-wz-patcher"
+          FRAME_REMOVER="$RUNNER_TEMP/wz-build/everleaf-remove-map-login-frame"
           "$PATCHER" "$RUNNER_TEMP/Map.wz.live" "$RUNNER_TEMP/UI.wz.live" \
-            "$RUNNER_TEMP/everleaf-login-art" "$RUNNER_TEMP/Map.wz.new" "$RUNNER_TEMP/UI.wz.new"
+            "$RUNNER_TEMP/everleaf-login-art" "$RUNNER_TEMP/Map.wz.branded" "$RUNNER_TEMP/UI.wz.new"
+          "$FRAME_REMOVER" "$RUNNER_TEMP/Map.wz.branded" \
+            "$RUNNER_TEMP/everleaf-login-art/map-frame.png" "$RUNNER_TEMP/Map.wz.new"
           test -s "$RUNNER_TEMP/Map.wz.new" && test -s "$RUNNER_TEMP/UI.wz.new"
           sha256sum "$RUNNER_TEMP/Map.wz.live" | awk '{print $1}' > "$RUNNER_TEMP/map.old.sha"
           sha256sum "$RUNNER_TEMP/UI.wz.live" | awk '{print $1}' > "$RUNNER_TEMP/ui.old.sha"
