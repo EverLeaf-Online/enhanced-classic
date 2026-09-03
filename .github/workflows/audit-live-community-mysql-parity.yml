@@ -1,0 +1,130 @@
+name: Audit live Community MySQL parity
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-live-community-mysql-parity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh audit-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+
+      - name: Audit WZ to MySQL parity
+        run: |
+          set -euo pipefail
+          cat > /tmp/community-mysql-parity.py <<'PY'
+          from pathlib import Path
+          import subprocess,re,xml.etree.ElementTree as ET,json
+          current=Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'],text=True).strip())/'wz'
+          backup=Path(Path('/opt/everleaf/backups/community-wholesale-test/LATEST').read_text().strip())/'server-wz-xml'
+          repo=Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'],text=True).strip())
+
+          def file_ids(root,fam,minlen=4):
+              out=set()
+              for p in (root/fam).rglob('*.xml'):
+                  m=re.match(r'^(\d{%d,10})(?:\.img)?\.xml$'%minlen,p.name)
+                  if m: out.add(int(m.group(1)))
+              return out
+
+          def q(sql):
+              raw=subprocess.check_output(['sudo','mysql','-NBe',sql],text=True)
+              return [x for x in raw.splitlines() if x.strip()]
+
+          new_mobs=file_ids(current,'Mob.wz')-file_ids(backup,'Mob.wz')
+          new_npcs=file_ids(current,'Npc.wz')-file_ids(backup,'Npc.wz')
+          new_reactors=file_ids(current,'Reactor.wz')-file_ids(backup,'Reactor.wz')
+          placed_mobs=set(); placed_npcs=set(); placed_reactors=set()
+          for p in (current/'Map.wz').rglob('*.xml'):
+              try: root=ET.parse(p).getroot()
+              except Exception: continue
+              for e in root.iter():
+                  if e.attrib.get('name')!='id': continue
+                  v=e.attrib.get('value','')
+                  if not v.isdigit(): continue
+                  x=int(v)
+                  if x in new_mobs: placed_mobs.add(x)
+                  if x in new_npcs: placed_npcs.add(x)
+                  if x in new_reactors: placed_reactors.add(x)
+
+          dropper_ids=set(map(int,q('SELECT DISTINCT dropperid FROM cosmic.drop_data')))
+          shop_npcs=set(map(int,q('SELECT DISTINCT npcid FROM cosmic.shops')))
+          reactor_drop_ids=set(map(int,q('SELECT DISTINCT reactorid FROM cosmic.reactordrops')))
+
+          missing_mob_drops=sorted(placed_mobs-dropper_ids)
+          missing_npc_shops=sorted(placed_npcs-shop_npcs)
+          missing_reactor_drops=sorted(placed_reactors-reactor_drop_ids)
+
+          scripted_new_npcs=[]
+          script_dir=repo/'scripts'/'npc'
+          for n in sorted(placed_npcs):
+              if (script_dir/f'{n}.js').exists(): scripted_new_npcs.append(n)
+
+          # Existing DB integrity against current content. These are review signals, not destructive actions.
+          nonpositive_drop_rows=q('SELECT CONCAT(id,":",dropperid,":",itemid,":",chance) FROM cosmic.drop_data WHERE chance<=0 ORDER BY id')
+          dup_shop_groups=q('SELECT CONCAT(si.shopid,":",s.npcid,":",si.itemid,":",COUNT(*)) FROM cosmic.shopitems si JOIN cosmic.shops s ON s.shopid=si.shopid GROUP BY si.shopid,s.npcid,si.itemid HAVING COUNT(*)>1 ORDER BY si.shopid,si.itemid')
+          dup_reactor_groups=q('SELECT CONCAT(reactorid,":",itemid,":",questid,":",COUNT(*)) FROM cosmic.reactordrops GROUP BY reactorid,itemid,questid HAVING COUNT(*)>1 ORDER BY reactorid,itemid,questid')
+
+          out={
+            'new_mobs_total':len(new_mobs),'new_mobs_placed':len(placed_mobs),'placed_new_mobs_without_drop_data':len(missing_mob_drops),
+            'new_npcs_total':len(new_npcs),'new_npcs_placed':len(placed_npcs),'placed_new_npcs_without_shop_row':len(missing_npc_shops),'placed_new_npcs_with_dedicated_script':len(scripted_new_npcs),
+            'new_reactors_total':len(new_reactors),'new_reactors_placed':len(placed_reactors),'placed_new_reactors_without_reactordrops':len(missing_reactor_drops),
+            'missing_mob_drop_ids':missing_mob_drops,
+            'missing_npc_shop_ids':missing_npc_shops,
+            'scripted_new_npc_ids':scripted_new_npcs,
+            'missing_reactor_drop_ids':missing_reactor_drops,
+            'existing_nonpositive_drop_rows':nonpositive_drop_rows,
+            'existing_duplicate_shop_groups':dup_shop_groups,
+            'existing_duplicate_reactor_groups':dup_reactor_groups,
+          }
+          print(json.dumps(out,indent=2))
+          PY
+          scp /tmp/community-mysql-parity.py everleaf-oracle:/tmp/community-mysql-parity.py
+          ssh everleaf-oracle 'python3 /tmp/community-mysql-parity.py' | tee audit-output/community-mysql-parity.json
+
+      - name: Capture live table counts and health
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee audit-output/live-db-health.txt
+          set -euo pipefail
+          sudo mysql -NBe "SELECT 'drop_data',COUNT(*) FROM cosmic.drop_data UNION ALL SELECT 'drop_data_global',COUNT(*) FROM cosmic.drop_data_global UNION ALL SELECT 'reactordrops',COUNT(*) FROM cosmic.reactordrops UNION ALL SELECT 'shops',COUNT(*) FROM cosmic.shops UNION ALL SELECT 'shopitems',COUNT(*) FROM cosmic.shopitems;"
+          systemctl is-active everleaf.service
+          ss -ltn | grep ':8484 '
+          echo COMMUNITY_MYSQL_PARITY_AUDIT_OK
+          EOF
+
+      - name: Upload audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-community-mysql-parity-${{ github.run_id }}
+          path: audit-output/
+          retention-days: 90
