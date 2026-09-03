@@ -1,0 +1,217 @@
+name: Finalize Community MySQL parity
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/finalize-community-mysql-parity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh parity-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts
+          fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+
+      - name: Remove five inert 2050099 zero-chance rows
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee parity-output/zero-chance-cleanup.txt
+          set -euo pipefail
+          ids='3210200,3210201,6130100,9420511,9500125'
+          found=$(sudo mysql -NBe "SELECT COUNT(*) FROM cosmic.drop_data WHERE itemid=2050099 AND chance=0 AND dropperid IN ($ids);")
+          all_zero=$(sudo mysql -NBe "SELECT COUNT(*) FROM cosmic.drop_data WHERE chance<=0;")
+          echo "EXPECTED_ZERO_ROWS=$found ALL_NONPOSITIVE_BEFORE=$all_zero"
+          test "$found" = "5"
+          test "$all_zero" = "5"
+          sudo mysql -NBe "SELECT id,dropperid,itemid,minimum_quantity,maximum_quantity,questid,chance FROM cosmic.drop_data WHERE itemid=2050099 AND chance=0 AND dropperid IN ($ids) ORDER BY dropperid;" > /tmp/everleaf-zero-rows.tsv
+          sudo mysql <<SQL
+          START TRANSACTION;
+          DELETE FROM cosmic.drop_data WHERE itemid=2050099 AND chance=0 AND dropperid IN ($ids);
+          COMMIT;
+          SQL
+          after=$(sudo mysql -NBe "SELECT COUNT(*) FROM cosmic.drop_data WHERE chance<=0;")
+          echo "ALL_NONPOSITIVE_AFTER=$after"
+          test "$after" = "0"
+          echo ZERO_CHANCE_PLACEHOLDERS_REMOVED_OK
+          EOF
+          scp everleaf-oracle:/tmp/everleaf-zero-rows.tsv parity-output/zero-rows-original.tsv
+
+      - name: Generate exact rollback for zero-chance cleanup
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import csv
+          rows=[]
+          with open('parity-output/zero-rows-original.tsv',newline='') as f:
+              for r in csv.reader(f,delimiter='\t'):
+                  if r: rows.append(r)
+          if len(rows)!=5: raise SystemExit(f'expected 5 rollback rows, got {len(rows)}')
+          with open('parity-output/rollback-zero-chance.sql','w') as f:
+              f.write('-- Restore only the five inert 2050099 rows removed by final parity cleanup.\n')
+              for _id,mob,item,qmin,qmax,quest,chance in rows:
+                  f.write('INSERT INTO cosmic.drop_data (id,dropperid,itemid,minimum_quantity,maximum_quantity,questid,chance) '
+                          f'VALUES ({_id},{mob},{item},{qmin},{qmax},{quest},{chance});\n')
+          print('rollback rows',len(rows))
+          PY
+
+      - name: Classify duplicate shops, reactor weighting, new reactors, and NPC candidates
+        run: |
+          set -euo pipefail
+          cat > /tmp/final-community-parity-audit.py <<'PY'
+          from pathlib import Path
+          import json,re,subprocess,xml.etree.ElementTree as ET
+
+          root=Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'],text=True).strip())
+          wz=root/'wz'
+          backup=Path(Path('/opt/everleaf/backups/community-wholesale-test/LATEST').read_text().strip())/'server-wz-xml'
+          def q(sql): return [x for x in subprocess.check_output(['sudo','mysql','-NBe',sql],text=True).splitlines() if x.strip()]
+          def file_ids(base,fam):
+              out=set()
+              for p in (base/fam).rglob('*.xml'):
+                  m=re.match(r'^(\d{4,10})(?:\.img)?\.xml$',p.name)
+                  if m: out.add(int(m.group(1)))
+              return out
+
+          new_mobs=file_ids(wz,'Mob.wz')-file_ids(backup,'Mob.wz')
+          new_npcs=file_ids(wz,'Npc.wz')-file_ids(backup,'Npc.wz')
+          new_reactors=file_ids(wz,'Reactor.wz')-file_ids(backup,'Reactor.wz')
+          placed_mobs=set(); placed_npcs=set(); placed_reactors=set(); maps_by_reactor={}; maps_by_npc={}
+          for p in (wz/'Map.wz').rglob('*.xml'):
+              mid=None
+              fm=re.match(r'^(\d{9})(?:\.img)?\.xml$',p.name)
+              if fm: mid=int(fm.group(1))
+              try: x=ET.parse(p).getroot()
+              except Exception: continue
+              for e in x.iter():
+                  if e.attrib.get('name')!='id': continue
+                  v=e.attrib.get('value','')
+                  if not v.isdigit(): continue
+                  z=int(v)
+                  if z in new_mobs: placed_mobs.add(z)
+                  if z in new_npcs:
+                      placed_npcs.add(z)
+                      if mid: maps_by_npc.setdefault(z,set()).add(mid)
+                  if z in new_reactors:
+                      placed_reactors.add(z)
+                      if mid: maps_by_reactor.setdefault(z,set()).add(mid)
+
+          drop_ids=set(map(int,q('SELECT DISTINCT dropperid FROM cosmic.drop_data')))
+          shop_npcs=set(map(int,q('SELECT DISTINCT npcid FROM cosmic.shops')))
+          reactor_ids=set(map(int,q('SELECT DISTINCT reactorid FROM cosmic.reactordrops')))
+
+          shop_dups=q('SELECT CONCAT(si.shopid,"|",s.npcid,"|",si.itemid,"|",COUNT(*),"|",GROUP_CONCAT(si.position ORDER BY si.position),"|",GROUP_CONCAT(si.price ORDER BY si.position),"|",GROUP_CONCAT(si.pitch ORDER BY si.position)) FROM cosmic.shopitems si JOIN cosmic.shops s ON s.shopid=si.shopid GROUP BY si.shopid,s.npcid,si.itemid HAVING COUNT(*)>1 ORDER BY si.shopid,si.itemid')
+          reactor_dups=q('SELECT CONCAT(reactorid,"|",itemid,"|",questid,"|",COUNT(*),"|",GROUP_CONCAT(chance ORDER BY chance),"|",GROUP_CONCAT(quantity ORDER BY quantity)) FROM cosmic.reactordrops GROUP BY reactorid,itemid,questid HAVING COUNT(*)>1 ORDER BY reactorid,itemid,questid')
+
+          npc_names={}
+          npcs=wz/'String.wz'/'Npc.img.xml'
+          if npcs.exists():
+              try:
+                  x=ET.parse(npcs).getroot()
+                  for node in x.iter():
+                      n=node.attrib.get('name','')
+                      if n.isdigit() and int(n) in placed_npcs:
+                          for c in node:
+                              if c.attrib.get('name')=='name': npc_names[int(n)]=c.attrib.get('value','')
+              except Exception: pass
+          merchant_words=('shop','merchant','seller','weapon','armor','potion','general store','grocer','dealer','vendor')
+          merchant_candidates=[]
+          for nid,name in sorted(npc_names.items()):
+              if any(w in name.lower() for w in merchant_words):
+                  merchant_candidates.append({'npc':nid,'name':name,'maps':sorted(maps_by_npc.get(nid,set())),'has_shop':nid in shop_npcs})
+
+          reactor_context=[]
+          for rid in sorted(placed_reactors):
+              rp=next(iter((wz/'Reactor.wz').rglob(f'{rid}*.xml')),None)
+              attrs=[]
+              if rp:
+                  try:
+                      x=ET.parse(rp).getroot()
+                      for e in x.iter():
+                          n=e.attrib.get('name'); v=e.attrib.get('value')
+                          if n in ('type','event','action','link','reactorTime','hitCount','quest','item') and v is not None:
+                              attrs.append([n,v])
+                  except Exception: pass
+              reactor_context.append({'reactor':rid,'maps':sorted(maps_by_reactor.get(rid,set())),'has_reactordrops':rid in reactor_ids,'xml_signals':attrs[:40]})
+
+          exact_shop_duplicates=[]
+          different_position_shop_duplicates=[]
+          for row in shop_dups:
+              parts=row.split('|'); positions=parts[4].split(',') if len(parts)>4 else []
+              (exact_shop_duplicates if len(set(positions))<len(positions) else different_position_shop_duplicates).append(row)
+
+          report={
+            'placed_new_mobs':len(placed_mobs),
+            'placed_new_mobs_without_any_drop_data':len(placed_mobs-drop_ids),
+            'nonpositive_drop_rows':len(q('SELECT id FROM cosmic.drop_data WHERE chance<=0')),
+            'placed_new_npcs':len(placed_npcs),
+            'placed_new_npcs_with_shop_rows':len(placed_npcs&shop_npcs),
+            'merchant_name_candidates':merchant_candidates,
+            'duplicate_shop_groups':len(shop_dups),
+            'duplicate_shop_groups_exact_same_position':exact_shop_duplicates,
+            'duplicate_shop_groups_different_positions':different_position_shop_duplicates,
+            'duplicate_reactor_groups':len(reactor_dups),
+            'duplicate_reactor_details':reactor_dups,
+            'new_placed_reactor_context':reactor_context,
+            'new_placed_reactors_without_reactordrops':sorted(placed_reactors-reactor_ids),
+            'classification':{
+              'shop_1337':'GM/fallback shop; repeated items at different positions are category-layout duplication, not normal-player economy rows. Leave unless exact same-position duplication exists.',
+              'reactor_duplicates':'Existing duplicate rows can encode weighting; left unchanged unless independent source proves accidental.',
+              'new_reactors':'No drop rows are added without explicit source-backed reward evidence; scripted/non-reward reactors are valid.',
+              'new_npcs':'No shops are created from placement/name alone; a real merchant inventory source is required.'
+            }
+          }
+          print(json.dumps(report,indent=2))
+          if report['placed_new_mobs_without_any_drop_data'] != 0: raise SystemExit('placed Community mobs still missing drop_data')
+          if report['nonpositive_drop_rows'] != 0: raise SystemExit('nonpositive drop rows remain')
+          PY
+          scp /tmp/final-community-parity-audit.py everleaf-oracle:/tmp/final-community-parity-audit.py
+          ssh everleaf-oracle 'python3 /tmp/final-community-parity-audit.py' | tee parity-output/final-parity.json
+
+      - name: Verify service and live table counts
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee parity-output/verification.txt
+          set -euo pipefail
+          sudo mysql -NBe "SELECT 'drop_data',COUNT(*) FROM cosmic.drop_data UNION ALL SELECT 'drop_data_global',COUNT(*) FROM cosmic.drop_data_global UNION ALL SELECT 'reactordrops',COUNT(*) FROM cosmic.reactordrops UNION ALL SELECT 'shops',COUNT(*) FROM cosmic.shops UNION ALL SELECT 'shopitems',COUNT(*) FROM cosmic.shopitems;"
+          systemctl is-active everleaf.service
+          ss -ltn | grep ':8484 '
+          echo COMMUNITY_MYSQL_PARITY_FINAL_OK
+          EOF
+
+      - name: Upload final parity report
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-community-mysql-final-${{ github.run_id }}
+          path: parity-output/
+          retention-days: 90
