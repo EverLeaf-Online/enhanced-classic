@@ -5,11 +5,13 @@ on:
     branches: [release-dev]
     paths:
       - "launcher/**"
+      - "tools/apply_launcher_integrity_fixes.py"
       - ".github/workflows/publish-everleaf-launcher.yml"
   pull_request:
     branches: [release-dev]
     paths:
       - "launcher/**"
+      - "tools/apply_launcher_integrity_fixes.py"
       - ".github/workflows/publish-everleaf-launcher.yml"
   workflow_dispatch:
 
@@ -32,6 +34,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'release-dev' }}
+
+      - name: Apply launcher integrity fixes
+        run: python tools/apply_launcher_integrity_fixes.py
 
       - name: Set up .NET 8
         uses: actions/setup-dotnet@v4
