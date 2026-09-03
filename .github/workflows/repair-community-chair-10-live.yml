@@ -1,0 +1,88 @@
+name: Repair community 10-chair server XML live
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/repair-community-chair-10-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: everleaf-community-chair-live
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Repair server XML from verified 10-chair stage
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          STAGE=/tmp/everleaf-community-chair-33697750099
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          ITEM_XML="$CURRENT/wz/Item.wz/Install/0301.img.xml"
+          STRING_XML="$CURRENT/wz/String.wz/Ins.img.xml"
+          LIVE_ITEM=/opt/everleaf/patches/files/Item.wz
+          LIVE_STRING=/opt/everleaf/patches/files/String.wz
+          IDS='3010029 3010030 3010031 3010032 3010033 3010034 3010035 3010036 3010037 3010044'
+
+          test -s "$STAGE/Item.wz"
+          test -s "$STAGE/String.wz"
+          test -s "$STAGE/0301.img.xml"
+          test -s "$STAGE/Ins.img.xml"
+
+          test "$(sha256sum "$STAGE/Item.wz" | awk '{print $1}')" = "$(sha256sum "$LIVE_ITEM" | awk '{print $1}')"
+          test "$(sha256sum "$STAGE/String.wz" | awk '{print $1}')" = "$(sha256sum "$LIVE_STRING" | awk '{print $1}')"
+
+          for id in $IDS; do
+            grep -q "$id" "$STAGE/0301.img.xml"
+            grep -q "$id" "$STAGE/Ins.img.xml"
+          done
+
+          cp "$ITEM_XML" "$STAGE/0301.current-before-repair.xml"
+          cp "$STRING_XML" "$STAGE/Ins.current-before-repair.xml"
+          sudo install -m 644 "$STAGE/0301.img.xml" "$ITEM_XML"
+          sudo install -m 644 "$STAGE/Ins.img.xml" "$STRING_XML"
+          python3 - <<PY
+          import xml.etree.ElementTree as ET
+          ET.parse('$ITEM_XML')
+          ET.parse('$STRING_XML')
+          PY
+          for id in $IDS; do
+            grep -q "$id" "$ITEM_XML"
+            grep -q "$id" "$STRING_XML"
+          done
+
+          sudo systemctl restart everleaf.service
+          for i in $(seq 1 30); do
+            if systemctl is-active --quiet everleaf.service && ss -ltn | grep -q ':8484 '; then break; fi
+            sleep 2
+          done
+          systemctl is-active --quiet everleaf.service
+          ss -ltn | grep -q ':8484 '
+          echo COMMUNITY_CHAIR_10_SERVER_XML_REPAIRED_OK
+          REMOTE
