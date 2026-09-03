@@ -8,8 +8,7 @@
     it under the terms of the GNU Affero General Public License as
     published by the Free Software Foundation version 3 as published by
     the Free Software Foundation. You may not use, modify or distribute
-    this program under any other version of the GNU Affero General Public
-    License.
+    this program under any other version of the GNU Affero General Public License.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,7 +26,6 @@ import config.YamlConfig;
 /**
  * @author Alan (SharpAceX)
  */
-
 public enum ExpeditionType {
     BALROG_EASY(3, 30, 50, 255, 5),
     BALROG_NORMAL(6, 30, 50, 255, 5),
@@ -37,6 +35,7 @@ public enum ExpeditionType {
     HORNTAIL(6, 30, 100, 255, 5),
     CHAOS_ZAKUM(6, 30, 120, 255, 5),
     CHAOS_HORNTAIL(6, 30, 120, 255, 5),
+    CYGNUS(3, 12, 180, 255, 5),
     ARIANT(2, 7, 20, 30, 5),
     ARIANT1(2, 7, 20, 30, 5),
     ARIANT2(2, 7, 20, 30, 5),
