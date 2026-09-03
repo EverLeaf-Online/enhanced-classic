@@ -176,5 +176,10 @@ public final class BareBotFactory {
         return registrations.size();
     }
 
+    /** Session-specific leak check used by the bounded QA soak runner. */
+    public static boolean isRegistered(int botId) {
+        return registrations.containsKey(botId);
+    }
+
     private record Registration(Channel channel, World world, Client client) {}
 }
