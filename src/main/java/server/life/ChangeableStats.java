@@ -27,18 +27,18 @@ public class ChangeableStats extends OverrideMonsterStats {
         hp = ostats.getHp();
         exp = ostats.getExp();
         mp = ostats.getMp();
-        watk = stats.getPADamage();
-        matk = stats.getMADamage();
-        wdef = stats.getPDDamage();
-        mdef = stats.getMDDamage();
-        level = stats.getLevel();
+        watk = ostats.getWatk() >= 0 ? ostats.getWatk() : stats.getPADamage();
+        matk = ostats.getMatk() >= 0 ? ostats.getMatk() : stats.getMADamage();
+        wdef = ostats.getWdef() >= 0 ? ostats.getWdef() : stats.getPDDamage();
+        mdef = ostats.getMdef() >= 0 ? ostats.getMdef() : stats.getMDDamage();
+        level = ostats.getLevel() >= 0 ? ostats.getLevel() : stats.getLevel();
     }
 
-    public ChangeableStats(MonsterStats stats, int newLevel, boolean pqMob) { // here we go i think
+    public ChangeableStats(MonsterStats stats, int newLevel, boolean pqMob) {
         final double mod = (double) newLevel / (double) stats.getLevel();
         final double hpRatio = (double) stats.getHp() / (double) stats.getExp();
-        final double pqMod = (pqMob ? 1.5 : 1.0); // god damn
-        hp = Math.min((int) Math.round((!stats.isBoss() ? GameConstants.getMonsterHP(newLevel) : (stats.getHp() * mod)) * pqMod), Integer.MAX_VALUE); // right here lol
+        final double pqMod = (pqMob ? 1.5 : 1.0);
+        hp = Math.min((int) Math.round((!stats.isBoss() ? GameConstants.getMonsterHP(newLevel) : (stats.getHp() * mod)) * pqMod), Integer.MAX_VALUE);
         exp = Math.min((int) Math.round((!stats.isBoss() ? (GameConstants.getMonsterHP(newLevel) / hpRatio) : (stats.getExp())) * pqMod), Integer.MAX_VALUE);
         mp = Math.min((int) Math.round(stats.getMp() * mod * pqMod), Integer.MAX_VALUE);
         watk = Math.min((int) Math.round(stats.getPADamage() * mod), Integer.MAX_VALUE);
