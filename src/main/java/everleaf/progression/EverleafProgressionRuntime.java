@@ -29,6 +29,8 @@ public final class EverleafProgressionRuntime {
                 new JdbcEncounterRepository(DatabaseConnection.getDataSource());
         private static final EncounterService ENCOUNTER_SERVICE =
                 new EncounterService(ENCOUNTER_REPOSITORY);
+        private static final CygnusEncounterLifecycleService CYGNUS_ENCOUNTER_LIFECYCLE_SERVICE =
+                new CygnusEncounterLifecycleService(ENCOUNTER_REPOSITORY);
         private static final RootedMaterialRepository ROOTED_MATERIAL_REPOSITORY =
                 new JdbcRootedMaterialRepository(DatabaseConnection.getDataSource());
         private static final RootedForgeRepository ROOTED_FORGE_REPOSITORY =
@@ -76,6 +78,10 @@ public final class EverleafProgressionRuntime {
 
     public static EncounterRepository encounterRepository() {
         return Holder.ENCOUNTER_REPOSITORY;
+    }
+
+    public static CygnusEncounterLifecycleService cygnusEncounterLifecycleService() {
+        return Holder.CYGNUS_ENCOUNTER_LIFECYCLE_SERVICE;
     }
 
     public static RootedMaterialRepository rootedMaterialRepository() {
