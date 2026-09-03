@@ -5,6 +5,7 @@ on:
     branches: [release-dev]
     paths:
       - '.github/workflows/deploy-empress-community-safe.yml'
+      - 'src/main/java/net/server/handlers/login/DeleteCharHandler.java'
   workflow_dispatch:
 
 concurrency:
