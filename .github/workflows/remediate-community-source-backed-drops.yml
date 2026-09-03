@@ -1,0 +1,214 @@
+name: Remediate Community source-backed drops
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/remediate-community-source-backed-drops.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh remediation-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts
+          fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+
+      - name: Apply validated exact-ID item drops
+        run: |
+          set -euo pipefail
+          cat > /tmp/remediate-source-backed-drops.py <<'PY'
+          from pathlib import Path
+          import json, re, subprocess, urllib.request, xml.etree.ElementTree as ET
+
+          current_root=Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'],text=True).strip())
+          wz=current_root/'wz'
+          backup=Path(Path('/opt/everleaf/backups/community-wholesale-test/LATEST').read_text().strip())/'server-wz-xml'
+
+          def file_ids(root,fam):
+              out=set()
+              for p in (root/fam).rglob('*.xml'):
+                  m=re.match(r'^(\d{4,10})(?:\.img)?\.xml$',p.name)
+                  if m: out.add(int(m.group(1)))
+              return out
+
+          new_mobs=file_ids(wz,'Mob.wz')-file_ids(backup,'Mob.wz')
+          placed=set()
+          for p in (wz/'Map.wz').rglob('*.xml'):
+              try: root=ET.parse(p).getroot()
+              except Exception: continue
+              for e in root.iter():
+                  if e.attrib.get('name')!='id': continue
+                  v=e.attrib.get('value','')
+                  if v.isdigit() and int(v) in new_mobs: placed.add(int(v))
+
+          # Build live client-visible item index from item String.wz families plus direct WZ IDs.
+          valid_items=set()
+          for fname in ('Cash.img.xml','Consume.img.xml','Eqp.img.xml','Etc.img.xml','Ins.img.xml','Pet.img.xml'):
+              p=wz/'String.wz'/fname
+              if not p.exists(): continue
+              try: root=ET.parse(p).getroot()
+              except Exception: continue
+              for e in root.iter():
+                  n=e.attrib.get('name','')
+                  if re.fullmatch(r'\d{7}',n): valid_items.add(int(n))
+          for fam in ('Item.wz','Character.wz'):
+              for p in (wz/fam).rglob('*.xml'):
+                  m=re.search(r'(?<!\d)(\d{7})(?:\.img)?\.xml$',p.name)
+                  if m: valid_items.add(int(m.group(1)))
+                  try: root=ET.parse(p).getroot()
+                  except Exception: continue
+                  for e in root.iter():
+                      n=e.attrib.get('name','')
+                      if re.fullmatch(r'\d{7}',n): valid_items.add(int(n))
+
+          valid_quests=set()
+          for p in (wz/'Quest.wz').rglob('*.xml'):
+              try: root=ET.parse(p).getroot()
+              except Exception: continue
+              for e in root.iter():
+                  n=e.attrib.get('name','')
+                  if re.fullmatch(r'\d{4,6}',n): valid_quests.add(int(n))
+
+          for sanity in (2000000,2000002,4000000,4020007):
+              if sanity not in valid_items:
+                  raise SystemExit(f'LIVE_ITEM_INDEX_INVALID missing={sanity}')
+
+          # Hidden Street is the primary content authority where it covers these mobs.
+          # Direct HS validation completed for Lion King's Castle (8210000-8210005),
+          # Ninja Castle (9400400-9400406), and Singapore/Ulu (9420514-9420519).
+          # For Future Henesys IDs 8600000-8610014, Hidden Street does not expose the
+          # matching post-v83 entries, so exact-ID v90 SQL is used only as fallback.
+          hs_validated=set(range(8210000,8210006)) | set(range(9400400,9400407)) | set(range(9420514,9420520))
+          fallback_allowed=set(range(8600000,8600007)) | set(range(8610000,8610015))
+          allowed=hs_validated|fallback_allowed
+
+          sources=(
+            ('maplev90_monster','https://raw.githubusercontent.com/odasm/maplev90/master/server/sql/monster_drops.sql'),
+            ('maplev90_quest','https://raw.githubusercontent.com/odasm/maplev90/master/server/sql/quest_drops.sql'),
+          )
+          tuple_re=re.compile(r'\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)')
+          candidates={}
+          rejected=[]
+          for source,url in sources:
+              text=urllib.request.urlopen(url,timeout=30).read().decode('utf-8','replace')
+              for m in tuple_re.finditer(text):
+                  _,mob,item,qmin,qmax,quest,chance=map(int,m.groups())
+                  if mob not in placed or mob not in allowed or item==0: continue
+                  reason=[]
+                  if item not in valid_items: reason.append('item-missing-live')
+                  if quest and quest not in valid_quests: reason.append('quest-missing-live')
+                  if qmin<=0 or qmax<qmin: reason.append('invalid-quantity')
+                  if chance<=0: reason.append('nonpositive-chance')
+                  row={'source':source,'mob':mob,'item':item,'min':qmin,'max':qmax,'quest':quest,'chance':chance,
+                       'tier':'hidden-street-validated' if mob in hs_validated else 'exact-id-v90-fallback'}
+                  if reason:
+                      row['reason']=';'.join(reason); rejected.append(row); continue
+                  key=(mob,item,quest)
+                  prev=candidates.get(key)
+                  # Avoid accidental duplicate weighting: retain one exact key, preferring the
+                  # highest source chance when the source file repeats a key.
+                  if prev is None or chance>prev['chance']:
+                      candidates[key]=row
+
+          def mysql(sql):
+              return subprocess.check_output(['sudo','mysql','-NBe',sql],text=True)
+
+          existing=set(mysql('SELECT CONCAT(dropperid,":",itemid,":",questid) FROM cosmic.drop_data').splitlines())
+          to_add=[r for key,r in sorted(candidates.items()) if f'{key[0]}:{key[1]}:{key[2]}' not in existing]
+
+          statements=['START TRANSACTION;']
+          for r in to_add:
+              statements.append(
+                'INSERT INTO cosmic.drop_data (dropperid,itemid,minimum_quantity,maximum_quantity,questid,chance) '
+                f"SELECT {r['mob']},{r['item']},{r['min']},{r['max']},{r['quest']},{r['chance']} FROM DUAL "
+                f"WHERE NOT EXISTS (SELECT 1 FROM cosmic.drop_data WHERE dropperid={r['mob']} AND itemid={r['item']} AND questid={r['quest']});"
+              )
+          statements.append('COMMIT;')
+          if to_add:
+              subprocess.run(['sudo','mysql'],input='\n'.join(statements),text=True,check=True)
+
+          after=set(mysql('SELECT CONCAT(dropperid,":",itemid,":",questid) FROM cosmic.drop_data').splitlines())
+          inserted=[r for r in to_add if f"{r['mob']}:{r['item']}:{r['quest']}" in after]
+          missing_after=[r for r in to_add if f"{r['mob']}:{r['item']}:{r['quest']}" not in after]
+          if missing_after:
+              raise SystemExit('SOURCE_DROP_INSERT_INCOMPLETE')
+
+          out={
+            'candidate_unique_keys':len(candidates),
+            'preexisting_keys':len(candidates)-len(to_add),
+            'inserted_rows':len(inserted),
+            'inserted_hidden_street_validated':sum(1 for r in inserted if r['tier']=='hidden-street-validated'),
+            'inserted_exact_id_fallback':sum(1 for r in inserted if r['tier']=='exact-id-v90-fallback'),
+            'affected_mobs':len(set(r['mob'] for r in inserted)),
+            'inserted':inserted,
+            'rejected_count':len(rejected),
+            'policy':'Hidden Street primary for covered mob identity/drop composition; exact-ID v90 fallback only where Hidden Street lacks matching post-v83 coverage; live item/quest existence required; no meso overwrite; no duplicate weighting.'
+          }
+          print(json.dumps(out,indent=2))
+          PY
+          scp /tmp/remediate-source-backed-drops.py everleaf-oracle:/tmp/remediate-source-backed-drops.py
+          ssh everleaf-oracle 'python3 /tmp/remediate-source-backed-drops.py' | tee remediation-output/source-backed-remediation.json
+
+      - name: Verify live DB and service
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee remediation-output/verification.txt
+          set -euo pipefail
+          sudo mysql -NBe "SELECT 'drop_data',COUNT(*) FROM cosmic.drop_data UNION ALL SELECT 'drop_data_global',COUNT(*) FROM cosmic.drop_data_global UNION ALL SELECT 'reactordrops',COUNT(*) FROM cosmic.reactordrops UNION ALL SELECT 'shops',COUNT(*) FROM cosmic.shops UNION ALL SELECT 'shopitems',COUNT(*) FROM cosmic.shopitems;"
+          sudo mysql -NBe "SELECT COUNT(*) FROM cosmic.drop_data WHERE chance<=0;"
+          systemctl is-active everleaf.service
+          ss -ltn | grep ':8484 '
+          echo COMMUNITY_SOURCE_DROP_REMEDIATION_OK
+          EOF
+
+      - name: Generate exact rollback SQL
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          d=json.load(open('remediation-output/source-backed-remediation.json'))
+          with open('remediation-output/rollback.sql','w') as f:
+              f.write('-- Roll back only rows inserted by this source-backed Community drop remediation.\n')
+              for r in d.get('inserted',[]):
+                  f.write('DELETE FROM cosmic.drop_data WHERE '
+                          f"dropperid={r['mob']} AND itemid={r['item']} AND questid={r['quest']} "
+                          f"AND minimum_quantity={r['min']} AND maximum_quantity={r['max']} AND chance={r['chance']} LIMIT 1;\n")
+          print('rollback rows',len(d.get('inserted',[])))
+          PY
+
+      - name: Upload remediation report
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-community-source-drop-remediation-${{ github.run_id }}
+          path: remediation-output/
+          retention-days: 90
