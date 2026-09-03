@@ -101,34 +101,53 @@ jobs:
           echo "PRECHECK_OK current=$current xml=44236"
           REMOTE
 
-      - name: Stage code release while hardlinking live Community XML
+      - name: Stage code release from current live release
         run: |
           set -euo pipefail
           slot="empress-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           release="/opt/everleaf/releases/$slot"
           echo "RELEASE=$release" >> "$GITHUB_ENV"
-          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "mkdir -p '$release'"
-          rsync -az --delete \
-            --exclude='.git/' \
-            --exclude='/wz/' \
-            --exclude='/client/' \
-            --exclude='/launcher/' \
-            --exclude='database/docker-db-data/' \
-            --exclude='web/node_modules/' \
-            -e 'ssh -i ~/.ssh/id_everleaf' ./ "$USER@$HOST:$release/"
+
+          # Build the candidate from the known-good live release instead of copying
+          # the repository checkout. This reuses the 44,236 XML files and avoids
+          # retransferring .git/client/build artifacts or the multi-GB Community WZ set.
           ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "RELEASE='$release' bash -s" <<'REMOTE'
           set -euo pipefail
           current=$(readlink -f /opt/everleaf/current)
-          cp -p "$current/config.yaml" "$RELEASE/config.yaml"
-          if [ -f "$current/.env" ]; then cp -p "$current/.env" "$RELEASE/.env"; fi
-          rm -rf "$RELEASE/wz"
-          cp -al "$current/wz" "$RELEASE/wz"
+
+          # Remove only abandoned Empress candidates. Never touch the current release,
+          # the preserved Community rollback, donor cache, verified XML stage, or OSRS.
+          for d in /opt/everleaf/releases/empress-*; do
+            [ -e "$d" ] || continue
+            resolved=$(readlink -f "$d" || true)
+            if [ "$resolved" != "$current" ] && [ "$d" != "$RELEASE" ]; then
+              rm -rf -- "$d"
+            fi
+          done
+          rm -rf -- "$RELEASE"
+          mkdir -p "$RELEASE"
+          cp -al "$current"/. "$RELEASE"/
           test "$(find "$RELEASE/wz" -type f -name '*.xml' | wc -l)" -eq 44236
+          df -h /opt/everleaf | tail -1
+          REMOTE
+
+          # Overlay only runtime files changed by this release. rsync's normal
+          # temp-file + rename behavior breaks hardlinks safely instead of mutating
+          # the current live release in place.
+          rsync -az -e 'ssh -i ~/.ssh/id_everleaf' \
+            target/everleaf-server-1.0-SNAPSHOT.jar \
+            "$USER@$HOST:$release/target/everleaf-server-1.0-SNAPSHOT.jar"
+          rsync -az --delete -e 'ssh -i ~/.ssh/id_everleaf' \
+            scripts/ "$USER@$HOST:$release/scripts/"
+
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "RELEASE='$release' bash -s" <<'REMOTE'
+          set -euo pipefail
           test -s "$RELEASE/target/everleaf-server-1.0-SNAPSHOT.jar"
           test -f "$RELEASE/scripts/event/CygnusBattle.js"
           test -f "$RELEASE/scripts/npc/2143004.js"
           test -f "$RELEASE/scripts/portal/out_cygnusBackGarden.js"
           test -f "$RELEASE/scripts/portal/back_cygnus.js"
+          test "$(find "$RELEASE/wz" -type f -name '*.xml' | wc -l)" -eq 44236
           echo "CANDIDATE_OK $RELEASE"
           REMOTE
 
@@ -205,7 +224,6 @@ jobs:
           test -d '/home/ubuntu/everleaf-staging/community-wz'
           test -d '/home/ubuntu/everleaf-staging/community-wholesale-live-33701797136'
           test -d /opt/everleafosrs
-          # Final-body rare rewards stay event-controlled; no ordinary SQL rare scroll rows for the Empress family.
           rare=$(sudo mysql -NBe "SELECT COUNT(*) FROM cosmic.drop_data WHERE dropperid BETWEEN 8850000 AND 8850011 AND itemid IN (2049100,2340000);")
           test "$rare" -eq 0
           attempts=$(sudo mysql -NBe "SHOW TABLES FROM cosmic LIKE 'everleaf_encounter_attempt';" | wc -l)
