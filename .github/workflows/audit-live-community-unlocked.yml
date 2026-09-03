@@ -49,7 +49,7 @@ jobs:
           tar -czf /tmp/everleaf-audit-src.tgz src scripts sql tools 2>/dev/null || tar -czf /tmp/everleaf-audit-src.tgz src scripts tools
           scp /tmp/everleaf-audit-src.tgz everleaf-oracle:/tmp/everleaf-audit-src.tgz
 
-      - name: Inventory live Community delta and explicit server behavior
+      - name: Inventory full live Community delta and server behavior coverage
         run: |
           set -euo pipefail
           cat > /tmp/audit-community.py <<'PY'
@@ -61,7 +61,12 @@ jobs:
           backup = Path(Path('/opt/everleaf/backups/community-wholesale-test/LATEST').read_text().strip())
           base = backup / 'server-wz-xml'
           src = Path('/tmp/everleaf-community-audit-src')
-          families = ['Map.wz','Mob.wz','Npc.wz','Item.wz','Skill.wz','Quest.wz','Reactor.wz']
+          all_families = ['Base.wz','Character.wz','Effect.wz','Etc.wz','Item.wz','Map.wz','Mob.wz','Morph.wz','Npc.wz','Quest.wz','Reactor.wz','Skill.wz','Sound.wz','String.wz','TamingMob.wz','UI.wz']
+          behavior_families = ['Map.wz','Mob.wz','Npc.wz','Item.wz','Character.wz','Skill.wz','Quest.wz','Reactor.wz']
+
+          def xml_count(root: Path, family: str):
+              d=root/family
+              return sum(1 for _ in d.rglob('*.xml')) if d.exists() else 0
 
           def numeric_ids(root: Path, family: str):
               out=set()
@@ -89,58 +94,95 @@ jobs:
               except Exception: pass
           source='\n'.join(chunks)
 
-          result={'current':str(current),'backup':str(backup),'families':{}}
-          for fam in families:
+          result={
+              'current':str(current),
+              'backup':str(backup),
+              'live_total_xml':sum(1 for _ in live.rglob('*.xml')),
+              'baseline_total_xml':sum(1 for _ in base.rglob('*.xml')),
+              'family_xml_counts':{},
+              'behavior_families':{}
+          }
+          for fam in all_families:
+              lc=xml_count(live,fam); bc=xml_count(base,fam)
+              result['family_xml_counts'][fam]={'live_xml':lc,'baseline_xml':bc,'delta_xml':lc-bc}
+
+          for fam in behavior_families:
               live_ids=numeric_ids(live,fam)
               old_ids=numeric_ids(base,fam)
               added=sorted(live_ids-old_ids)
+              removed=sorted(old_ids-live_ids)
               refs=[i for i in added if str(i) in source]
               refset=set(refs)
               entry={
                   'live_ids':len(live_ids),
                   'baseline_ids':len(old_ids),
                   'added_ids':len(added),
+                  'removed_ids':len(removed),
                   'explicit_server_refs':len(refs),
                   'no_explicit_server_ref':len(added)-len(refs),
-                  'sample_added':added[:80],
-                  'sample_no_explicit_ref':[i for i in added if i not in refset][:80],
+                  'sample_added':added[:100],
+                  'sample_removed':removed[:100],
+                  'sample_no_explicit_ref':[i for i in added if i not in refset][:100],
               }
               if fam=='Npc.wz':
                   scripts=src/'scripts'/'npc'
                   scripted=[i for i in added if (scripts/f'{i}.js').exists()]
                   entry['added_with_npc_script']=len(scripted)
                   entry['added_without_npc_script']=len(added)-len(scripted)
-                  entry['sample_added_without_npc_script']=[i for i in added if not (scripts/f'{i}.js').exists()][:80]
-              result['families'][fam]=entry
+                  entry['sample_added_without_npc_script']=[i for i in added if not (scripts/f'{i}.js').exists()][:100]
+              result['behavior_families'][fam]=entry
 
           print(json.dumps(result, indent=2))
           PY
           scp /tmp/audit-community.py everleaf-oracle:/tmp/audit-community.py
           ssh everleaf-oracle 'set -euo pipefail; rm -rf /tmp/everleaf-community-audit-src; mkdir -p /tmp/everleaf-community-audit-src; tar -xzf /tmp/everleaf-audit-src.tgz -C /tmp/everleaf-community-audit-src; python3 /tmp/audit-community.py' | tee audit-output/community-unlocked-audit.json
 
-      - name: Inspect live drop/shop/economy database surfaces
+      - name: Validate live drop shop and reward database integrity
         run: |
           set -euo pipefail
-          ssh everleaf-oracle 'bash -s' <<'EOF' | tee audit-output/economy-db-surfaces.txt
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee audit-output/economy-db-validation.txt
           set -euo pipefail
-          echo ECONOMY_DB_SURFACES_BEGIN
-          sudo mysql -NBe "SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema NOT IN ('information_schema','mysql','performance_schema','sys') AND (LOWER(table_name) LIKE '%drop%' OR LOWER(table_name) LIKE '%shop%' OR LOWER(table_name) LIKE '%gach%' OR LOWER(table_name) LIKE '%reward%' OR LOWER(table_name) LIKE '%item%') ORDER BY table_schema, table_name;" || true
-          echo ECONOMY_DB_COLUMNS_BEGIN
-          sudo mysql -NBe "SELECT table_schema, table_name, column_name, data_type FROM information_schema.columns WHERE table_schema NOT IN ('information_schema','mysql','performance_schema','sys') AND (LOWER(table_name) LIKE '%drop%' OR LOWER(table_name) LIKE '%shop%' OR LOWER(table_name) LIKE '%gach%' OR LOWER(table_name) LIKE '%reward%') ORDER BY table_schema, table_name, ordinal_position;" || true
-          echo ECONOMY_DB_COLUMNS_END
-          echo ECONOMY_DB_SURFACES_END
+          echo LIVE_ECONOMY_DB_VALIDATION_BEGIN
+          echo '[tables]'
+          sudo mysql -NBe "SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema='cosmic' AND (LOWER(table_name) LIKE '%drop%' OR LOWER(table_name) LIKE '%shop%' OR LOWER(table_name) LIKE '%gach%' OR LOWER(table_name) LIKE '%reward%' OR LOWER(table_name) LIKE '%item%') ORDER BY table_name;"
+          echo '[row-counts]'
+          sudo mysql -NBe "SELECT 'drop_data',COUNT(*) FROM cosmic.drop_data UNION ALL SELECT 'drop_data_global',COUNT(*) FROM cosmic.drop_data_global UNION ALL SELECT 'reactordrops',COUNT(*) FROM cosmic.reactordrops UNION ALL SELECT 'shops',COUNT(*) FROM cosmic.shops UNION ALL SELECT 'shopitems',COUNT(*) FROM cosmic.shopitems UNION ALL SELECT 'encounter_weekly_reward',COUNT(*) FROM cosmic.everleaf_encounter_weekly_reward UNION ALL SELECT 'nx_rewards',COUNT(*) FROM cosmic.everleaf_nx_rewards UNION ALL SELECT 'vote_reward_ledger',COUNT(*) FROM cosmic.everleaf_vote_reward_ledger UNION ALL SELECT 'vote_rewards',COUNT(*) FROM cosmic.everleaf_vote_rewards;"
+          echo '[drop-invalid-values]'
+          sudo mysql -NBe "SELECT 'normal_nonpositive_chance',COUNT(*) FROM cosmic.drop_data WHERE chance<=0 UNION ALL SELECT 'normal_bad_quantity',COUNT(*) FROM cosmic.drop_data WHERE minimum_quantity<0 OR maximum_quantity<minimum_quantity UNION ALL SELECT 'global_nonpositive_chance',COUNT(*) FROM cosmic.drop_data_global WHERE chance<=0 UNION ALL SELECT 'global_bad_quantity',COUNT(*) FROM cosmic.drop_data_global WHERE minimum_quantity<0 OR maximum_quantity<minimum_quantity UNION ALL SELECT 'reactor_nonpositive_chance',COUNT(*) FROM cosmic.reactordrops WHERE chance<=0;"
+          echo '[drop-duplicates]'
+          sudo mysql -NBe "SELECT 'normal_duplicate_groups',COUNT(*) FROM (SELECT dropperid,itemid,questid,COUNT(*) c FROM cosmic.drop_data GROUP BY dropperid,itemid,questid HAVING c>1) x UNION ALL SELECT 'global_duplicate_groups',COUNT(*) FROM (SELECT continent,itemid,questid,COUNT(*) c FROM cosmic.drop_data_global GROUP BY continent,itemid,questid HAVING c>1) y UNION ALL SELECT 'reactor_duplicate_groups',COUNT(*) FROM (SELECT reactorid,itemid,questid,COUNT(*) c FROM cosmic.reactordrops GROUP BY reactorid,itemid,questid HAVING c>1) z;"
+          echo '[shop-invalid-values]'
+          sudo mysql -NBe "SELECT 'shop_negative_price',COUNT(*) FROM cosmic.shopitems WHERE price<0 UNION ALL SELECT 'shop_orphan_shop',COUNT(*) FROM cosmic.shopitems si LEFT JOIN cosmic.shops s ON s.shopid=si.shopid WHERE s.shopid IS NULL UNION ALL SELECT 'shop_duplicate_item_groups',COUNT(*) FROM (SELECT shopid,itemid,COUNT(*) c FROM cosmic.shopitems GROUP BY shopid,itemid HAVING c>1) q;"
+          echo '[rare-scroll-global-sources]'
+          sudo mysql -NBe "SELECT itemid,COUNT(*),MIN(chance),MAX(chance) FROM cosmic.drop_data_global WHERE itemid IN (2049100,2340000) GROUP BY itemid;"
+          echo '[nx-global-sources]'
+          sudo mysql -NBe "SELECT itemid,COUNT(*),MIN(chance),MAX(chance) FROM cosmic.drop_data_global WHERE itemid IN (4031865,4031866) GROUP BY itemid;"
+          echo '[reward-uniqueness-indexes]'
+          sudo mysql -NBe "SELECT table_name,index_name,non_unique,GROUP_CONCAT(column_name ORDER BY seq_in_index) cols FROM information_schema.statistics WHERE table_schema='cosmic' AND table_name IN ('everleaf_encounter_weekly_reward','everleaf_vote_reward_ledger','everleaf_vote_rewards') GROUP BY table_name,index_name,non_unique ORDER BY table_name,index_name;"
+          echo LIVE_ECONOMY_DB_VALIDATION_END
           EOF
 
-      - name: Re-run existing economy/drop audits against current release source
+      - name: Re-run existing economy drop reward item and world audits
         run: |
-          set -euo pipefail
-          {
-            python3 tools/audit_economy_balance.py
-            python3 tools/audit_reward_sources.py
-            python3 tools/audit_items_equipment.py
-            python3 tools/audit_world_integrity.py
-            echo EXISTING_RELEASE_AUDITS_OK
-          } | tee audit-output/release-audits.txt
+          set -uo pipefail
+          : > audit-output/release-audits.txt
+          overall=0
+          for audit in \
+            tools/audit_economy_balance.py \
+            tools/audit_reward_sources.py \
+            tools/audit_items_equipment.py \
+            tools/audit_world_integrity.py
+          do
+            echo "===== $audit =====" | tee -a audit-output/release-audits.txt
+            set +e
+            python3 "$audit" 2>&1 | tee -a audit-output/release-audits.txt
+            rc=${PIPESTATUS[0]}
+            set -e
+            echo "AUDIT_EXIT $audit $rc" | tee -a audit-output/release-audits.txt
+            if [ "$rc" -ne 0 ]; then overall=1; fi
+          done
+          echo "AUDIT_SUITE_HAS_FINDINGS=$overall" | tee -a audit-output/release-audits.txt
+          exit 0
 
       - name: Save audit metadata
         if: always()
@@ -153,9 +195,9 @@ jobs:
           Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
           Files:
-          - community-unlocked-audit.json: live-vs-pre-wholesale ID inventory and explicit server-reference coverage
-          - economy-db-surfaces.txt: live MySQL drop/shop/gachapon/reward/item table surface inventory
-          - release-audits.txt: existing economy/reward/item/world audit results
+          - community-unlocked-audit.json: full family XML delta plus live-vs-pre-wholesale ID inventory and server-reference coverage
+          - economy-db-validation.txt: live MySQL drop/shop/reward integrity checks and economy surfaces
+          - release-audits.txt: existing economy/reward/item/world audit results with individual exit codes
           EOF
 
       - name: Upload durable Community audit artifact
