@@ -128,17 +128,22 @@ jobs:
           mkdir -p "$RELEASE"
           cp -al "$current"/. "$RELEASE"/
           test "$(find "$RELEASE/wz" -type f -name '*.xml' | wc -l)" -eq 44236
+
+          # The release clone is hardlinked. Unlink runtime files before copying new
+          # versions so the active release can never be modified through a shared inode.
+          rm -f "$RELEASE/target/everleaf-server-1.0-SNAPSHOT.jar"
+          rm -rf "$RELEASE/scripts"
+          mkdir -p "$RELEASE/target"
           df -h /opt/everleaf | tail -1
           REMOTE
 
-          # Overlay only runtime files changed by this release. rsync's normal
-          # temp-file + rename behavior breaks hardlinks safely instead of mutating
-          # the current live release in place.
-          rsync -az -e 'ssh -i ~/.ssh/id_everleaf' \
+          # Use only standard OpenSSH transfer tooling; the Oracle host does not need
+          # rsync installed. The destination names were unlinked above for hardlink safety.
+          scp -i ~/.ssh/id_everleaf \
             target/everleaf-server-1.0-SNAPSHOT.jar \
             "$USER@$HOST:$release/target/everleaf-server-1.0-SNAPSHOT.jar"
-          rsync -az --delete -e 'ssh -i ~/.ssh/id_everleaf' \
-            scripts/ "$USER@$HOST:$release/scripts/"
+          scp -i ~/.ssh/id_everleaf -r scripts \
+            "$USER@$HOST:$release/"
 
           ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "RELEASE='$release' bash -s" <<'REMOTE'
           set -euo pipefail
