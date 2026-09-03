@@ -48,7 +48,7 @@ jobs:
           set -euo pipefail
           cat > /tmp/audit-source-backed-drops.py <<'PY'
           from pathlib import Path
-          import csv, json, re, subprocess, urllib.request, xml.etree.ElementTree as ET
+          import json, re, subprocess, urllib.request, xml.etree.ElementTree as ET
 
           current_root = Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'], text=True).strip())
           wz = current_root / 'wz'
@@ -71,18 +71,32 @@ jobs:
                   v=e.attrib.get('value','')
                   if v.isdigit() and int(v) in new_mobs: placed.add(int(v))
 
-          # Live item coverage: equipment IDs are file names; non-equipment item IDs are
-          # 7-digit XML node names inside Item.wz families.
+          # String.wz is the safest server-side index of client-visible item IDs.
+          # Item.wz groups many IDs below category images, while Character.wz file layout
+          # is not guaranteed to expose a 7-digit ID as the XML filename. Parse only item
+          # string families to avoid mistaking map/NPC/mob IDs for items.
           valid_items=set()
-          for p in (wz/'Character.wz').rglob('*.xml'):
-              m=re.match(r'^(\d{7})(?:\.img)?\.xml$',p.name)
-              if m: valid_items.add(int(m.group(1)))
-          for p in (wz/'Item.wz').rglob('*.xml'):
+          string_item_files = ('Cash.img.xml','Consume.img.xml','Eqp.img.xml','Etc.img.xml','Ins.img.xml','Pet.img.xml')
+          string_root=wz/'String.wz'
+          for fname in string_item_files:
+              p=string_root/fname
+              if not p.exists(): continue
               try: root=ET.parse(p).getroot()
               except Exception: continue
               for e in root.iter():
                   n=e.attrib.get('name','')
                   if re.fullmatch(r'\d{7}',n): valid_items.add(int(n))
+
+          # Supplement with direct item/equipment IDs where the exported structure exposes them.
+          for fam in ('Item.wz','Character.wz'):
+              for p in (wz/fam).rglob('*.xml'):
+                  m=re.search(r'(?<!\d)(\d{7})(?:\.img)?\.xml$',p.name)
+                  if m: valid_items.add(int(m.group(1)))
+                  try: root=ET.parse(p).getroot()
+                  except Exception: continue
+                  for e in root.iter():
+                      n=e.attrib.get('name','')
+                      if re.fullmatch(r'\d{7}',n): valid_items.add(int(n))
 
           valid_quests=set()
           for p in (wz/'Quest.wz').rglob('*.xml'):
@@ -114,13 +128,19 @@ jobs:
                     'quest':quest,'chance':chance,'eligible':not reason,'reason':';'.join(reason)
                   })
 
+          # Sanity-check common v83 items. If these are absent, item indexing is broken and
+          # the audit must fail closed rather than declaring all source rows unusable.
+          sanity_ids=(2000000,2000002,4000000,4020007)
+          missing_sanity=[x for x in sanity_ids if x not in valid_items]
+          if missing_sanity:
+              raise SystemExit('LIVE_ITEM_INDEX_INVALID missing=' + ','.join(map(str,missing_sanity)))
+
           existing_raw=subprocess.check_output([
               'sudo','mysql','-NBe',
               'SELECT CONCAT(dropperid,":",itemid,":",questid) FROM cosmic.drop_data'
           ],text=True)
           existing=set(existing_raw.splitlines())
 
-          # Dedupe source mirrors/weights by logical drop key and keep the strongest chance.
           best={}
           for r in rows:
               if not r['eligible'] or r['item']==0: continue
@@ -142,6 +162,8 @@ jobs:
 
           report={
             'placed_new_mobs':len(placed),
+            'valid_live_item_ids':len(valid_items),
+            'valid_live_quest_ids':len(valid_quests),
             'exact_id_source_coverage_mobs':len(raw_coverage),
             'source_rows_seen':len(rows),
             'eligible_unique_drop_keys':len(best),
@@ -152,7 +174,7 @@ jobs:
             'candidate_additions_rows':additions,
             'rejected_rows':[r for r in rows if not r['eligible']],
             'sources':sources,
-            'policy':'exact mob ID only; item must exist in live WZ; quest drops only when quest ID exists live; no meso overwrite; no blind duplicate weighting'
+            'policy':'exact mob ID only; item must exist in live item String/WZ index; quest drops only when quest ID exists live; no meso overwrite; no blind duplicate weighting'
           }
           print(json.dumps(report,indent=2))
           PY
