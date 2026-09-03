@@ -1,0 +1,135 @@
+name: Export complete live Community inventory
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/export-live-community-full-inventory.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh inventory-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ConnectTimeout 20
+          EOF
+
+      - name: Bundle behavior source corpus
+        run: |
+          set -euo pipefail
+          tar -czf /tmp/everleaf-inventory-src.tgz src scripts sql tools 2>/dev/null || tar -czf /tmp/everleaf-inventory-src.tgz src scripts tools
+          scp /tmp/everleaf-inventory-src.tgz everleaf-oracle:/tmp/everleaf-inventory-src.tgz
+
+      - name: Export complete unlocked ID inventory
+        run: |
+          set -euo pipefail
+          cat > /tmp/export-community-inventory.py <<'PY'
+          from pathlib import Path
+          import csv, json, re, subprocess, xml.etree.ElementTree as ET
+
+          current=Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'],text=True).strip())/'wz'
+          backup_root=Path(Path('/opt/everleaf/backups/community-wholesale-test/LATEST').read_text().strip())/'server-wz-xml'
+          src=Path('/tmp/everleaf-full-inventory-src')
+          out=Path('/tmp/everleaf-full-inventory')
+          out.mkdir(parents=True,exist_ok=True)
+          families=['Map.wz','Mob.wz','Npc.wz','Item.wz','Character.wz','Skill.wz','Quest.wz','Reactor.wz']
+
+          corpus=[]
+          for pat in ('*.java','*.js','*.sql','*.py'):
+              for p in src.rglob(pat):
+                  try: corpus.append(p.read_text(errors='ignore'))
+                  except: pass
+          source='\n'.join(corpus)
+
+          def collect(root,fam):
+              ids=set(); d=root/fam
+              if not d.exists(): return ids
+              for p in d.rglob('*.xml'):
+                  m=re.match(r'^(\d{4,10})(?:\.img)?\.xml$',p.name)
+                  if m: ids.add(int(m.group(1)))
+                  if fam in ('Item.wz','Character.wz'):
+                      try:
+                          r=ET.parse(p).getroot()
+                          for c in list(r):
+                              n=c.attrib.get('name','')
+                              if n.isdigit() and 4 <= len(n) <= 10: ids.add(int(n))
+                      except: pass
+              return ids
+
+          sets={}
+          for fam in families:
+              sets[fam]=(collect(current,fam),collect(backup_root,fam))
+
+          # Build map exposure sets only for newly added mobs/NPCs.
+          new_mobs=sets['Mob.wz'][0]-sets['Mob.wz'][1]
+          new_npcs=sets['Npc.wz'][0]-sets['Npc.wz'][1]
+          mob_maps={}; npc_maps={}
+          for p in (current/'Map.wz').rglob('*.xml'):
+              m=re.match(r'^(\d{6,10})(?:\.img)?\.xml$',p.name)
+              if not m: continue
+              map_id=int(m.group(1))
+              try: root=ET.parse(p).getroot()
+              except: continue
+              for e in root.iter():
+                  if e.attrib.get('name')!='id': continue
+                  v=e.attrib.get('value','')
+                  if not v.isdigit(): continue
+                  x=int(v)
+                  if x in new_mobs: mob_maps.setdefault(x,set()).add(map_id)
+                  if x in new_npcs: npc_maps.setdefault(x,set()).add(map_id)
+
+          summary={}
+          csv_path=out/'community-unlocked-ids.csv'
+          with csv_path.open('w',newline='') as f:
+              w=csv.writer(f)
+              w.writerow(['family','id','status','explicit_source_reference','dedicated_npc_script','spawned_on_live_map','live_map_ids'])
+              for fam in families:
+                  live,base=sets[fam]
+                  added=sorted(live-base); removed=sorted(base-live)
+                  summary[fam]={'live':len(live),'baseline':len(base),'added':len(added),'removed':len(removed)}
+                  for x,status in [(i,'added') for i in added]+[(i,'removed') for i in removed]:
+                      explicit=str(x) in source
+                      npc_script=(src/'scripts'/'npc'/f'{x}.js').exists() if fam=='Npc.wz' else ''
+                      maps=(mob_maps.get(x,set()) if fam=='Mob.wz' else npc_maps.get(x,set()) if fam=='Npc.wz' else set())
+                      w.writerow([fam,x,status,int(explicit),int(npc_script) if npc_script!='' else '',int(bool(maps)) if fam in ('Mob.wz','Npc.wz') else '', ';'.join(map(str,sorted(maps)))])
+
+          (out/'summary.json').write_text(json.dumps({
+              'current':str(current),'baseline':str(backup_root),'families':summary,
+              'new_mobs_spawned_on_maps':len(mob_maps),'new_npcs_spawned_on_maps':len(npc_maps)
+          },indent=2))
+          PY
+          scp /tmp/export-community-inventory.py everleaf-oracle:/tmp/export-community-inventory.py
+          ssh everleaf-oracle 'set -euo pipefail; rm -rf /tmp/everleaf-full-inventory-src /tmp/everleaf-full-inventory; mkdir -p /tmp/everleaf-full-inventory-src; tar -xzf /tmp/everleaf-inventory-src.tgz -C /tmp/everleaf-full-inventory-src; python3 /tmp/export-community-inventory.py; tar -czf /tmp/everleaf-full-inventory.tgz -C /tmp/everleaf-full-inventory .'
+          scp everleaf-oracle:/tmp/everleaf-full-inventory.tgz /tmp/everleaf-full-inventory.tgz
+          tar -xzf /tmp/everleaf-full-inventory.tgz -C inventory-output
+          cat inventory-output/summary.json
+
+      - name: Upload complete inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-community-complete-inventory-${{ github.run_id }}
+          path: inventory-output/
+          retention-days: 90
