@@ -12,7 +12,9 @@ import soloMapling.ArtificialPlayer.BareBotMovement;
 import soloMapling.ArtificialPlayer.BareBotPortal;
 import soloMapling.ArtificialPlayer.BotLootDriver;
 import soloMapling.ArtificialPlayer.BotNpcDriver;
+import soloMapling.ArtificialPlayer.BotQaFleet;
 import soloMapling.ArtificialPlayer.BotQaProfile;
+import soloMapling.ArtificialPlayer.BotQaSoakRunner;
 import soloMapling.ArtificialPlayer.BotShopDriver;
 import soloMapling.ArtificialPlayer.BotAttackSystem.BotAttackDriver;
 import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovement;
@@ -24,14 +26,15 @@ import java.sql.SQLException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** GM-only control surface for one isolated SoloMapling QA bot. */
+/** GM-only control surface for isolated SoloMapling QA bots. */
 public class QaBotCommand extends Command {
     private static final int QA_WORLD = 0;
     private static final int QA_CHANNEL = 1;
+    private static final int DEFAULT_SOAK_BOTS = 4;
     private static final Map<Integer, Character> spawnedByGm = new ConcurrentHashMap<>();
 
     {
-        setDescription("Control one isolated SoloMapling QA bot: !qabot spawn|remove|status|job|npc|shop|nudge|move|gcmove|gcstop|strike|attack|hunt|patrol|portal");
+        setDescription("Control isolated SoloMapling QA bots: !qabot spawn|remove|status|fleet|soak|job|npc|shop|nudge|move|gcmove|gcstop|strike|attack|hunt|patrol|portal");
     }
 
     @Override
@@ -42,8 +45,8 @@ public class QaBotCommand extends Command {
         }
 
         String action = params[0].toLowerCase();
-        if (!action.equals("remove") && !onQaChannel(c)) {
-            c.getPlayer().yellowMessage("SoloMapling QA bots currently run only on world 0, channel 1.");
+        if (requiresQaChannel(action, params) && !onQaChannel(c)) {
+            c.getPlayer().yellowMessage("SoloMapling QA bots currently start only on world 0, channel 1.");
             return;
         }
 
@@ -51,6 +54,8 @@ public class QaBotCommand extends Command {
             case "spawn" -> spawn(c);
             case "remove" -> remove(c);
             case "status" -> status(c);
+            case "fleet" -> fleet(c, params);
+            case "soak" -> soak(c, params);
             case "job", "profile" -> profile(c, params);
             case "npc" -> npc(c, params);
             case "shop" -> shop(c, params);
@@ -86,7 +91,7 @@ public class QaBotCommand extends Command {
     private static void remove(Client c) {
         Character bot = spawnedByGm.remove(c.getPlayer().getId());
         if (bot == null) {
-            c.getPlayer().yellowMessage("No QA bot is registered to you.");
+            c.getPlayer().yellowMessage("No single QA bot is registered to you.");
             return;
         }
         stopAll(bot);
@@ -116,6 +121,99 @@ public class QaBotCommand extends Command {
                         + " observedDrops=" + rewards.observedDrops()
                         + " pickedDrops=" + rewards.pickedDrops() + ".");
         c.getPlayer().yellowMessage(GCMovementDiagnostics.describe(bot));
+    }
+
+    private static void fleet(Client c, String[] params) {
+        if (params.length < 2 || params.length > 3) { usage(c); return; }
+        int ownerId = c.getPlayer().getId();
+        switch (params[1].toLowerCase()) {
+            case "spawn" -> {
+                if (params.length != 3) { usage(c); return; }
+                int count;
+                try { count = Integer.parseInt(params[2]); }
+                catch (NumberFormatException e) { c.getPlayer().yellowMessage("fleet spawn count must be an integer."); return; }
+                if (BotQaSoakRunner.isRunning(ownerId)) BotQaSoakRunner.stop(ownerId);
+                BotQaFleet.FleetResult result = BotQaFleet.spawn(ownerId, ownerId, count, QA_WORLD, QA_CHANNEL,
+                        c.getPlayer().getMapId());
+                reportFleet(c, result);
+            }
+            case "status" -> reportFleet(c, BotQaFleet.status(ownerId));
+            case "remove", "stop" -> {
+                if (BotQaSoakRunner.isRunning(ownerId)) {
+                    reportSoak(c, BotQaSoakRunner.stop(ownerId));
+                } else {
+                    reportFleet(c, BotQaFleet.remove(ownerId));
+                }
+            }
+            default -> usage(c);
+        }
+    }
+
+    private static void reportFleet(Client c, BotQaFleet.FleetResult result) {
+        if (!result.success()) {
+            c.getPlayer().yellowMessage("QA fleet: " + result.reason() + ".");
+            return;
+        }
+        c.getPlayer().yellowMessage("QA fleet " + result.reason() + ": bots=" + result.bots()
+                + " alive=" + result.alive() + " logged=" + result.loggedInWorld()
+                + " autonomous=" + result.autonomous() + " map=" + result.mapId()
+                + " factoryBots=" + result.globalFactoryBots() + " headlessClients=" + result.headlessClients() + ".");
+    }
+
+    private static void soak(Client c, String[] params) {
+        if (params.length < 2 || params.length > 4) { usage(c); return; }
+        int ownerId = c.getPlayer().getId();
+        switch (params[1].toLowerCase()) {
+            case "start" -> {
+                if (params.length < 3) { usage(c); return; }
+                BotQaSoakRunner.Preset preset = BotQaSoakRunner.Preset.parse(params[2]);
+                if (preset == null) {
+                    c.getPlayer().yellowMessage("soak preset must be 1h, 6h, or overnight (8h).");
+                    return;
+                }
+                int count = DEFAULT_SOAK_BOTS;
+                if (params.length == 4) {
+                    try { count = Integer.parseInt(params[3]); }
+                    catch (NumberFormatException e) { c.getPlayer().yellowMessage("soak bot count must be an integer."); return; }
+                }
+                BotQaSoakRunner.SoakStatus result = BotQaSoakRunner.start(ownerId, ownerId, count,
+                        QA_WORLD, QA_CHANNEL, c.getPlayer().getMapId(), preset);
+                reportSoak(c, result);
+            }
+            case "status" -> reportSoak(c, BotQaSoakRunner.status(ownerId));
+            case "stop" -> reportSoak(c, BotQaSoakRunner.stop(ownerId));
+            default -> usage(c);
+        }
+    }
+
+    private static void reportSoak(Client c, BotQaSoakRunner.SoakStatus result) {
+        if (!result.found()) {
+            c.getPlayer().yellowMessage("QA soak: " + result.reason() + ".");
+            return;
+        }
+        c.getPlayer().yellowMessage("QA soak " + result.reason() + ": preset=" + result.preset()
+                + " running=" + result.running() + " bots=" + result.bots()
+                + " alive=" + result.alive() + " logged=" + result.loggedInWorld()
+                + " hunting=" + result.hunting() + " elapsed=" + formatDuration(result.elapsedMs())
+                + " remaining=" + formatDuration(result.remainingMs()) + ".");
+        c.getPlayer().yellowMessage("QA soak observations=" + result.observations()
+                + " progress=" + result.progressEvents() + " stalls=" + result.stallEvents()
+                + " deaths=" + result.observedDeaths() + " recoveries=" + result.observedRecoveries()
+                + " errors=" + result.errors() + " memory=" + toMiB(result.usedMemoryBytes()) + "MiB"
+                + " peak=" + toMiB(result.peakUsedMemoryBytes()) + "MiB"
+                + " cleanupLeaks=" + result.cleanupClientLeaks() + "/" + result.cleanupRegistrationLeaks() + ".");
+    }
+
+    private static String formatDuration(long ms) {
+        long totalSeconds = Math.max(0L, ms / 1000L);
+        long hours = totalSeconds / 3600L;
+        long minutes = (totalSeconds % 3600L) / 60L;
+        long seconds = totalSeconds % 60L;
+        return hours + "h" + minutes + "m" + seconds + "s";
+    }
+
+    private static long toMiB(long bytes) {
+        return Math.max(0L, bytes / (1024L * 1024L));
     }
 
     private static void profile(Client c, String[] params) {
@@ -390,6 +488,19 @@ public class QaBotCommand extends Command {
         BotNpcDriver.cancel(bot);
     }
 
+    private static boolean requiresQaChannel(String action, String[] params) {
+        if (action.equals("remove")) return false;
+        if (action.equals("fleet") && params.length >= 2) {
+            String mode = params[1].toLowerCase();
+            if (mode.equals("status") || mode.equals("remove") || mode.equals("stop")) return false;
+        }
+        if (action.equals("soak") && params.length >= 2) {
+            String mode = params[1].toLowerCase();
+            if (mode.equals("status") || mode.equals("stop")) return false;
+        }
+        return true;
+    }
+
     private static boolean onQaChannel(Client c) {
         return c.getChannelServer() != null
                 && c.getChannelServer().getWorld() == QA_WORLD
@@ -403,6 +514,6 @@ public class QaBotCommand extends Command {
     }
 
     private static void usage(Client c) {
-        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|status|job <jobId>|npc nearest|<npcId>|next [selection]|cancel|shop nearest|open [npcId]|buy <npcId> <itemId> <qty>|sell <npcId> <invType> <slot> <qty>|recharge <npcId> <useSlot>|restock|nudge <dx>|move <x> <y>|gcmove <x> <y>|gcstop|strike [damage]|attack [single|aoe|ult]|hunt start|stop|patrol start|stop|portal <id>");
+        c.getPlayer().yellowMessage("Usage: !qabot spawn|remove|status|fleet spawn <1-12>|status|remove|soak start <1h|6h|overnight> [1-12]|status|stop|job <jobId>|npc nearest|<npcId>|next [selection]|cancel|shop nearest|open [npcId]|buy <npcId> <itemId> <qty>|sell <npcId> <invType> <slot> <qty>|recharge <npcId> <useSlot>|restock|nudge <dx>|move <x> <y>|gcmove <x> <y>|gcstop|strike [damage]|attack [single|aoe|ult]|hunt start|stop|patrol start|stop|portal <id>");
     }
 }
