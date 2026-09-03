@@ -1,0 +1,179 @@
+name: Inventory community chairs
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/inventory-community-chairs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  COMMUNITY_WZ_ROOT: /home/ubuntu/everleaf-staging/community-wz/extracted/Community Repack WZs
+
+jobs:
+  inventory:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout EverLeaf
+        uses: actions/checkout@v4
+        with:
+          ref: release-dev
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if ($env:SSH_KNOWN_HOSTS) { [IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n") }
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 15
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Fetch current live and donor Item/String WZ
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'chair-inventory'; $live=Join-Path $root 'live'; $donor=Join-Path $root 'donor'
+          New-Item -ItemType Directory -Force -Path $live,$donor | Out-Null
+          ssh everleaf-oracle "set -e; test -s /opt/everleaf/patches/files/Item.wz; test -s /opt/everleaf/patches/files/String.wz; test -s '$env:COMMUNITY_WZ_ROOT/Item.wz'; test -s '$env:COMMUNITY_WZ_ROOT/String.wz'"
+          if($LASTEXITCODE){throw 'Unable to validate live/donor WZ inputs'}
+          scp 'everleaf-oracle:/opt/everleaf/patches/files/Item.wz' (Join-Path $live 'Item.wz'); if($LASTEXITCODE){throw 'live Item.wz copy failed'}
+          scp 'everleaf-oracle:/opt/everleaf/patches/files/String.wz' (Join-Path $live 'String.wz'); if($LASTEXITCODE){throw 'live String.wz copy failed'}
+          scp "everleaf-oracle`:$env:COMMUNITY_WZ_ROOT/Item.wz" (Join-Path $donor 'Item.wz'); if($LASTEXITCODE){throw 'donor Item.wz copy failed'}
+          scp "everleaf-oracle`:$env:COMMUNITY_WZ_ROOT/String.wz" (Join-Path $donor 'String.wz'); if($LASTEXITCODE){throw 'donor String.wz copy failed'}
+
+      - name: Build chair inventory tool
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafChairInventory'; New-Item -ItemType Directory -Force -Path $tool | Out-Null
+          @'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup><ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup></Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafChairInventory.csproj')
+          @'
+          using System.Text.Json;
+          using MapleLib.WzLib;
+
+          if (args.Length != 5) return 2;
+          var liveItemPath = Path.GetFullPath(args[0]);
+          var liveStringPath = Path.GetFullPath(args[1]);
+          var donorItemPath = Path.GetFullPath(args[2]);
+          var donorStringPath = Path.GetFullPath(args[3]);
+          var outputPath = Path.GetFullPath(args[4]);
+
+          static WzFile OpenWz(string path) {
+              var wz = new WzFile(path, WzMapleVersion.GMS);
+              var status = wz.ParseWzFile();
+              if (status != WzFileParseStatus.Success) { wz.Dispose(); throw new InvalidDataException($"Failed to parse {path}: {status}"); }
+              return wz;
+          }
+          static WzDirectory Dir(WzDirectory root,string name) => root.GetDirectoryByName(name) ?? throw new InvalidDataException($"Missing directory {name}");
+          static WzImage Img(WzDirectory dir,string name) => dir.GetImageByName(name) ?? throw new InvalidDataException($"Missing image {name}");
+          static bool TryChairId(string name,out int id) {
+              id=0; if(!int.TryParse(name,out var parsed)) return false;
+              if(parsed>=3010000 && parsed<=3019999){id=parsed;return true;}
+              if(parsed>=30100000 && parsed<=30199999){id=parsed/10;return true;}
+              return false;
+          }
+          static WzImageProperty? Direct(WzImage image,int id) {
+              foreach(var n in new[]{id.ToString(),id.ToString("D8")}) { var p=image[n]; if(p!=null) return p; }
+              return null;
+          }
+          static (WzImage image,WzImageProperty property)? StringEntry(WzFile wz,int id) {
+              foreach(var image in wz.WzDirectory.WzImages) { var p=Direct(image,id); if(p!=null) return (image,p); }
+              return null;
+          }
+          static string Name(WzImageProperty p,int id) => p["name"]?.GetString() ?? $"Chair {id}";
+
+          using var liveItem=OpenWz(liveItemPath);
+          using var liveString=OpenWz(liveStringPath);
+          using var donorItem=OpenWz(donorItemPath);
+          using var donorString=OpenWz(donorStringPath);
+          var liveInstall=Img(Dir(liveItem.WzDirectory,"Install"),"0301.img");
+          var donorInstall=Img(Dir(donorItem.WzDirectory,"Install"),"0301.img");
+
+          var donorIds=donorInstall.WzProperties.Select(p => (p,ok:TryChairId(p.Name,out var id),id)).Where(x=>x.ok).GroupBy(x=>x.id).Select(g=>g.First()).OrderBy(x=>x.id).ToList();
+          var liveDonorIds=donorIds.Where(x=>Direct(liveInstall,x.id)!=null).Select(x=>x.id).ToList();
+          var remaining = new List<object>();
+          var blockedNoString = new List<int>();
+          var blockedTargetStringImage = new List<int>();
+          foreach(var c in donorIds) {
+              if(Direct(liveInstall,c.id)!=null) continue;
+              var ds=StringEntry(donorString,c.id);
+              if(ds==null){blockedNoString.Add(c.id);continue;}
+              if(StringEntry(liveString,c.id)!=null) continue;
+              if(liveString.WzDirectory.GetImageByName(ds.Value.image.Name)==null){blockedTargetStringImage.Add(c.id);continue;}
+              remaining.Add(new {contentId=c.id,name=Name(ds.Value.property,c.id),stringImage=ds.Value.image.Name});
+          }
+          var report=new {
+              donorChairCount=donorIds.Count,
+              donorChairsAlreadyInLive=liveDonorIds.Count,
+              addableRemainingCount=remaining.Count,
+              blockedMissingDonorStringCount=blockedNoString.Count,
+              blockedMissingLiveStringImageCount=blockedTargetStringImage.Count,
+              liveDonorChairIds=liveDonorIds,
+              addableRemaining=remaining,
+              blockedMissingDonorString=blockedNoString,
+              blockedMissingLiveStringImage=blockedTargetStringImage
+          };
+          File.WriteAllText(outputPath,JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true})+Environment.NewLine);
+          Console.WriteLine($"DONOR_CHAIRS_TOTAL={donorIds.Count}");
+          Console.WriteLine($"DONOR_CHAIRS_ALREADY_LIVE={liveDonorIds.Count}");
+          Console.WriteLine($"ADDABLE_CHAIRS_REMAINING={remaining.Count}");
+          Console.WriteLine($"BLOCKED_MISSING_DONOR_STRING={blockedNoString.Count}");
+          Console.WriteLine($"BLOCKED_MISSING_LIVE_STRING_IMAGE={blockedTargetStringImage.Count}");
+          foreach(var row in remaining) Console.WriteLine(JsonSerializer.Serialize(row));
+          return 0;
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'Program.cs')
+          dotnet build (Join-Path $tool 'EverLeafChairInventory.csproj') -c Release
+
+      - name: Inventory all donor chairs against current live WZ
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'chair-inventory'; $report=Join-Path $root 'chair-inventory.json'
+          dotnet run --project "$env:RUNNER_TEMP/MapleLib/EverLeafChairInventory/EverLeafChairInventory.csproj" -c Release --no-build -- `
+            (Join-Path $root 'live/Item.wz') (Join-Path $root 'live/String.wz') (Join-Path $root 'donor/Item.wz') (Join-Path $root 'donor/String.wz') $report
+          if($LASTEXITCODE){throw 'Chair inventory failed'}
+          $r=Get-Content $report -Raw | ConvertFrom-Json
+          Add-Content $env:GITHUB_STEP_SUMMARY "## Community chair inventory"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Donor chairs total: **$($r.donorChairCount)**"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Donor chairs already live: **$($r.donorChairsAlreadyInLive)**"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Addable chairs remaining: **$($r.addableRemainingCount)**"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Blocked: missing donor String entry: **$($r.blockedMissingDonorStringCount)**"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Blocked: missing compatible live String image: **$($r.blockedMissingLiveStringImageCount)**"
+          Add-Content $env:GITHUB_STEP_SUMMARY ''
+          Add-Content $env:GITHUB_STEP_SUMMARY '### Remaining addable chairs'
+          foreach($x in $r.addableRemaining){ Add-Content $env:GITHUB_STEP_SUMMARY "- $($x.contentId) — $($x.name)" }
+
+      - name: Upload chair inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: community-chair-inventory-${{ github.sha }}
+          path: ${{ runner.temp }}/chair-inventory/chair-inventory.json
+          retention-days: 14
+          if-no-files-found: error
