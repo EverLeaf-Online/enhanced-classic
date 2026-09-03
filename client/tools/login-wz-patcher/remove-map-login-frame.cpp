@@ -11,6 +11,8 @@
 
 namespace fs = std::filesystem;
 
+// The legacy open-book chrome is a separate Map.wz layer from UI.wz/Common/frame.
+// Patch only this audited 799x599 canvas; do not touch the EverLeaf background or controls.
 static wz::WzDirectory* FindDirectory(wz::WzDirectory* root,
                                       const std::string& lower,
                                       const std::string& upper) {
