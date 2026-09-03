@@ -10,7 +10,7 @@ on:
 
 concurrency:
   group: everleaf-client-production
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
