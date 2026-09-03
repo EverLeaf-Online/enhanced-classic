@@ -1,7 +1,6 @@
 package soloMapling.ArtificialPlayer;
 
 import client.Character;
-import client.inventory.Inventory;
 import client.inventory.InventoryType;
 import client.inventory.Item;
 import constants.inventory.ItemConstants;
@@ -33,9 +32,7 @@ public final class BotShopDriver {
         if (!eligible(bot)) return ShopResult.fail("not-eligible");
         NPC npc = BotNpcDriver.findNpc(bot, npcId);
         if (npc == null || !npc.hasShop()) return ShopResult.fail("shop-npc-not-on-map");
-        if (bot.getPosition().distanceSq(npc.getPosition()) > (double) INTERACT_RANGE * INTERACT_RANGE) {
-            return ShopResult.fail("shop-too-far");
-        }
+        if (bot.getPosition().distanceSq(npc.getPosition()) > (double) INTERACT_RANGE * INTERACT_RANGE) return ShopResult.fail("shop-too-far");
         npc.sendShop(bot.getClient());
         Shop shop = ShopFactory.getInstance().getShopForNPC(npc.getId());
         return new ShopResult(true, npc.getId(), shop == null ? 0 : shop.getId(), 0, 0, 0, "opened");
@@ -98,11 +95,6 @@ public final class BotShopDriver {
                 mesosBefore - bot.getMeso(), after > before ? "recharged" : "recharge-rejected");
     }
 
-    /**
-     * Autonomous current-map restock. It never warps, spawns items, grants mesos, or bypasses Shop.
-     * If supplies are low it walks to a real shop NPC, buys ordinary HP/MP consumables and refills ammo,
-     * then the hunter resumes on its next tick.
-     */
     public static RestockResult tickRestock(Character bot) {
         if (!eligible(bot)) return RestockResult.none("not-eligible");
         Supply supply = supply(bot);
@@ -145,8 +137,9 @@ public final class BotShopDriver {
             }
         }
 
-        return new RestockResult(true, false, true, npc.getId(), bought, recharged,
-                bought > 0 || recharged > 0 ? "restocked" : "shop-could-not-restock");
+        boolean changed = bought > 0 || recharged > 0;
+        return new RestockResult(changed, false, true, npc.getId(), bought, recharged,
+                changed ? "restocked" : "shop-could-not-restock");
     }
 
     private static int buyBestPotion(Character bot, Shop shop, boolean hp, boolean mp, int wanted) {
@@ -174,7 +167,8 @@ public final class BotShopDriver {
     }
 
     private static Supply supply(Character bot) {
-        int hp = 0, mp = 0;
+        int hp = 0;
+        int mp = 0;
         ItemInformationProvider ii = ItemInformationProvider.getInstance();
         for (Item item : bot.getInventory(InventoryType.USE).list()) {
             if (item == null || item.getQuantity() <= 0) continue;
