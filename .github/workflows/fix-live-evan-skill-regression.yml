@@ -16,29 +16,32 @@ permissions:
 
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVAN_CANDIDATE_SHA256: 04ef42e239a9bc7ac47ab75b3bac5ce028b68506772977444871d63ed9d70192
 
 jobs:
   fix-evan:
-    runs-on: windows-2025
-    timeout-minutes: 45
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
         with:
           ref: release-dev
 
       - name: Configure SSH
-        shell: pwsh
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
         run: |
-          $ErrorActionPreference='Stop'
-          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
-          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
-          $known=Join-Path $sshDir 'known_hosts'
-          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}
-          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
-          @'
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          cat > ~/.ssh/config <<'EOF'
           Host everleaf-oracle
             HostName 132.145.141.79
             User ubuntu
@@ -46,84 +49,12 @@ jobs:
             ConnectTimeout 20
             ServerAliveInterval 20
             ServerAliveCountMax 15
-          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+          EOF
 
-      - name: Fetch live and preserved Skill.wz
-        shell: pwsh
+      - name: Verify existing merged candidate and current live state
         run: |
-          $ErrorActionPreference='Stop'
-          $work=Join-Path $env:RUNNER_TEMP 'evan-skill-fix'; New-Item -ItemType Directory -Force -Path $work | Out-Null
-          $backup=(ssh everleaf-oracle 'cat /opt/everleaf/backups/community-wholesale-test/LATEST').Trim()
-          if(!$backup){throw 'Could not resolve rollback backup'}
-          scp 'everleaf-oracle:/opt/everleaf/patches/files/Skill.wz' (Join-Path $work 'community-Skill.wz')
-          if($LASTEXITCODE){throw 'Failed to fetch live Community Skill.wz'}
-          scp ("everleaf-oracle:{0}/client-files/Skill.wz" -f $backup) (Join-Path $work 'everleaf-baseline-Skill.wz')
-          if($LASTEXITCODE){throw 'Failed to fetch preserved EverLeaf Skill.wz'}
-          Get-Item (Join-Path $work '*.wz') | Select-Object Name,Length
-
-      - name: Build merged Community plus Evan Skill.wz
-        shell: pwsh
-        run: |
-          $ErrorActionPreference='Stop'
-          $work=Join-Path $env:RUNNER_TEMP 'evan-skill-fix'
-          $maple=Join-Path $work 'MapleLib'
-          git clone --depth 1 https://github.com/lastbattle/MapleLib.git $maple
-          if($LASTEXITCODE){throw 'MapleLib clone failed'}
-          $tool=Join-Path $work 'Patcher'; New-Item -ItemType Directory -Force -Path $tool | Out-Null
-          @'
-          <Project Sdk="Microsoft.NET.Sdk">
-            <PropertyGroup>
-              <OutputType>Exe</OutputType>
-              <TargetFramework>net10.0-windows</TargetFramework>
-              <EnableWindowsTargeting>true</EnableWindowsTargeting>
-              <ImplicitUsings>enable</ImplicitUsings>
-              <Nullable>enable</Nullable>
-            </PropertyGroup>
-            <ItemGroup><ProjectReference Include="..\MapleLib\MapleLib\MapleLib.csproj" /></ItemGroup>
-          </Project>
-          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'Patcher.csproj')
-          @'
-          using MapleLib.WzLib;
-          using System.Security.Cryptography;
-          if (args.Length != 3) throw new ArgumentException("usage: target donor output");
-          var targetPath=args[0]; var donorPath=args[1]; var output=args[2];
-          string[] names={"2001.img","2200.img","2210.img","2211.img","2212.img","2213.img","2214.img","2215.img","2216.img","2217.img","2218.img"};
-          static WzFile Open(string p){ var f=new WzFile(p,WzMapleVersion.GMS); var s=f.ParseWzFile(); if(s!=WzFileParseStatus.Success){f.Dispose();throw new Exception($"parse {p}: {s}");} return f; }
-          static string Sha(string p){using var fs=File.OpenRead(p); return Convert.ToHexString(SHA256.HashData(fs)).ToLowerInvariant();}
-          if(File.Exists(output)) File.Delete(output);
-          using(var target=Open(targetPath)) using(var donor=Open(donorPath)){
-            foreach(var n in names){
-              if(target.WzDirectory.GetImageByName(n)!=null) throw new Exception($"target already has {n}");
-              var src=donor.WzDirectory.GetImageByName(n) ?? throw new Exception($"donor missing {n}");
-              if(!src.ParseImage()) throw new Exception($"failed to parse donor {n}");
-              var dst=new WzImage(n);
-              foreach(var p in src.WzProperties) dst.AddProperty(p.DeepClone());
-              target.WzDirectory.AddImage(dst);
-            }
-            target.SaveToDisk(output);
-          }
-          using(var check=Open(output)) foreach(var n in names){ var img=check.WzDirectory.GetImageByName(n) ?? throw new Exception($"saved output missing {n}"); if(!img.ParseImage() || img.WzProperties.Count==0) throw new Exception($"saved output invalid {n}"); }
-          Console.WriteLine($"EVAN_CLIENT_MERGE_OK SHA256={Sha(output)}");
-          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'Program.cs')
-          dotnet --list-sdks
-          dotnet run --project (Join-Path $tool 'Patcher.csproj') --configuration Release -- (Join-Path $work 'community-Skill.wz') (Join-Path $work 'everleaf-baseline-Skill.wz') (Join-Path $work 'Skill.wz.new')
-          if($LASTEXITCODE){throw 'WZ merge failed'}
-          if(!(Test-Path (Join-Path $work 'Skill.wz.new'))){throw 'Merged Skill.wz not produced'}
-
-      - name: Upload merged Skill.wz candidate
-        shell: pwsh
-        run: |
-          $ErrorActionPreference='Stop'
-          $work=Join-Path $env:RUNNER_TEMP 'evan-skill-fix'
-          ssh everleaf-oracle 'mkdir -p /home/ubuntu/everleaf-tools/evan-skill-merge'
-          scp (Join-Path $work 'Skill.wz.new') 'everleaf-oracle:/home/ubuntu/everleaf-tools/evan-skill-merge/Skill.wz.new'
-          if($LASTEXITCODE){throw 'Candidate upload failed'}
-
-      - name: Deploy client and server Evan skill data atomically
-        shell: pwsh
-        run: |
-          $ErrorActionPreference='Stop'
-          $script=@'
+          set -euo pipefail
+          cat > /tmp/precheck-evan-fix.sh <<'SH'
           set -euo pipefail
           PATCH=/opt/everleaf/patches
           FILES="$PATCH/files"
@@ -133,81 +64,136 @@ jobs:
           CAND=/home/ubuntu/everleaf-tools/evan-skill-merge/Skill.wz.new
           IMAGES='2001 2200 2210 2211 2212 2213 2214 2215 2216 2217 2218'
           test -s "$CAND"
+          test "$(sha256sum "$CAND" | awk '{print $1}')" = '__CAND_SHA__'
           test -s "$FILES/Skill.wz"
-          for g in $IMAGES; do test -s "$OLD_SERVER/$g.img.xml"; test ! -e "$CURRENT/wz/Skill.wz/$g.img.xml"; done
+          test -s "$PATCH/manifest.json"
+          test -d "$CURRENT/wz/Skill.wz"
+          systemctl is-active --quiet everleaf.service
+          ss -ltn | grep -q ':8484 '
+          for g in $IMAGES; do
+            test -s "$OLD_SERVER/$g.img.xml"
+            test ! -e "$CURRENT/wz/Skill.wz/$g.img.xml"
+          done
+          # Clean only stale scratch left by prior failed targeted attempts; never touch donor or rollback backup.
+          sudo rm -f "$FILES/Skill.wz.evan-old"
+          sudo rm -rf "$CURRENT/wz.evan-skill-new" "$CURRENT/wz.evan-old"
+          echo "EVAN_FIX_PRECHECK_OK CANDIDATE_SHA256=__CAND_SHA__"
+          SH
+          sed -i "s/__CAND_SHA__/${EVAN_CANDIDATE_SHA256}/g" /tmp/precheck-evan-fix.sh
+          scp /tmp/precheck-evan-fix.sh everleaf-oracle:/tmp/precheck-evan-fix.sh
+          ssh everleaf-oracle 'bash /tmp/precheck-evan-fix.sh'
 
-          STAGE="$CURRENT/wz.evan-skill-new"
-          sudo rm -rf "$STAGE"
-          sudo cp -a "$CURRENT/wz" "$STAGE"
-          for g in $IMAGES; do sudo cp -a "$OLD_SERVER/$g.img.xml" "$STAGE/Skill.wz/$g.img.xml"; done
-          python3 - "$STAGE/Skill.wz" <<'PY'
-          from pathlib import Path
-          import sys,xml.etree.ElementTree as ET
-          expected={20010012,20011000,20011001,20011002,20011003,20011004,20011005,20011006,20011007,20011009,20011010,20011011,22000000,22001001,22101000,22101001,22111000,22111001,22121000,22121001,22131000,22131001,22140000,22141001,22141002,22141003,22150000,22151001,22151002,22151003,22160000,22161001,22161002,22161003,22170001,22171000,22171002,22171003,22171004,22181000,22181001,22181002,22181003}; seen=set()
-          for p in Path(sys.argv[1]).glob('*.xml'):
-            r=ET.parse(p).getroot()
-            for e in r.iter():
-              n=e.attrib.get('name','')
-              if n.isdigit() and int(n) in expected: seen.add(int(n))
-          miss=sorted(expected-seen)
-          if miss: raise SystemExit(f'stage missing Evan skills: {miss}')
-          print(f'EVAN_SERVER_STAGE_OK COUNT={len(seen)}')
-          PY
+      - name: Deploy only the verified Evan delta
+        run: |
+          set -euo pipefail
+          cat > /tmp/deploy-evan-fix.sh <<'SH'
+          set -euo pipefail
+          PATCH=/opt/everleaf/patches
+          FILES="$PATCH/files"
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          SERVER_SKILL="$CURRENT/wz/Skill.wz"
+          BACKUP="$(cat /opt/everleaf/backups/community-wholesale-test/LATEST)"
+          OLD_SERVER="$BACKUP/server-wz-xml/Skill.wz"
+          WORK=/home/ubuntu/everleaf-tools/evan-skill-merge
+          CAND="$WORK/Skill.wz.new"
+          CLIENT_ROLLBACK="$WORK/Skill.wz.pre-fix"
+          MANIFEST_ROLLBACK="$WORK/manifest.pre-fix.json"
+          GENERATED="$WORK/manifest.json"
+          IMAGES='2001 2200 2210 2211 2212 2213 2214 2215 2216 2217 2218'
+
+          test -s "$CAND"
+          test "$(sha256sum "$CAND" | awk '{print $1}')" = '__CAND_SHA__'
+          test -s "$FILES/Skill.wz"
+          test -s "$PATCH/manifest.json"
+          for g in $IMAGES; do test -s "$OLD_SERVER/$g.img.xml"; test ! -e "$SERVER_SKILL/$g.img.xml"; done
+
+          # Targeted rollback state only: one Skill.wz and one manifest, stored outside managed patch payload.
+          rm -f "$CLIENT_ROLLBACK" "$MANIFEST_ROLLBACK"
+          cp -a "$FILES/Skill.wz" "$CLIENT_ROLLBACK"
+          cp -a "$PATCH/manifest.json" "$MANIFEST_ROLLBACK"
 
           ROLLBACK=1
           rollback(){
             if [ "$ROLLBACK" = 1 ]; then
               echo EVAN_FIX_FAILED_ROLLING_BACK >&2
-              if [ -e "$FILES/Skill.wz.evan-old" ]; then sudo rm -f "$FILES/Skill.wz"; sudo mv "$FILES/Skill.wz.evan-old" "$FILES/Skill.wz"; fi
-              if [ -d "$CURRENT/wz.evan-old" ]; then sudo rm -rf "$CURRENT/wz"; sudo mv "$CURRENT/wz.evan-old" "$CURRENT/wz"; fi
-              sudo install -m 644 "$BACKUP/manifest.json" "$PATCH/manifest.json" || true
+              if [ -s "$CLIENT_ROLLBACK" ]; then sudo install -m 644 "$CLIENT_ROLLBACK" "$FILES/Skill.wz"; fi
+              for g in $IMAGES; do sudo rm -f "$SERVER_SKILL/$g.img.xml"; done
+              if [ -s "$MANIFEST_ROLLBACK" ]; then sudo install -m 644 "$MANIFEST_ROLLBACK" "$PATCH/manifest.json"; fi
               sudo systemctl restart everleaf.service || true
             fi
           }
           trap rollback ERR
-          sudo rm -f "$FILES/Skill.wz.evan-old"
-          sudo mv "$FILES/Skill.wz" "$FILES/Skill.wz.evan-old"
-          sudo install -m 644 "$CAND" "$FILES/Skill.wz"
-          sudo rm -rf "$CURRENT/wz.evan-old"
-          sudo mv "$CURRENT/wz" "$CURRENT/wz.evan-old"
-          sudo mv "$STAGE" "$CURRENT/wz"
 
-          GENERATED=/home/ubuntu/everleaf-tools/evan-skill-merge/manifest.json
-          LAUNCHER_PATCH_ROOT="$PATCH" LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" LAUNCHER_MANIFEST_PATH="$GENERATED" LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" node /opt/everleaf/web/scripts/build-patch-manifest.js '__SHA__'
+          # Add only the 11 missing server Skill XML groups; do not duplicate the 44k-file XML tree.
+          for g in $IMAGES; do sudo install -m 644 "$OLD_SERVER/$g.img.xml" "$SERVER_SKILL/$g.img.xml"; done
+          sudo install -m 644 "$CAND" "$FILES/Skill.wz"
+
+          python3 - "$SERVER_SKILL" <<'PY'
+          from pathlib import Path
+          import sys, xml.etree.ElementTree as ET
+          expected={20010012,20011000,20011001,20011002,20011003,20011004,20011005,20011006,20011007,20011009,20011010,20011011,22000000,22001001,22101000,22101001,22111000,22111001,22121000,22121001,22131000,22131001,22140000,22141001,22141002,22141003,22150000,22151001,22151002,22151003,22160000,22161001,22161002,22161003,22170001,22171000,22171002,22171003,22171004,22181000,22181001,22181002,22181003}
+          seen=set()
+          for p in Path(sys.argv[1]).glob('*.xml'):
+              r=ET.parse(p).getroot()
+              for e in r.iter():
+                  n=e.attrib.get('name','')
+                  if n.isdigit() and int(n) in expected: seen.add(int(n))
+          missing=sorted(expected-seen)
+          if missing: raise SystemExit(f'live server XML missing Evan skills: {missing}')
+          print(f'EVAN_LIVE_SERVER_XML_OK COUNT={len(seen)}')
+          PY
+
+          test "$(sha256sum "$FILES/Skill.wz" | awk '{print $1}')" = '__CAND_SHA__'
+
+          # Rebuild the CURRENT Community manifest after the targeted Skill.wz replacement.
+          LAUNCHER_PATCH_ROOT="$PATCH" \
+          LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" \
+          LAUNCHER_MANIFEST_PATH="$GENERATED" \
+          LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" \
+          LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" \
+          node /opt/everleaf/web/scripts/build-patch-manifest.js '__SHA__'
           sudo install -m 644 "$GENERATED" "$PATCH/manifest.json"
           test -s "$PATCH/manifest.json"
+          cmp -s "$GENERATED" "$PATCH/manifest.json"
+
           sudo systemctl restart everleaf.service
-          for i in $(seq 1 45); do if systemctl is-active --quiet everleaf.service && ss -ltn | grep -q ':8484 '; then break; fi; sleep 2; done
+          for i in $(seq 1 45); do
+            if systemctl is-active --quiet everleaf.service && ss -ltn | grep -q ':8484 '; then break; fi
+            sleep 2
+          done
           systemctl is-active --quiet everleaf.service
           ss -ltn | grep -q ':8484 '
 
-          python3 - "$CURRENT/wz/Skill.wz" <<'PY'
-          from pathlib import Path
-          import sys,xml.etree.ElementTree as ET
-          expected={20010012,20011000,20011001,20011002,20011003,20011004,20011005,20011006,20011007,20011009,20011010,20011011,22000000,22001001,22101000,22101001,22111000,22111001,22121000,22121001,22131000,22131001,22140000,22141001,22141002,22141003,22150000,22151001,22151002,22151003,22160000,22161001,22161002,22161003,22170001,22171000,22171002,22171003,22171004,22181000,22181001,22181002,22181003}; seen=set()
-          for p in Path(sys.argv[1]).glob('*.xml'):
-            r=ET.parse(p).getroot()
-            for e in r.iter():
-              n=e.attrib.get('name','')
-              if n.isdigit() and int(n) in expected: seen.add(int(n))
-          miss=sorted(expected-seen)
-          if miss: raise SystemExit(f'live missing Evan skills: {miss}')
-          print(f'EVAN_LIVE_SERVER_OK COUNT={len(seen)}')
-          PY
+          # Final exact live verification before disabling rollback.
+          for g in $IMAGES; do test -s "$SERVER_SKILL/$g.img.xml"; done
+          test "$(sha256sum "$FILES/Skill.wz" | awk '{print $1}')" = '__CAND_SHA__'
+          test ! -e "$FILES/Skill.wz.evan-old"
+
           ROLLBACK=0
           trap - ERR
-          sudo rm -f "$FILES/Skill.wz.evan-old"
-          sudo rm -rf "$CURRENT/wz.evan-old"
-          echo EVAN_SKILL_REGRESSION_FIXED_LIVE
-          '@
-          $script=$script.Replace('__SHA__','${{ github.sha }}')
-          $tmp=Join-Path $env:RUNNER_TEMP 'deploy-evan-fix.sh'; [IO.File]::WriteAllText($tmp,($script -replace "`r",''))
-          scp $tmp 'everleaf-oracle:/tmp/deploy-evan-fix.sh'; if($LASTEXITCODE){throw 'Deploy script upload failed'}
-          ssh everleaf-oracle 'bash /tmp/deploy-evan-fix.sh'; if($LASTEXITCODE){throw 'Live Evan fix failed or rolled back'}
+          rm -f "$CLIENT_ROLLBACK" "$MANIFEST_ROLLBACK"
+          echo 'EVAN_SKILL_REGRESSION_FIXED_LIVE COUNT=43'
+          SH
+          sed -i "s/__CAND_SHA__/${EVAN_CANDIDATE_SHA256}/g; s/__SHA__/${GITHUB_SHA}/g" /tmp/deploy-evan-fix.sh
+          scp /tmp/deploy-evan-fix.sh everleaf-oracle:/tmp/deploy-evan-fix.sh
+          ssh everleaf-oracle 'bash /tmp/deploy-evan-fix.sh'
 
-      - name: Final verification
-        shell: pwsh
+      - name: Final live verification
         run: |
-          $ErrorActionPreference='Stop'
-          ssh everleaf-oracle 'set -euo pipefail; systemctl is-active --quiet everleaf.service; ss -ltn | grep -q ":8484 "; test -s /opt/everleaf/patches/files/Skill.wz; test -s /opt/everleaf/patches/manifest.json; echo EVAN_FIX_FINAL_VERIFICATION_OK'
-          if($LASTEXITCODE){throw 'Final verification failed'}
+          set -euo pipefail
+          cat > /tmp/verify-evan-fix.sh <<'SH'
+          set -euo pipefail
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          systemctl is-active --quiet everleaf.service
+          ss -ltn | grep -q ':8484 '
+          test -s /opt/everleaf/patches/manifest.json
+          test "$(sha256sum /opt/everleaf/patches/files/Skill.wz | awk '{print $1}')" = '__CAND_SHA__'
+          for g in 2001 2200 2210 2211 2212 2213 2214 2215 2216 2217 2218; do test -s "$CURRENT/wz/Skill.wz/$g.img.xml"; done
+          test ! -e /opt/everleaf/patches/files/Skill.wz.evan-old
+          test ! -e /home/ubuntu/everleaf-tools/evan-skill-merge/Skill.wz.pre-fix
+          test ! -e /home/ubuntu/everleaf-tools/evan-skill-merge/manifest.pre-fix.json
+          echo 'EVAN_FIX_FINAL_VERIFICATION_OK CLIENT_MERGE=11 SERVER_SKILLS=43 SERVICE=active PORT=8484'
+          SH
+          sed -i "s/__CAND_SHA__/${EVAN_CANDIDATE_SHA256}/g" /tmp/verify-evan-fix.sh
+          scp /tmp/verify-evan-fix.sh everleaf-oracle:/tmp/verify-evan-fix.sh
+          ssh everleaf-oracle 'bash /tmp/verify-evan-fix.sh'
