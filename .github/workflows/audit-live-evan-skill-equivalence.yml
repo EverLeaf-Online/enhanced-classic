@@ -39,70 +39,105 @@ jobs:
             ServerAliveCountMax 10
           EOF
 
-      - name: Audit exact expected Evan skill IDs across all live Skill XML
+      - name: Audit expected IDs and alternate IDs by String names
         run: |
           set -euo pipefail
           cat > /tmp/audit-evan-live.py <<'PY'
           from pathlib import Path
           import json, re, subprocess, xml.etree.ElementTree as ET
+          from difflib import SequenceMatcher
 
-          expected = [
-            20010012,20011000,20011001,20011002,20011003,20011004,20011005,20011006,20011007,20011009,20011010,20011011,
-            22000000,22001001,22101000,22101001,22111000,22111001,22121000,22121001,22131000,22131001,22140000,22141001,
-            22141002,22141003,22150000,22151001,22151002,22151003,22160000,22161001,22161002,22161003,22170001,22171000,
-            22171002,22171003,22171004,22181000,22181001,22181002,22181003
-          ]
-          current = Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'], text=True).strip())/'wz'/'Skill.wz'
-          backup = Path(Path('/opt/everleaf/backups/community-wholesale-test/LATEST').read_text().strip())/'server-wz-xml'/'Skill.wz'
+          expected = {
+            20010012:'Blessing of the Fairy',20011000:'Three Snails',20011001:'Recovery',20011002:'Nimble Feet',20011003:'Legendary Spirit',20011004:'Monster Rider',20011005:'Echo of Hero',20011006:'Jump Down',20011007:'Maker',20011009:'Bamboo Thrust',20011010:'Invincible Barrier',20011011:'Power Explosion',22000000:'Dragon Soul',22001001:'Magic Missile',22101000:'Fire Circle',22101001:'Teleport',22111000:'Lightning Bolt',22111001:'Magic Guard',22121000:'Ice Breath',22121001:'Elemental Reset',22131000:'Magic Flare',22131001:'Magic Shield',22140000:'Critical Magic',22141001:'Dragon Thrust',22141002:'Magic Booster',22141003:'Slow',22150000:'Magic Amplification',22151001:'Fire Breath',22151002:'Killer Wings',22151003:'Magic Resistance',22160000:'Dragon Fury',22161001:'Earthquake',22161002:'Phantom Imprint',22161003:'Recovery Aura',22170001:'Magic Mastery',22171000:'Maple Warrior',22171002:'Illusion',22171003:'Flame Wheel',22171004:"Hero's Will",22181000:'Blessing of the Onyx',22181001:'Blaze',22181002:'Dark Fog',22181003:'Soul Stone'
+          }
+          curroot=Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'],text=True).strip())/'wz'
+          backroot=Path(Path('/opt/everleaf/backups/community-wholesale-test/LATEST').read_text().strip())/'server-wz-xml'
 
-          def scan(root):
-              hits={i:[] for i in expected}
-              all_numeric_names={}
-              for p in root.rglob('*.xml'):
-                  try:
-                      tree=ET.parse(p)
-                  except Exception:
-                      continue
+          def norm(s):
+              return re.sub(r'[^a-z0-9]+','',s.lower().replace('’',"'").replace('`',"'"))
+
+          def skill_nodes(root):
+              out={}
+              for p in (root/'Skill.wz').rglob('*.xml'):
+                  try: tree=ET.parse(p)
+                  except: continue
                   for e in tree.getroot().iter():
-                      name=e.attrib.get('name','')
-                      if name.isdigit():
-                          n=int(name)
-                          if n in hits:
-                              hits[n].append(str(p.relative_to(root)))
-                          if 20000000 <= n <= 22999999:
-                              all_numeric_names.setdefault(n,set()).add(str(p.relative_to(root)))
-              return hits, all_numeric_names
+                      ident=e.attrib.get('name','')
+                      if ident.isdigit() and 7 <= len(ident) <= 9:
+                          out.setdefault(int(ident),set()).add(str(p.relative_to(root/'Skill.wz')))
+              return {k:sorted(v) for k,v in out.items()}
 
-          live_hits, live_evanish = scan(current)
-          base_hits, base_evanish = scan(backup)
+          def string_names(root):
+              out={}
+              for p in (root/'String.wz').rglob('*.xml'):
+                  try: tree=ET.parse(p)
+                  except: continue
+                  for e in tree.getroot().iter():
+                      ident=e.attrib.get('name','')
+                      if not (ident.isdigit() and 7 <= len(ident) <= 9): continue
+                      vals=[]
+                      for d in e.iter():
+                          if d.attrib.get('name')=='name' and d.attrib.get('value'):
+                              vals.append(d.attrib['value'])
+                      if vals:
+                          out.setdefault(int(ident),set()).update(vals)
+              return {k:sorted(v) for k,v in out.items()}
 
-          missing_live=[i for i in expected if not live_hits[i]]
-          present_live=[i for i in expected if live_hits[i]]
-          missing_base=[i for i in expected if not base_hits[i]]
+          live_nodes=skill_nodes(curroot)
+          base_nodes=skill_nodes(backroot)
+          live_names=string_names(curroot)
+          base_names=string_names(backroot)
 
-          # Candidate replacement IDs: live 20xxxxxx/22xxxxxx IDs not in expected, grouped by first 4 job-like digits.
-          candidates={}
-          expected_set=set(expected)
-          for n,paths in sorted(live_evanish.items()):
-              if n in expected_set:
-                  continue
-              prefix=str(n)[:4]
-              if prefix in {'2001','2200','2210','2211','2212','2213','2214','2215','2216','2217','2218'}:
-                  candidates[n]=sorted(paths)
+          exact_ids=[]; missing_ids=[]
+          for sid in expected:
+              (exact_ids if sid in live_nodes else missing_ids).append(sid)
+
+          exact_name_matches={}; fuzzy_name_matches={}; alternate=[]
+          for old_id,ename in expected.items():
+              target=norm(ename)
+              exact=[]; fuzzy=[]
+              for live_id,names in live_names.items():
+                  for nm in names:
+                      n=norm(nm)
+                      if n==target:
+                          rec={'id':live_id,'name':nm,'has_skill_record':live_id in live_nodes,'paths':live_nodes.get(live_id,[])}
+                          exact.append(rec)
+                          if live_id != old_id: alternate.append({'old_id':old_id,'expected_name':ename,**rec})
+                      else:
+                          score=SequenceMatcher(None,target,n).ratio()
+                          if score >= .90:
+                              fuzzy.append({'id':live_id,'name':nm,'score':round(score,3),'has_skill_record':live_id in live_nodes,'paths':live_nodes.get(live_id,[])})
+              exact_name_matches[str(old_id)]={'name':ename,'matches':exact}
+              fuzzy_name_matches[str(old_id)]={'name':ename,'matches':sorted(fuzzy,key=lambda x:(-x['score'],x['id']))[:8]}
+
+          # Search all string values, not only clean skill-entry shapes, for distinctive Evan skill names.
+          raw_hits=[]
+          distinctive=['dragon soul','magic missile','fire circle','lightning bolt','ice breath','elemental reset','magic flare','magic shield','critical magic','dragon thrust','magic booster','magic amplification','fire breath','killer wings','magic resistance','dragon fury','phantom imprint','recovery aura','magic mastery','flame wheel','blessing of the onyx','dark fog','soul stone']
+          for p in (curroot/'String.wz').rglob('*.xml'):
+              try: tree=ET.parse(p)
+              except: continue
+              for e in tree.getroot().iter():
+                  val=e.attrib.get('value','')
+                  low=val.lower()
+                  if any(x in low for x in distinctive):
+                      raw_hits.append({'path':str(p.relative_to(curroot/'String.wz')),'element_name':e.attrib.get('name',''),'value':val})
 
           out={
             'expected_count':len(expected),
-            'live_present_count':len(present_live),
-            'live_missing_count':len(missing_live),
-            'live_present_ids':present_live,
-            'live_missing_ids':missing_live,
-            'baseline_missing_ids':missing_base,
-            'live_paths':{str(i):live_hits[i] for i in expected if live_hits[i]},
-            'candidate_alternate_ids_same_job_prefix':{str(k):v for k,v in candidates.items()},
-            'live_evanish_numeric_ids_total':len(live_evanish),
-            'baseline_evanish_numeric_ids_total':len(base_evanish),
+            'exact_expected_ids_present':exact_ids,
+            'exact_expected_ids_missing':missing_ids,
+            'exact_alternate_id_matches':alternate,
+            'exact_alternate_id_count':len(alternate),
+            'exact_name_matches':exact_name_matches,
+            'fuzzy_name_matches':fuzzy_name_matches,
+            'raw_distinctive_name_hits':raw_hits,
+            'live_skill_record_id_count':len(live_nodes),
+            'baseline_skill_record_id_count':len(base_nodes),
+            'live_string_named_id_count':len(live_names),
+            'baseline_string_named_id_count':len(base_names),
+            'baseline_names_for_expected':{str(i):base_names.get(i,[]) for i in expected}
           }
-          print(json.dumps(out,indent=2))
+          print(json.dumps(out,indent=2,ensure_ascii=False))
           PY
           scp /tmp/audit-evan-live.py everleaf-oracle:/tmp/audit-evan-live.py
           ssh everleaf-oracle 'python3 /tmp/audit-evan-live.py' | tee evan-audit/evan-live-equivalence.json
