@@ -1,0 +1,219 @@
+name: Production hardening 2026-09-03
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/production-hardening-20260903.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh ops-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+
+      - name: Clean expendable production disk safely
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee ops-output/disk-cleanup.txt
+          set -euo pipefail
+          current=$(readlink -f /opt/everleaf/current)
+          rollback=/opt/everleaf/backups/community-wholesale-test/20260903T005959Z
+          donor='/home/ubuntu/everleaf-staging/community-wz'
+          verified_xml='/home/ubuntu/everleaf-staging/community-wholesale-live-33701797136'
+          echo BEFORE
+          df -h /opt/everleaf /
+          echo CURRENT=$current
+          test -d "$rollback"
+          test -d "$donor"
+          test -d "$verified_xml"
+          test -d /opt/everleafosrs
+
+          # Keep current plus the two newest other releases. Delete only older release directories.
+          if [ -d /opt/everleaf/releases ]; then
+            mapfile -t keep < <(find /opt/everleaf/releases -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | awk '{print $2}' | grep -vxF "$current" | head -n 2)
+            for d in /opt/everleaf/releases/*; do
+              [ -d "$d" ] || continue
+              [ "$d" = "$current" ] && continue
+              preserve=no
+              for k in "${keep[@]:-}"; do [ "$d" = "$k" ] && preserve=yes; done
+              [ "$preserve" = yes ] && continue
+              echo "REMOVE_OLD_RELEASE $d"
+              sudo rm -rf --one-file-system "$d"
+            done
+          fi
+
+          # Remove only known disposable staging children, preserving donor and verified XML stage.
+          if [ -d /home/ubuntu/everleaf-staging ]; then
+            for d in /home/ubuntu/everleaf-staging/*; do
+              [ -e "$d" ] || continue
+              [ "$d" = "$donor" ] && continue
+              [ "$d" = "$verified_xml" ] && continue
+              case "$d" in
+                *community-wholesale-live-*|*community-wholesale-test-*|*wz-export-*|*login-*|*ui-*|*map-*|*evan-*)
+                  echo "REMOVE_STALE_STAGE $d"
+                  sudo rm -rf --one-file-system "$d"
+                  ;;
+              esac
+            done
+          fi
+
+          sudo rm -rf /tmp/everleaf-* /tmp/live-master-audit.py /tmp/final-community-parity-audit.py 2>/dev/null || true
+          sudo journalctl --vacuum-time=7d >/dev/null || true
+          sudo apt-get clean || true
+
+          test -d "$rollback"
+          test -d "$donor"
+          test -d "$verified_xml"
+          test -d /opt/everleafosrs
+          echo AFTER
+          df -h /opt/everleaf /
+          echo DISK_CLEANUP_OK
+          EOF
+
+      - name: Install local health monitor
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee ops-output/local-monitor.txt
+          set -euo pipefail
+          cat >/tmp/everleaf-healthcheck <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          fail=0
+          systemctl is-active --quiet everleaf.service || { echo 'FAIL everleaf.service inactive'; fail=1; }
+          ss -ltn | grep -q ':8484 ' || { echo 'FAIL port 8484 not listening'; fail=1; }
+          sudo mysql -NBe 'SELECT 1' >/dev/null 2>&1 || { echo 'FAIL mysql query'; fail=1; }
+          free_kb=$(df -Pk /opt/everleaf | awk 'NR==2{print $4}')
+          free_gb=$((free_kb/1024/1024))
+          [ "$free_gb" -ge 5 ] || { echo "FAIL disk low ${free_gb}GB"; fail=1; }
+          if [ "$fail" -eq 0 ]; then echo "OK service port mysql disk=${free_gb}GB"; fi
+          exit "$fail"
+          SCRIPT
+          sudo install -m 0755 /tmp/everleaf-healthcheck /usr/local/sbin/everleaf-healthcheck
+          cat >/tmp/everleaf-healthcheck.service <<'UNIT'
+          [Unit]
+          Description=EverLeaf production health check
+          After=network-online.target mysql.service everleaf.service
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/sbin/everleaf-healthcheck
+          StandardOutput=journal
+          StandardError=journal
+          UNIT
+          cat >/tmp/everleaf-healthcheck.timer <<'UNIT'
+          [Unit]
+          Description=Run EverLeaf production health check every 5 minutes
+
+          [Timer]
+          OnBootSec=2min
+          OnUnitActiveSec=5min
+          AccuracySec=30s
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+          UNIT
+          sudo install -m 0644 /tmp/everleaf-healthcheck.service /etc/systemd/system/everleaf-healthcheck.service
+          sudo install -m 0644 /tmp/everleaf-healthcheck.timer /etc/systemd/system/everleaf-healthcheck.timer
+          sudo systemctl daemon-reload
+          sudo systemctl enable --now everleaf-healthcheck.timer
+          sudo systemctl start everleaf-healthcheck.service
+          systemctl is-active everleaf-healthcheck.timer
+          systemctl status everleaf-healthcheck.timer --no-pager | head -n 12
+          echo LOCAL_MONITOR_OK
+          EOF
+
+      - name: Run isolated database restore drill
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee ops-output/restore-drill.txt
+          set -euo pipefail
+          drill="cosmic_restore_drill_$(date +%Y%m%d%H%M%S)"
+          cleanup() { sudo mysql -e "DROP DATABASE IF EXISTS \`$drill\`;" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          sudo mysql -e "CREATE DATABASE \`$drill\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          # Stream a transaction-consistent logical snapshot directly into an isolated DB; retain no new backup file.
+          sudo mysqldump --single-transaction --quick --routines --triggers --events --skip-lock-tables cosmic | sudo mysql "$drill"
+          for t in accounts characters inventoryitems drop_data shops shopitems; do
+            live=$(sudo mysql -NBe "SELECT COUNT(*) FROM cosmic.$t;")
+            restored=$(sudo mysql -NBe "SELECT COUNT(*) FROM \`$drill\`.$t;")
+            echo "$t live=$live restored=$restored"
+            test "$live" = "$restored"
+          done
+          sudo mysql -NBe "CHECK TABLE \`$drill\`.accounts,\`$drill\`.characters,\`$drill\`.inventoryitems,\`$drill\`.drop_data,\`$drill\`.shops,\`$drill\`.shopitems;" | tee /tmp/everleaf-dr-check.txt
+          ! grep -v $'\tOK$' /tmp/everleaf-dr-check.txt | grep -q .
+          cleanup
+          trap - EXIT
+          systemctl is-active everleaf.service
+          ss -ltn | grep ':8484 '
+          echo DISASTER_RESTORE_DRILL_OK
+          EOF
+
+      - name: Check public DNS externally
+        run: |
+          set -euo pipefail
+          {
+            echo 'A_RECORDS:'
+            dig +short A everleafms.online || true
+            echo 'WWW_A_RECORDS:'
+            dig +short A www.everleafms.online || true
+            echo 'DUCKDNS:'
+            dig +short A everleafms.duckdns.org || true
+            echo 'HTTPS_PRIMARY:'
+            curl -I -L --max-time 15 https://everleafms.online/ 2>&1 | head -n 12 || true
+            echo 'HTTPS_DUCKDNS:'
+            curl -I -L --max-time 15 https://everleafms.duckdns.org/ 2>&1 | head -n 12 || true
+          } | tee ops-output/dns.txt
+
+      - name: Final production verification
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee ops-output/final.txt
+          set -euo pipefail
+          systemctl is-active everleaf.service
+          systemctl is-active everleaf-healthcheck.timer
+          /usr/local/sbin/everleaf-healthcheck
+          ss -ltn | grep ':8484 '
+          test -f /opt/everleaf/patches/manifest.json
+          test -d /opt/everleaf/backups/community-wholesale-test/20260903T005959Z
+          test -d '/home/ubuntu/everleaf-staging/community-wz'
+          test -d '/home/ubuntu/everleaf-staging/community-wholesale-live-33701797136'
+          test -d /opt/everleafosrs
+          df -h /opt/everleaf
+          echo PRODUCTION_HARDENING_OK
+          EOF
+
+      - name: Upload operations report
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-production-hardening-${{ github.run_id }}
+          path: ops-output/
+          retention-days: 90
