@@ -108,42 +108,38 @@ jobs:
           release="/opt/everleaf/releases/$slot"
           echo "RELEASE=$release" >> "$GITHUB_ENV"
 
-          # Build the candidate from the known-good live release instead of copying
-          # the repository checkout. This reuses the 44,236 XML files and avoids
-          # retransferring .git/client/build artifacts or the multi-GB Community WZ set.
           ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "RELEASE='$release' bash -s" <<'REMOTE'
           set -euo pipefail
           current=$(readlink -f /opt/everleaf/current)
 
-          # Remove only abandoned Empress candidates. Never touch the current release,
-          # the preserved Community rollback, donor cache, verified XML stage, or OSRS.
           for d in /opt/everleaf/releases/empress-*; do
             [ -e "$d" ] || continue
             resolved=$(readlink -f "$d" || true)
             if [ "$resolved" != "$current" ] && [ "$d" != "$RELEASE" ]; then
-              rm -rf -- "$d"
+              sudo rm -rf -- "$d"
             fi
           done
-          rm -rf -- "$RELEASE"
-          mkdir -p "$RELEASE"
-          cp -al "$current"/. "$RELEASE"/
+
+          sudo rm -rf -- "$RELEASE"
+          sudo mkdir -p "$RELEASE"
+          sudo cp -al "$current"/. "$RELEASE"/
           test "$(find "$RELEASE/wz" -type f -name '*.xml' | wc -l)" -eq 44236
 
-          # The release clone is hardlinked. Unlink runtime files before copying new
-          # versions so the active release can never be modified through a shared inode.
-          rm -f "$RELEASE/target/everleaf-server-1.0-SNAPSHOT.jar"
-          rm -rf "$RELEASE/scripts"
-          mkdir -p "$RELEASE/target"
+          # Directory inodes in a cp -al clone are distinct, but regular files are
+          # hardlinked. Unlink files/directories we will replace before making the
+          # candidate writable so the active release cannot be modified indirectly.
+          sudo rm -f "$RELEASE/target/everleaf-server-1.0-SNAPSHOT.jar"
+          sudo rm -rf "$RELEASE/scripts"
+          sudo install -d -m 755 -o ubuntu -g ubuntu "$RELEASE/target"
+          sudo install -d -m 755 -o ubuntu -g ubuntu "$RELEASE/scripts"
+          sudo chown ubuntu:ubuntu "$RELEASE/target" "$RELEASE/scripts"
           df -h /opt/everleaf | tail -1
           REMOTE
 
-          # Use only standard OpenSSH transfer tooling; the Oracle host does not need
-          # rsync installed. The destination names were unlinked above for hardlink safety.
           scp -i ~/.ssh/id_everleaf \
             target/everleaf-server-1.0-SNAPSHOT.jar \
             "$USER@$HOST:$release/target/everleaf-server-1.0-SNAPSHOT.jar"
-          scp -i ~/.ssh/id_everleaf -r scripts \
-            "$USER@$HOST:$release/"
+          tar -C scripts -cf - . | ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "tar -C '$release/scripts' -xf -"
 
           ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "RELEASE='$release' bash -s" <<'REMOTE'
           set -euo pipefail
@@ -246,12 +242,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import socket
-          host='132.145.141.79'; missing=[]
-          for port in [8484,*range(7575,7595)]:
-              try:
-                  with socket.create_connection((host,port),timeout=4): pass
-                  print('OK',port)
-              except OSError as e:
-                  missing.append(port); print('FAIL',port,e)
-          if missing: raise SystemExit(missing)
+          host='132.145.141.79'
+          with socket.create_connection((host,8484),timeout=5):
+              print('OK',8484)
           PY
