@@ -1,6 +1,6 @@
 /*
 This file is part of the OdinMS Maple Story Server
-Copyright (C) 2008 ~ 2010 Patrick Huy <patrick.huy@frz.cc> 
+Copyright (C) 2008 ~ 2010 Patrick Huy <patrick.huy@frz.cc>
 Matthias Butz <matze@odinms.de>
 Jan Christian Meyer <vimes@odinms.de>
 This program is free software: you can redistribute it and/or modify
@@ -21,6 +21,11 @@ public class OverrideMonsterStats {
 
     public int hp;
     public int exp, mp;
+    private int watk = -1;
+    private int matk = -1;
+    private int wdef = -1;
+    private int mdef = -1;
+    private int level = -1;
 
     public OverrideMonsterStats() {
         hp = 1;
@@ -29,7 +34,7 @@ public class OverrideMonsterStats {
     }
 
     public OverrideMonsterStats(int hp, int mp, int exp, boolean change) {
-        this.hp = /*change ? (hp * 3L / 2L) : */ hp;
+        this.hp = hp;
         this.mp = mp;
         this.exp = exp;
     }
@@ -38,27 +43,25 @@ public class OverrideMonsterStats {
         this(hp, mp, exp, true);
     }
 
-    public int getExp() {
-        return exp;
+    /** Full override used by imported encounters whose donor combat stats are not compatible with v83 balance. */
+    public OverrideMonsterStats(int hp, int mp, int exp, int watk, int matk, int wdef, int mdef, int level) {
+        this(hp, mp, exp);
+        this.watk = watk;
+        this.matk = matk;
+        this.wdef = wdef;
+        this.mdef = mdef;
+        this.level = level;
     }
 
-    public void setOExp(int exp) {
-        this.exp = exp;
-    }
-
-    public int getHp() {
-        return hp;
-    }
-
-    public void setOHp(int hp) {
-        this.hp = hp;
-    }
-
-    public int getMp() {
-        return mp;
-    }
-
-    public void setOMp(int mp) {
-        this.mp = mp;
-    }
+    public int getExp() { return exp; }
+    public void setOExp(int exp) { this.exp = exp; }
+    public int getHp() { return hp; }
+    public void setOHp(int hp) { this.hp = hp; }
+    public int getMp() { return mp; }
+    public void setOMp(int mp) { this.mp = mp; }
+    public int getWatk() { return watk; }
+    public int getMatk() { return matk; }
+    public int getWdef() { return wdef; }
+    public int getMdef() { return mdef; }
+    public int getLevel() { return level; }
 }
