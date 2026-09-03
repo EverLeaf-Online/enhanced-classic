@@ -10,13 +10,13 @@
 
     <name>Everleaf</name>
     <description>Everleaf Enhanced Classic v83 server emulator</description>
-    <url>https://github.com/iampolicy/enhanced-classic</url>
+    <url>https://github.com/EverLeaf-Online/enhanced-classic</url>
     <inceptionYear>2026</inceptionYear>
 
     <developers>
         <developer>
             <name>Everleaf contributors</name>
-            <url>https://github.com/iampolicy/enhanced-classic</url>
+            <url>https://github.com/EverLeaf-Online/enhanced-classic</url>
             <roles>
                 <role>maintainer</role>
                 <role>developer</role>
@@ -25,17 +25,17 @@
     </developers>
 
     <scm>
-        <connection>scm:git:https://github.com/iampolicy/enhanced-classic.git</connection>
-        <developerConnection>scm:git:https://github.com/iampolicy/enhanced-classic.git</developerConnection>
-        <url>https://github.com/iampolicy/enhanced-classic</url>
+        <connection>scm:git:https://github.com/EverLeaf-Online/enhanced-classic.git</connection>
+        <developerConnection>scm:git:https://github.com/EverLeaf-Online/enhanced-classic.git</developerConnection>
+        <url>https://github.com/EverLeaf-Online/enhanced-classic</url>
     </scm>
     <issueManagement>
         <system>GitHub Issues</system>
-        <url>https://github.com/iampolicy/enhanced-classic/issues</url>
+        <url>https://github.com/EverLeaf-Online/enhanced-classic/issues</url>
     </issueManagement>
     <ciManagement>
         <system>GitHub Actions</system>
-        <url>https://github.com/iampolicy/enhanced-classic/actions</url>
+        <url>https://github.com/EverLeaf-Online/enhanced-classic/actions</url>
     </ciManagement>
 
     <properties>
