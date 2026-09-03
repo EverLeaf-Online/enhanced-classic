@@ -1,0 +1,172 @@
+name: Audit Community source-backed drops
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-community-source-backed-drops.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh audit-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts
+          fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+
+      - name: Audit exact-ID source-backed item and quest drops
+        run: |
+          set -euo pipefail
+          cat > /tmp/audit-source-backed-drops.py <<'PY'
+          from pathlib import Path
+          import csv, json, re, subprocess, urllib.request, xml.etree.ElementTree as ET
+
+          current_root = Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'], text=True).strip())
+          wz = current_root / 'wz'
+          backup = Path(Path('/opt/everleaf/backups/community-wholesale-test/LATEST').read_text().strip()) / 'server-wz-xml'
+
+          def file_ids(root, fam):
+              out=set()
+              for p in (root/fam).rglob('*.xml'):
+                  m=re.match(r'^(\d{4,10})(?:\.img)?\.xml$', p.name)
+                  if m: out.add(int(m.group(1)))
+              return out
+
+          new_mobs = file_ids(wz,'Mob.wz') - file_ids(backup,'Mob.wz')
+          placed=set()
+          for p in (wz/'Map.wz').rglob('*.xml'):
+              try: root=ET.parse(p).getroot()
+              except Exception: continue
+              for e in root.iter():
+                  if e.attrib.get('name') != 'id': continue
+                  v=e.attrib.get('value','')
+                  if v.isdigit() and int(v) in new_mobs: placed.add(int(v))
+
+          # Live item coverage: equipment IDs are file names; non-equipment item IDs are
+          # 7-digit XML node names inside Item.wz families.
+          valid_items=set()
+          for p in (wz/'Character.wz').rglob('*.xml'):
+              m=re.match(r'^(\d{7})(?:\.img)?\.xml$',p.name)
+              if m: valid_items.add(int(m.group(1)))
+          for p in (wz/'Item.wz').rglob('*.xml'):
+              try: root=ET.parse(p).getroot()
+              except Exception: continue
+              for e in root.iter():
+                  n=e.attrib.get('name','')
+                  if re.fullmatch(r'\d{7}',n): valid_items.add(int(n))
+
+          valid_quests=set()
+          for p in (wz/'Quest.wz').rglob('*.xml'):
+              try: root=ET.parse(p).getroot()
+              except Exception: continue
+              for e in root.iter():
+                  n=e.attrib.get('name','')
+                  if re.fullmatch(r'\d{4,6}',n): valid_quests.add(int(n))
+
+          sources={
+            'maplev90_monster':'https://raw.githubusercontent.com/odasm/maplev90/master/server/sql/monster_drops.sql',
+            'maplev90_quest':'https://raw.githubusercontent.com/odasm/maplev90/master/server/sql/quest_drops.sql',
+          }
+          tuple_re=re.compile(r'\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)')
+          rows=[]
+          raw_coverage=set()
+          for source,url in sources.items():
+              text=urllib.request.urlopen(url,timeout=30).read().decode('utf-8','replace')
+              for m in tuple_re.finditer(text):
+                  _,mob,item,qmin,qmax,quest,chance=map(int,m.groups())
+                  if mob not in placed: continue
+                  raw_coverage.add(mob)
+                  reason=[]
+                  if item == 0: reason.append('meso-row-skipped')
+                  if item != 0 and item not in valid_items: reason.append('item-missing-live')
+                  if quest != 0 and quest not in valid_quests: reason.append('quest-missing-live')
+                  rows.append({
+                    'source':source,'mob':mob,'item':item,'min':qmin,'max':qmax,
+                    'quest':quest,'chance':chance,'eligible':not reason,'reason':';'.join(reason)
+                  })
+
+          existing_raw=subprocess.check_output([
+              'sudo','mysql','-NBe',
+              'SELECT CONCAT(dropperid,":",itemid,":",questid) FROM cosmic.drop_data'
+          ],text=True)
+          existing=set(existing_raw.splitlines())
+
+          # Dedupe source mirrors/weights by logical drop key and keep the strongest chance.
+          best={}
+          for r in rows:
+              if not r['eligible'] or r['item']==0: continue
+              key=(r['mob'],r['item'],r['quest'])
+              prev=best.get(key)
+              if prev is None or r['chance'] > prev['chance']:
+                  best[key]=r
+
+          additions=[]
+          already=[]
+          for key,r in sorted(best.items()):
+              dbkey=f'{key[0]}:{key[1]}:{key[2]}'
+              if dbkey in existing: already.append(r)
+              else: additions.append(r)
+
+          by_mob={}
+          for r in additions:
+              by_mob.setdefault(r['mob'],0); by_mob[r['mob']]+=1
+
+          report={
+            'placed_new_mobs':len(placed),
+            'exact_id_source_coverage_mobs':len(raw_coverage),
+            'source_rows_seen':len(rows),
+            'eligible_unique_drop_keys':len(best),
+            'already_present_unique_drop_keys':len(already),
+            'candidate_additions':len(additions),
+            'candidate_mobs':len(by_mob),
+            'candidate_rows_by_mob':by_mob,
+            'candidate_additions_rows':additions,
+            'rejected_rows':[r for r in rows if not r['eligible']],
+            'sources':sources,
+            'policy':'exact mob ID only; item must exist in live WZ; quest drops only when quest ID exists live; no meso overwrite; no blind duplicate weighting'
+          }
+          print(json.dumps(report,indent=2))
+          PY
+          scp /tmp/audit-source-backed-drops.py everleaf-oracle:/tmp/audit-source-backed-drops.py
+          ssh everleaf-oracle 'python3 /tmp/audit-source-backed-drops.py' | tee audit-output/source-backed-drops.json
+
+      - name: Verify service unchanged
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'systemctl is-active everleaf.service && ss -ltn | grep ":8484 " && echo SOURCE_DROP_AUDIT_OK' | tee audit-output/health.txt
+
+      - name: Upload audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-community-source-drop-audit-${{ github.run_id }}
+          path: audit-output/
+          retention-days: 90
