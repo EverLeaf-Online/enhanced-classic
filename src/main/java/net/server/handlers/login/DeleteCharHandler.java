@@ -43,7 +43,13 @@ public final class DeleteCharHandler extends AbstractPacketHandler {
     public void handlePacket(InPacket p, Client c) {
         String pic = p.readString();
         int cid = p.readInt();
-        if (c.checkPic(pic)) {
+
+        // Older/pre-PIC accounts can legitimately have no PIC stored. The v83 client still sends an
+        // empty PIC field when deleting a character, so requiring checkPic() here makes those accounts
+        // impossible to clean up. Preserve PIC protection for accounts that actually have one set.
+        String accountPic = c.getPic();
+        boolean hasConfiguredPic = accountPic != null && !accountPic.isBlank();
+        if (!hasConfiguredPic || c.checkPic(pic)) {
             //check for family, guild leader, pending marriage, world transfer
             try (Connection con = DatabaseConnection.getConnection();
                  PreparedStatement ps = con.prepareStatement("SELECT `world`, `guildid`, `guildrank`, `familyId` FROM characters WHERE id = ?");
