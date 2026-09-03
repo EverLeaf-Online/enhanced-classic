@@ -223,6 +223,7 @@ jobs:
           cat "$STAGE/CHAIR_PATCH_MANIFEST.json"
           '@
           $script=$script.Replace('__REMOTE__',$remote).Replace('__SHA__','${{ github.sha }}')
+          $script=$script -replace "`r",""
           $script | ssh everleaf-oracle 'bash -s'
           if($LASTEXITCODE){throw 'Live chair batch deployment failed or rolled back'}
 
