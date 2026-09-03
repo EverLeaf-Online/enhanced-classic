@@ -79,7 +79,7 @@ jobs:
             ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$SSH_DIR/known_hosts"
           fi
           chmod 600 "$SSH_DIR/known_hosts"
-          ssh -o BatchMode=yes -o ConnectTimeout=10 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
             'test -d /opt/everleaf/patches/files && test -f /opt/everleaf/patches/managed-client-baseline.json && test -f /opt/everleaf/patches/manifest.json && test -f /opt/everleaf/web/scripts/build-patch-manifest.js && command -v unzip >/dev/null'
 
@@ -89,9 +89,9 @@ jobs:
           set -euo pipefail
           SSH_DIR="$GITHUB_WORKSPACE/.everleaf-ssh"
           REMOTE_STAGE="/tmp/everleaf-client-$GITHUB_SHA"
-          ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
-          scp -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+          scp -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
             EverleafClient-overlay.zip "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$REMOTE_STAGE/"
 
       - name: Publish client overlay and regenerate manifest
@@ -99,7 +99,7 @@ jobs:
         run: |
           set -euo pipefail
           SSH_DIR="$GITHUB_WORKSPACE/.everleaf-ssh"
-          ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "RELEASE_SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
           set -euo pipefail
           PATCH_ROOT=/opt/everleaf/patches
@@ -116,7 +116,8 @@ jobs:
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do test -s "$PAYLOAD/$f"; done
           test "$(find "$PAYLOAD" -type f | wc -l)" -eq 4
 
-          cp -a "$FILES" "$TEMP_PATCH/files"
+          # Reuse the live managed payload by hardlink instead of duplicating multi-GB WZ files.
+          cp -al "$FILES" "$TEMP_PATCH/files"
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do
             rm -f "$TEMP_PATCH/files/$f"
             cp "$PAYLOAD/$f" "$TEMP_PATCH/files/$f"
