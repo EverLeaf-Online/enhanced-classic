@@ -1,0 +1,234 @@
+name: Deploy Fallen Cygnus with preserved Community WZ
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/deploy-empress-community-safe.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-game-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  HOST: 132.145.141.79
+  USER: ubuntu
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+          fetch-depth: 1
+
+      - name: Apply release transforms and hard gates
+        run: |
+          set -euo pipefail
+          python3 tools/apply_everleaf_config.py
+          python3 tools/apply_level_cap_250.py
+          python3 tools/apply_pq_points.py
+          python3 tools/apply_evan_skill_data.py
+          python3 tools/apply_evan_behavior_fixes.py
+          python3 tools/apply_evan_dragon_fury_fixes.py
+          python3 tools/apply_evan_magic_resistance_fixes.py
+          python3 tools/apply_evan_progression_fixes.py
+          python3 tools/apply_equipment_requirement_fixes.py
+          python3 tools/apply_item_stack_integrity_fixes.py
+          python3 tools/apply_item_transfer_integrity_fixes.py
+          python3 tools/apply_duey_ownership_fixes.py
+          python3 tools/apply_duey_settlement_fixes.py
+          python3 tools/apply_merchant_recovery_fixes.py
+          python3 tools/apply_merchant_persistence_transaction.py
+          python3 tools/apply_merchant_credit_concurrency_fixes.py
+          python3 tools/apply_merchant_purchase_quantity_fixes.py
+          python3 tools/apply_merchant_snapshot_consistency.py
+          python3 tools/apply_playershop_transaction_integrity.py
+          python3 tools/apply_playershop_snapshot_consistency.py
+          python3 tools/audit_cygnus_content.py
+          python3 tools/audit_script_map_references.py --strict
+          node --check scripts/event/CygnusBattle.js
+          node --check scripts/npc/2143004.js
+          node --check scripts/portal/out_cygnusBackGarden.js
+          node --check scripts/portal/back_cygnus.js
+
+      - name: Build and test server
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: corretto
+          cache: maven
+
+      - name: Maven package
+        run: |
+          set -euo pipefail
+          chmod +x mvnw
+          ./mvnw -B clean test package
+          test -s target/everleaf-server-1.0-SNAPSHOT.jar
+
+      - name: Configure SSH
+        env:
+          KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          KNOWN: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${KNOWN:-}" ]; then printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Preflight live Community package
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          current=$(readlink -f /opt/everleaf/current)
+          test -d "$current/wz"
+          test "$(find "$current/wz" -type f -name '*.xml' | wc -l)" -eq 44236
+          test -d /opt/everleaf/backups/community-wholesale-test/20260903T005959Z
+          test -d '/home/ubuntu/everleaf-staging/community-wz'
+          test -d '/home/ubuntu/everleaf-staging/community-wholesale-live-33701797136'
+          test -d /opt/everleafosrs
+          systemctl is-active --quiet everleaf.service
+          ss -ltn | grep -q ':8484 '
+          echo "PRECHECK_OK current=$current xml=44236"
+          REMOTE
+
+      - name: Stage code release while hardlinking live Community XML
+        run: |
+          set -euo pipefail
+          slot="empress-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          release="/opt/everleaf/releases/$slot"
+          echo "RELEASE=$release" >> "$GITHUB_ENV"
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "mkdir -p '$release'"
+          rsync -az --delete \
+            --exclude='.git/' \
+            --exclude='/wz/' \
+            --exclude='/client/' \
+            --exclude='/launcher/' \
+            --exclude='database/docker-db-data/' \
+            --exclude='web/node_modules/' \
+            -e 'ssh -i ~/.ssh/id_everleaf' ./ "$USER@$HOST:$release/"
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "RELEASE='$release' bash -s" <<'REMOTE'
+          set -euo pipefail
+          current=$(readlink -f /opt/everleaf/current)
+          cp -p "$current/config.yaml" "$RELEASE/config.yaml"
+          if [ -f "$current/.env" ]; then cp -p "$current/.env" "$RELEASE/.env"; fi
+          rm -rf "$RELEASE/wz"
+          cp -al "$current/wz" "$RELEASE/wz"
+          test "$(find "$RELEASE/wz" -type f -name '*.xml' | wc -l)" -eq 44236
+          test -s "$RELEASE/target/everleaf-server-1.0-SNAPSHOT.jar"
+          test -f "$RELEASE/scripts/event/CygnusBattle.js"
+          test -f "$RELEASE/scripts/npc/2143004.js"
+          test -f "$RELEASE/scripts/portal/out_cygnusBackGarden.js"
+          test -f "$RELEASE/scripts/portal/back_cygnus.js"
+          echo "CANDIDATE_OK $RELEASE"
+          REMOTE
+
+      - name: Validate complete live Future Henesys map graph before switch
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "RELEASE='$RELEASE' python3 -" <<'PY'
+          import os,re,glob,xml.etree.ElementTree as ET
+          root=os.environ['RELEASE']+'/wz/Map.wz/Map'
+          files=glob.glob(root+'/Map*/*.img.xml')
+          ids={int(re.search(r'(\d+)\.img\.xml$',p).group(1)):p for p in files if re.search(r'(\d+)\.img\.xml$',p)}
+          future=sorted(i for i in ids if 271000000<=i<=271040300)
+          assert len(future)==42, (len(future),future)
+          scripted=[]; bad=[]
+          for mid in future:
+              t=ET.parse(ids[mid]).getroot()
+              portals=[]
+              for sec in t.iter():
+                  if sec.attrib.get('name')!='portal': continue
+                  for p in list(sec):
+                      d={c.attrib.get('name',''):c.attrib.get('value','') for c in list(p)}
+                      portals.append(d)
+                      tm=d.get('tm','')
+                      if tm.isdigit() and int(tm) not in (0,999999999) and int(tm) not in ids:
+                          bad.append((mid,d.get('pn'),int(tm)))
+                      s=d.get('script','')
+                      if s: scripted.append((mid,s))
+              assert portals, f'{mid} has no portals'
+          assert not bad,bad
+          required={'out_cygnusBackGarden','back_cygnus'}
+          names={s for _,s in scripted}
+          assert required <= names,(required,names)
+          for script in required:
+              assert os.path.isfile(os.environ['RELEASE']+f'/scripts/portal/{script}.js')
+          print(f'FUTURE_HENESYS_GRAPH_OK maps={len(future)} scripted_portals={len(scripted)}')
+          PY
+
+      - name: Switch release and restart
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "RELEASE='$RELEASE' bash -s" <<'REMOTE'
+          set -euo pipefail
+          old=$(readlink -f /opt/everleaf/current)
+          printf '%s\n' "$old" > /opt/everleaf/.previous-release
+          ln -sfn "$RELEASE" /opt/everleaf/current.next
+          mv -Tf /opt/everleaf/current.next /opt/everleaf/current
+          sudo systemctl restart everleaf.service
+          echo "SWITCHED old=$old new=$RELEASE"
+          REMOTE
+
+      - name: Verify live runtime and Empress content
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$USER@$HOST" "EXPECTED='$RELEASE' bash -s" <<'REMOTE'
+          set -euo pipefail
+          current=$(readlink -f /opt/everleaf/current)
+          test "$current" = "$EXPECTED"
+          healthy=0
+          for i in $(seq 1 40); do
+            if systemctl is-active --quiet everleaf.service && ss -ltn | grep -q ':8484 '; then healthy=1; break; fi
+            sleep 2
+          done
+          if [ "$healthy" -ne 1 ]; then
+            old=$(cat /opt/everleaf/.previous-release)
+            ln -sfn "$old" /opt/everleaf/current.rollback
+            mv -Tf /opt/everleaf/current.rollback /opt/everleaf/current
+            sudo systemctl restart everleaf.service
+            echo 'ROLLED_BACK_AFTER_HEALTH_FAILURE' >&2
+            exit 1
+          fi
+          test "$(find "$current/wz" -type f -name '*.xml' | wc -l)" -eq 44236
+          for f in scripts/event/CygnusBattle.js scripts/npc/2143004.js scripts/portal/out_cygnusBackGarden.js scripts/portal/back_cygnus.js; do test -f "$current/$f"; done
+          test -d /opt/everleaf/backups/community-wholesale-test/20260903T005959Z
+          test -d '/home/ubuntu/everleaf-staging/community-wz'
+          test -d '/home/ubuntu/everleaf-staging/community-wholesale-live-33701797136'
+          test -d /opt/everleafosrs
+          # Final-body rare rewards stay event-controlled; no ordinary SQL rare scroll rows for the Empress family.
+          rare=$(sudo mysql -NBe "SELECT COUNT(*) FROM cosmic.drop_data WHERE dropperid BETWEEN 8850000 AND 8850011 AND itemid IN (2049100,2340000);")
+          test "$rare" -eq 0
+          attempts=$(sudo mysql -NBe "SHOW TABLES FROM cosmic LIKE 'everleaf_encounter_attempt';" | wc -l)
+          weekly=$(sudo mysql -NBe "SHOW TABLES FROM cosmic LIKE 'everleaf_encounter_weekly_reward';" | wc -l)
+          test "$attempts" -eq 1 -a "$weekly" -eq 1
+          if sudo journalctl -u everleaf.service --since '-3 minutes' --no-pager | grep -Eqi 'CygnusBattle.*(error|exception)|2143004.*(error|exception)'; then
+            sudo journalctl -u everleaf.service --since '-3 minutes' --no-pager | tail -n 120
+            exit 1
+          fi
+          echo "LIVE_EMPRESS_OK current=$current xml=44236 rare_sql_rows=$rare"
+          df -h /opt/everleaf | tail -1
+          REMOTE
+
+      - name: Verify public game ports
+        run: |
+          python3 - <<'PY'
+          import socket
+          host='132.145.141.79'; missing=[]
+          for port in [8484,*range(7575,7595)]:
+              try:
+                  with socket.create_connection((host,port),timeout=4): pass
+                  print('OK',port)
+              except OSError as e:
+                  missing.append(port); print('FAIL',port,e)
+          if missing: raise SystemExit(missing)
+          PY
