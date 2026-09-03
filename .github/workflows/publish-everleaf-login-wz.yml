@@ -7,6 +7,7 @@ on:
     paths:
       - "client/branding/login/**"
       - "client/tools/login-wz-patcher/**"
+      - ".github/workflows/publish-everleaf-login-wz.yml"
 
 concurrency:
   group: everleaf-client-production
@@ -89,7 +90,7 @@ jobs:
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
             'test -s /opt/everleaf/patches/files/Map.wz && test -s /opt/everleaf/patches/files/UI.wz && test -s /opt/everleaf/patches/manifest.json'
 
-      - name: Fetch and patch live Map.wz and UI.wz
+      - name: Fetch and patch live Map.wz
         run: |
           set -euo pipefail
           SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
@@ -99,50 +100,47 @@ jobs:
           PATCHER="$RUNNER_TEMP/wz-build/everleaf-login-wz-patcher"
           FRAME_REMOVER="$RUNNER_TEMP/wz-build/everleaf-remove-map-login-frame"
           "$PATCHER" "$RUNNER_TEMP/Map.wz.live" "$RUNNER_TEMP/UI.wz.live" \
-            "$RUNNER_TEMP/everleaf-login-art" "$RUNNER_TEMP/Map.wz.branded" "$RUNNER_TEMP/UI.wz.new"
+            "$RUNNER_TEMP/everleaf-login-art" "$RUNNER_TEMP/Map.wz.branded" "$RUNNER_TEMP/UI.wz.check"
           "$FRAME_REMOVER" "$RUNNER_TEMP/Map.wz.branded" \
             "$RUNNER_TEMP/everleaf-login-art/map-frame.png" "$RUNNER_TEMP/Map.wz.new"
-          test -s "$RUNNER_TEMP/Map.wz.new" && test -s "$RUNNER_TEMP/UI.wz.new"
+          test -s "$RUNNER_TEMP/Map.wz.new"
           sha256sum "$RUNNER_TEMP/Map.wz.live" | awk '{print $1}' > "$RUNNER_TEMP/map.old.sha"
-          sha256sum "$RUNNER_TEMP/UI.wz.live" | awk '{print $1}' > "$RUNNER_TEMP/ui.old.sha"
           sha256sum "$RUNNER_TEMP/Map.wz.new" | awk '{print $1}' > "$RUNNER_TEMP/map.new.sha"
-          sha256sum "$RUNNER_TEMP/UI.wz.new" | awk '{print $1}' > "$RUNNER_TEMP/ui.new.sha"
+          sha256sum "$RUNNER_TEMP/UI.wz.live" | awk '{print $1}' > "$RUNNER_TEMP/ui.live.sha"
+          sha256sum "$RUNNER_TEMP/UI.wz.check" | awk '{print $1}' > "$RUNNER_TEMP/ui.check.sha"
           stat -c '%s' "$RUNNER_TEMP/Map.wz.new" > "$RUNNER_TEMP/map.new.size"
-          stat -c '%s' "$RUNNER_TEMP/UI.wz.new" > "$RUNNER_TEMP/ui.new.size"
           test "$(cat "$RUNNER_TEMP/map.old.sha")" != "$(cat "$RUNNER_TEMP/map.new.sha")"
-          test "$(cat "$RUNNER_TEMP/ui.old.sha")" != "$(cat "$RUNNER_TEMP/ui.new.sha")"
+          test "$(cat "$RUNNER_TEMP/ui.live.sha")" = "$(cat "$RUNNER_TEMP/ui.check.sha")"
+          echo "Map login frame changed; UI.wz already matches borderless target and will not be republished"
 
-      - name: Stage only changed WZ files
+      - name: Stage only changed Map.wz
         run: |
           set -euo pipefail
           SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
           SSH_OPTS=(-o ServerAliveInterval=30 -o ServerAliveCountMax=10 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf")
           REMOTE_STAGE="/tmp/everleaf-login-wz-$GITHUB_SHA"
           ssh "${SSH_OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
-          scp "${SSH_OPTS[@]}" "$RUNNER_TEMP/Map.wz.new" "$RUNNER_TEMP/UI.wz.new" \
+          scp "${SSH_OPTS[@]}" "$RUNNER_TEMP/Map.wz.new" \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$REMOTE_STAGE/"
 
-      - name: Publish changed WZ files and update manifest in place
+      - name: Publish changed Map.wz and update manifest in place
         run: |
           set -euo pipefail
           SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
           map_old="$(cat "$RUNNER_TEMP/map.old.sha")"
-          ui_old="$(cat "$RUNNER_TEMP/ui.old.sha")"
           map_new="$(cat "$RUNNER_TEMP/map.new.sha")"
-          ui_new="$(cat "$RUNNER_TEMP/ui.new.sha")"
           map_size="$(cat "$RUNNER_TEMP/map.new.size")"
-          ui_size="$(cat "$RUNNER_TEMP/ui.new.size")"
+          ui_live="$(cat "$RUNNER_TEMP/ui.live.sha")"
           ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "RELEASE_SHA='$GITHUB_SHA' MAP_OLD='$map_old' UI_OLD='$ui_old' MAP_NEW='$map_new' UI_NEW='$ui_new' MAP_SIZE='$map_size' UI_SIZE='$ui_size' bash -s" <<'REMOTE'
+            "RELEASE_SHA='$GITHUB_SHA' MAP_OLD='$map_old' MAP_NEW='$map_new' MAP_SIZE='$map_size' UI_LIVE='$ui_live' bash -s" <<'REMOTE'
           set -euo pipefail
           ROOT=/opt/everleaf/patches
           FILES="$ROOT/files"
           STAGE="/tmp/everleaf-login-wz-$RELEASE_SHA"
           test "$(sha256sum "$FILES/Map.wz" | awk '{print $1}')" = "$MAP_OLD"
-          test "$(sha256sum "$FILES/UI.wz" | awk '{print $1}')" = "$UI_OLD"
+          test "$(sha256sum "$FILES/UI.wz" | awk '{print $1}')" = "$UI_LIVE"
           test "$(sha256sum "$STAGE/Map.wz.new" | awk '{print $1}')" = "$MAP_NEW"
-          test "$(sha256sum "$STAGE/UI.wz.new" | awk '{print $1}')" = "$UI_NEW"
 
           node - "$ROOT/manifest.json" "$STAGE/manifest.json" <<'NODE'
           const fs=require('fs');
@@ -150,30 +148,38 @@ jobs:
           const m=JSON.parse(fs.readFileSync(src,'utf8'));
           if(!Array.isArray(m.files) || m.files.length!==36) throw new Error(`expected 36 managed files, got ${m.files?.length}`);
           m.version=process.env.RELEASE_SHA;
-          for (const [name,hash,size] of [['Map.wz',process.env.MAP_NEW,process.env.MAP_SIZE],['UI.wz',process.env.UI_NEW,process.env.UI_SIZE]]) {
-            const f=m.files.find(x=>x.path===name);
-            if(!f) throw new Error(`${name} missing from manifest`);
-            f.sha256=hash; f.size=Number(size);
-          }
+          const f=m.files.find(x=>x.path==='Map.wz');
+          if(!f) throw new Error('Map.wz missing from manifest');
+          f.sha256=process.env.MAP_NEW;
+          f.size=Number(process.env.MAP_SIZE);
           fs.writeFileSync(dst,JSON.stringify(m,null,2)+'\n');
           NODE
 
           sudo install -m 644 "$STAGE/Map.wz.new" "$FILES/Map.wz.new"
-          sudo install -m 644 "$STAGE/UI.wz.new" "$FILES/UI.wz.new"
           sudo install -m 644 "$STAGE/manifest.json" "$ROOT/manifest.json.new"
           sudo mv -f "$FILES/Map.wz.new" "$FILES/Map.wz"
-          sudo mv -f "$FILES/UI.wz.new" "$FILES/UI.wz"
           sudo mv -f "$ROOT/manifest.json.new" "$ROOT/manifest.json"
 
           test "$(sha256sum "$FILES/Map.wz" | awk '{print $1}')" = "$MAP_NEW"
-          test "$(sha256sum "$FILES/UI.wz" | awk '{print $1}')" = "$UI_NEW"
+          test "$(sha256sum "$FILES/UI.wz" | awk '{print $1}')" = "$UI_LIVE"
+          node - "$ROOT/manifest.json" "$MAP_NEW" "$UI_LIVE" <<'NODE'
+          const fs=require('fs');
+          const [path,mapHash,uiHash]=process.argv.slice(2);
+          const m=JSON.parse(fs.readFileSync(path,'utf8'));
+          if(m.version!==process.env.RELEASE_SHA) throw new Error('manifest version mismatch');
+          if(!Array.isArray(m.files) || m.files.length!==36) throw new Error('managed file count mismatch');
+          const map=m.files.find(x=>x.path==='Map.wz');
+          const ui=m.files.find(x=>x.path==='UI.wz');
+          if(!map || map.sha256!==mapHash) throw new Error('Map.wz manifest hash mismatch');
+          if(!ui || ui.sha256!==uiHash) throw new Error('UI.wz manifest unexpectedly changed');
+          NODE
           curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
           rm -rf "$STAGE"
-          echo "EVERLEAF_BORDERLESS_LOGIN_PUBLISHED MAP=$MAP_NEW UI=$UI_NEW"
+          echo "EVERLEAF_MAP_LOGIN_BOOK_FRAME_PUBLISHED MAP=$MAP_NEW UI_UNCHANGED=$UI_LIVE"
           REMOTE
 
       - name: Verify public login WZ endpoints
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --max-time 20 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" >/dev/null
-          echo "EverLeaf borderless login WZ publish verified for $GITHUB_SHA"
+          echo "EverLeaf borderless login Map.wz publish verified for $GITHUB_SHA"
