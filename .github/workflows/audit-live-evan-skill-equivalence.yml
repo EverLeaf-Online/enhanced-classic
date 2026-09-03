@@ -1,0 +1,115 @@
+name: Audit live Community Evan skill equivalence
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-live-evan-skill-equivalence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh evan-audit
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ConnectTimeout 20
+            ServerAliveInterval 20
+            ServerAliveCountMax 10
+          EOF
+
+      - name: Audit exact expected Evan skill IDs across all live Skill XML
+        run: |
+          set -euo pipefail
+          cat > /tmp/audit-evan-live.py <<'PY'
+          from pathlib import Path
+          import json, re, subprocess, xml.etree.ElementTree as ET
+
+          expected = [
+            20010012,20011000,20011001,20011002,20011003,20011004,20011005,20011006,20011007,20011009,20011010,20011011,
+            22000000,22001001,22101000,22101001,22111000,22111001,22121000,22121001,22131000,22131001,22140000,22141001,
+            22141002,22141003,22150000,22151001,22151002,22151003,22160000,22161001,22161002,22161003,22170001,22171000,
+            22171002,22171003,22171004,22181000,22181001,22181002,22181003
+          ]
+          current = Path(subprocess.check_output(['readlink','-f','/opt/everleaf/current'], text=True).strip())/'wz'/'Skill.wz'
+          backup = Path(Path('/opt/everleaf/backups/community-wholesale-test/LATEST').read_text().strip())/'server-wz-xml'/'Skill.wz'
+
+          def scan(root):
+              hits={i:[] for i in expected}
+              all_numeric_names={}
+              for p in root.rglob('*.xml'):
+                  try:
+                      tree=ET.parse(p)
+                  except Exception:
+                      continue
+                  for e in tree.getroot().iter():
+                      name=e.attrib.get('name','')
+                      if name.isdigit():
+                          n=int(name)
+                          if n in hits:
+                              hits[n].append(str(p.relative_to(root)))
+                          if 20000000 <= n <= 22999999:
+                              all_numeric_names.setdefault(n,set()).add(str(p.relative_to(root)))
+              return hits, all_numeric_names
+
+          live_hits, live_evanish = scan(current)
+          base_hits, base_evanish = scan(backup)
+
+          missing_live=[i for i in expected if not live_hits[i]]
+          present_live=[i for i in expected if live_hits[i]]
+          missing_base=[i for i in expected if not base_hits[i]]
+
+          # Candidate replacement IDs: live 20xxxxxx/22xxxxxx IDs not in expected, grouped by first 4 job-like digits.
+          candidates={}
+          expected_set=set(expected)
+          for n,paths in sorted(live_evanish.items()):
+              if n in expected_set:
+                  continue
+              prefix=str(n)[:4]
+              if prefix in {'2001','2200','2210','2211','2212','2213','2214','2215','2216','2217','2218'}:
+                  candidates[n]=sorted(paths)
+
+          out={
+            'expected_count':len(expected),
+            'live_present_count':len(present_live),
+            'live_missing_count':len(missing_live),
+            'live_present_ids':present_live,
+            'live_missing_ids':missing_live,
+            'baseline_missing_ids':missing_base,
+            'live_paths':{str(i):live_hits[i] for i in expected if live_hits[i]},
+            'candidate_alternate_ids_same_job_prefix':{str(k):v for k,v in candidates.items()},
+            'live_evanish_numeric_ids_total':len(live_evanish),
+            'baseline_evanish_numeric_ids_total':len(base_evanish),
+          }
+          print(json.dumps(out,indent=2))
+          PY
+          scp /tmp/audit-evan-live.py everleaf-oracle:/tmp/audit-evan-live.py
+          ssh everleaf-oracle 'python3 /tmp/audit-evan-live.py' | tee evan-audit/evan-live-equivalence.json
+
+      - name: Upload Evan equivalence audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-live-evan-skill-equivalence-${{ github.run_id }}
+          path: evan-audit/
+          retention-days: 90
