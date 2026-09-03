@@ -76,19 +76,10 @@ def build_logo(path):
 
 
 def build_frame(path):
-    image = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    draw.rectangle((0, 558, WIDTH, HEIGHT), fill=(4, 18, 8, 178))
-    draw.line((0, 558, WIDTH, 558), fill=(148, 184, 49, 145), width=1)
-    draw.text((17, 17), "Version 0.83", font=font(12, True), fill=(255, 255, 255, 235),
-              stroke_width=1, stroke_fill=(15, 27, 11, 210))
-    centered_text(draw, (0, 563, WIDTH, 580),
-                  "Never share your account information. Stay safe, adventurer!",
-                  font(11), fill=(241, 244, 227, 235), stroke_width=0)
-    centered_text(draw, (0, 580, WIDTH, 597),
-                  "Need help? Visit everleafms.online or join our Discord.",
-                  font(10), fill=(201, 221, 148, 235), stroke_width=0)
-    image.save(path, "PNG", optimize=True)
+    # UI.wz/Login.img/Common/frame is the legacy open-book overlay. Replacing
+    # it with a fully transparent 800x600 canvas keeps the stock login controls
+    # functional while letting the EverLeaf background fill the client cleanly.
+    Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0)).save(path, "PNG", optimize=True)
 
 
 def build_signboard(path):
