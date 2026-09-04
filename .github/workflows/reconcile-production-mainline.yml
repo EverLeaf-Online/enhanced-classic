@@ -1,0 +1,78 @@
+name: Reconcile master production surfaces
+
+on:
+  push:
+    branches: [reconcile/production-mainline-20260904]
+    paths:
+      - '.github/workflows/reconcile-production-mainline.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: everleaf-production-mainline-reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout release reconciliation branch
+        uses: actions/checkout@v5
+        with:
+          ref: reconcile/production-mainline-20260904
+          fetch-depth: 0
+
+      - name: Import maintained master production surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin master
+          git restore --source origin/master -- \
+            web \
+            tools/everleaf-ops \
+            .github/workflows/deploy-web.yml \
+            .github/workflows/audit-production-readiness.yml \
+            .github/workflows/check-web-cms.yml \
+            .github/workflows/web-maple-overhaul-ci.yml \
+            .github/workflows/configure-discord-community.yml \
+            .github/workflows/deploy-discord-status-monitor.yml \
+            docs/BRANCH_POLICY.md \
+            docs/BRANCH_CONSOLIDATION.md
+          git status --short
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Verify imported web/CMS surface
+        working-directory: web
+        run: |
+          npm ci
+          npm test
+
+      - name: Commit reconciled production surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name everleaf-release-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add web tools/everleaf-ops \
+            .github/workflows/deploy-web.yml \
+            .github/workflows/audit-production-readiness.yml \
+            .github/workflows/check-web-cms.yml \
+            .github/workflows/web-maple-overhaul-ci.yml \
+            .github/workflows/configure-discord-community.yml \
+            .github/workflows/deploy-discord-status-monitor.yml \
+            docs/BRANCH_POLICY.md docs/BRANCH_CONSOLIDATION.md
+          if git diff --cached --quiet; then
+            echo 'Master production surfaces already match release reconciliation branch.'
+            exit 0
+          fi
+          git commit -m 'reconcile: import current master production web and ops surfaces'
+          git push origin HEAD:reconcile/production-mainline-20260904
