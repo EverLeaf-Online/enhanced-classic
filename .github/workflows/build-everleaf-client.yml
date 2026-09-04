@@ -68,7 +68,8 @@ jobs:
             'InstallEarlyHooks()',
             'EverLeaf Client v2 startup error',
             'kClientUnpackTimeoutMs',
-            'kClientBootstrapTimeoutMs'
+            'kClientBootstrapTimeoutMs',
+            'ExitProcess(ERROR_DLL_INIT_FAILED)'
           )) {
             if (-not $bootstrap.Contains($pattern)) { throw "Missing Client v2 bootstrap marker: $pattern" }
           }
@@ -83,6 +84,27 @@ jobs:
             if ($attachBlock.Contains($pattern)) {
               throw "Detours hook installation leaked back into DllMain: $pattern"
             }
+          }
+
+          $dinput = Get-Content "client/ezorsia/ezorsia/dinput8.cpp" -Raw
+          foreach ($pattern in @(
+            'INIT_ONCE g_dinputInitOnce',
+            'ResolveSystemDinput8',
+            'EnsureSystemDinput8',
+            'InitOnceExecuteOnce',
+            'DirectInput8Create_Proc = nullptr',
+            'GetdfDIJoystick_Proc = nullptr',
+            'EverLeaf Client v2 input error'
+          )) {
+            if (-not $dinput.Contains($pattern)) { throw "Missing race-safe dinput8 proxy marker: $pattern" }
+          }
+          $directInputExport = [regex]::Match($dinput, 'void DirectInput8Create\(\)[\s\S]*?^\}', 'Multiline').Value
+          $joystickExport = [regex]::Match($dinput, 'void GetdfDIJoystick\(\)[\s\S]*?^\}', 'Multiline').Value
+          if (-not $directInputExport.Contains('call EnsureSystemDinput8')) {
+            throw "DirectInput8Create can still forward before the system export is resolved"
+          }
+          if (-not $joystickExport.Contains('call EnsureSystemDinput8')) {
+            throw "GetdfDIJoystick can still forward before the system export is resolved"
           }
 
       - name: Build managed client package
