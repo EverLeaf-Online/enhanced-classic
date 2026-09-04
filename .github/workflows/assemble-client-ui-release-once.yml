@@ -1,0 +1,73 @@
+name: Assemble clean client UI release once
+
+on:
+  push:
+    branches: [release/client-ui-modernization-20260904]
+    paths: ['.github/workflows/assemble-client-ui-release-once.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release/client-ui-modernization-20260904
+          fetch-depth: 0
+      - name: Assemble production-only UI modernization
+        shell: bash
+        run: |
+          set -euo pipefail
+          DONOR=feature/client-job-selector-modernization-20260904
+          git fetch origin "$DONOR" release-dev
+          BASE=$(git merge-base "origin/$DONOR" origin/release-dev)
+          paths=(
+            '.github/workflows/publish-everleaf-login-wz.yml'
+            'client/ezorsia/ezorsia/Client.cpp'
+            'client/ezorsia/ezorsia/Client.h'
+            'client/ezorsia/ezorsia/MainMain.cpp'
+            'client/ezorsia/ezorsia/config.ini'
+            'client/ezorsia/ezorsia/dllmain.cpp'
+            'client/scripts/apply-community-ui-preference.py'
+            'client/scripts/apply-ui-modernization.py'
+            'docs/CLIENT_UI_MODERNIZATION.md'
+            'docs/CLIENT_V83_EVAN_SELECTOR_RESOLUTION.md'
+            'src/main/java/net/server/handlers/login/CreateCharHandler.java'
+            'src/test/java/net/server/handlers/login/CreateCharHandlerTest.java'
+            'tools/audit_evan_release.py'
+          )
+          if ! git diff --quiet "$BASE"..origin/release-dev -- "${paths[@]}"; then
+            echo 'Canonical release changed one or more UI production paths after donor fork.' >&2
+            git diff --name-only "$BASE"..origin/release-dev -- "${paths[@]}" >&2
+            exit 1
+          fi
+          git checkout "origin/$DONOR" -- "${paths[@]}"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('client/ezorsia/ezorsia/Client.cpp')
+          s = p.read_text(encoding='utf-8')
+          start = s.find('\t// EVERLEAF_SELECTOR_RUNTIME_DUMP:')
+          if start >= 0:
+              end_marker = '\n\tMemory::CodeCave(cc0x00A63FF3'
+              end = s.find(end_marker, start)
+              if end < 0:
+                  raise SystemExit('could not locate end of selector runtime dump')
+              s = s[:start] + '\tMemory::CodeCave(cc0x00A63FF3' + s[end + len(end_marker):]
+          if 'everleaf-selector-runtime.txt' in s or 'selectorDump' in s:
+              raise SystemExit('selector runtime dump survived cleanup')
+          p.write_text(s, encoding='utf-8', newline='\n')
+          PY
+          rm -f .github/workflows/assemble-client-ui-release-once.yml
+          if find .github/workflows -maxdepth 1 -type f -name '*client*ui*once*.yml' | grep -q .; then
+            echo 'Unexpected UI one-shot workflow present in clean branch' >&2
+            find .github/workflows -maxdepth 1 -type f -name '*client*ui*once*.yml' >&2
+            exit 1
+          fi
+          git config user.name everleaf-client-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m 'client: integrate production UI modernization'
+          git push origin HEAD:release/client-ui-modernization-20260904
