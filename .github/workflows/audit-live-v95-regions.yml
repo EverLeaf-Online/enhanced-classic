@@ -1,0 +1,199 @@
+name: Audit live v95 regions
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-live-v95-regions.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh audit-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+
+      - name: Audit current live v95 content and server wiring
+        run: |
+          set -euo pipefail
+          cat > /tmp/audit-live-v95-regions.py <<'PY'
+          from pathlib import Path
+          import json, os, re, subprocess, xml.etree.ElementTree as ET
+
+          current = Path(os.path.realpath('/opt/everleaf/current'))
+          wz = current / 'wz'
+          scripts = current / 'scripts'
+
+          ninja_maps = [800040000,800040100,800040200,800040201,800040202,800040203,800040204,800040205,800040206,800040207,800040208,800040209,800040210,800040211,800040300,800040301,800040302,800040303,800040304,800040305,800040306,800040307,800040308,800040309,800040310,800040311,800040312,800040313,800040314,800040315,800040400,800040401,800040410]
+          ninja_mobs = list(range(9400400, 9400411))
+          ninja_npcs = list(range(9110100, 9110115))
+          ninja_items = list(range(4000337, 4000347))
+          ninja_quests = list(range(8163, 8172))
+          empress_mobs = list(range(8850000, 8850012))
+
+          def files_for(family, content_id):
+              root = wz / family
+              return list(root.rglob(f'{content_id}.img.xml')) if root.exists() else []
+
+          def xml_contains(family, content_id):
+              needle1 = f'name="{content_id}"'
+              needle2 = f'value="{content_id}"'
+              root = wz / family
+              if not root.exists(): return False
+              for p in root.rglob('*.xml'):
+                  try:
+                      text = p.read_text(errors='ignore')
+                  except Exception:
+                      continue
+                  if needle1 in text or needle2 in text:
+                      return True
+              return False
+
+          all_maps = {}
+          map_root = wz / 'Map.wz'
+          for p in map_root.rglob('*.img.xml') if map_root.exists() else []:
+              m = re.match(r'^(\d+)\.img\.xml$', p.name)
+              if m: all_maps[int(m.group(1))] = p
+
+          def inspect_region_maps(ids):
+              missing=[]; bad_targets=[]; script_refs=[]; spawn_npcs=set(); spawn_mobs=set()
+              for mid in ids:
+                  p=all_maps.get(mid)
+                  if not p:
+                      missing.append(mid); continue
+                  try: root=ET.parse(p).getroot()
+                  except Exception as exc:
+                      bad_targets.append([mid,'xml-parse',str(exc)]); continue
+                  for sec in root.iter():
+                      n=sec.attrib.get('name','')
+                      if n=='portal':
+                          for portal in list(sec):
+                              d={c.attrib.get('name',''):c.attrib.get('value','') for c in list(portal)}
+                              tm=d.get('tm','')
+                              if tm.isdigit():
+                                  t=int(tm)
+                                  if t not in (0,999999999) and t not in all_maps:
+                                      bad_targets.append([mid,d.get('pn',''),t])
+                              s=d.get('script','').strip()
+                              if s: script_refs.append([mid,s,(scripts/'portal'/f'{s}.js').exists()])
+                      elif n=='life':
+                          for life in list(sec):
+                              d={c.attrib.get('name',''):c.attrib.get('value','') for c in list(life)}
+                              if d.get('id','').isdigit():
+                                  if d.get('type')=='n': spawn_npcs.add(int(d['id']))
+                                  elif d.get('type')=='m': spawn_mobs.add(int(d['id']))
+              return {
+                  'missing_maps':missing,
+                  'bad_portal_targets':bad_targets,
+                  'portal_scripts':script_refs,
+                  'spawn_npcs':sorted(spawn_npcs),
+                  'spawn_mobs':sorted(spawn_mobs),
+              }
+
+          future_maps = sorted(mid for mid in all_maps if 271000000 <= mid <= 271040300)
+          ninja = inspect_region_maps(ninja_maps)
+          empress = inspect_region_maps(future_maps)
+
+          report = {
+              'current_release': str(current),
+              'recorded_release': Path('/opt/everleaf/.deployed-release').read_text().strip() if Path('/opt/everleaf/.deployed-release').exists() else '',
+              'service_active': subprocess.run(['systemctl','is-active','--quiet','everleaf.service']).returncode == 0,
+              'total_live_xml': sum(1 for _ in wz.rglob('*.xml')) if wz.exists() else 0,
+              'wz_families': sorted(p.name for p in wz.iterdir() if p.is_dir()) if wz.exists() else [],
+              'empress': {
+                  'future_henesys_map_count': len(future_maps),
+                  'future_henesys_maps': future_maps,
+                  'missing_mobs': [i for i in empress_mobs if not files_for('Mob.wz',i)],
+                  'cygnus_event_script': (scripts/'event'/'CygnusBattle.js').exists(),
+                  'portal_out_script': (scripts/'portal'/'out_cygnusBackGarden.js').exists(),
+                  'portal_back_script': (scripts/'portal'/'back_cygnus.js').exists(),
+                  **empress,
+              },
+              'ninja_castle': {
+                  'expected_map_count': len(ninja_maps),
+                  'missing_mobs': [i for i in ninja_mobs if not files_for('Mob.wz',i)],
+                  'missing_npcs': [i for i in ninja_npcs if not files_for('Npc.wz',i)],
+                  'missing_items': [i for i in ninja_items if not xml_contains('Item.wz',i)],
+                  'missing_quests': [i for i in ninja_quests if not xml_contains('Quest.wz',i)],
+                  'boss_portal_script': (scripts/'portal'/'ninja_Boss.js').exists(),
+                  'npc_scripts_present': sorted(i for i in ninja_npcs if (scripts/'npc'/f'{i}.js').exists()),
+                  'npc_scripts_missing': sorted(i for i in ninja_npcs if not (scripts/'npc'/f'{i}.js').exists()),
+                  **ninja,
+              }
+          }
+
+          # Live DB evidence: content can exist in WZ while drops still need server-side wiring.
+          def mysql(query):
+              try:
+                  return subprocess.check_output(['sudo','mysql','-NBe',query], text=True, stderr=subprocess.STDOUT).strip().splitlines()
+              except subprocess.CalledProcessError as exc:
+                  return [f'ERROR:{exc.output.strip()}']
+          report['database'] = {
+              'ninja_drop_rows': mysql("SELECT dropperid,COUNT(*) FROM cosmic.drop_data WHERE dropperid BETWEEN 9400400 AND 9400410 GROUP BY dropperid ORDER BY dropperid"),
+              'empress_drop_rows': mysql("SELECT dropperid,COUNT(*) FROM cosmic.drop_data WHERE dropperid BETWEEN 8850000 AND 8850011 GROUP BY dropperid ORDER BY dropperid"),
+          }
+
+          print(json.dumps(report, indent=2))
+
+          # Fail only on hard content/runtime blockers. Script/drop gaps remain visible findings for remediation.
+          hard=[]
+          if not report['service_active']: hard.append('everleaf.service inactive')
+          if report['total_live_xml'] < 15000: hard.append(f"live XML tree unexpectedly small: {report['total_live_xml']}")
+          if report['empress']['future_henesys_map_count'] != 42: hard.append(f"Future Henesys map count {report['empress']['future_henesys_map_count']} != 42")
+          if report['empress']['missing_mobs']: hard.append(f"missing Empress mobs {report['empress']['missing_mobs']}")
+          if report['empress']['bad_portal_targets']: hard.append(f"bad Empress portal targets {report['empress']['bad_portal_targets']}")
+          if not report['empress']['cygnus_event_script']: hard.append('CygnusBattle.js missing')
+          if report['ninja_castle']['missing_maps']: hard.append(f"missing Ninja maps {report['ninja_castle']['missing_maps']}")
+          if report['ninja_castle']['missing_mobs']: hard.append(f"missing Ninja mobs {report['ninja_castle']['missing_mobs']}")
+          if report['ninja_castle']['missing_npcs']: hard.append(f"missing Ninja NPCs {report['ninja_castle']['missing_npcs']}")
+          if report['ninja_castle']['missing_items']: hard.append(f"missing Ninja items {report['ninja_castle']['missing_items']}")
+          if report['ninja_castle']['missing_quests']: hard.append(f"missing Ninja quests {report['ninja_castle']['missing_quests']}")
+          if report['ninja_castle']['bad_portal_targets']: hard.append(f"bad Ninja portal targets {report['ninja_castle']['bad_portal_targets']}")
+          if not report['ninja_castle']['boss_portal_script']: hard.append('ninja_Boss.js missing')
+          if hard:
+              print('HARD_BLOCKERS='+json.dumps(hard))
+              raise SystemExit(1)
+          print('LIVE_V95_REGION_CONTENT_OK')
+          PY
+          scp /tmp/audit-live-v95-regions.py everleaf-oracle:/tmp/audit-live-v95-regions.py
+          ssh everleaf-oracle 'python3 /tmp/audit-live-v95-regions.py' | tee audit-output/live-v95-regions.json
+
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-v95-regions-${{ github.run_id }}
+          path: audit-output/
+          if-no-files-found: error
+          retention-days: 90
