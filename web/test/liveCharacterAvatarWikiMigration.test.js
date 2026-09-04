@@ -19,7 +19,7 @@ test('rankings query exposes the real character id needed for appearance renderi
   assert.match(service,/resolveVisibleEquipment/);
 });
 
-test('same-origin avatar route renders saved appearance and falls back safely',()=>{
+test('same-origin avatar route renders saved appearance through local Character.wz and falls back safely',()=>{
   const avatar=read('src/routes/avatar.js');
   const appearance=read('src/services/avatarAppearanceService.js');
   const rankings=read('src/views/rankings.ejs');
@@ -32,20 +32,26 @@ test('same-origin avatar route renders saved appearance and falls back safely',(
   assert.match(appearance,/game\.characterAppearance/);
   assert.match(appearance,/retrying without equipment/);
   assert.match(appearance,/equipment:\[\]/);
-  assert.match(avatar,/Character\/center/);
+  assert.match(avatar,/localRendererUrl/);
+  assert.match(avatar,/localRendererIds/);
+  assert.match(avatar,/2000 \+ skin/);
+  assert.match(avatar,/12000 \+ skin/);
   assert.match(avatar,/appearance\.face/);
   assert.match(avatar,/appearance\.hair/);
   assert.match(avatar,/appearance\.equipment/);
   assert.match(avatar,/renderAppearance\(appearance,true\)/);
   assert.match(avatar,/renderAppearance\(appearance,false\)/);
-  assert.match(avatar,/fallbackAsset/);
+  assert.match(avatar,/sendFallback/);
+  assert.match(avatar,/X-EverLeaf-Avatar-Source/);
+  assert.match(avatar,/local-wz/);
   assert.match(rankings,/data-live-avatar/);
   assert.doesNotMatch(rankings,/onerror=/);
   assert.match(site,/querySelectorAll\('img\[data-live-avatar\]'\)/);
   assert.match(site,/const probe = new Image\(\)/);
   assert.match(site,/image\.src = liveUrl/);
-  assert.match(env,/MAPLESTORY_IO_BASE_URL/);
-  assert.match(env,/MAPLESTORY_IO_VERSION/);
+  assert.match(env,/CHARACTER_WZ_RENDERER_URL/);
+  assert.match(env,/MAPLESTORY_IO_BASE_URL \|\| ""/);
+  assert.match(env,/MAPLESTORY_IO_VERSION \|\| "83"/);
 });
 
 test('Wiki migration refreshes only untouched seed rows',()=>{

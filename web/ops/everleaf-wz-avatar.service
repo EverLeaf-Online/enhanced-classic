@@ -1,0 +1,22 @@
+[Unit]
+Description=EverLeaf local v83 WZ character renderer
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/everleaf/patches/files/Character.wz
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/everleaf/wz-python
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/everleaf/wz-python/.venv/bin/python /opt/everleaf/web/ops/run-wz-avatar-renderer.py
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadOnlyPaths=/opt/everleaf/patches/files/Character.wz
+
+[Install]
+WantedBy=multi-user.target

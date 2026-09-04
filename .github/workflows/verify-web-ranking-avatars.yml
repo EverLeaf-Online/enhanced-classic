@@ -38,8 +38,9 @@ jobs:
           HEADERS="$(mktemp)"
           IMAGE="$(mktemp)"
           trap 'rm -f "$HEADERS" "$IMAGE"' EXIT
-          curl --fail --silent --show-error --location --max-time 30 -D "$HEADERS" -o "$IMAGE" "$BASE$AVATAR_PATH"
+          curl --fail --silent --show-error --max-time 40 -D "$HEADERS" -o "$IMAGE" "$BASE$AVATAR_PATH"
           grep -Eqi '^content-type:[[:space:]]*image/' "$HEADERS"
+          grep -Eqi '^x-everleaf-avatar-source:[[:space:]]*local-wz(-cache)?[[:space:]]*$' "$HEADERS"
           test -s "$IMAGE"
 
           BYTES="$(wc -c < "$IMAGE")"
@@ -47,5 +48,7 @@ jobs:
             echo "Ranking avatar response is unexpectedly small: ${BYTES} bytes." >&2
             exit 1
           fi
+          python3 -c 'import pathlib,sys; d=pathlib.Path(sys.argv[1]).read_bytes(); raise SystemExit(0 if d[:8]==b"\x89PNG\r\n\x1a\n" else 1)' "$IMAGE"
 
-          echo "EverLeaf ranking avatar is deliverable: $AVATAR_PATH (${BYTES} bytes)."
+          SOURCE="$(grep -Ei '^x-everleaf-avatar-source:' "$HEADERS" | tail -n1 | tr -d '\r')"
+          echo "EverLeaf ranking avatar is rendered from local Character.wz: $AVATAR_PATH (${BYTES} bytes; ${SOURCE})."
