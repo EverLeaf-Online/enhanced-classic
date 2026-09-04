@@ -70,6 +70,21 @@ public class Storage {
         this.meso = meso;
     }
 
+    /**
+     * Creates a storage container that can exercise the normal storage algorithms and packets but
+     * is deliberately detached from every account/storage database row. Used only by synthetic QA
+     * players so automated storage tests can never mutate the template account's real trunk.
+     */
+    public static Storage createTransientQaStorage(int slots, int meso) {
+        if (slots < 1 || slots > 48) throw new IllegalArgumentException("QA storage slots must be 1..48");
+        if (meso < 0) throw new IllegalArgumentException("QA storage mesos must be non-negative");
+        return new Storage(-1, (byte) slots, meso);
+    }
+
+    public boolean isTransientQaStorage() {
+        return id < 0;
+    }
+
     private static Storage create(int id, int world) throws SQLException {
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement("INSERT INTO storages (accountid, world, slots, meso) VALUES (?, ?, 4, 0)")) {
@@ -131,6 +146,9 @@ public class Storage {
     }
 
     public void saveToDB(Connection con) {
+        if (isTransientQaStorage()) {
+            throw new IllegalStateException("Transient QA storage must never be persisted");
+        }
         try {
             try (PreparedStatement ps = con.prepareStatement("UPDATE storages SET slots = ?, meso = ? WHERE storageid = ?")) {
                 ps.setInt(1, slots);
