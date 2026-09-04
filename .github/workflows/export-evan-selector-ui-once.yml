@@ -13,7 +13,21 @@ env:
   EVERLEAF_DEPLOY_USER: ubuntu
 
 jobs:
+  prepare-ssh:
+    runs-on: ubuntu-24.04
+    outputs:
+      known_hosts_b64: ${{ steps.hostkeys.outputs.known_hosts_b64 }}
+    steps:
+      - name: Capture Oracle SSH host keys
+        id: hostkeys
+        run: |
+          set -euo pipefail
+          ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$RUNNER_TEMP/known_hosts"
+          test -s "$RUNNER_TEMP/known_hosts"
+          echo "known_hosts_b64=$(base64 -w0 "$RUNNER_TEMP/known_hosts")" >> "$GITHUB_OUTPUT"
+
   export:
+    needs: prepare-ssh
     runs-on: windows-2025
     timeout-minutes: 45
     steps:
@@ -27,13 +41,12 @@ jobs:
         shell: pwsh
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+          KNOWN_HOSTS_B64: ${{ needs.prepare-ssh.outputs.known_hosts_b64 }}
         run: |
           $ErrorActionPreference='Stop'
           $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
           [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
-          if ($env:SSH_KNOWN_HOSTS) { [IO.File]::WriteAllText((Join-Path $sshDir 'known_hosts'),($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n") }
-          else { ssh-keyscan -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii (Join-Path $sshDir 'known_hosts') }
+          [IO.File]::WriteAllBytes((Join-Path $sshDir 'known_hosts'),[Convert]::FromBase64String($env:KNOWN_HOSTS_B64))
           @'
           Host everleaf-oracle
             HostName 132.145.141.79
@@ -41,6 +54,8 @@ jobs:
             IdentityFile ~/.ssh/id_everleaf
             ServerAliveInterval 20
             ServerAliveCountMax 10
+            TCPKeepAlive yes
+            ConnectTimeout 20
           '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
       - name: Fetch preserved Evan UI.wz
         shell: pwsh
@@ -81,10 +96,8 @@ jobs:
           python - $login.FullName @'
           import re,sys,xml.etree.ElementTree as ET
           p=sys.argv[1]; root=ET.parse(p).getroot()
-          print('# Preserved Evan UI selector structure')
-          print()
-          print(f'- Exported source: `{p}`')
-          print()
+          print('# Preserved Evan UI selector structure\n')
+          print(f'- Exported source: `{p}`\n')
           print('## Top-level Login.img nodes')
           print('- ' + ', '.join(c.attrib.get('name','') for c in root if c.tag=='imgdir'))
           print()
@@ -98,8 +111,7 @@ jobs:
           print('## Class-family marker summary')
           for label,rx in [('Explorer',r'explor|advent'),('Cygnus',r'cygn|noblesse|knight'),('Aran',r'aran|legend'),('Evan',r'evan'),('Dual Blade',r'dual'),('Resistance',r'resistance|citizen'),('Battle Mage',r'battle.?mage'),('Wild Hunter',r'wild.?hunter'),('Mechanic',r'mechanic')]:
               print(f'- {label}: {len(re.findall(rx,xml,re.I))} matches')
-          print()
-          print('## Race selector descendants')
+          print('\n## Race selector descendants')
           rx=re.compile(r'(RaceSelect|Evan|Dual|Resistance|Citizen|Mechanic|Wild|Battle)',re.I)
           rows=[]
           def walk(n,path):
