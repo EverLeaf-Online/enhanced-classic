@@ -23,16 +23,27 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           p=Path('client/ezorsia/ezorsia/Client.cpp')
-          s=p.read_text()
-          needle='\tMemory::WriteDouble(0x00AFE8A0, setDamageCap);\t//ty rain\n'
-          if needle not in s:
-              raise SystemExit('startup anchor missing')
-          block='''\t// Evan client compatibility: v83 contains most Evan client logic, but two\n\t// SkillInfo gates reject Evan skills. These exact v83 addresses are the\n\t// established Evan compatibility edits; keep them post-unpack with the\n\t// rest of EverLeaf's runtime client patches.\n\tMemory::FillBytes(0x0075C783, 0x90, 4);\n\tMemory::FillBytes(0x00761714, 0x90, 21);\n\n'''
-          if '0x0075C783' not in s:
-              s=s.replace(needle,block+needle,1)
-              p.write_text(s)
+          data=p.read_bytes()
+          marker=b'0x0075C783'
+          if marker not in data:
+              newline=b'\r\n' if b'\r\n' in data else b'\n'
+              needle=b'\tMemory::WriteDouble(0x00AFE8A0, setDamageCap);\t//ty rain'+newline
+              if needle not in data:
+                  raise SystemExit('startup anchor missing')
+              lines=[
+                  b'\t// Evan client compatibility: v83 contains most Evan client logic, but two',
+                  b'\t// SkillInfo gates reject Evan skills. These exact v83 addresses are the',
+                  b'\t// established Evan compatibility edits; keep them post-unpack with the',
+                  b'\t// rest of EverLeaf\'s runtime client patches.',
+                  b'\tMemory::FillBytes(0x0075C783, 0x90, 4);',
+                  b'\tMemory::FillBytes(0x00761714, 0x90, 21);',
+                  b'',
+              ]
+              block=newline.join(lines)+newline
+              data=data.replace(needle,block+needle,1)
+              p.write_bytes(data)
           PY
-          git diff --check
+          git diff --check -- client/ezorsia/ezorsia/Client.cpp
           grep -n -A8 -B2 'Evan client compatibility' client/ezorsia/ezorsia/Client.cpp
           git config user.name everleaf-client-bot
           git config user.email 173628847+iampolicy@users.noreply.github.com
