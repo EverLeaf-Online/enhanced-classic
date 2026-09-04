@@ -13,11 +13,13 @@
     const isAdminPath=canonicalPath.startsWith('/admin');
     const isHome=canonicalPath==='/';
     const routeKey=isHome?'home':(canonicalPath.split('/').filter(Boolean)[0]||'page').replace(/[^a-z0-9-]/gi,'').toLowerCase();
+    const isSignedIn=typeof sessionPlayer!=='undefined'&&Boolean(sessionPlayer);
+    const activeFor=(path)=>canonicalPath===path||canonicalPath.startsWith(path+'/');
   %>
   <title><%=pageTitle%></title>
   <meta name="description" content="<%=pageDescription%>">
-  <meta name="theme-color" content="#12130f">
-  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#f5f9ff">
+  <meta name="color-scheme" content="light dark">
   <meta name="application-name" content="<%=brand.name%>">
   <meta name="robots" content="<%=isAdminPath?'noindex,nofollow':'index,follow'%>">
   <link rel="canonical" href="<%=canonicalUrl%>">
@@ -68,7 +70,8 @@
     <link rel="stylesheet" href="/css/wiki-art-fix-2026.css?v=1">
     <script src="/js/wiki-art.js?v=1" defer></script>
   <% } %>
-  <script src="/js/site.js?v=2" defer></script>
+  <link rel="stylesheet" href="/css/everleaf-polish-2026.css?v=1">
+  <script src="/js/site.js?v=3" defer></script>
 </head>
 <body class="siteRoute route-<%=routeKey%><%=isAdminPath?' route-admin':''%>">
 <a class="skipLink" href="#main-content">Skip to content</a>
@@ -82,5 +85,35 @@
   <div role="status" class="siteBanner announcementBanner"><div class="wrap"><strong><%=activeAnnouncement.title%></strong><% if(activeAnnouncement.body){ %><span><%=activeAnnouncement.body%></span><% } %></div></div>
 <% } else if(fallbackAnnouncement){ %>
   <div role="status" class="siteBanner announcementBanner"><div class="wrap"><span><%=fallbackAnnouncement%></span></div></div>
+<% } %>
+<% if(!isHome&&!isAdminPath){ %>
+<header class="siteTopbar">
+  <div class="wrap siteTopbarInner">
+    <a class="siteTopbarBrand" href="/" aria-label="EverLeaf home">
+      <img src="/assets/everleaf-remaster.svg" alt="" aria-hidden="true">
+      <span class="siteTopbarBrandCopy"><strong>EverLeaf</strong><small>Enhanced Classic</small></span>
+    </a>
+    <nav class="siteTopbarLinks" aria-label="Primary navigation">
+      <a class="<%=activeFor('/downloads')?'active':''%>" href="/downloads">Download</a>
+      <a class="<%=activeFor('/rankings')?'active':''%>" href="/rankings">Rankings</a>
+      <a class="<%=activeFor('/wiki')?'active':''%>" href="/wiki">Wiki</a>
+      <a class="<%=activeFor('/news')?'active':''%>" href="/news">News</a>
+      <a class="<%=activeFor('/help')?'active':''%>" href="/help">Help</a>
+    </nav>
+    <a class="siteTopbarAction" href="<%=isSignedIn?'/account':'/login'%>"><%=isSignedIn?'My account':'Sign in'%></a>
+    <details class="siteTopbarMenu">
+      <summary aria-label="Open navigation">☰</summary>
+      <nav class="siteTopbarMenuPanel" aria-label="Mobile navigation">
+        <a href="/">Home</a>
+        <a class="<%=activeFor('/downloads')?'active':''%>" href="/downloads">Download</a>
+        <a class="<%=activeFor('/rankings')?'active':''%>" href="/rankings">Rankings</a>
+        <a class="<%=activeFor('/wiki')?'active':''%>" href="/wiki">Wiki</a>
+        <a class="<%=activeFor('/news')?'active':''%>" href="/news">News</a>
+        <a class="<%=activeFor('/help')?'active':''%>" href="/help">Help</a>
+        <a href="<%=isSignedIn?'/account':'/login'%>"><%=isSignedIn?'My account':'Sign in'%></a>
+      </nav>
+    </details>
+  </div>
+</header>
 <% } %>
 <div id="main-content" class="siteContent" tabindex="-1">
