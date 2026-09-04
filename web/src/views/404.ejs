@@ -1,1 +1,6 @@
-<%- include("partials/header",{title:"Map Not Found"}) %><main class="authWrap"><div class="wrap" style="position:relative;z-index:1;max-width:760px;text-align:center"><img src="/assets/everleaf-remaster.svg" alt="EverLeaf Enhanced Classic" style="width:270px;max-width:72%;margin-bottom:18px"><div class="featurePanel"><div class="pageEyebrow">Lost in Maple World · 404</div><h1 style="font-size:54px;margin:0 0 8px;font-family:Georgia,serif;color:#315b59">Map not found.</h1><p class="muted">That portal does not lead anywhere in EverLeaf. The page may have moved, or the address may be incorrect.</p><div style="display:flex;justify-content:center;gap:9px;flex-wrap:wrap;margin-top:20px"><a class="btn primary" href="/">RETURN TO EVERLEAF</a><a class="btn" href="/help">PLAYER HELP</a></div></div></div></main><%- include("partials/footer") %>
+<%- include("partials/header",{title:"Map Not Found"}) %>
+<main class="authWrap terminalErrorPage">
+  <div><div class="pageEyebrow">ROUTE://404 / PORTAL TARGET INVALID</div><h1>MAP NOT<br>FOUND.</h1><p class="muted">That portal does not resolve to an EverLeaf route. The page may have moved, or the address may be incorrect.</p><div class="terminalAccountActions"><a class="btn primary" href="/">RETURN HOME</a><a class="btn" href="/help">PLAYER HELP</a></div></div>
+  <div class="terminalErrorCode">404<small>WORLD ROUTE FAILURE</small></div>
+</main>
+<%- include("partials/footer") %>
