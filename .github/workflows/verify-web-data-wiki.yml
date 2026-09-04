@@ -1,0 +1,41 @@
+name: Verify EverLeaf Data Wiki
+
+on:
+  workflow_run:
+    workflows: ["Deploy EverLeaf Web"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify live data Wiki
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://everleafms.online'
+
+          WIKI_HTML="$(curl --fail --silent --show-error --location --max-time 30 "$BASE/wiki")"
+          grep -Fq 'EVERLEAF DATA WIKI' <<<"$WIKI_HTML"
+          grep -Fq 'WZ + MySQL' <<<"$WIKI_HTML"
+          if grep -Fq 'Server data unavailable' <<<"$WIKI_HTML"; then
+            echo 'EverLeaf Wiki rendered, but its WZ/MySQL data catalog is unavailable.' >&2
+            exit 1
+          fi
+
+          ITEMS_HTML="$(curl --fail --silent --show-error --location --max-time 30 "$BASE/wiki/items")"
+          grep -Fq 'ITEM DATABASE' <<<"$ITEMS_HTML"
+          grep -Fq 'Live WZ catalog' <<<"$ITEMS_HTML"
+          grep -Eq '<strong>[1-9][0-9,]*</strong><span>indexed records</span>' <<<"$ITEMS_HTML"
+
+          MONSTERS_HTML="$(curl --fail --silent --show-error --location --max-time 30 "$BASE/wiki/monsters")"
+          grep -Fq 'MONSTER DATABASE' <<<"$MONSTERS_HTML"
+          grep -Eq '<strong>[1-9][0-9,]*</strong><span>indexed records</span>' <<<"$MONSTERS_HTML"
+
+          echo 'EverLeaf production data Wiki is live with non-empty item and monster catalogs.'
