@@ -55,9 +55,72 @@ jobs:
           if ($source -match 'if\s*\(\(HRESULT\)v\d+\s*<\s*0\)') {
             throw "Function-pointer address is still being tested as an HRESULT"
           }
+
           $main = Get-Content "client/ezorsia/ezorsia/MainMain.cpp" -Raw
           foreach ($pattern in @('PreferCommunityUI', 'CustomLoginFrame = !preferCommunityUi', 'ownCashShopFrame = preferCommunityUi')) {
             if (-not $main.Contains($pattern)) { throw "Missing Community UI preference marker: $pattern" }
+          }
+
+          $bootstrap = Get-Content "client/ezorsia/ezorsia/dllmain.cpp" -Raw
+          foreach ($pattern in @(
+            'WaitForClientImage()',
+            'BootstrapWatchdog',
+            'InstallEarlyHooks()',
+            'EverLeaf Client v2 startup error',
+            'kClientUnpackTimeoutMs',
+            'kClientBootstrapTimeoutMs',
+            'ExitProcess(ERROR_DLL_INIT_FAILED)',
+            'DisplayModeWorker',
+            'BorderlessWindow',
+            'CenterWindow',
+            'EnableAltEnterToggle',
+            'ApplyBorderlessWindow',
+            'CenterWindowedClient',
+            'FindEverLeafGameWindow',
+            'CaptureWindowedState',
+            'RestoreWindowedState',
+            'ToggleBorderlessWindow',
+            'EverLeafWindowProc',
+            'WM_SYSKEYDOWN',
+            'WM_SYSCHAR'
+          )) {
+            if (-not $bootstrap.Contains($pattern)) { throw "Missing Client v2 bootstrap/display marker: $pattern" }
+          }
+          if ($bootstrap.Contains('MainMain::GetInstance()->~MainMain()')) {
+            throw "Client v2 must not manually destroy MainMain under DllMain loader lock"
+          }
+          if ($bootstrap.Contains('Hook_sub_44E88E(true)')) {
+            throw "Obsolete MyGetProcAddress pass-through hook was re-enabled"
+          }
+          if ($bootstrap.Contains('Hook_sub_9F5C50(true)')) {
+            throw "Client v2 must keep stock v83 CWvsApp::Run exception dispatch semantics"
+          }
+          $attachBlock = [regex]::Match($bootstrap, 'case DLL_PROCESS_ATTACH:[\s\S]*?break;').Value
+          foreach ($pattern in @('Hook_CreateMutexA(', 'Hook_WSPStartup(', 'Hook_CreateWindowExA(', 'Hook_FindFirstFileA(', 'Hook_GetACP(', 'Hook_GetModuleFileNameW(')) {
+            if ($attachBlock.Contains($pattern)) {
+              throw "Detours hook installation leaked back into DllMain: $pattern"
+            }
+          }
+
+          $dinput = Get-Content "client/ezorsia/ezorsia/dinput8.cpp" -Raw
+          foreach ($pattern in @(
+            'INIT_ONCE g_dinputInitOnce',
+            'ResolveSystemDinput8',
+            'EnsureSystemDinput8',
+            'InitOnceExecuteOnce',
+            'DirectInput8Create_Proc = nullptr',
+            'GetdfDIJoystick_Proc = nullptr',
+            'EverLeaf Client v2 input error'
+          )) {
+            if (-not $dinput.Contains($pattern)) { throw "Missing race-safe dinput8 proxy marker: $pattern" }
+          }
+          $directInputExport = [regex]::Match($dinput, 'void DirectInput8Create\(\)[\s\S]*?^\}', 'Multiline').Value
+          $joystickExport = [regex]::Match($dinput, 'void GetdfDIJoystick\(\)[\s\S]*?^\}', 'Multiline').Value
+          if (-not $directInputExport.Contains('call EnsureSystemDinput8')) {
+            throw "DirectInput8Create can still forward before the system export is resolved"
+          }
+          if (-not $joystickExport.Contains('call EnsureSystemDinput8')) {
+            throw "GetdfDIJoystick can still forward before the system export is resolved"
           }
 
       - name: Build managed client package
@@ -77,6 +140,10 @@ jobs:
             if ($config -match [regex]::Escape($name)) { throw "Player config exposes forbidden setting: $name" }
           }
           if (-not ($config -match 'PreferCommunityUI=true')) { throw "Managed client does not default to Community UI" }
+          if (-not ($config -match 'WindowedMode=true')) { throw "Managed client must keep the safe windowed renderer by default" }
+          if (-not ($config -match 'BorderlessWindow=false')) { throw "Managed client must expose borderless mode as opt-in until runtime validation is green" }
+          if (-not ($config -match 'EnableAltEnterToggle=true')) { throw "Managed client must expose the reversible Alt+Enter borderless toggle" }
+          if (-not ($config -match 'CenterWindow=true')) { throw "Managed client must center framed windowed mode by default" }
           if (-not (Test-Path "$package/EverLeaf_UI.wz")) { throw "Missing branded EverLeaf UI file" }
           if (Test-Path "$package/EzorsiaV2_UI.wz") { throw "Legacy UI filename leaked into package" }
           Compress-Archive -Path "$package/*" -DestinationPath "EverleafClient-source-built.zip"
