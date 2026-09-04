@@ -1,0 +1,121 @@
+name: Export preserved Evan selector UI once
+
+on:
+  push:
+    branches: [feature/client-job-selector-modernization-20260904]
+    paths: ['.github/workflows/export-evan-selector-ui-once.yml']
+
+permissions:
+  contents: write
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  export:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/client-job-selector-modernization-20260904
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          if ($env:SSH_KNOWN_HOSTS) { [IO.File]::WriteAllText((Join-Path $sshDir 'known_hosts'),($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n") }
+          else { ssh-keyscan -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii (Join-Path $sshDir 'known_hosts') }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 10
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+      - name: Fetch preserved Evan UI.wz
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $input=Join-Path $env:RUNNER_TEMP 'evan-ui'; New-Item -ItemType Directory -Force -Path $input | Out-Null
+          $remote='/opt/everleaf/private/evan-wz-donor-releases/33483143892/UI.wz'
+          ssh everleaf-oracle "test -s '$remote'; stat -c '%s' '$remote'; sha256sum '$remote'"
+          if ($LASTEXITCODE -ne 0) { throw 'Evan UI donor missing' }
+          scp "everleaf-oracle`:$remote" (Join-Path $input 'UI.wz')
+          if ($LASTEXITCODE -ne 0) { throw 'Evan UI donor transfer failed' }
+      - name: Build MapleLib exporter
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter'; New-Item -ItemType Directory -Force -Path $tool | Out-Null
+          Copy-Item 'tools/wz-donor/exporter/Program.cs' (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup>
+            <ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafWzExporter.csproj')
+          dotnet build (Join-Path $tool 'EverLeafWzExporter.csproj') -c Release
+      - name: Export UI.wz and summarize selector
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $input=Join-Path $env:RUNNER_TEMP 'evan-ui'; $out=Join-Path $env:RUNNER_TEMP 'evan-ui-xml'
+          $proj=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter/EverLeafWzExporter.csproj'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          & dotnet run --project $proj -c Release --no-build -- $input $out --patch-version=83 --probe-patch-range=1:250 UI.wz
+          if ($LASTEXITCODE -ne 0) { throw 'Evan UI export failed' }
+          $login=Get-ChildItem $out -Recurse -File -Filter 'Login.img.xml' | Select-Object -First 1
+          if (-not $login) { throw 'Evan donor Login.img.xml missing after export' }
+          New-Item -ItemType Directory -Force -Path docs | Out-Null
+          python - $login.FullName @'
+          import re,sys,xml.etree.ElementTree as ET
+          p=sys.argv[1]; root=ET.parse(p).getroot()
+          print('# Preserved Evan UI selector structure')
+          print()
+          print(f'- Exported source: `{p}`')
+          print()
+          print('## Top-level Login.img nodes')
+          print('- ' + ', '.join(c.attrib.get('name','') for c in root if c.tag=='imgdir'))
+          print()
+          for wanted in ['RaceSelect','RaceSelect_new','CharSelect','NewChar','NewCharKnight','NewCharAran','NewCharEvan']:
+              node=root.find(f"./imgdir[@name='{wanted}']")
+              print(f'## {wanted}')
+              if node is None: print('- MISSING')
+              else: print('- ' + ', '.join(c.attrib.get('name','') for c in node if c.tag=='imgdir'))
+              print()
+          xml=open(p,encoding='utf-8',errors='ignore').read()
+          print('## Class-family marker summary')
+          for label,rx in [('Explorer',r'explor|advent'),('Cygnus',r'cygn|noblesse|knight'),('Aran',r'aran|legend'),('Evan',r'evan'),('Dual Blade',r'dual'),('Resistance',r'resistance|citizen'),('Battle Mage',r'battle.?mage'),('Wild Hunter',r'wild.?hunter'),('Mechanic',r'mechanic')]:
+              print(f'- {label}: {len(re.findall(rx,xml,re.I))} matches')
+          print()
+          print('## Race selector descendants')
+          rx=re.compile(r'(RaceSelect|Evan|Dual|Resistance|Citizen|Mechanic|Wild|Battle)',re.I)
+          rows=[]
+          def walk(n,path):
+              name=n.attrib.get('name',''); here=f'{path}/{name}' if name else path
+              if n.tag=='imgdir' and rx.search(here): rows.append((here,[c.attrib.get('name','') for c in n if c.tag=='imgdir']))
+              for c in n: walk(c,here)
+          walk(root,'')
+          for path,kids in rows[:220]: print(f'- `{path}` -> `{", ".join(kids)}`')
+          '@ | Set-Content -Encoding utf8 docs/CLIENT_SELECTOR_EVAN_DONOR_STRUCTURE.md
+          Get-Content docs/CLIENT_SELECTOR_EVAN_DONOR_STRUCTURE.md
+      - name: Commit donor report
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name everleaf-client-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add docs/CLIENT_SELECTOR_EVAN_DONOR_STRUCTURE.md
+          git commit -m 'docs: record preserved Evan selector UI'
+          git push origin HEAD:feature/client-job-selector-modernization-20260904
