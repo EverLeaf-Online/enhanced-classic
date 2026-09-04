@@ -109,8 +109,8 @@ jobs:
           foreach($required in @('EverLeaf.exe','Quest.wz','String.wz')){if($names -notcontains $required){throw "managed client missing $required"}}
           foreach($name in $names){if($name -notmatch '^[A-Za-z0-9_.-]+$'){throw "unsafe managed filename $name"}}
           $key=Join-Path $HOME '.ssh/id_everleaf'; $ssh='C:\Program Files\Git\usr\bin\ssh.exe'; $scp='C:\Program Files\Git\usr\bin\scp.exe'
-          $remote="/tmp/everleaf-ninja-quest-client-$env:GITHUB_RUN_ID.tgz"; $quoted=($names|ForEach-Object{"'$_'"}) -join ' '
-          & $ssh -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "set -euo pipefail; cd /opt/everleaf/patches/files; for f in $quoted; do test -f \"`$f\"; done; tar -czf '$remote' $quoted"
+          $remote="/tmp/everleaf-ninja-quest-client-$env:GITHUB_RUN_ID.tgz"; $joined=$names -join ' '
+          & $ssh -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "set -euo pipefail; cd /opt/everleaf/patches/files; tar -czf '$remote' $joined"
           if($LASTEXITCODE){throw 'managed client archive prep failed'}
           $archive=Join-Path $env:RUNNER_TEMP 'client.tgz'; & $scp -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remote" $archive
           if($LASTEXITCODE){throw 'managed client archive fetch failed'}
