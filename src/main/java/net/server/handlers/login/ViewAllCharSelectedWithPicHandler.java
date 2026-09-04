@@ -31,7 +31,6 @@ public class ViewAllCharSelectedWithPicHandler extends AbstractPacketHandler {
 
     @Override
     public void handlePacket(InPacket p, Client c) {
-
         String pic = p.readString();
         int charId = p.readInt();
         p.readInt(); // please don't let the client choose which world they should login
@@ -64,38 +63,53 @@ public class ViewAllCharSelectedWithPicHandler extends AbstractPacketHandler {
 
         c.setWorld(server.getCharacterWorld(charId));
         World wserv = c.getWorldServer();
-        if (wserv == null || wserv.isWorldCapacityFull()) {
+        if (wserv == null || wserv.isWorldCapacityFull() || wserv.getChannelsSize() <= 0) {
             c.sendPacket(PacketCreator.getAfterLoginError(10));
             return;
         }
 
-        int channel = Randomizer.rand(1, wserv.getChannelsSize());
-        c.setChannel(channel);
-
-        if (c.checkPic(pic)) {
-            String[] socket = server.getInetSocket(c, c.getWorld(), c.getChannel());
-            if (socket == null) {
-                c.sendPacket(PacketCreator.getAfterLoginError(10));
-                return;
-            }
-
-            AntiMulticlientResult res = SessionCoordinator.getInstance().attemptGameSession(c, c.getAccID(), hwid);
-            if (res != AntiMulticlientResult.SUCCESS) {
-                c.sendPacket(PacketCreator.getAfterLoginError(parseAntiMulticlientError(res)));
-                return;
-            }
-
-            server.unregisterLoginState(c);
-            c.setCharacterOnSessionTransitionState(charId);
-
-            try {
-                c.sendPacket(PacketCreator.getServerIP(InetAddress.getByName(socket[0]), Integer.parseInt(socket[1]), charId));
-            } catch (UnknownHostException e) {
-                e.printStackTrace();
-            }
-
-        } else {
+        if (!c.checkPic(pic)) {
             c.sendPacket(PacketCreator.wrongPic());
+            return;
         }
+
+        final int channel;
+        try {
+            channel = Randomizer.rand(1, wserv.getChannelsSize());
+            c.setChannel(channel);
+        } catch (RuntimeException e) {
+            log.error("Unable to choose a PIC view-all channel for world={} charId={}", c.getWorld(), charId, e);
+            c.sendPacket(PacketCreator.getAfterLoginError(10));
+            return;
+        }
+
+        final InetAddress channelAddress;
+        final int channelPort;
+        try {
+            String[] socket = server.getInetSocket(c, c.getWorld(), channel);
+            if (socket == null || socket.length < 2 || socket[0] == null || socket[0].isBlank()) {
+                throw new IllegalStateException("Channel endpoint is unavailable");
+            }
+            channelAddress = InetAddress.getByName(socket[0]);
+            channelPort = Integer.parseInt(socket[1]);
+            if (channelPort < 1 || channelPort > 65535) {
+                throw new IllegalArgumentException("Channel port is outside the valid TCP range");
+            }
+        } catch (UnknownHostException | RuntimeException e) {
+            log.error("Unable to prepare PIC view-all character-select handoff for world={} channel={} charId={}",
+                    c.getWorld(), c.getChannel(), charId, e);
+            c.sendPacket(PacketCreator.getAfterLoginError(10));
+            return;
+        }
+
+        AntiMulticlientResult res = SessionCoordinator.getInstance().attemptGameSession(c, c.getAccID(), hwid);
+        if (res != AntiMulticlientResult.SUCCESS) {
+            c.sendPacket(PacketCreator.getAfterLoginError(parseAntiMulticlientError(res)));
+            return;
+        }
+
+        server.unregisterLoginState(c);
+        c.setCharacterOnSessionTransitionState(charId);
+        c.sendPacket(PacketCreator.getServerIP(channelAddress, channelPort, charId));
     }
 }
