@@ -33,7 +33,7 @@ public final class BotQaSuiteRunner {
     private static final int HENESYS_PARK = 100000200;
     private static final int HENESYS_STORAGE_NPC = 1012009;
     private static final int HENESYS_STORAGE_X = 1039;
-    private static final int HENESYS_STORAGE_Y = 84;
+    private static final int HENESYS_STORAGE_Y = 423;
     private static final int HENESYS_DEPARTMENT_STORE = 100000102;
     private static final int HENESYS_SHOP_NPC = 1011100;
     private static final int HENESYS_SHOP_X = -258;
