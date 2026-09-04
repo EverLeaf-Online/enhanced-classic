@@ -72,6 +72,12 @@ void Client::UpdateGameStartup() {
 	// rest of EverLeaf's runtime client patches.
 	Memory::FillBytes(0x0075C783, 0x90, 4);
 	Memory::FillBytes(0x00761714, 0x90, 21);
+	// Expose the v84-compatible Evan race value on v83 without changing the wire format.
+	// Original bytes at 0x005F4F3C: 0F 85 A5 01 00 00 (race >=3 -> default).
+	// New target 0x005F4FD0 reuses the stable Explorer appearance/name dialog while
+	// preserving CLogin+0x214, so SendNewCharPacket still transmits race 3.
+	unsigned char EvanRace3CreationRoute[] = { 0x0F, 0x85, 0x8E, 0x00, 0x00, 0x00 };
+	Memory::WriteByteArray(0x005F4F3C, EvanRace3CreationRoute, sizeof(EvanRace3CreationRoute));
 
 	Memory::WriteDouble(0x00AFE8A0, setDamageCap);	//ty rain
 	int setDamageCapInt = static_cast<int>(setDamageCap < 0 ? setDamageCap - 0.5 : setDamageCap + 0.5);

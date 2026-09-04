@@ -17,6 +17,10 @@ EverLeaf keeps the v83 network/client contract and backports later classic UI be
 
 The server capability gate remains authoritative even if a modified client bypasses a visual lock.
 
+## Evan compatibility
+
+The v83 packet already transports a single race integer. EverLeaf routes race 3 through the stable Explorer appearance/name dialog while preserving the race field, allowing the existing server Evan creator to receive type 3 without changing the v83 wire format. Types above 3 remain server-rejected.
+
 ## UI surfaces
 
 1. Login layout and input styling — active on the modernization branch.
