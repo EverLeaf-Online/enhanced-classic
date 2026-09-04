@@ -1,5 +1,6 @@
 name: Implement EverLeaf client UI modernization once
 
+# validation rerun 2026-09-04T12:49Z
 on:
   push:
     branches: [feature/client-job-selector-modernization-20260904]
@@ -39,6 +40,7 @@ jobs:
             Write-Host 'UI source implementation already applied.'
           } else {
             git commit -m 'client: activate modern classic UI foundation'
+            git pull --rebase origin feature/client-job-selector-modernization-20260904
             git push origin HEAD:feature/client-job-selector-modernization-20260904
           }
 
