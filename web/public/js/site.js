@@ -3,14 +3,6 @@
   const routeClass = `site-${routeSegment.toLowerCase().replace(/[^a-z0-9-]/g, '-')}`;
   document.body.classList.add(routeClass);
 
-  if (!document.querySelector('link[data-everleaf-full-site-portal]')) {
-    const fullSitePortal = document.createElement('link');
-    fullSitePortal.rel = 'stylesheet';
-    fullSitePortal.href = '/css/full-site-portal-2026.css?v=1';
-    fullSitePortal.dataset.everleafFullSitePortal = '1';
-    document.head.append(fullSitePortal);
-  }
-
   const nav = document.querySelector('.nav');
   const mobileMenu = document.querySelector('.mobileMenu');
   const mobileSummary = mobileMenu?.querySelector('summary');
