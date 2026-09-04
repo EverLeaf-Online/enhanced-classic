@@ -1,4 +1,4 @@
-# Manual live audit trigger: 2026-09-04-rc55
+# Manual live audit trigger: 2026-09-04-v95-final
 name: Verify EverLeaf Live Release
 
 on:
@@ -37,10 +37,7 @@ jobs:
           if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Wait for production publishers
-        run: sleep 120
-
-      - name: Verify Oracle runtime and patch state
+      - name: Verify Oracle runtime, canonical v95 WZ, and patch state
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' > /tmp/live-status.txt <<'REMOTE'
@@ -52,24 +49,44 @@ jobs:
           MANAGED_COUNT="$(node -e "const m=require('/opt/everleaf/patches/manifest.json');process.stdout.write(String(m.files.length))")"
           systemctl is-active --quiet everleaf.service
           python3 "$CURRENT_RELEASE/tools/verify_channel_runtime.py" --config "$CURRENT_RELEASE/config.yaml" --host 127.0.0.1 >/tmp/everleaf-live-channels.json
+          test -s /opt/everleaf/shared/wz-v95/.everleaf-v95-baseline
+          XML_COUNT="$(find "$CURRENT_RELEASE/wz" -type f -name '*.xml' | wc -l)"
+          test "$XML_COUNT" -ge 44000
+          for id in 271000000 271040100 800040000 800040401 800040410; do
+            find "$CURRENT_RELEASE/wz/Map.wz" -type f -name "$id.img.xml" -print -quit | grep -q .
+          done
+          for id in 8850000 8850011 9400400 9400408 9400409; do
+            find "$CURRENT_RELEASE/wz/Mob.wz" -type f -name "$id.img.xml" -print -quit | grep -q .
+          done
+          for id in 9110100 9110106 9110114; do
+            find "$CURRENT_RELEASE/wz/Npc.wz" -type f -name "$id.img.xml" -print -quit | grep -q .
+          done
+          for qid in $(seq 8163 8171); do
+            grep -R -q -E "name=\"$qid\"|value=\"$qid\"" "$CURRENT_RELEASE/wz/Quest.wz"
+          done
           echo "SERVER_RELEASE=$SERVER_RELEASE"
           echo "CURRENT_RELEASE=$CURRENT_RELEASE"
           echo "CLIENT_VERSION=$CLIENT_VERSION"
           echo "LAUNCHER_VERSION=$LAUNCHER_VERSION"
           echo "MANAGED_COUNT=$MANAGED_COUNT"
+          echo "XML_COUNT=$XML_COUNT"
+          echo "V95_CONTENT=passed"
           echo 'CHANNEL_STATUS_BEGIN'
           cat /tmp/everleaf-live-channels.json
           echo 'CHANNEL_STATUS_END'
           REMOTE
           cat /tmp/live-status.txt
           grep -q '^MANAGED_COUNT=36$' /tmp/live-status.txt
+          grep -q '^V95_CONTENT=passed$' /tmp/live-status.txt
 
       - name: Verify public endpoints
         run: |
           set -euo pipefail
-          curl -fsS --max-time 20 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" >/dev/null
+          curl -fsS --max-time 20 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" -o /tmp/manifest.json
+          node -e "const m=require('/tmp/manifest.json'); if(!Array.isArray(m.files)||m.files.length!==36) process.exit(1); if(!m.files.some(f=>f.path==='Quest.wz')) process.exit(1)"
           curl -fsS --max-time 60 "https://$EVERLEAF_PUBLIC_HOST/launcher/download" -o /tmp/launcher.zip
-          for f in config.ini dinput8.dll EverLeaf_UI.wz; do curl -fsS --max-time 60 "https://$EVERLEAF_PUBLIC_HOST/patches/$f" -o "/tmp/$f"; test -s "/tmp/$f"; done
+          test -s /tmp/launcher.zip
+          for f in config.ini dinput8.dll EverLeaf_UI.wz Quest.wz; do curl -fsS --max-time 60 "https://$EVERLEAF_PUBLIC_HOST/patches/$f" -o "/tmp/$f"; test -s "/tmp/$f"; done
           for port in 8484 $(seq 7575 7594); do timeout 5 bash -c "</dev/tcp/$EVERLEAF_DEPLOY_HOST/$port"; done
 
       - name: Publish sanitized live status
@@ -80,6 +97,7 @@ jobs:
           client="$(grep '^CLIENT_VERSION=' /tmp/live-status.txt | cut -d= -f2-)"
           launcher="$(grep '^LAUNCHER_VERSION=' /tmp/live-status.txt | cut -d= -f2-)"
           count="$(grep '^MANAGED_COUNT=' /tmp/live-status.txt | cut -d= -f2-)"
+          xml_count="$(grep '^XML_COUNT=' /tmp/live-status.txt | cut -d= -f2-)"
           cat > docs/LIVE_RELEASE_STATUS.md <<EOF
           # EverLeaf Live Release Status
 
@@ -90,11 +108,14 @@ jobs:
           - Client patch manifest version: \`$client\`
           - Launcher version: \`$launcher\`
           - Managed client files: \`$count/36\`
+          - Canonical server WZ XML files: \`$xml_count\`
+          - Future Henesys / Empress representative assets: passed
+          - Ninja Castle maps / mobs / NPCs / quests 8163-8171: passed
           - Game service: active
           - Internal channel verifier: passed
           - Public login + CH1-CH20 ports: passed
-          - Public launcher download: passed
-          - Public client patch endpoints: passed
+          - Public launcher manifest/download: passed
+          - Public client patch endpoints including Quest.wz: passed
           EOF
           git config user.name everleaf-release-bot
           git config user.email 173628847+iampolicy@users.noreply.github.com
