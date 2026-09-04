@@ -7,10 +7,36 @@ namespace EverLeafEarlyHooks {
 namespace detail {
 
 static decltype(&CreateWindowExA) gCreateWindowExAOriginal = &CreateWindowExA;
-static WSPStartup_t gWSPStartupOriginal =
-    reinterpret_cast<WSPStartup_t>(GetFuncAddress("MSWSOCK", "WSPStartup"));
+static WSPStartup_t gWSPStartupOriginal = nullptr;
+static HMODULE gMswsockModule = nullptr;
 static sockaddr_in gOriginalGameEndpoint = {};
 static bool gHaveOriginalGameEndpoint = false;
+
+inline bool ResolveWSPStartupOnWorker() {
+    if (gWSPStartupOriginal) {
+        return true;
+    }
+
+    // This function is called by InstallEarlyHooks on Client v2's bootstrap
+    // worker, never from global initialization or DllMain. LoadLibrary is safe
+    // here and keeps mswsock loaded for the lifetime of the detoured target.
+    HMODULE module = GetModuleHandleA("mswsock.dll");
+    if (!module) {
+        module = LoadLibraryA("mswsock.dll");
+    }
+    if (!module) {
+        return false;
+    }
+
+    FARPROC proc = GetProcAddress(module, "WSPStartup");
+    if (!proc) {
+        return false;
+    }
+
+    gMswsockModule = module;
+    gWSPStartupOriginal = reinterpret_cast<WSPStartup_t>(proc);
+    return true;
+}
 
 inline bool IsNamedWindowClass(LPCSTR className, const char* expected) {
     if (!className || IS_INTRESOURCE(className) || !expected) {
@@ -40,8 +66,6 @@ inline HWND WINAPI CreateWindowExA_Hook(
     HINSTANCE hInstance,
     LPVOID lpParam) {
 
-    // lpClassName may legally be MAKEINTATOM(...). Never pass an atom/low-value
-    // pointer to C string routines.
     if (IsNamedWindowClass(lpClassName, "MapleStoryClass")) {
         dwStyle |= WS_MINIMIZEBOX;
         return gCreateWindowExAOriginal(
@@ -90,10 +114,7 @@ inline INT WSPAPI WSPConnect_Hook(
 
     const sockaddr* forwardedName = name;
     sockaddr_in redirected = {};
-    bool redirectedLogin = false;
 
-    // Do not mutate the caller-owned const sockaddr and do not depend on text
-    // conversion or a scratch buffer just to identify three fixed IPv4 endpoints.
     if (name && namelen >= static_cast<int>(sizeof(sockaddr_in)) &&
         name->sa_family == AF_INET) {
         const sockaddr_in* endpoint = reinterpret_cast<const sockaddr_in*>(name);
@@ -103,12 +124,11 @@ inline INT WSPAPI WSPConnect_Hook(
             gHaveOriginalGameEndpoint = true;
             redirected.sin_addr.S_un.S_addr = inet_addr(MainMain::m_sRedirectIP);
             forwardedName = reinterpret_cast<const sockaddr*>(&redirected);
-            redirectedLogin = true;
             MainMain::m_GameSock = s;
         }
     }
 
-    const INT result = MainMain::m_ProcTable.lpWSPConnect(
+    return MainMain::m_ProcTable.lpWSPConnect(
         s,
         forwardedName,
         namelen,
@@ -117,12 +137,6 @@ inline INT WSPAPI WSPConnect_Hook(
         lpSQOS,
         lpGQOS,
         lpErrno);
-
-    // Keep the same asynchronous-connect tracking behavior as the inherited
-    // hook. A provider may return SOCKET_ERROR/WSAEWOULDBLOCK while connection
-    // establishment is still valid, so do not clear m_GameSock here.
-    (void)redirectedLogin;
-    return result;
 }
 
 inline INT WSPAPI WSPGetPeerName_Hook(
@@ -174,7 +188,6 @@ inline INT WSPAPI WSPStartup_Hook(
         lpProcTable);
 
     if (result != NO_ERROR) {
-        // Numeric stream insertion; never pointer arithmetic on a string literal.
         std::cout << "EverLeaf Client v2: WSPStartup error code: " << result << std::endl;
         return result;
     }
@@ -208,6 +221,9 @@ inline bool HookCreateWindowExA(bool enable) {
 }
 
 inline bool HookWSPStartup(bool enable) {
+    if (enable && !detail::ResolveWSPStartupOnWorker()) {
+        return false;
+    }
     if (!detail::gWSPStartupOriginal) {
         return false;
     }
