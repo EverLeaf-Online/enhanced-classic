@@ -1,14 +1,13 @@
 package soloMapling.ArtificialPlayer.BotAttackSystem;
 
+import client.Character;
 import client.Job;
+import client.inventory.WeaponType;
 
 /*
- * Original fixed-damage attack profile; the attack-plan concept is inspired by GreenCatMS. Credit: NutNNut for the idea.
- * One bot attack: its route, the skill that renders, how many mobs/lines it hits, its reach box,
- * and timing. Pure data - build them with the per-route factories (melee/meleeAoe/magic/ranged/...)
- * so reach/cooldown defaults stay in one place. Per-line damage is NOT a property of the profile;
- * it comes from the bot's job tier + level via BotDamageModel (see rollDamage). altSkillId covers
- * warrior skills with a second weapon form (sword vs axe, spear vs pole-arm).
+ * One bot attack: route, skill, mob/line count, reach and timing. Damage is deliberately not a
+ * fixed profile constant: BotDamageModel derives each line from the synthetic Character's real
+ * EverLeaf stats/equipment and the learned WZ skill effect.
  */
 public final class BotAttackProfile {
 
@@ -86,47 +85,32 @@ public final class BotAttackProfile {
         return new BotAttackProfile(Route.MAGIC, AOE_MOBS, lines, 450, 210, 900, (short) 380, MELEE_SPEED, skill, 0);
     }
 
-    public int skillFor(client.inventory.WeaponType weapon) {
+    public int skillFor(WeaponType weapon) {
         return (altSkillId != 0 && BotAttackData.usesAltWarriorVariant(weapon)) ? altSkillId : skillId;
     }
 
-    public int rollDamage(int level, Job job) {
-        return BotDamageModel.rollLine(jobTier(job), level, numDamage);
+    public int rollDamage(Character bot, WeaponType weapon) {
+        return BotDamageModel.rollLine(bot, this, weapon);
     }
 
-    /**
-     * Cosmic's Job enum in EverLeaf predates SoloMapling's getJobTier() helper, so derive
-     * the same 0..4 combat tier from the canonical v83 job ids.  Cygnus/Aran follow the
-     * same x100/x10/final-digit progression; Evan's ten mastery stages are grouped into
-     * four practical damage tiers.  GM jobs are treated as fourth-job for QA smoke damage.
-     */
+    /** Retained as a compatibility/test helper for class-tier diagnostics; damage no longer uses it. */
     static int jobTier(Job job) {
-        if (job == null) {
-            return 0;
-        }
+        if (job == null) return 0;
 
         int id = job.getId();
-        if (job == Job.GM || job == Job.SUPERGM || job == Job.MAPLELEAF_BRIGADIER) {
-            return 4;
-        }
-        if (job == Job.BEGINNER || job == Job.NOBLESSE || job == Job.LEGEND || job == Job.EVAN) {
-            return 0;
-        }
+        if (job == Job.GM || job == Job.SUPERGM || job == Job.MAPLELEAF_BRIGADIER) return 4;
+        if (job == Job.BEGINNER || job == Job.NOBLESSE || job == Job.LEGEND || job == Job.EVAN) return 0;
 
-        // Evan mastery stages: 2200, 2210..2218.
         if (id == 2200) return 1;
         if (id >= 2210 && id <= 2212) return 2;
         if (id >= 2213 && id <= 2215) return 3;
         if (id >= 2216 && id <= 2218) return 4;
 
-        // Ordinary, Cygnus and Aran families all encode advancement depth in the
-        // trailing digits: x00 first, xx10 second, xx11 third, xx12 fourth.
         int lastTwo = id % 100;
         if (lastTwo == 0) return 1;
         if (lastTwo % 10 == 0) return 2;
         if (lastTwo % 10 == 1) return 3;
         if (lastTwo % 10 == 2) return 4;
-
         return 1;
     }
 }
