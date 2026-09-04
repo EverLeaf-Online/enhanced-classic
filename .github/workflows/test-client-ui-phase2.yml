@@ -1,0 +1,143 @@
+name: Test EverLeaf client UI phase 2
+
+on:
+  push:
+    branches: [feature/client-ui-selector-phase2-20260904]
+    paths:
+      - 'client/branding/login/generate_flow_art.py'
+      - 'client/tools/login-wz-patcher/**'
+      - 'client/ezorsia/**'
+      - 'client/scripts/apply-ui-modernization.py'
+      - '.github/workflows/test-client-ui-phase2.yml'
+  pull_request:
+    branches: [release-dev]
+    paths:
+      - 'client/branding/login/generate_flow_art.py'
+      - 'client/tools/login-wz-patcher/**'
+      - 'client/ezorsia/**'
+      - 'client/scripts/apply-ui-modernization.py'
+      - '.github/workflows/test-client-ui-phase2.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_PUBLIC_BASE: https://everleafms.online
+  LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+
+jobs:
+  build-ui-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - name: Generate flow artwork
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user --disable-pip-version-check pillow
+          python3 client/branding/login/generate_flow_art.py --output "$RUNNER_TEMP/flow-art"
+      - name: Build source-pinned WZ tools
+        run: |
+          set -euo pipefail
+          git clone --recurse-submodules https://github.com/toyobayashi/libwz.git "$RUNNER_TEMP/libwz"
+          git -C "$RUNNER_TEMP/libwz" checkout "$LIBWZ_COMMIT"
+          git -C "$RUNNER_TEMP/libwz" submodule update --init --recursive
+          cmake -S client/tools/login-wz-patcher -B "$RUNNER_TEMP/wz-build" \
+            -DLIBWZ_SOURCE="$RUNNER_TEMP/libwz" -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXE_LINKER_FLAGS="-static -static-libstdc++ -static-libgcc"
+          cmake --build "$RUNNER_TEMP/wz-build" --config Release -j2
+          test -x "$RUNNER_TEMP/wz-build/everleaf-login-flow-ui"
+      - name: Build and reparse UI candidate
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4 --retry-delay 3 --max-time 240 \
+            "$EVERLEAF_PUBLIC_BASE/patches/UI.wz" -o "$RUNNER_TEMP/UI.wz.live"
+          "$RUNNER_TEMP/wz-build/everleaf-login-flow-ui" \
+            "$RUNNER_TEMP/UI.wz.live" "$RUNNER_TEMP/flow-art" "$RUNNER_TEMP/UI.wz.phase2"
+          test -s "$RUNNER_TEMP/UI.wz.phase2"
+          old="$(sha256sum "$RUNNER_TEMP/UI.wz.live" | awk '{print $1}')"
+          new="$(sha256sum "$RUNNER_TEMP/UI.wz.phase2" | awk '{print $1}')"
+          test "$old" != "$new"
+          printf 'old=%s\nnew=%s\n' "$old" "$new" | tee "$RUNNER_TEMP/UI_PHASE2_HASHES.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-ui-phase2-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/UI.wz.phase2
+            ${{ runner.temp }}/UI_PHASE2_HASHES.txt
+          retention-days: 7
+
+  windows-client-boot:
+    needs: build-ui-candidate
+    runs-on: windows-2025
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v5
+      - uses: microsoft/setup-msbuild@v2
+      - uses: actions/download-artifact@v4
+        with:
+          name: everleaf-ui-phase2-${{ github.sha }}
+          path: ${{ runner.temp }}/phase2
+      - name: Build branch client DLL
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python client/scripts/apply-ui-modernization.py
+          python client/scripts/apply-community-ui-preference.py
+          msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+          if(-not (Test-Path 'client/ezorsia/out/Release/dinput8.dll')){ throw 'dinput8.dll missing' }
+      - name: Reconstruct managed client with phase 2 UI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $client=Join-Path $env:RUNNER_TEMP 'everleaf-ui-phase2-client'
+          New-Item -ItemType Directory -Force -Path $client | Out-Null
+          $baseline=Get-Content client/managed-client-baseline.json -Raw | ConvertFrom-Json
+          foreach($entry in @($baseline.managedFiles)){
+            $name=[string]$entry.path
+            if($name -notmatch '^[A-Za-z0-9_.-]+$'){ throw "Unsafe path $name" }
+            $dest=Join-Path $client $name
+            $ok=$false
+            for($attempt=1;$attempt -le 5 -and -not $ok;$attempt++){
+              try {
+                Invoke-WebRequest -Uri "$env:EVERLEAF_PUBLIC_BASE/patches/$name" -OutFile $dest -MaximumRedirection 5 -TimeoutSec 180 -UseBasicParsing
+                if((Test-Path $dest) -and (Get-Item $dest).Length -gt 0){$ok=$true}
+              } catch {
+                Remove-Item $dest -Force -ErrorAction SilentlyContinue
+                if($attempt -eq 5){throw}
+                Start-Sleep -Seconds (3*$attempt)
+              }
+            }
+            if(-not $ok){throw "Unable to download $name"}
+          }
+          Copy-Item "$env:RUNNER_TEMP/phase2/UI.wz.phase2" (Join-Path $client 'UI.wz') -Force
+          Copy-Item 'client/ezorsia/out/Release/dinput8.dll' (Join-Path $client 'dinput8.dll') -Force
+          Copy-Item 'client/ezorsia/ezorsia/config.ini' (Join-Path $client 'config.ini') -Force
+          "CLIENT_DIR=$client" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Block network and boot exact phase 2 client
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $exe=[IO.Path]::GetFullPath((Join-Path $env:CLIENT_DIR 'EverLeaf.exe'))
+          $rule="EverLeaf-ui-phase2-$env:GITHUB_RUN_ID"
+          $launched=$null; $matching=@(); $started=Get-Date
+          try {
+            New-NetFirewallRule -DisplayName $rule -Direction Outbound -Program $exe -Action Block -Profile Any | Out-Null
+            $launched=Start-Process -FilePath $exe -WorkingDirectory $env:CLIENT_DIR -PassThru
+            Start-Sleep -Seconds 15
+            $matching=@(Get-CimInstance Win32_Process -Filter "Name='EverLeaf.exe'" -ErrorAction SilentlyContinue | Where-Object {
+              try { [IO.Path]::GetFullPath([string]$_.ExecutablePath) -eq $exe } catch { $false }
+            })
+            if($matching.Count -eq 0){
+              $launched.Refresh(); $exit=if($launched.HasExited){$launched.ExitCode}else{'<unknown>'}
+              $recent=Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=$started} -ErrorAction SilentlyContinue |
+                Where-Object { $_.LevelDisplayName -eq 'Error' -and $_.Message -match 'EverLeaf|MapleStory' } |
+                Select-Object -First 8 TimeCreated,Id,ProviderName,Message
+              throw "No isolated EverLeaf.exe survived 15-second phase2 boot. exit=$exit`n$($recent|Format-List|Out-String)"
+            }
+            Write-Host "EVERLEAF_UI_PHASE2_BOOT_PASS processes=$($matching.Count) ui=$((Get-FileHash (Join-Path $env:CLIENT_DIR 'UI.wz') -Algorithm SHA256).Hash.ToLowerInvariant())"
+          } finally {
+            foreach($proc in $matching){ Stop-Process -Id ([int]$proc.ProcessId) -Force -ErrorAction SilentlyContinue }
+            if($launched -and -not $launched.HasExited){ Stop-Process -Id $launched.Id -Force -ErrorAction SilentlyContinue }
+            Remove-NetFirewallRule -DisplayName $rule -ErrorAction SilentlyContinue
+          }
