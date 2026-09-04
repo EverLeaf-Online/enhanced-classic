@@ -1,20 +1,16 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
-const ejs = require("ejs");
 
-test("primary navigation links directly to the official Discord server", async () => {
-  const html = await ejs.renderFile(
-    path.join(__dirname, "../src/views/partials/header.ejs"),
-    {
-      title: "Test",
-      brand: { name: "EverLeaf", discordUrl: "https://discord.gg/w9ED8vtxa7" },
-      currentPath: "/",
-      player: null,
-    },
-  );
+const root = path.join(__dirname, "..");
+const home = fs.readFileSync(path.join(root, "src/views/home.ejs"), "utf8");
+const footer = fs.readFileSync(path.join(root, "src/views/partials/footer.ejs"), "utf8");
+const header = fs.readFileSync(path.join(root, "src/views/partials/header.ejs"), "utf8");
 
-  assert.match(html, /href="https:\/\/discord\.gg\/w9ED8vtxa7"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*>DISCORD<\/a>/);
-  assert.doesNotMatch(html, />COMMUNITY<\/a>/);
-  assert.doesNotMatch(html, /href="\/community"/);
+test("Discord remains accessible without restoring the removed top navigation", () => {
+  assert.doesNotMatch(header, /terminalNav|mobileMenu|worldRibbon|terminalRibbon/);
+  assert.match(home, /href="<%=brand\.discordUrl%>" target="_blank" rel="noopener noreferrer">DISCORD ↗<\/a>/);
+  assert.match(footer, /href="<%=brand\.discordUrl%>" target="_blank" rel="noopener noreferrer">DISCORD ↗<\/a>/);
+  assert.doesNotMatch(header, /href="\/community"/);
 });

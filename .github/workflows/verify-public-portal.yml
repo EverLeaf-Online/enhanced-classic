@@ -58,6 +58,19 @@ jobs:
           grep -Fq 'legacy scallop/ribbon/cloud decoration' <<<"$UNIFIED_CSS"
 
           HOME_HTML="$(curl --fail --silent --show-error --location --max-time 30 "$BASE/")"
+          grep -Fq 'class="signalStrip"' <<<"$HOME_HTML"
+          if grep -Fq 'terminalNav' <<<"$HOME_HTML"; then
+            echo 'Removed top navigation is still present on homepage.' >&2
+            exit 1
+          fi
+          if grep -Fq 'worldRibbon' <<<"$HOME_HTML"; then
+            echo 'Removed top utility ribbon is still present on homepage.' >&2
+            exit 1
+          fi
+          if grep -Fq 'terminalHome' <<<"$HOME_HTML"; then
+            echo 'Removed homepage content sections are still present.' >&2
+            exit 1
+          fi
           if grep -Fqi 'CHOOSE YOUR SIGNAL' <<<"$HOME_HTML"; then
             echo 'Removed class signal block is still present on homepage.' >&2
             exit 1
@@ -76,4 +89,4 @@ jobs:
           NOT_FOUND="$(curl --silent --show-error --max-time 30 "$BASE/this-route-should-not-exist-everleaf-portal" || true)"
           grep -Fq 'Map not found.' <<<"$NOT_FOUND"
 
-          echo 'EverLeaf unified public portal route verification passed.'
+          echo 'EverLeaf simplified public portal route verification passed.'

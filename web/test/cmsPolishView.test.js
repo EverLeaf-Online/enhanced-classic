@@ -5,13 +5,14 @@ const path = require("node:path");
 
 const root = path.join(__dirname,"..");
 const header = fs.readFileSync(path.join(root,"src/views/partials/header.ejs"),"utf8");
+const home = fs.readFileSync(path.join(root,"src/views/home.ejs"),"utf8");
 const account = fs.readFileSync(path.join(root,"src/views/account.ejs"),"utf8");
 const admin = fs.readFileSync(path.join(root,"src/views/admin.ejs"),"utf8");
 
-test("logged-in account navigation remains a mobile-visible button",()=>{
-  assert.match(header,/accountNav/);
-  assert.match(header,/href="\/account">ACCOUNT<\/a>/);
-  assert.match(header,/btn small ghost accountNav/);
+test("account access moves out of the removed top navigation",()=>{
+  assert.doesNotMatch(header,/accountNav|terminalNav|mobileMenu/);
+  assert.match(home,/href="<%=sessionPlayer\?'\/account':'\/login'%>"/);
+  assert.match(home,/sessionPlayer\?'ACCOUNT':'LOGIN'/);
 });
 
 test("account dashboard exposes the main player actions",()=>{

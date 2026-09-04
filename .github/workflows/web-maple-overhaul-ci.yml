@@ -55,9 +55,17 @@ jobs:
           ! grep -q 'full-site-portal-2026.css' src/views/partials/header.ejs
           ! grep -q 'visuals-2026.css' src/views/partials/header.ejs
           ! grep -q 'full-site-portal-2026.css' public/js/site.js
+          ! grep -q 'terminalNav' src/views/partials/header.ejs
+          ! grep -q 'worldRibbon' src/views/partials/header.ejs
           grep -q 'terminalHero' src/views/home.ejs
           grep -q 'everleafArtifact' src/views/home.ejs
           grep -q 'heroTelemetry' src/views/home.ejs
+          grep -q 'signalStrip' src/views/home.ejs
+          ! grep -q 'terminalHome' src/views/home.ejs
+          ! grep -q 'dossierSection' src/views/home.ejs
+          ! grep -q 'entrySection' src/views/home.ejs
+          ! grep -q 'dataSection' src/views/home.ejs
+          ! grep -q 'finalTransmission' src/views/home.ejs
           ! grep -qi 'CHOOSE YOUR SIGNAL' src/views/home.ejs
           ! grep -qi 'KNOW THE WORLD' src/views/home.ejs
           grep -q '/assets/ui/recovery.svg' src/views/help.ejs

@@ -35,13 +35,13 @@ test('one shared terminal shell is loaded after the base styles', () => {
   assert.match(header, /theme-color" content="#12130f"/);
   assert.match(header, /color-scheme" content="dark"/);
   assert.doesNotMatch(header, /game-portal-2026\.css|full-site-portal-2026\.css|visuals-2026\.css/);
+  assert.doesNotMatch(header, /terminalNav|worldRibbon|mobileMenu/);
   assert.doesNotMatch(siteJs, /full-site-portal-2026\.css/);
 });
 
-test('new system deliberately covers the homepage and major shared surfaces', () => {
+test('new system deliberately covers the simplified homepage and major shared surfaces', () => {
   for (const selector of [
-    '.terminalHero', '.terminalNav', '.signalStrip', '.dossierSection',
-    '.entrySection', '.dataSection', '.lightPage', '.authWrap',
+    '.terminalHero', '.signalStrip', '.lightPage', '.authWrap',
     '.rankingTable', '.wikiSearch', '.terminalFooter'
   ]) assert.ok(css.includes(selector), `missing terminal redesign coverage for ${selector}`);
 
@@ -51,8 +51,11 @@ test('new system deliberately covers the homepage and major shared surfaces', ()
     'body.route-rankings .rankingStats', 'body.route-wiki .wikiShell'
   ]) assert.ok(unified.includes(selector), `missing unified shell coverage for ${selector}`);
 
-  for(const token of ['terminalHero','everleafArtifact','heroTelemetry','dataSplit','finalTransmission']) {
+  for(const token of ['terminalHero','everleafArtifact','heroTelemetry','signalStrip']) {
     assert.ok(home.includes(token), `homepage should include ${token}`);
+  }
+  for(const token of ['terminalHome','dossierSection','entrySection','dataSection','dataSplit','finalTransmission']) {
+    assert.ok(!home.includes(token), `homepage should not include removed ${token}`);
   }
   assert.doesNotMatch(home, /classMatrix|wikiSignalSection|CHOOSE YOUR SIGNAL|KNOW THE WORLD/i);
 });

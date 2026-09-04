@@ -66,66 +66,9 @@
 <body class="siteRoute route-<%=routeKey%><%=isAdminPath?' route-admin':''%>">
 <a class="skipLink" href="#main-content">Skip to content</a>
 <%
-  const navLinks=[
-    {href:"/",label:"HOME",index:"01"},
-    {href:"/news",label:"JOURNAL",index:"02"},
-    {href:"/downloads",label:"DOWNLOAD",index:"03"},
-    {href:"/rankings",label:"RANKINGS",index:"04"},
-    {href:"/wiki",label:"WIKI",index:"05"},
-    {href:brand.discordUrl,label:"DISCORD",index:"06",external:true},
-    {href:"/help",label:"HELP",index:"07"}
-  ];
   const maintenance=(typeof settings!=='undefined'&&settings&&String(settings.maintenance_message||'').trim())||'';
   const fallbackAnnouncement=(typeof settings!=='undefined'&&settings&&String(settings.announcement||'').trim())||'';
 %>
-<div class="worldRibbon terminalRibbon">
-  <div class="wrap terminalRibbonInner">
-    <span class="worldSignal"><i aria-hidden="true"></i><strong>EVERLEAF WORLD</strong><span>ENHANCED CLASSIC v83</span></span>
-    <nav aria-label="Utility links">
-      <a href="/vote">VOTE / NX</a>
-      <a href="/rules">RULES</a>
-      <a href="/terms">TERMS</a>
-      <% if(typeof player!=='undefined'&&player&&player.isAdmin){ %><a href="/admin">STAFF CMS</a><% } %>
-    </nav>
-  </div>
-</div>
-<nav class="nav terminalNav" aria-label="Primary navigation">
-  <div class="wrap navin terminalNavInner">
-    <a class="brand terminalBrand" href="/" aria-label="EverLeaf home">
-      <span class="terminalLeaf" aria-hidden="true"></span>
-      <span class="terminalBrandCopy"><strong>EVERLEAF</strong><small>MAPLE WORLD / 083</small></span>
-    </a>
-    <div class="links desktopLinks terminalLinks">
-      <% navLinks.forEach(({href,label,index,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
-        <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><% if(external){ %><%=label%><% }else{ %><span><%=index%></span><%=label%><% } %></a>
-      <% }) %>
-    </div>
-    <div class="navActions terminalNavActions">
-      <% if(typeof player!=='undefined'&&player){ %>
-        <a class="btn small ghost accountNav" href="/account">ACCOUNT</a>
-      <% }else{ %>
-        <a class="btn small ghost" href="/login">LOGIN</a>
-        <a class="btn small primary" href="/register">PLAY FREE</a>
-      <% } %>
-    </div>
-    <details class="mobileMenu terminalMobileMenu">
-      <summary aria-label="Open navigation" aria-controls="mobile-navigation" aria-expanded="false">MENU <span aria-hidden="true">＋</span></summary>
-      <div id="mobile-navigation" class="mobileMenuPanel">
-        <% navLinks.forEach(({href,label,index,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
-          <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><% if(external){ %><%=label%><% }else{ %><span><%=index%></span><%=label%><% } %></a>
-        <% }) %>
-        <div class="mobileAuth">
-          <% if(typeof player!=='undefined'&&player){ %>
-            <a class="btn primary accountNav" href="/account">ACCOUNT</a>
-          <% }else{ %>
-            <a class="btn ghost" href="/login">LOGIN</a>
-            <a class="btn primary" href="/register">PLAY FREE</a>
-          <% } %>
-        </div>
-      </div>
-    </details>
-  </div>
-</nav>
 <% if(maintenance){ %>
   <div role="status" class="siteBanner maintenanceBanner"><div class="wrap"><strong>MAINTENANCE</strong><span><%=maintenance%></span></div></div>
 <% } else if(typeof activeAnnouncement!=='undefined'&&activeAnnouncement){ %>
