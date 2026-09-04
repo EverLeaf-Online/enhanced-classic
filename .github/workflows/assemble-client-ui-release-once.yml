@@ -58,6 +58,16 @@ jobs:
           if 'everleaf-selector-runtime.txt' in s or 'selectorDump' in s:
               raise SystemExit('selector runtime dump survived cleanup')
           p.write_text(s, encoding='utf-8', newline='\n')
+          for name in [
+              'client/ezorsia/ezorsia/Client.cpp',
+              'client/ezorsia/ezorsia/Client.h',
+              'client/ezorsia/ezorsia/MainMain.cpp',
+              'client/ezorsia/ezorsia/dllmain.cpp',
+          ]:
+              q = Path(name)
+              text = q.read_text(encoding='utf-8')
+              text = '\n'.join(line.rstrip() for line in text.splitlines()) + '\n'
+              q.write_text(text, encoding='utf-8', newline='\n')
           PY
           rm -f .github/workflows/assemble-client-ui-release-once.yml
           if find .github/workflows -maxdepth 1 -type f -name '*client*ui*once*.yml' | grep -q .; then
