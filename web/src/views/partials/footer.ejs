@@ -1,1 +1,30 @@
-</div><% const footerYear=(typeof year!=='undefined'&&year)?year:new Date().getFullYear(); const footerSettings=(typeof settings!=='undefined'&&settings)?settings:{}; %><footer class="siteFooter"><div class="wrap footerGrid"><div class="footerBrand"><a class="brandImage footerLogo" href="/"><img src="/assets/everleaf-remaster.svg" alt="EverLeaf Enhanced Classic"></a><p>A community-first MapleStory v83 world built around recognizable progression, thoughtful quality-of-life, fair systems, and a long road worth sharing.</p></div><div class="footerCol"><strong>Maple World</strong><a href="/news">World Journal</a><a href="/downloads">Download</a><a href="/rankings">Rankings</a><a href="/wiki">EverLeaf Wiki</a></div><div class="footerCol"><strong>Community</strong><a href="<%=brand.discordUrl%>" target="_blank" rel="noopener noreferrer">Discord</a><a href="/help">Player Help</a><a href="/about">About EverLeaf</a><a href="/rules">Rules</a></div><div class="footerCol"><strong>Account</strong><% if(typeof player!=='undefined'&&player){ %><a href="/account">My Account</a><a href="/recover">Account Recovery</a><% }else{ %><a href="/login">Login</a><a href="/register">Create Account</a><a href="/recover">Account Recovery</a><% } %><a href="/terms">Terms</a></div></div><div class="wrap footerBottom"><span>© <%=footerYear%> EverLeaf · Enhanced Classic v83</span><span><%=footerSettings.footer_note||'EverLeaf is a fan-made private server and is not affiliated with Nexon.'%></span></div></footer></body></html>
+</div>
+<%
+  const footerYear=(typeof year!=="undefined"&&year)?year:new Date().getFullYear();
+  const footerSettings=(typeof settings!=="undefined"&&settings)?settings:{};
+%>
+<footer class="siteFooter">
+  <div class="terminalFooter">
+    <div>
+      <div class="terminalFooterBrand">EVERLEAF//MS</div>
+      <div class="terminalFooterMeta"><span>ENHANCED CLASSIC V83</span><span>© <%=footerYear%> EVERLEAF</span></div>
+    </div>
+    <div class="terminalFooterMeta">
+      <span>PUBLIC WORLD TERMINAL // EVERLEAFMS.ONLINE</span>
+      <span><%=footerSettings.footer_note||'Fan-made private server. Not affiliated with Nexon.'%></span>
+    </div>
+    <nav class="terminalFooterLinks" aria-label="Footer links">
+      <a href="/news">World Log</a>
+      <a href="/downloads">Client</a>
+      <a href="/rankings">Hall</a>
+      <a href="/wiki">Data</a>
+      <a href="/help">Help</a>
+      <% if(typeof player!=="undefined"&&player){ %><a href="/account">Account</a><% } else { %><a href="/login">Login</a><a href="/register">Register</a><% } %>
+      <a href="/rules">Rules</a>
+      <a href="/terms">Terms</a>
+      <a href="<%=brand.discordUrl%>" target="_blank" rel="noopener noreferrer">Discord</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
