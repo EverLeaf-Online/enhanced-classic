@@ -30,6 +30,21 @@ import net.packet.InPacket;
 import tools.PacketCreator;
 
 public final class CreateCharHandler extends AbstractPacketHandler {
+    static final int TYPE_CYGNUS = 0;
+    static final int TYPE_EXPLORER = 1;
+    static final int TYPE_ARAN = 2;
+    static final int TYPE_EVAN = 3;
+
+    /**
+     * Server-side capability gate for the character-family selector.
+     *
+     * <p>The modernized client is allowed to display future families as locked previews, but
+     * modified clients must never be able to create one before its complete server/WZ/runtime
+     * implementation is enabled here.</p>
+     */
+    static boolean isSupportedCharacterType(int type) {
+        return type == TYPE_CYGNUS || type == TYPE_EXPLORER || type == TYPE_ARAN || type == TYPE_EVAN;
+    }
 
     @Override
     public void handlePacket(InPacket p, Client c) {
@@ -47,21 +62,27 @@ public final class CreateCharHandler extends AbstractPacketHandler {
         int weapon = p.readInt();
         int gender = p.readByte();
 
+        if (!isSupportedCharacterType(job)) {
+            c.sendPacket(PacketCreator.deleteCharResponse(0, 9));
+            return;
+        }
+
         int status;
         switch (job) {
-        case 0: // Knights of Cygnus
+        case TYPE_CYGNUS:
             status = NoblesseCreator.createCharacter(c, name, face, hair + haircolor, skincolor, top, bottom, shoes, weapon, gender);
             break;
-        case 1: // Adventurer
+        case TYPE_EXPLORER:
             status = BeginnerCreator.createCharacter(c, name, face, hair + haircolor, skincolor, top, bottom, shoes, weapon, gender);
             break;
-        case 2: // Aran
+        case TYPE_ARAN:
             status = LegendCreator.createCharacter(c, name, face, hair + haircolor, skincolor, top, bottom, shoes, weapon, gender);
             break;
-        case 3: // Evan (v84 selector backported to v83 client)
+        case TYPE_EVAN:
             status = EvanCreator.createCharacter(c, name, face, hair + haircolor, skincolor, top, bottom, shoes, weapon, gender);
             break;
         default:
+            // Defensive only: isSupportedCharacterType already rejects every other value.
             c.sendPacket(PacketCreator.deleteCharResponse(0, 9));
             return;
         }

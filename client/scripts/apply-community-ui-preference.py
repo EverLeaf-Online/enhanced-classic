@@ -4,10 +4,12 @@ TARGET = Path("client/ezorsia/ezorsia/MainMain.cpp")
 
 
 def replace_once(text: str, old: str, new: str) -> str:
+    # Safe for repeated CI/package application. Several replacements keep the
+    # old marker inside the new text, so prefer the complete replacement check.
+    if new in text:
+        return text
     count = text.count(old)
     if count == 0:
-        if new in text:
-            return text
         raise SystemExit(f"Missing expected client source marker:\n{old}")
     if count != 1:
         raise SystemExit(f"Expected one source marker, found {count}:\n{old}")
