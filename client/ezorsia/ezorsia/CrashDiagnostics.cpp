@@ -6,8 +6,35 @@
 #include <cstdint>
 
 namespace {
-constexpr wchar_t kDiagnosticsPath[] = L"EverLeafClient.log";
+constexpr wchar_t kDiagnosticsFileName[] = L"EverLeafClient.log";
+wchar_t gDiagnosticsPath[MAX_PATH] = L"EverLeafClient.log";
 std::atomic<const char*> gCurrentPhase{ "not-installed" };
+LPTOP_LEVEL_EXCEPTION_FILTER gPreviousExceptionFilter = nullptr;
+
+void ResolveDiagnosticsPath() {
+    wchar_t executablePath[MAX_PATH] = {};
+    const DWORD length = GetModuleFileNameW(nullptr, executablePath, MAX_PATH);
+    if (!length || length >= MAX_PATH) {
+        return;
+    }
+
+    wchar_t* slash = wcsrchr(executablePath, L'\\');
+    wchar_t* forwardSlash = wcsrchr(executablePath, L'/');
+    if (forwardSlash && (!slash || forwardSlash > slash)) {
+        slash = forwardSlash;
+    }
+
+    if (!slash) {
+        return;
+    }
+
+    *(slash + 1) = L'\0';
+    if (wcscat_s(executablePath, MAX_PATH, kDiagnosticsFileName) != 0) {
+        return;
+    }
+
+    wcsncpy_s(gDiagnosticsPath, MAX_PATH, executablePath, _TRUNCATE);
+}
 
 void AppendRaw(const char* text) {
     if (!text || !*text) {
@@ -15,7 +42,7 @@ void AppendRaw(const char* text) {
     }
 
     HANDLE file = CreateFileW(
-        kDiagnosticsPath,
+        gDiagnosticsPath,
         FILE_APPEND_DATA,
         FILE_SHARE_READ | FILE_SHARE_WRITE,
         nullptr,
@@ -113,15 +140,21 @@ LONG WINAPI EverLeafUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo) 
 
     AppendTimestamped("CRASH", details);
 
-    // Observe only. Preserve Windows/the client's normal crash handling instead
-    // of swallowing an access violation and attempting to continue corrupted state.
+    // We are an observer, not a replacement crash policy. Preserve any filter
+    // Maple/the runtime installed before Client v2 diagnostics, and otherwise
+    // let normal Windows unhandled-exception processing continue.
+    if (gPreviousExceptionFilter && gPreviousExceptionFilter != EverLeafUnhandledExceptionFilter) {
+        return gPreviousExceptionFilter(exceptionInfo);
+    }
     return EXCEPTION_CONTINUE_SEARCH;
 }
 }
 
 void CrashDiagnostics::Install() {
+    ResolveDiagnosticsPath();
+
     HANDLE file = CreateFileW(
-        kDiagnosticsPath,
+        gDiagnosticsPath,
         GENERIC_WRITE,
         FILE_SHARE_READ | FILE_SHARE_WRITE,
         nullptr,
@@ -140,7 +173,7 @@ void CrashDiagnostics::Install() {
     }
 
     gCurrentPhase.store("diagnostics-installed", std::memory_order_relaxed);
-    SetUnhandledExceptionFilter(EverLeafUnhandledExceptionFilter);
+    gPreviousExceptionFilter = SetUnhandledExceptionFilter(EverLeafUnhandledExceptionFilter);
     AppendTimestamped("START", "client diagnostics installed");
 }
 
