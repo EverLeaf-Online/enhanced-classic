@@ -1,0 +1,65 @@
+name: Audit embedded EverLeaf UI overlay once
+
+on:
+  push:
+    branches: [feature/client-job-selector-modernization-20260904]
+    paths: ['.github/workflows/audit-everleaf-ui-overlay-once.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/client-job-selector-modernization-20260904
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build exporter
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter'; New-Item -ItemType Directory -Force -Path $tool | Out-Null
+          Copy-Item tools/wz-donor/exporter/Program.cs (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup>
+            <ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafWzExporter.csproj')
+          dotnet build (Join-Path $tool 'EverLeafWzExporter.csproj') -c Release
+      - name: Export embedded overlay and report
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $input=Join-Path $env:RUNNER_TEMP 'overlay'; $out=Join-Path $env:RUNNER_TEMP 'overlay-xml'
+          New-Item -ItemType Directory -Force -Path $input,$out,docs | Out-Null
+          Copy-Item client/ezorsia/ezorsia/EzorsiaV2_UI.wz (Join-Path $input 'EverLeaf_UI.wz')
+          $proj=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter/EverLeafWzExporter.csproj'
+          & dotnet run --project $proj -c Release --no-build -- $input $out --patch-version=83 --probe-patch-range=1:250 EverLeaf_UI.wz
+          if ($LASTEXITCODE -ne 0) { throw 'Overlay export failed' }
+          $files=Get-ChildItem $out -Recurse -File -Filter '*.xml'
+          $lines=@('# Embedded EverLeaf UI overlay structure','',"- Source: `client/ezorsia/ezorsia/EzorsiaV2_UI.wz`", "- XML image count: $($files.Count)",'','## Images')
+          foreach($f in $files){ $lines += "- ``$($f.FullName.Substring($out.Length+1).Replace('\','/'))``" }
+          $login=$files | Where-Object {$_.Name -eq 'Login.img.xml'} | Select-Object -First 1
+          if($login){
+            $lines += ''; $lines += '## Login selector markers'
+            $xml=Get-Content $login.FullName -Raw
+            foreach($term in @('RaceSelect','Evan','Dual','Resistance','NewChar')){ $count=([regex]::Matches($xml,$term,'IgnoreCase')).Count; $lines += "- $term`: $count" }
+          }
+          $lines | Set-Content -Encoding utf8 docs/CLIENT_UI_OVERLAY_STRUCTURE.md
+          Get-Content docs/CLIENT_UI_OVERLAY_STRUCTURE.md
+      - name: Commit report
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name everleaf-client-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add docs/CLIENT_UI_OVERLAY_STRUCTURE.md
+          git commit -m 'docs: record embedded EverLeaf UI overlay structure'
+          git push origin HEAD:feature/client-job-selector-modernization-20260904
