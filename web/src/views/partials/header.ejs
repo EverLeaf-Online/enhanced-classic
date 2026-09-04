@@ -16,15 +16,14 @@
   %>
   <title><%=pageTitle%></title>
   <meta name="description" content="<%=pageDescription%>">
-  <meta name="theme-color" content="#173f38">
-  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#12130f">
+  <meta name="color-scheme" content="dark">
   <meta name="application-name" content="<%=brand.name%>">
   <meta name="robots" content="<%=isAdminPath?'noindex,nofollow':'index,follow'%>">
   <link rel="canonical" href="<%=canonicalUrl%>">
   <link rel="icon" href="/assets/everleaf-remaster.svg" type="image/svg+xml">
   <% if(isHome){ %>
-    <link rel="preload" as="image" href="/assets/hero-forest.webp" type="image/webp">
-    <link rel="preload" as="image" href="/assets/visuals/hero-magic-overlay.svg" type="image/svg+xml">
+    <link rel="preload" as="image" href="/assets/hero-right.webp" type="image/webp">
   <% } %>
 
   <meta property="og:type" content="website">
@@ -62,7 +61,7 @@
   <link rel="stylesheet" href="/css/visuals-2026.css?v=1">
   <link rel="stylesheet" href="/css/game-portal-2026.css?v=1">
   <link rel="stylesheet" href="/css/full-site-portal-2026.css?v=1">
-  <link rel="stylesheet" href="/css/refero-everleaf-2026.css?v=1">
+  <link rel="stylesheet" href="/css/refero-everleaf-2026.css?v=2">
   <style id="everleaf-nav-cleanup">.nav::after{display:none!important;content:none!important;height:0!important;background:none!important}</style>
   <script src="/js/site.js?v=1" defer></script>
 </head>
@@ -81,12 +80,12 @@
 %>
 <div class="worldRibbon">
   <div class="wrap">
-    <span><strong>EVERLEAF WORLD</strong> · Enhanced Classic v83 · Community-first progression</span>
+    <span><strong>EVERLEAF WORLD</strong> · V83 · LIVE DATA · 20 CHANNELS</span>
     <nav aria-label="Utility links">
-      <a href="/vote">Vote for NX</a>
-      <a href="/rules">Rules</a>
-      <a href="/terms">Terms</a>
-      <% if(typeof player!=='undefined'&&player&&player.isAdmin){ %><a href="/admin">Staff CMS</a><% } %>
+      <a href="/vote">VOTE / NX</a>
+      <a href="/rules">RULES</a>
+      <a href="/terms">TERMS</a>
+      <% if(typeof player!=='undefined'&&player&&player.isAdmin){ %><a href="/admin">STAFF CMS</a><% } %>
     </nav>
   </div>
 </div>
