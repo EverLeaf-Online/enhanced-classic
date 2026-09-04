@@ -27,29 +27,84 @@ async function onlineCount() {
   return Number(rows[0]?.count || 0);
 }
 
-async function rankings(limit=50, jobRange=null) {
-  const db = getPool(), g = env.gameDb;
+function rankingWhere(g, { jobRanges=null, search="" }={}) {
+  const clauses = [
+    `COALESCE(c.${I(g.characterGm)},0)=0`,
+    `COALESCE(a.${I(g.accountBanned)},0)=0`
+  ];
   const params = [];
-  let jobClause = "";
-  if (jobRange) {
-    jobClause = `AND ${I(g.characterJob)} >= ? AND ${I(g.characterJob)} < ?`;
-    params.push(jobRange[0], jobRange[1]);
+  if (Array.isArray(jobRanges) && jobRanges.length) {
+    const ranges = [];
+    for (const range of jobRanges) {
+      if (!Array.isArray(range) || range.length !== 2) continue;
+      const start = Number(range[0]), end = Number(range[1]);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+      ranges.push(`(c.${I(g.characterJob)}>=? AND c.${I(g.characterJob)}<?)`);
+      params.push(start,end);
+    }
+    if (ranges.length) clauses.push(`(${ranges.join(" OR ")})`);
   }
-  const sql = `
-    SELECT
-      ${I(g.characterName)} name,
-      ${I(g.characterLevel)} level,
-      ${I(g.characterJob)} job,
-      ${I(g.characterFame)} fame,
-      ${I(g.characterExp)} exp
-    FROM ${I(g.charactersTable)}
-    WHERE COALESCE(${I(g.characterGm)},0) = 0 ${jobClause}
-    ORDER BY ${I(g.characterLevel)} DESC, ${I(g.characterExp)} DESC
-    LIMIT ?
+  const q = String(search || "").trim().slice(0,20);
+  if (q) {
+    clauses.push(`c.${I(g.characterName)} LIKE ? ESCAPE '\\'`);
+    const escaped = q.replace(/[\\%_]/g, char => `\\${char}`);
+    params.push(`%${escaped}%`);
+  }
+  return { sql: clauses.join(" AND "), params };
+}
+
+async function rankingPage({ limit=25, offset=0, jobRanges=null, search="" }={}) {
+  const db = getPool(), g = env.gameDb;
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 25));
+  const requestedOffset = Math.max(0, Number(offset) || 0);
+  const filter = rankingWhere(g,{jobRanges,search});
+  const from = `
+    FROM ${I(g.charactersTable)} c
+    INNER JOIN ${I(g.accountsTable)} a
+      ON a.${I(g.accountId)}=c.${I(g.characterAccountId)}
+    WHERE ${filter.sql}
   `;
-  params.push(Number(limit));
-  const [rows] = await db.query(sql, params);
-  return rows;
+  const [summaryRows] = await db.query(`
+    SELECT COUNT(*) count,
+           COALESCE(MAX(c.${I(g.characterLevel)}),0) maxLevel,
+           COALESCE(AVG(c.${I(g.characterLevel)}),0) avgLevel
+    ${from}
+  `, filter.params);
+  const total = Number(summaryRows[0]?.count || 0);
+  const maxOffset = total > 0 ? Math.floor((total-1)/safeLimit)*safeLimit : 0;
+  const safeOffset = Math.min(requestedOffset,maxOffset);
+  const params = [...filter.params,safeLimit,safeOffset];
+  const [rows] = await db.query(`
+    SELECT
+      c.${I(g.characterName)} name,
+      c.${I(g.characterLevel)} level,
+      c.${I(g.characterJob)} job,
+      c.${I(g.characterFame)} fame,
+      c.${I(g.characterExp)} exp
+    ${from}
+    ORDER BY c.${I(g.characterLevel)} DESC,
+             c.${I(g.characterExp)} DESC,
+             c.${I(g.characterFame)} DESC,
+             c.${I(g.characterName)} ASC
+    LIMIT ? OFFSET ?
+  `, params);
+  return {
+    rows,
+    total,
+    maxLevel:Number(summaryRows[0]?.maxLevel || 0),
+    avgLevel:Number(summaryRows[0]?.avgLevel || 0),
+    offset:safeOffset,
+    limit:safeLimit
+  };
+}
+
+async function rankings(limit=50, jobRange=null) {
+  const result = await rankingPage({
+    limit,
+    offset:0,
+    jobRanges:jobRange ? [jobRange] : null
+  });
+  return result.rows;
 }
 
 async function login(username, password) {
@@ -193,6 +248,7 @@ module.exports = {
   serverStatus,
   onlineCount,
   rankings,
+  rankingPage,
   login,
   register,
   accountCharacters,

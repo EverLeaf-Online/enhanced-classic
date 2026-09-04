@@ -10,11 +10,12 @@ const home=read('src/views/home.ejs');
 const css=read('public/css/home-polish.css');
 const {bySlug}=require('../src/services/wikiCatalog');
 
-test('homepage handbook is driven by curated wiki entries',()=>{
-  assert.match(publicRoute,/entries:wikiEntries, bySlug:wikiBySlug/);
+test('homepage handbook is driven by CMS-backed Wiki entries',()=>{
+  assert.match(publicRoute,/services\/wikiService/);
   assert.match(publicRoute,/featuredWikiSlugs/);
+  assert.match(publicRoute,/wiki\.getBySlug\(slug\)/);
   for(const slug of ['enhanced-classic','launcher-repair-updates','nx-reward-sources']){
-    assert.ok(bySlug.has(slug),`${slug} should exist in the Wiki catalog`);
+    assert.ok(bySlug.has(slug),`${slug} should exist in the Wiki seed catalog`);
     assert.match(publicRoute,new RegExp(slug));
   }
   assert.match(publicRoute,/featuredWiki,settings:settings\(\)/);
@@ -27,7 +28,8 @@ test('homepage handbook is driven by curated wiki entries',()=>{
   assert.match(css,/\.libraryFeatureStatus/);
 });
 
-test('sitemap exposes the Wiki hub and every structured article',()=>{
+test('sitemap exposes the Wiki hub and every published CMS article',()=>{
   assert.match(publicRoute,/staticPaths=\["\/","\/news","\/downloads","\/rankings","\/wiki"/);
+  assert.match(publicRoute,/const wikiEntries=wiki\.listPublished\(\)/);
   assert.match(publicRoute,/wikiEntries\.map\(entry=>\(\{loc:`\$\{siteUrl\}\/wiki\/\$\{encodeURIComponent\(entry\.slug\)\}`/);
 });
