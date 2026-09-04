@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const { z } = require("zod");
 const { db, settings } = require("../db/cms");
 const game = require("../services/gameService");
+const wiki = require("../services/wikiService");
 const env = require("../config/env");
 const jobName = require("../utils/jobs");
 const passwordPolicy = require("../utils/playerPasswordPolicy");
@@ -10,7 +11,6 @@ const supporter = require("../services/supporterService");
 const stripe = require("../services/stripeService");
 const discord = require("../services/discordService");
 const paypal = require("../services/paypalService");
-const { entries:wikiEntries, bySlug:wikiBySlug } = require("../services/wikiCatalog");
 
 const router = express.Router();
 const siteUrl = env.payments.publicBaseUrl;
@@ -25,8 +25,9 @@ router.get("/sitemap.xml",(req,res)=>{
   const staticPaths=["/","/news","/downloads","/rankings","/wiki","/donate","/help","/login","/register"];
   const posts=db.prepare("SELECT slug,created_at FROM posts WHERE published=1 ORDER BY created_at DESC").all();
   const pages=db.prepare("SELECT slug,updated_at FROM pages WHERE published=1 ORDER BY slug").all();
+  const wikiEntries=wiki.listPublished();
   const entries=staticPaths.map(path=>({loc:`${siteUrl}${path}`,lastmod:null}))
-    .concat(wikiEntries.map(entry=>({loc:`${siteUrl}/wiki/${encodeURIComponent(entry.slug)}`,lastmod:null})))
+    .concat(wikiEntries.map(entry=>({loc:`${siteUrl}/wiki/${encodeURIComponent(entry.slug)}`,lastmod:entry.updatedAt?String(entry.updatedAt).slice(0,10):null})))
     .concat(posts.map(post=>({loc:`${siteUrl}/news/${encodeURIComponent(post.slug)}`,lastmod:post.created_at?String(post.created_at).slice(0,10):null})))
     .concat(pages.map(page=>({loc:`${siteUrl}/${encodeURIComponent(page.slug)}`,lastmod:page.updated_at?String(page.updated_at).slice(0,10):null})));
   const body=entries.map(entry=>`<url><loc>${xmlEscape(entry.loc)}</loc>${entry.lastmod?`<lastmod>${xmlEscape(entry.lastmod)}</lastmod>`:""}</url>`).join("");
@@ -35,7 +36,7 @@ router.get("/sitemap.xml",(req,res)=>{
 
 router.get("/", async (req,res) => {
   const posts = db.prepare("SELECT * FROM posts WHERE published=1 ORDER BY created_at DESC LIMIT 5").all();
-  const featuredWiki=featuredWikiSlugs.map(slug=>wikiBySlug.get(slug)).filter(Boolean);
+  const featuredWiki=featuredWikiSlugs.map(slug=>wiki.getBySlug(slug)).filter(Boolean);
   let status={online:false,channels:0,totalChannels:env.game.channelPorts.length}, players=null, topCharacters=[];
   try { status=await game.serverStatus(); } catch {}
   try { players=await game.onlineCount(); } catch {}
@@ -55,25 +56,60 @@ router.get("/news/:slug", (req,res) => {
 });
 
 const JOB_CLASSES = {
-  overall: {label:"Overall", range:null},
-  warrior: {label:"Warrior", range:[100,200]},
-  magician: {label:"Magician", range:[200,300]},
-  bowman: {label:"Bowman", range:[300,400]},
-  thief: {label:"Thief", range:[400,500]},
-  pirate: {label:"Pirate", range:[500,600]}
+  overall: {label:"Overall", ranges:null},
+  adventurer: {label:"Adventurers", ranges:[[0,1],[100,600]]},
+  warrior: {label:"Warrior", ranges:[[100,200]]},
+  magician: {label:"Magician", ranges:[[200,300]]},
+  bowman: {label:"Bowman", ranges:[[300,400]]},
+  thief: {label:"Thief", ranges:[[400,500]]},
+  pirate: {label:"Pirate", ranges:[[500,600]]},
+  cygnus: {label:"Cygnus", ranges:[[1000,1600]]},
+  aran: {label:"Aran", ranges:[[2000,2001],[2100,2200]]},
+  evan: {label:"Evan", ranges:[[2001,2002],[2200,2300]]}
 };
-const RANKINGS_PAGE_SIZE = 10;
+const RANKINGS_PAGE_SIZE = 25;
+const rankingPageWindow=(current,total)=>{
+  const set=new Set([1,total,current-2,current-1,current,current+1,current+2]);
+  return [...set].filter(page=>page>=1&&page<=total).sort((a,b)=>a-b);
+};
 
 router.get("/rankings", async (req,res) => {
-  let rows=[], error="";
+  let result={rows:[],total:0,maxLevel:0,avgLevel:0,offset:0,limit:RANKINGS_PAGE_SIZE}, error="", onlinePlayers=null;
   const cls = JOB_CLASSES[req.query.class] ? req.query.class : "overall";
-  const page = Math.max(1, parseInt(req.query.page,10) || 1);
-  try { rows = await game.rankings(100, JOB_CLASSES[cls].range); } catch(e) { error="Rankings are temporarily unavailable."; }
-  rows=rows.map(r=>({...r,jobName:jobName(r.job)}));
-  const totalPages = Math.max(1, Math.ceil(rows.length / RANKINGS_PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const pageRows = rows.slice((currentPage-1)*RANKINGS_PAGE_SIZE, currentPage*RANKINGS_PAGE_SIZE);
-  res.render("rankings",{rows:pageRows,error,settings:settings(),classes:JOB_CLASSES,activeClass:cls,currentPage,totalPages,startRank:(currentPage-1)*RANKINGS_PAGE_SIZE});
+  const q = String(req.query.q||"").trim().slice(0,20);
+  const requestedPage = Math.max(1, parseInt(req.query.page,10) || 1);
+  try {
+    result = await game.rankingPage({
+      limit:RANKINGS_PAGE_SIZE,
+      offset:(requestedPage-1)*RANKINGS_PAGE_SIZE,
+      jobRanges:JOB_CLASSES[cls].ranges,
+      search:q
+    });
+  } catch(e) {
+    console.warn("Rankings query failed:",e.message);
+    error="Rankings are temporarily unavailable.";
+  }
+  try { onlinePlayers=await game.onlineCount(); } catch {}
+  const rows=result.rows.map(r=>({...r,jobName:jobName(r.job)}));
+  const totalPages=Math.max(1,Math.ceil(result.total/RANKINGS_PAGE_SIZE));
+  const currentPage=Math.floor(result.offset/RANKINGS_PAGE_SIZE)+1;
+  res.render("rankings",{
+    rows,
+    error,
+    settings:settings(),
+    classes:JOB_CLASSES,
+    activeClass:cls,
+    q,
+    currentPage,
+    totalPages,
+    pageNumbers:rankingPageWindow(currentPage,totalPages),
+    startRank:result.offset,
+    totalRanked:result.total,
+    maxLevel:result.maxLevel,
+    avgLevel:result.avgLevel,
+    onlinePlayers,
+    generatedAt:new Date()
+  });
 });
 
 router.get("/downloads", (req,res) => {
