@@ -40,22 +40,37 @@ public final class BotConsumableDriver {
         ItemInformationProvider ii = ItemInformationProvider.getInstance();
         for (Item item : use.list()) {
             if (item == null || item.getQuantity() <= 0) continue;
-            StatEffect effect = ii.getItemEffect(item.getItemId());
+            StatEffect effect = safeItemEffect(ii, item.getItemId());
             if (effect == null) continue;
 
             boolean restoresHp = effect.getHp() > 0 || effect.getHpRate() > 0.0;
             boolean restoresMp = effect.getMp() > 0 || effect.getMpRate() > 0.0;
             if (!((wantsHp && restoresHp) || (wantsMp && restoresMp))) continue;
 
-            // Apply the same server-authoritative item effect used by UseItemHandler, then
-            // consume exactly one item from the bot's real USE inventory on success.
-            if (!effect.applyTo(bot)) continue;
+            try {
+                // Apply the same server-authoritative item effect used by UseItemHandler, then
+                // consume exactly one item from the bot's real USE inventory on success.
+                if (!effect.applyTo(bot)) continue;
+            } catch (RuntimeException ex) {
+                continue;
+            }
             use.removeItem(item.getPosition(), (short) 1, false);
             lastUseAt.put(bot.getId(), now);
             return new UseResult(true, item.getItemId(), wantsHp && restoresHp, wantsMp && restoresMp, "used");
         }
 
         return UseResult.none("out-of-potions");
+    }
+
+    private static StatEffect safeItemEffect(ItemInformationProvider ii, int itemId) {
+        try {
+            return ii.getItemEffect(itemId);
+        } catch (RuntimeException ex) {
+            // QA bots may encounter imported/legacy USE items with no usable effect node.
+            // Treat those items as non-consumable for autonomous testing instead of
+            // terminating the entire hunter loop inside StatEffect.loadFromData.
+            return null;
+        }
     }
 
     public static void clearBot(int botId) {

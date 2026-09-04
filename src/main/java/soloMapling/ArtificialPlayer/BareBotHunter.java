@@ -111,12 +111,12 @@ public final class BareBotHunter {
                 long now = System.currentTimeMillis();
                 if (now - lastFailureLogAt >= 5_000L) {
                     lastFailureLogAt = now;
-                    log.warn("SoloMapling QA hunter tick failure bot={} map={} phase={} consecutive={}",
+                    log.warn("SoloMapling QA hunter tick failure bot={} map={} phase={} consecutive={} location={}",
                             bot == null ? -1 : bot.getId(), bot == null ? -1 : bot.getMapId(), phase,
-                            consecutiveTickFailures, t);
+                            consecutiveTickFailures, failureLocation(t), t);
                 }
                 if (consecutiveTickFailures >= MAX_CONSECUTIVE_TICK_FAILURES) {
-                    failClosed("tick-exception-threshold:" + t.getClass().getSimpleName());
+                    failClosed("tick-exception-threshold:" + t.getClass().getSimpleName() + "@" + failureLocation(t));
                 }
             }
         }
@@ -379,9 +379,23 @@ public final class BareBotHunter {
         }
     }
 
+    private static String failureLocation(Throwable t) {
+        if (t == null) return "unknown";
+        for (StackTraceElement frame : t.getStackTrace()) {
+            String className = frame.getClassName();
+            if (className.startsWith("soloMapling.") || className.startsWith("server.") || className.startsWith("client.")) {
+                return className + "." + frame.getMethodName() + ":" + frame.getLineNumber();
+            }
+        }
+        StackTraceElement[] frames = t.getStackTrace();
+        if (frames.length == 0) return "unknown";
+        StackTraceElement frame = frames[0];
+        return frame.getClassName() + "." + frame.getMethodName() + ":" + frame.getLineNumber();
+    }
+
     private static Monster nearestMonster(Character bot) {
         Point botPos = bot.getPosition();
-        if (botPos == null) return null;
+        if (botPos == null || bot.getMap() == null) return null;
         return bot.getMap().getAllMonsters().stream()
                 .filter(monster -> monster != null && monster.isAlive() && monster.getPosition() != null)
                 .min(Comparator.comparingDouble(monster -> botPos.distanceSq(monster.getPosition())))

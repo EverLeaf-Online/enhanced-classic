@@ -27,7 +27,13 @@ public final class BotBuffDriver {
             long key = (((long) bot.getId()) << 32) ^ (skillId & 0xffffffffL);
             if (now < nextAttemptAt.getOrDefault(key, 0L)) continue;
 
-            Skill skill = SkillFactory.getSkill(skillId);
+            Skill skill;
+            try {
+                skill = SkillFactory.getSkill(skillId);
+            } catch (RuntimeException ex) {
+                nextAttemptAt.put(key, now + MIN_RETRY_MS);
+                continue;
+            }
             if (skill == null) {
                 nextAttemptAt.put(key, now + MIN_RETRY_MS);
                 continue;
@@ -38,7 +44,17 @@ public final class BotBuffDriver {
                 continue;
             }
 
-            StatEffect effect = skill.getEffect(level);
+            // Some imported/legacy skill definitions can resolve the Skill object while
+            // still lacking a usable effect node for a learned level. Skill#getEffect
+            // then fails inside StatEffect.loadFromData before applyTo() is reached.
+            // A missing optional QA buff must not terminate the autonomous hunter.
+            StatEffect effect;
+            try {
+                effect = skill.getEffect(level);
+            } catch (RuntimeException ex) {
+                nextAttemptAt.put(key, now + MIN_RETRY_MS);
+                continue;
+            }
             if (effect == null) {
                 nextAttemptAt.put(key, now + MIN_RETRY_MS);
                 continue;
