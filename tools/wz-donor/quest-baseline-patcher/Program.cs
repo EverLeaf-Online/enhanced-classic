@@ -81,8 +81,20 @@ static IPropertyContainer EnsureParents(WzImage img, IEnumerable<string> path)
     return cur;
 }
 
+static WzImage? FindImageRecursive(WzDirectory dir, string name)
+{
+    var direct = dir.GetImageByName(name);
+    if (direct != null) return direct;
+    foreach (var child in dir.WzDirectories)
+    {
+        var hit = FindImageRecursive(child, name);
+        if (hit != null) return hit;
+    }
+    return null;
+}
+
 static WzImage RequireImage(WzFile w, string name) =>
-    w.WzDirectory.GetImageByName(name) ?? throw new InvalidDataException($"Missing {name}");
+    FindImageRecursive(w.WzDirectory, name) ?? throw new InvalidDataException($"Missing {name}");
 
 static string MergeQuestNode(WzImage target, WzImage donor, int id, string label)
 {
