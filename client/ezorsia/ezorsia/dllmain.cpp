@@ -4,6 +4,8 @@
 #include "dinput8.h"
 #include "CrashDiagnostics.h"
 #include "FrameLimiter.h"
+#include "DisplayMode.h"
+#include "AddyLocations.h"
 
 #include <atomic>
 
@@ -166,6 +168,11 @@ void MainFunc() {
               << Client::m_nGameWidth << "x" << Client::m_nGameHeight << std::endl;
     Client::UpdateResolution();
 
+    // Repair the confirmed inherited tooltip wrong-axis write after the normal HD
+    // table has applied. Additional owner-backed geometry corrections are layered
+    // separately so this integration point stays easy to validate.
+    Memory::WriteInt(dwToolTipLimitVPos + 1, Client::m_nGameHeight - 1);
+
     if (Client::ModernLoginUI) {
         CrashDiagnostics::SetPhase("applying-login-ui");
         std::cout << "EverLeaf Client v2: applying modern login UI" << std::endl;
@@ -212,8 +219,15 @@ DWORD WINAPI MainProc(LPVOID) {
         return ERROR_BAD_EXE_FORMAT;
     }
 
+    CrashDiagnostics::SetPhase("enabling-dpi-awareness");
+    DisplayMode::EnableSystemDpiAwareness();
+
     CrashDiagnostics::SetPhase("creating-client-runtime");
     MainMain::CreateInstance(MainFunc);
+
+    CrashDiagnostics::SetPhase("starting-display-worker");
+    DisplayMode::StartWorker();
+
     CrashDiagnostics::SetPhase("bootstrap-complete");
     if (gBootstrapComplete) SetEvent(gBootstrapComplete);
     return 0;
