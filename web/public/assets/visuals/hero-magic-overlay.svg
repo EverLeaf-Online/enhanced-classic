@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">EverLeaf magical forest atmosphere</title>
+  <desc id="desc">Decorative glowing crystals, drifting leaves, portal light, and soft forest sparkles.</desc>
+  <defs>
+    <radialGradient id="portal" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#d8ffff" stop-opacity=".95"/>
+      <stop offset=".22" stop-color="#78ebff" stop-opacity=".78"/>
+      <stop offset=".56" stop-color="#50b7ef" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#4aa7db" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="crystalGlow" cx="50%" cy="45%" r="58%">
+      <stop offset="0" stop-color="#efffff" stop-opacity=".95"/>
+      <stop offset=".25" stop-color="#72ecff" stop-opacity=".62"/>
+      <stop offset="1" stop-color="#51b9ea" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="crystal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eaffff"/>
+      <stop offset=".3" stop-color="#66e6f2"/>
+      <stop offset=".68" stop-color="#2da8df"/>
+      <stop offset="1" stop-color="#1773b5"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#d7f58a"/>
+      <stop offset="1" stop-color="#55a754"/>
+    </linearGradient>
+    <filter id="blur24"><feGaussianBlur stdDeviation="24"/></filter>
+    <filter id="glow"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="softGlow"><feGaussianBlur stdDeviation="2.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <pattern id="stars" width="120" height="100" patternUnits="userSpaceOnUse">
+      <circle cx="15" cy="22" r="1.4" fill="#f7ffd4" opacity=".55"/>
+      <circle cx="78" cy="46" r="1" fill="#d4ffff" opacity=".5"/>
+      <circle cx="102" cy="78" r="1.8" fill="#fff4ae" opacity=".42"/>
+      <circle cx="43" cy="84" r=".8" fill="#ffffff" opacity=".6"/>
+    </pattern>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#stars)" opacity=".48"/>
+
+  <g opacity=".65" filter="url(#blur24)">
+    <ellipse cx="1410" cy="100" rx="230" ry="160" fill="#d9ff9c" opacity=".16"/>
+    <ellipse cx="125" cy="730" rx="180" ry="170" fill="#62e5ff" opacity=".12"/>
+    <ellipse cx="1000" cy="650" rx="260" ry="130" fill="#f5d671" opacity=".08"/>
+  </g>
+
+  <g transform="translate(122 575)" opacity=".74">
+    <circle cx="95" cy="90" r="110" fill="url(#portal)"/>
+    <ellipse cx="95" cy="90" rx="50" ry="76" fill="none" stroke="#a9f8ff" stroke-width="4" opacity=".62" filter="url(#glow)"/>
+    <ellipse cx="95" cy="90" rx="38" ry="63" fill="none" stroke="#62cfff" stroke-width="3" opacity=".7"/>
+    <path d="M91 27c28 26-9 38 7 60 15 20 35 23 4 67" fill="none" stroke="#eaffff" stroke-width="3" stroke-linecap="round" opacity=".72"/>
+  </g>
+
+  <g transform="translate(68 705)" opacity=".82">
+    <ellipse cx="92" cy="94" rx="105" ry="92" fill="url(#crystalGlow)"/>
+    <path d="M92 0 142 63 116 150 65 150 41 63Z" fill="url(#crystal)" stroke="#b6fbff" stroke-width="2" filter="url(#softGlow)"/>
+    <path d="M92 0 96 150 41 63Z" fill="#e7ffff" opacity=".22"/>
+    <path d="M92 0 142 63 96 150Z" fill="#1f8dc9" opacity=".24"/>
+  </g>
+
+  <g fill="url(#leaf)" opacity=".58">
+    <path d="M246 150c28-17 52-4 58 14-25 10-44 2-58-14Z" transform="rotate(17 275 159)"/>
+    <path d="M440 88c19-12 36-2 41 11-18 8-31 2-41-11Z" transform="rotate(-22 460 98)"/>
+    <path d="M575 170c26-14 45-1 49 15-22 7-38 0-49-15Z" transform="rotate(29 600 182)"/>
+    <path d="M748 90c24-12 40 0 43 13-20 7-34 1-43-13Z" transform="rotate(-7 770 100)"/>
+    <path d="M915 142c17-10 32-2 36 10-15 6-27 2-36-10Z" transform="rotate(35 933 151)"/>
+    <path d="M1185 115c25-16 46-5 52 10-21 10-39 6-52-10Z" transform="rotate(-19 1210 125)"/>
+    <path d="M1340 205c18-10 32-1 35 11-16 5-27 0-35-11Z" transform="rotate(31 1358 213)"/>
+    <path d="M1490 345c20-12 36-1 40 12-17 7-30 1-40-12Z" transform="rotate(-28 1510 355)"/>
+    <path d="M360 420c17-9 29-1 33 9-14 5-25 1-33-9Z" transform="rotate(18 377 428)"/>
+    <path d="M655 355c21-13 39-3 44 10-18 8-33 3-44-10Z" transform="rotate(-32 677 364)"/>
+  </g>
+
+  <g fill="#f8ffd0" opacity=".82" filter="url(#softGlow)">
+    <circle cx="284" cy="255" r="2.2"/><circle cx="345" cy="328" r="1.5"/><circle cx="522" cy="246" r="2.1"/>
+    <circle cx="712" cy="300" r="1.8"/><circle cx="848" cy="218" r="1.7"/><circle cx="1035" cy="300" r="2.2"/>
+    <circle cx="1122" cy="255" r="1.4"/><circle cx="1284" cy="312" r="1.8"/><circle cx="1450" cy="255" r="2.1"/>
+    <circle cx="455" cy="515" r="1.6"/><circle cx="835" cy="510" r="1.5"/><circle cx="1205" cy="520" r="2"/>
+  </g>
+
+  <path d="M1170 770c130-95 250-128 430-120v250h-520c20-53 47-97 90-130Z" fill="#163d32" opacity=".08"/>
+</svg>

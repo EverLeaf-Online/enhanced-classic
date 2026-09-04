@@ -1,0 +1,76 @@
+name: Deploy EverLeaf Discord status monitor
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - tools/everleaf-ops/discord-status-bot.js
+      - tools/everleaf-ops/discord-status-bot.test.js
+      - .github/workflows/deploy-discord-status-monitor.yml
+
+concurrency:
+  group: everleaf-discord-status-monitor
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Test status monitor
+        run: node --test tools/everleaf-ops/discord-status-bot.test.js
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage monitor
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_file="/tmp/everleaf-discord-status-$GITHUB_RUN_ID.js"
+          scp -i ~/.ssh/id_everleaf tools/everleaf-ops/discord-status-bot.js \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$remote_file"
+
+      - name: Install and restart monitor
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "DISCORD_RUN_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE'
+            set -euo pipefail
+            case "$DISCORD_RUN_ID" in (*[!0-9]*|'') exit 2;; esac
+            staged="/tmp/everleaf-discord-status-$DISCORD_RUN_ID.js"
+            trap 'rm -f "$staged"' EXIT
+            node --check "$staged"
+            test -s /etc/everleaf/discord-bot.env
+            sudo install -o root -g root -m 0644 "$staged" /opt/everleaf/discord/status-bot.js
+            sudo systemctl restart everleaf-discord.service
+            sleep 3
+            sudo systemctl is-active --quiet everleaf-discord.service
+            echo 'discord_status_monitor=active'
+          REMOTE

@@ -27,29 +27,147 @@ async function onlineCount() {
   return Number(rows[0]?.count || 0);
 }
 
-async function rankings(limit=50, jobRange=null) {
-  const db = getPool(), g = env.gameDb;
+function rankingWhere(g, { jobRanges=null, search="" }={}) {
+  const clauses = [
+    `COALESCE(c.${I(g.characterGm)},0)=0`,
+    `COALESCE(a.${I(g.accountBanned)},0)=0`
+  ];
   const params = [];
-  let jobClause = "";
-  if (jobRange) {
-    jobClause = `AND ${I(g.characterJob)} >= ? AND ${I(g.characterJob)} < ?`;
-    params.push(jobRange[0], jobRange[1]);
+  if (Array.isArray(jobRanges) && jobRanges.length) {
+    const ranges = [];
+    for (const range of jobRanges) {
+      if (!Array.isArray(range) || range.length !== 2) continue;
+      const start = Number(range[0]), end = Number(range[1]);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+      ranges.push(`(c.${I(g.characterJob)}>=? AND c.${I(g.characterJob)}<?)`);
+      params.push(start,end);
+    }
+    if (ranges.length) clauses.push(`(${ranges.join(" OR ")})`);
   }
-  const sql = `
-    SELECT
-      ${I(g.characterName)} name,
-      ${I(g.characterLevel)} level,
-      ${I(g.characterJob)} job,
-      ${I(g.characterFame)} fame,
-      ${I(g.characterExp)} exp
-    FROM ${I(g.charactersTable)}
-    WHERE COALESCE(${I(g.characterGm)},0) = 0 ${jobClause}
-    ORDER BY ${I(g.characterLevel)} DESC, ${I(g.characterExp)} DESC
-    LIMIT ?
+  const q = String(search || "").trim().slice(0,20);
+  if (q) {
+    clauses.push(`c.${I(g.characterName)} LIKE ? ESCAPE '\\'`);
+    const escaped = q.replace(/[\\%_]/g, char => `\\${char}`);
+    params.push(`%${escaped}%`);
+  }
+  return { sql: clauses.join(" AND "), params };
+}
+
+async function rankingPage({ limit=25, offset=0, jobRanges=null, search="" }={}) {
+  const db = getPool(), g = env.gameDb;
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 25));
+  const requestedOffset = Math.max(0, Number(offset) || 0);
+  const filter = rankingWhere(g,{jobRanges,search});
+  const from = `
+    FROM ${I(g.charactersTable)} c
+    INNER JOIN ${I(g.accountsTable)} a
+      ON a.${I(g.accountId)}=c.${I(g.characterAccountId)}
+    WHERE ${filter.sql}
   `;
-  params.push(Number(limit));
-  const [rows] = await db.query(sql, params);
-  return rows;
+  const [summaryRows] = await db.query(`
+    SELECT COUNT(*) count,
+           COALESCE(MAX(c.${I(g.characterLevel)}),0) maxLevel,
+           COALESCE(AVG(c.${I(g.characterLevel)}),0) avgLevel
+    ${from}
+  `, filter.params);
+  const total = Number(summaryRows[0]?.count || 0);
+  const maxOffset = total > 0 ? Math.floor((total-1)/safeLimit)*safeLimit : 0;
+  const safeOffset = Math.min(requestedOffset,maxOffset);
+  const params = [...filter.params,safeLimit,safeOffset];
+  const [rows] = await db.query(`
+    SELECT
+      c.${I(g.characterId)} id,
+      c.${I(g.characterName)} name,
+      c.${I(g.characterLevel)} level,
+      c.${I(g.characterJob)} job,
+      c.${I(g.characterFame)} fame,
+      c.${I(g.characterExp)} exp
+    ${from}
+    ORDER BY c.${I(g.characterLevel)} DESC,
+             c.${I(g.characterExp)} DESC,
+             c.${I(g.characterFame)} DESC,
+             c.${I(g.characterName)} ASC
+    LIMIT ? OFFSET ?
+  `, params);
+  return {
+    rows,
+    total,
+    maxLevel:Number(summaryRows[0]?.maxLevel || 0),
+    avgLevel:Number(summaryRows[0]?.avgLevel || 0),
+    offset:safeOffset,
+    limit:safeLimit
+  };
+}
+
+async function rankings(limit=50, jobRange=null) {
+  const result = await rankingPage({
+    limit,
+    offset:0,
+    jobRanges:jobRange ? [jobRange] : null
+  });
+  return result.rows;
+}
+
+function resolveVisibleEquipment(rows=[]) {
+  const visible = new Map();
+  let cashWeapon = 0;
+  for (const row of rows) {
+    const itemId = Number(row.itemId || row.itemid || 0);
+    let slot = Math.abs(Number(row.position || 0));
+    if (!Number.isInteger(itemId) || itemId <= 0 || !Number.isInteger(slot) || slot <= 0) continue;
+    if (slot === 111) {
+      cashWeapon = itemId;
+      continue;
+    }
+    if (slot < 100) {
+      if (!visible.has(slot)) visible.set(slot,itemId);
+      continue;
+    }
+    slot -= 100;
+    if (slot > 0 && slot < 100) visible.set(slot,itemId);
+  }
+  if (cashWeapon) visible.set(111,cashWeapon);
+  return [...new Set(visible.values())];
+}
+
+async function characterAppearance(characterId) {
+  const id = Number(characterId);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  const db = getPool(), g = env.gameDb;
+  const [characters] = await db.query(`
+    SELECT
+      c.${I(g.characterId)} id,
+      c.${I(g.characterJob)} job,
+      c.${I(g.characterSkin)} skincolor,
+      c.${I(g.characterFace)} face,
+      c.${I(g.characterHair)} hair
+    FROM ${I(g.charactersTable)} c
+    INNER JOIN ${I(g.accountsTable)} a
+      ON a.${I(g.accountId)}=c.${I(g.characterAccountId)}
+    WHERE c.${I(g.characterId)}=?
+      AND COALESCE(c.${I(g.characterGm)},0)=0
+      AND COALESCE(a.${I(g.accountBanned)},0)=0
+    LIMIT 1
+  `,[id]);
+  const character = characters[0];
+  if (!character) return null;
+  const [equipment] = await db.query(`
+    SELECT itemid itemId, position
+    FROM ${I(g.inventoryItemsTable)}
+    WHERE characterid=?
+      AND inventorytype=-1
+      AND type=1
+      AND position<0
+    ORDER BY position DESC, inventoryitemid ASC
+  `,[id]);
+  return {
+    id:Number(character.id),
+    job:Number(character.job || 0),
+    skincolor:Number(character.skincolor || 0),
+    face:Number(character.face || 0),
+    hair:Number(character.hair || 0),
+    equipment:resolveVisibleEquipment(equipment)
+  };
 }
 
 async function login(username, password) {
@@ -84,7 +202,8 @@ async function register({ username, password, email }) {
 async function accountCharacters(accountId) {
   const db = getPool(), g = env.gameDb;
   const sql = `
-    SELECT ${I(g.characterName)} name,
+    SELECT ${I(g.characterId)} id,
+           ${I(g.characterName)} name,
            ${I(g.characterLevel)} level,
            ${I(g.characterJob)} job,
            ${I(g.characterFame)} fame,
@@ -108,15 +227,6 @@ async function changePassword(accountId, currentPassword, newPassword) {
   return true;
 }
 
-async function voteBalance(accountId) {
-  const db = getPool(), g = env.gameDb;
-  const [rows] = await db.query(
-    `SELECT COALESCE(${I(g.accountVotePoints)},0) votePoints FROM ${I(g.accountsTable)} WHERE ${I(g.accountId)}=? LIMIT 1`,
-    [Number(accountId)]
-  );
-  return Number(rows[0]?.votePoints || 0);
-}
-
 async function nxRewardStatus(accountId) {
   const db = getPool(), g = env.gameDb;
   const [rows] = await db.query(
@@ -138,11 +248,6 @@ function utcDateString(date = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
-/**
- * Queue a provider-verified NX reward exactly once per account/provider/UTC day.
- * The game claims queued NX so its in-memory Cash Shop balance stays synchronized
- * with accounts.nxCredit.
- */
 async function queueVerifiedVoteNx({ username, provider, nxAmount=1500, votedAt=new Date() }) {
   const g = env.gameDb;
   const amount = Number(nxAmount);
@@ -207,11 +312,13 @@ module.exports = {
   serverStatus,
   onlineCount,
   rankings,
+  rankingPage,
+  characterAppearance,
+  resolveVisibleEquipment,
   login,
   register,
   accountCharacters,
   changePassword,
-  voteBalance,
   nxRewardStatus,
   queueVerifiedVoteNx
 };

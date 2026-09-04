@@ -1,0 +1,53 @@
+name: Web Maple Overhaul CI
+
+on:
+  push:
+    branches: [web/maple-overhaul]
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-maple-overhaul-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install web dependencies
+        run: npm install
+      - name: Run existing web tests
+        run: npm test
+      - name: Verify remaster assets
+        run: |
+          test -f public/css/maple-remaster.css
+          test -f public/css/maple-remaster-pages.css
+          test -f public/css/maple-remaster-admin.css
+          test -f public/css/maple-jobs.css
+          test -f public/css/maple-final.css
+          test -f public/assets/everleaf-remaster.svg
+          for asset in warrior magician bowman thief pirate cygnus aran evan; do
+            test -f "public/assets/jobs/${asset}.svg"
+          done
+          for asset in launcher patch tool trophy journal community account recovery; do
+            test -f "public/assets/ui/${asset}.svg"
+          done
+          grep -q 'maple-remaster.css' src/views/partials/header.ejs
+          grep -q 'maple-jobs.css' src/views/partials/header.ejs
+          grep -q 'maple-final.css' src/views/partials/header.ejs
+          grep -q 'mapleHero' src/views/home.ejs
+          grep -q 'mapleJobsGrid' src/views/home.ejs
+          grep -q 'mapleSpecialJobs' src/views/home.ejs
+          grep -q '/assets/ui/trophy.svg' src/views/home.ejs
+          grep -q '/assets/ui/recovery.svg' src/views/help.ejs
+          grep -q 'rankingTable' src/views/rankings.ejs
+          grep -q 'characterCards' src/views/account.ejs
+          grep -q '/assets/ui/launcher.svg' src/views/downloads.ejs
