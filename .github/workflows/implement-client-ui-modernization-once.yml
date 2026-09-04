@@ -1,0 +1,164 @@
+name: Implement EverLeaf client UI modernization once
+
+on:
+  push:
+    branches: [feature/client-job-selector-modernization-20260904]
+    paths: ['.github/workflows/implement-client-ui-modernization-once.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/client-job-selector-modernization-20260904
+          fetch-depth: 0
+
+      - name: Apply modern UI source changes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          from pathlib import Path
+          import re
+
+          def replace_once(path, old, new):
+              p=Path(path); text=p.read_text(encoding='utf-8')
+              count=text.count(old)
+              if count == 0 and new in text:
+                  return
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one marker, got {count}: {old!r}')
+              p.write_text(text.replace(old,new,1),encoding='utf-8',newline='\n')
+
+          # Client capability flags.
+          replace_once('client/ezorsia/ezorsia/Client.h',
+              '\tstatic bool RemoveLogos;\n',
+              '\tstatic bool RemoveLogos;\n\tstatic bool ModernLoginUI;\n\tstatic bool ShowFutureClassCards;\n')
+          replace_once('client/ezorsia/ezorsia/Client.cpp',
+              'bool Client::RemoveLogos = true;\n',
+              'bool Client::RemoveLogos = true;\nbool Client::ModernLoginUI = true;\nbool Client::ShowFutureClassCards = true;\n')
+
+          # Read UI feature flags from the managed config.
+          replace_once('client/ezorsia/ezorsia/MainMain.cpp',
+              '\tClient::RemoveLogos = reader.GetBoolean("general", "RemoveLogos", true);\n',
+              '\tClient::RemoveLogos = reader.GetBoolean("general", "RemoveLogos", true);\n'
+              '\tClient::ModernLoginUI = reader.GetBoolean("general", "ModernLoginUI", true);\n'
+              '\tClient::ShowFutureClassCards = reader.GetBoolean("general", "ShowFutureClassCards", true);\n')
+
+          # Activate the existing native-login hook path only when explicitly enabled.
+          replace_once('client/ezorsia/ezorsia/dllmain.cpp',
+              '\tClient::UpdateResolution();\n\r\n\tdinput8::CreateHook();',
+              '\tClient::UpdateResolution();\n\r\n\tif (Client::ModernLoginUI) {\r\n\t\tstd::cout << "Applying EverLeaf modern login UI" << std::endl;\r\n\t\tClient::UpdateLogin();\r\n\t}\r\n\r\n\tdinput8::CreateHook();')
+
+          # Replace the old experimental login routine with a bounded first-pass layout.
+          p=Path('client/ezorsia/ezorsia/Client.cpp')
+          text=p.read_text(encoding='utf-8')
+          start=text.index('void Client::UpdateLogin() {')
+          end=text.index('\n}', start)+2
+          modern='''void Client::UpdateLogin() {
+\t// EverLeaf modern-classic login pass. Keep MapleStory's native controls and
+\t// event flow; only reposition the stable login dialog/input controls and
+\t// restyle their text fields. This makes the change reversible and keeps
+\t// world/character-select protocol behavior untouched while the broader UI
+\t// backport is screenshot-tested.
+\tMemory::CodeCave(PositionLoginDlg, dwLoginCreateDlg, 14);
+\tMemory::CodeCave(PositionLoginUsername, dwLoginUsername, 11);
+\tMemory::CodeCave(PositionLoginPassword, dwLoginPassword, 8);
+\tMemory::WriteInt(dwLoginInputBackgroundColor + 3, 0xFFF4F8F1); // soft classic parchment/leaf tint
+\tMemory::WriteByte(dwLoginInputFontColor + 3, 1); // dark text for readability
+}
+'''
+          text=text[:start]+modern+text[end:]
+          p.write_text(text,encoding='utf-8',newline='\n')
+
+          # Managed config exposes UI choices only; no gameplay/security knobs.
+          p=Path('client/ezorsia/ezorsia/config.ini')
+          text=p.read_text(encoding='utf-8')
+          anchor='RemoveLogos=true\n'
+          insert='''RemoveLogos=true
+
+;Use EverLeaf's refreshed classic login/world/character-selection layout.
+ModernLoginUI=true
+
+;Show future class-family cards as locked previews. The server independently
+;rejects unsupported creation types, so this never enables unfinished classes.
+ShowFutureClassCards=true
+'''
+          if 'ModernLoginUI=' not in text:
+              if anchor not in text: raise SystemExit('config.ini: RemoveLogos marker missing')
+              text=text.replace(anchor,insert,1)
+              p.write_text(text,encoding='utf-8',newline='\n')
+
+          Path('docs/CLIENT_UI_MODERNIZATION.md').write_text('''# EverLeaf client UI modernization
+
+## Compatibility model
+
+EverLeaf keeps the v83 network/client contract and backports later classic UI behavior where it is safe.
+
+### Character-family selector
+
+| Family | Preview | Creation | Wire identity |
+| --- | --- | --- | --- |
+| Cygnus Knights | visible | enabled | v83 race 0 |
+| Explorer | visible | enabled | v83 race 1 |
+| Aran | visible | enabled | v83 race 2 |
+| Evan | visible | enabled after client selector backport | v84-style race 3, mapped by EverLeaf server type 3 |
+| Dual Blade | visible/locked | disabled | not sent; v95 requires Explorer sub-job 1 |
+| Resistance | visible/locked | disabled | not sent; requires later runtime/protocol support |
+
+The server capability gate remains authoritative even if a modified client bypasses a visual lock.
+
+## UI surfaces
+
+1. Login layout and input styling — active on the modernization branch.
+2. World selection and channel presentation — preserve 20-channel support, modernize compatible art/layout.
+3. Character selection — refresh panels/buttons while preserving PIC/character-handoff behavior.
+4. Character-family selector — backport Evan slot; show future families locked.
+5. Character creation — reuse native family-specific v83/v84-compatible dialogs where possible.
+6. Common gameplay UI — selectively backport compatible Basic/UIWindow/StatusBar/Guild/CashShop assets after visual/runtime validation.
+
+No UI package is published until the exact Windows client candidate boots and the affected login/creation flow passes validation.
+''',encoding='utf-8',newline='\n')
+          '@ | python -
+
+          git diff --check
+          git status --short
+
+      - name: Commit source implementation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name everleaf-client-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add client/ezorsia/ezorsia/Client.h client/ezorsia/ezorsia/Client.cpp client/ezorsia/ezorsia/MainMain.cpp client/ezorsia/ezorsia/dllmain.cpp client/ezorsia/ezorsia/config.ini docs/CLIENT_UI_MODERNIZATION.md
+          git commit -m 'client: activate modern classic UI foundation'
+          git push origin HEAD:feature/client-job-selector-modernization-20260904
+
+      - name: Apply production Community UI transform
+        shell: pwsh
+        run: python client/scripts/apply-community-ui-preference.py
+
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Win32 Release
+        shell: pwsh
+        run: msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+
+      - name: Verify UI modernization markers
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $client=Get-Content client/ezorsia/ezorsia/Client.cpp -Raw
+          $dllmain=Get-Content client/ezorsia/ezorsia/dllmain.cpp -Raw
+          $main=Get-Content client/ezorsia/ezorsia/MainMain.cpp -Raw
+          $config=Get-Content client/ezorsia/ezorsia/config.ini -Raw
+          foreach($marker in @('ModernLoginUI','ShowFutureClassCards','PositionLoginDlg','0x0075C783','0x00761714')) {
+            if(-not (($client+$dllmain+$main+$config).Contains($marker))){ throw "Missing UI modernization marker: $marker" }
+          }
+          if(-not (Test-Path client/ezorsia/out/Release/dinput8.dll)){ throw 'Missing dinput8.dll build output' }
