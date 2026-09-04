@@ -4,60 +4,55 @@ EverLeaf keeps a deliberately small set of long-lived branches so active develop
 
 ## Long-lived branches
 
-- `master` — integrated production/mainline history. The maintained website/CMS/Discord operations and the consolidated non-Empress release line were reconciled here by PR #247.
-- `release-dev` — primary integration branch for server/game/content work before promotion to `master`.
-- `client-dev` — maintained client-specific development line.
+- `master` — stable/default repository mainline and maintained website/CMS/Discord operations history. It is reconciled by behavior, not by force-updating it from another branch.
+- `release-dev` — authoritative game-server/content/release integration line and the source used by the production game deployment.
+- `client-dev` — maintained client-specific development line while unique client-source work is reconciled.
 
-## Excluded / archive-only branches
+## Canonical production content
 
-- `Community-files` — reference/archive material only; not part of the active release line.
-- `empress-dev` — deferred Empress work; excluded from the non-Empress release line.
+`release-dev` now contains the active Future Henesys / Empress runtime work and the production deployment contract for the canonical full-v95 WZ baseline. Ninja Castle is also consumed through that full-v95 baseline. These are no longer deferred regional imports.
 
-These branches must not be merged into `master` or `release-dev` unless a future review explicitly reopens their scope.
+The production WZ source of truth is the validated shared baseline at `/opt/everleaf/shared/wz-v95`, reconstructed from the live managed v95 client and guarded by the production deployment workflow. Selective Empress/Ninja staging branches are not deployment sources.
+
+## Reference / archive material
+
+- `Community-files` — reference/donor material only; not a deployment branch.
+- Generic v95 donor/exporter/profiler/tooling branches may be retained when they still provide reusable evidence or maintenance tooling.
+- Closed PRs and commit SHAs remain the historical record for completed regional experiments.
 
 ## Temporary work branches
 
-`consolidation/*`, ordinary feature/fix/ops/CI branches, and other clearly completed task branches are temporary workspaces.
+Ordinary feature/fix/ops/CI branches and region-specific staging/review branches are temporary workspaces.
 
-After their pull request is merged or superseded and any successor branch has been verified, the source branch may be retired only when it is outside the protected WZ scope below.
+After their pull request is merged or superseded and the replacement behavior is verified on the canonical line, the source branch should be retired or collapsed when no open PR uses it.
 
-## Protected WZ modernization scope
+## WZ cleanup policy
 
-The updated-WZ modernization effort is intentionally excluded from routine branch cleanup.
+Do **not** prune generic donor/tooling work merely because it has a `wz/` prefix. Preserve reusable pipelines and reference evidence such as donor extraction, exporters, profilers, and cross-version diagnostics.
 
-Always preserve:
+Region-specific `wz/v95-ninja-*` staging/review/contract branches are different: after the full-v95 baseline is live, verified, and no open PR uses them, they are superseded cleanup candidates. The same rule applies to obsolete Empress-only integration branches after Empress is represented on `release-dev` and verified live.
 
-- every `wz/v95-*` branch, whether active, merged, superseded, or currently idle;
-- any branch, pull request, workflow, tool, staging branch, donor-analysis branch, parity branch, exporter branch, profiler branch, client/server smoke branch, or related artifact that is known or reasonably suspected to belong to the ongoing **Find Updated WZ Files** work;
-- any other WZ branch whose ownership or relationship to that effort is uncertain.
+## Safe-retirement rule
 
-Do not delete, rename, reset, retarget, merge solely for cleanup purposes, or otherwise rewrite protected WZ branches as part of repository organization work.
+A branch may be retired/collapsed only when all of the following are true:
 
-When uncertain whether a branch is related to the updated-WZ effort, preserve it.
+1. It is not `master`, `release-dev`, `client-dev`, or `Community-files`.
+2. No open PR currently uses the branch as its head.
+3. Its intended production behavior is merged, patch-equivalent, or explicitly superseded by a stronger canonical implementation.
+4. Any required live content has passed production verification after the replacement landed.
+5. It is not a generic donor/tooling/reference branch that remains useful for future WZ work.
 
-## Current cleanup rule
+## Current canonical verification
 
-A non-protected branch is safe to retire only when all of the following are true:
+The September 4, 2026 production verification established:
 
-1. Its PR is merged, or the PR is closed as explicitly superseded.
-2. Any replacement/successor PR has merged when applicable.
-3. No open PR currently uses the branch as its head.
-4. The branch does not contain intentionally preserved unconsumed work.
-5. The branch is not `wz/v95-*` and is not known or suspected to belong to the Find Updated WZ Files effort.
+- exact live game release `b639d7ee796da8c7b305f002ebaaf9320d8ba13a`;
+- canonical full-v95 server WZ with **44,236 XML files**;
+- Future Henesys / Empress representative assets present;
+- Ninja Castle maps, mobs, NPCs, and quests **8163-8171** present;
+- 20/20 channels healthy plus login on port 8484;
+- signed launcher manifest and managed client patch endpoints healthy.
 
-## Current protected set
+## Mainline reconciliation rule
 
-Always preserve:
-
-- `master`
-- `release-dev`
-- `client-dev`
-- every `wz/v95-*` branch
-- everything associated with the Find Updated WZ Files effort
-
-Preserve as excluded/archive unless deliberately removed later:
-
-- `Community-files`
-- `empress-dev`
-
-For any other `wz/*` branch, default to preservation unless its unrelated ownership and safe-retirement status are both established.
+Do not force-update `master` from `release-dev` while `master` contains independently maintained web/ops behavior. Reconcile those surfaces semantically, then use a focused promotion when the unique-behavior ledger is exhausted. Production game deployment remains sourced from `release-dev` until that promotion is intentionally completed.
