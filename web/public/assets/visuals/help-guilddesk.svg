@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 460" role="img" aria-labelledby="title desc">
+  <title id="title">EverLeaf player help desk</title>
+  <desc id="desc">A warm treehouse guide desk where adventurers receive maps, notes, and friendly support.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#a7e1ef"/><stop offset="1" stop-color="#f3f1cd"/></linearGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#a8753d"/><stop offset="1" stop-color="#5c3b24"/></linearGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#9bcd66"/><stop offset="1" stop-color="#367649"/></linearGradient>
+    <linearGradient id="cloth" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#5e9e50"/><stop offset="1" stop-color="#2d6245"/></linearGradient>
+    <radialGradient id="lamp"><stop stop-color="#efffff"/><stop offset=".35" stop-color="#7ce6f3"/><stop offset="1" stop-color="#3697c6" stop-opacity="0"/></radialGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#24453a" flood-opacity=".22"/></filter>
+  </defs>
+  <rect width="760" height="460" rx="28" fill="url(#sky)"/>
+  <path d="M0 324c111-42 192-25 272-66 86-44 151-99 266-105 86-5 151 19 222 56v251H0Z" fill="#74ae68" opacity=".4"/>
+  <path d="M0 374c113-29 208-1 294-35 108-42 163-93 273-93 70 0 132 17 193 45v169H0Z" fill="#32684b" opacity=".3"/>
+  <g opacity=".5" fill="#315b49"><path d="M92 205h27v91H92z"/><path d="m78 205 28-42 28 42z"/><path d="M148 181h19v104h-19z"/><path d="m137 181 21-33 21 33z"/></g>
+  <path d="M485 0h275v346c-35-5-70 0-104 15-45 20-87 23-126 9l-45-54Z" fill="#6a482b"/>
+  <path d="M548 0c-18 88 11 146 88 177 43 17 68 54 74 110 3 28-4 65-21 111h71V0Z" fill="#4b321f" opacity=".55"/>
+  <path d="M474 50c45-30 89-34 133-12-31 10-55 32-72 67-19 38-47 57-82 56 18-38 25-75 21-111Z" fill="url(#leaf)" opacity=".78"/>
+  <path d="M545 83c37-24 73-23 108 4-32 5-54 20-68 45-15 27-38 41-69 41 15-29 25-59 29-90Z" fill="#8fc85f" opacity=".7"/>
+  <g transform="translate(292 224)" filter="url(#shadow)">
+    <path d="M0 73c128-22 252-20 372 4l20 93H17Z" fill="url(#wood)"/>
+    <path d="M19 72c114-19 228-18 343 2l12 24c-117-18-232-17-348 1Z" fill="#b17a3c"/>
+    <path d="M126 77h111v95H126z" fill="url(#cloth)" opacity=".96"/>
+    <path d="M182 96c15 15 17 34 1 55-16-21-16-40-1-55Z" fill="#dff18e"/>
+    <path d="M182 108v35" stroke="#4b8146" stroke-width="4"/>
+    <path d="M181 122c-12-9-22-10-29-2M183 131c11-8 20-9 27-1" fill="none" stroke="#4b8146" stroke-width="4" stroke-linecap="round"/>
+    <g transform="translate(33 31) rotate(-3 55 28)">
+      <rect width="112" height="57" rx="5" fill="#e4d3a1"/>
+      <path d="M12 14h70M12 25h86M12 36h62M12 47h76" stroke="#9a7e56" stroke-width="3" opacity=".72"/>
+      <circle cx="96" cy="44" r="7" fill="#b65f4c"/>
+    </g>
+    <g transform="translate(246 24) rotate(5 50 28)">
+      <rect width="102" height="58" rx="5" fill="#ead9ac"/>
+      <path d="M12 14h69M12 25h78M12 37h54M12 47h66" stroke="#967a54" stroke-width="3" opacity=".68"/>
+    </g>
+  </g>
+  <g transform="translate(455 82)" filter="url(#shadow)">
+    <circle cx="62" cy="63" r="35" fill="#f2d5b4"/>
+    <path d="M28 57c5-39 65-50 76-6-20-10-45-8-76 6Z" fill="#6a4d36"/>
+    <path d="M36 37c16-20 39-25 68-13-15 2-27 11-36 26Z" fill="#4a392b"/>
+    <circle cx="50" cy="64" r="3.5" fill="#35473d"/><circle cx="75" cy="64" r="3.5" fill="#35473d"/>
+    <path d="M51 77c8 7 16 7 24 0" fill="none" stroke="#a46f61" stroke-width="3" stroke-linecap="round"/>
+    <path d="M33 91c22 13 43 13 62 0l17 81H16Z" fill="#f3ead4" stroke="#497d4c" stroke-width="4"/>
+    <path d="M42 98l20 26 22-26 18 61H24Z" fill="url(#cloth)"/>
+    <path d="M22 24c13-20 37-27 64-20l12 24c-26-6-52-3-76 8Z" fill="#46794a"/>
+    <path d="M74 6c18-13 29-10 32 10-13-3-24 0-32 9Z" fill="#8ac15b"/>
+    <path d="M10 115c-25 7-42 18-50 34" fill="none" stroke="#f2d5b4" stroke-width="13" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(93 205)" filter="url(#shadow)">
+    <ellipse cx="83" cy="177" rx="72" ry="18" fill="#264738" opacity=".18"/>
+    <circle cx="66" cy="60" r="31" fill="#e9c6a5"/>
+    <path d="M35 58c-1-32 54-47 64-7-19-7-40-5-64 7Z" fill="#d86f29"/>
+    <path d="M37 88c16 9 33 10 52 0l15 83H19Z" fill="#688e4a" stroke="#71502d" stroke-width="4"/>
+    <path d="M36 104h52M26 130h70" stroke="#d9c688" stroke-width="5" opacity=".6"/>
+    <rect x="93" y="112" width="44" height="58" rx="8" fill="#795334"/>
+    <circle cx="145" cy="78" r="27" fill="#e7c4a2"/>
+    <path d="M119 72c2-31 53-39 57-4-18-6-37-5-57 4Z" fill="#73508d"/>
+    <path d="M121 102c16 7 31 7 47 0l11 67h-70Z" fill="#5a7d45" stroke="#6b4c2e" stroke-width="4"/>
+  </g>
+  <g transform="translate(637 304)" filter="url(#shadow)">
+    <circle cx="42" cy="46" r="31" fill="#f4ead0" stroke="#6f9149" stroke-width="4"/>
+    <path d="M20 20C18 1 38-7 44 11c9-20 29-14 27 8-16 7-33 7-51 1Z" fill="#78b650"/>
+    <circle cx="32" cy="45" r="3" fill="#304c43"/><circle cx="53" cy="45" r="3" fill="#304c43"/>
+    <path d="M34 57c6 5 11 5 17 0" fill="none" stroke="#a36c55" stroke-width="3" stroke-linecap="round"/>
+    <path d="M25 69c11 9 23 9 35 0l4 22H21Z" fill="#4e8949"/>
+  </g>
+  <g transform="translate(604 108)">
+    <circle cx="48" cy="44" r="55" fill="url(#lamp)" opacity=".45"/>
+    <path d="M48 8 69 39 58 78H38L27 39Z" fill="#6adfed" stroke="#e4ffff" stroke-width="3"/>
+    <path d="M21 78h54l9 16H12Z" fill="#72532e" stroke="#d1aa61" stroke-width="3"/>
+  </g>
+  <g fill="#f9ffd0" opacity=".75"><circle cx="244" cy="89" r="2.5"/><circle cx="321" cy="128" r="2"/><circle cx="411" cy="76" r="2.5"/><circle cx="579" cy="194" r="2"/><circle cx="692" cy="224" r="2.5"/></g>
+</svg>
