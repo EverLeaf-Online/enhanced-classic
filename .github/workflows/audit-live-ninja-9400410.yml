@@ -47,21 +47,21 @@ jobs:
             find "$d/Map.wz" -type f -name '800040000.img.xml' -print -quit | grep -q . || continue
             trees=$((trees+1))
             echo "TREE $d xml=$count"
-            m=$(grep -R -l --include='*.xml' -w '9400410' "$d/Map.wz" 2>/dev/null | wc -l)
-            q=$(grep -R -l --include='*.xml' -w '9400410' "$d/Quest.wz" 2>/dev/null | wc -l)
-            r=$(grep -R -l --include='*.xml' -w '9400410' "$d/Mob.wz" 2>/dev/null | wc -l)
+            m=$(( (grep -R -l --include='*.xml' -w '9400410' "$d/Map.wz" 2>/dev/null || true) | wc -l ))
+            q=$(( (grep -R -l --include='*.xml' -w '9400410' "$d/Quest.wz" 2>/dev/null || true) | wc -l ))
+            r=$(( (grep -R -l --include='*.xml' -w '9400410' "$d/Mob.wz" 2>/dev/null || true) | wc -l ))
             f=$(find "$d/Mob.wz" -type f -name '9400410.img.xml' | wc -l)
             echo "  map_reference_files=$m quest_reference_files=$q mob_reference_files=$r exact_mob_files=$f"
-            if [ "$m" -gt 0 ]; then grep -R -l --include='*.xml' -w '9400410' "$d/Map.wz" | head -20; fi
-            if [ "$q" -gt 0 ]; then grep -R -l --include='*.xml' -w '9400410' "$d/Quest.wz" | head -20; fi
+            if [ "$m" -gt 0 ]; then grep -R -l --include='*.xml' -w '9400410' "$d/Map.wz" | head -20 || true; fi
+            if [ "$q" -gt 0 ]; then grep -R -l --include='*.xml' -w '9400410' "$d/Quest.wz" | head -20 || true; fi
             refs=$((refs+m+q)); mobfiles=$((mobfiles+f))
           done < <(find /opt/everleaf /home/ubuntu/everleaf-staging -maxdepth 6 -type d \( -name wz -o -name server-wz-xml \) 2>/dev/null | sort -u)
           echo "PRESERVED_SUMMARY trees=$trees gameplay_reference_files=$refs exact_mob_files=$mobfiles"
 
           echo '=== production DB references ==='
-          spawn=$(sudo mysql -NBe "SELECT COUNT(*) FROM cosmic.monsters WHERE monsterid=9400410;" 2>/dev/null || echo 0)
-          drops=$(sudo mysql -NBe "SELECT COUNT(*) FROM cosmic.drop_data WHERE dropperid=9400410;" 2>/dev/null || echo 0)
-          qdrops=$(sudo mysql -NBe "SELECT COUNT(*) FROM cosmic.drop_data WHERE itemid IN (4000337,4000338,4000339,4000340,4000341,4000342,4000343,4000344,4000345,4000346) AND dropperid=9400410;" 2>/dev/null || echo 0)
+          spawn=$(sudo mysql -NBe "SELECT COUNT(*) FROM cosmic.monsters WHERE monsterid=9400410;" 2>/dev/null || printf '0')
+          drops=$(sudo mysql -NBe "SELECT COUNT(*) FROM cosmic.drop_data WHERE dropperid=9400410;" 2>/dev/null || printf '0')
+          qdrops=$(sudo mysql -NBe "SELECT COUNT(*) FROM cosmic.drop_data WHERE itemid IN (4000337,4000338,4000339,4000340,4000341,4000342,4000343,4000344,4000345,4000346) AND dropperid=9400410;" 2>/dev/null || printf '0')
           echo "db_monster_spawn_rows=$spawn db_drop_rows=$drops db_ninja_material_rows=$qdrops"
 
           echo '=== raw pinned donor exact asset ==='
