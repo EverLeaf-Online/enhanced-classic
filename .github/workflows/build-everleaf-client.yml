@@ -30,12 +30,20 @@ jobs:
         shell: pwsh
         run: python client/scripts/apply-community-ui-preference.py
 
+      - name: Apply EverLeaf Client v2 rebrand
+        shell: pwsh
+        run: python client/scripts/apply-client-v2-rebrand.py
+
       - name: Configure MSBuild
         uses: microsoft/setup-msbuild@v2
 
       - name: Build source-pinned Win32 release
         shell: pwsh
         run: msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+
+      - name: Verify compiled EverLeaf branding
+        shell: pwsh
+        run: python client/scripts/verify-client-v2-branding.py client/ezorsia/out/Release/dinput8.dll
 
       - name: Verify EverLeaf client hardening
         shell: pwsh
@@ -60,6 +68,12 @@ jobs:
           foreach ($pattern in @('PreferCommunityUI', 'CustomLoginFrame = !preferCommunityUi', 'ownCashShopFrame = preferCommunityUi')) {
             if (-not $main.Contains($pattern)) { throw "Missing Community UI preference marker: $pattern" }
           }
+          foreach ($forbidden in @('444Ro666', 'MapleEzorsiaV2wzfiles.img', 'Ezorsia v2 releases', 'Ezorsia V2 has detected')) {
+            if ($main.Contains($forbidden)) { throw "Donor troubleshooting/runtime branding survived rebrand transform: $forbidden" }
+          }
+          if (-not $main.Contains('EverLeaf_UI.img')) { throw "EverLeaf IMG runtime fallback name missing after rebrand transform" }
+          if ($source.Contains('MapleEzorsiaV2wzfiles.img/')) { throw "Donor IMG namespace survived rebrand transform" }
+          if (-not $source.Contains('EverLeaf_UI.img/')) { throw "EverLeaf IMG namespace missing after rebrand transform" }
 
           $bootstrap = Get-Content "client/ezorsia/ezorsia/dllmain.cpp" -Raw
           foreach ($pattern in @(
