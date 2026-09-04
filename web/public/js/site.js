@@ -41,9 +41,27 @@
     });
   };
 
+  const bindPasswordToggles = () => {
+    document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+      const targetId = String(button.dataset.passwordToggle || '').trim();
+      const input = targetId ? document.getElementById(targetId) : null;
+      if (!input || button.dataset.passwordToggleBound === '1') return;
+      button.dataset.passwordToggleBound = '1';
+
+      button.addEventListener('click', () => {
+        const revealing = input.type === 'password';
+        input.type = revealing ? 'text' : 'password';
+        button.setAttribute('aria-pressed', String(revealing));
+        button.setAttribute('aria-label', revealing ? 'Hide password' : 'Show password');
+        input.focus({ preventScroll: true });
+      });
+    });
+  };
+
   syncNav();
   syncMobileState();
   hydrateLiveAvatars();
+  bindPasswordToggles();
   window.addEventListener('scroll', syncNav, { passive: true });
 
   if (mobileMenu) {
