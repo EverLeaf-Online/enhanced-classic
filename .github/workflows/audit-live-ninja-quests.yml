@@ -1,0 +1,77 @@
+name: Audit live Ninja quest closure
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-live-ninja-quests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Compare Ninja quests across preserved and pinned v95 XML
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          ids='8163 8164 8165 8166 8167 8168 8169 8170 8171'
+          echo '=== preserved full-v95 trees ==='
+          trees=0
+          while IFS= read -r d; do
+            [ -d "$d/Quest.wz" ] || continue
+            count=$(find "$d" -type f -name '*.xml' 2>/dev/null | wc -l)
+            [ "$count" -ge 44000 ] || continue
+            find "$d/Map.wz" -type f -name '800040000.img.xml' -print -quit | grep -q . || continue
+            trees=$((trees+1))
+            echo "TREE $d xml=$count"
+            for id in $ids; do
+              hits=$( (grep -R -l --include='*.xml' -E "name=\"0*$id\"|value=\"0*$id\"" "$d/Quest.wz" 2>/dev/null || true) | wc -l )
+              echo "  quest_$id=$hits"
+            done
+          done < <(find /opt/everleaf /home/ubuntu/everleaf-staging -maxdepth 6 -type d \( -name wz -o -name server-wz-xml \) 2>/dev/null | sort -u)
+          echo "preserved_tree_count=$trees"
+
+          echo '=== pinned core7 v95 XML archive ==='
+          archive=/opt/everleaf/private/wz-donors/gms-v95-core7.zip
+          test -s "$archive"
+          test "$(sha256sum "$archive" | awk '{print $1}')" = '62e106f8437ce04443c797c0514e14d430fcc0a10ae4131f16567f540a8d5d3c'
+          tmp=$(mktemp -d)
+          trap 'rm -rf "$tmp"' EXIT
+          unzip -q "$archive" 'Quest.wz/*' -d "$tmp"
+          for id in $ids; do
+            hits=$( (grep -R -l --include='*.xml' -E "name=\"0*$id\"|value=\"0*$id\"" "$tmp/Quest.wz" 2>/dev/null || true) | wc -l )
+            echo "donor_quest_$id=$hits"
+          done
+
+          echo '=== current production server XML ==='
+          current=$(readlink -f /opt/everleaf/current)
+          for id in $ids; do
+            hits=$( (grep -R -l --include='*.xml' -E "name=\"0*$id\"|value=\"0*$id\"" "$current/wz/Quest.wz" 2>/dev/null || true) | wc -l )
+            echo "current_quest_$id=$hits"
+          done
+          echo NINJA_QUEST_CLOSURE_AUDIT_COMPLETE
+          REMOTE
