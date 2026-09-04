@@ -26,6 +26,9 @@ public final class BotQaSoakRunner {
     private static final String ARM_TOKEN = "ARM";
     public static final int MAX_DURATION_MINUTES = 12 * 60;
     private static final Map<Integer, Run> runsByOwner = new ConcurrentHashMap<>();
+    // Terminal snapshots deliberately contain no Character references, so completed/stopped soak runs
+    // cannot pin synthetic players or their headless clients in memory.
+    private static final Map<Integer, SoakResult> lastResultsByOwner = new ConcurrentHashMap<>();
 
     private BotQaSoakRunner() {}
 
@@ -45,6 +48,7 @@ public final class BotQaSoakRunner {
 
         Run old = runsByOwner.remove(ownerId);
         if (old != null) old.stop("replaced");
+        lastResultsByOwner.remove(ownerId);
 
         Run run = new Run(ownerId, fleet.bots(), durationMinutes * 60_000L);
         int started = 0;
@@ -65,12 +69,15 @@ public final class BotQaSoakRunner {
         Run run = runsByOwner.get(ownerId);
         if (run == null) return SoakResult.fail("no-soak-run");
         run.stop("stopped");
-        return run.snapshot("stopped");
+        SoakResult terminal = lastResultsByOwner.get(ownerId);
+        return terminal == null ? run.snapshot("stopped") : terminal;
     }
 
     public static SoakResult status(int ownerId) {
         Run run = runsByOwner.get(ownerId);
-        return run == null ? SoakResult.fail("no-soak-run") : run.snapshot("status");
+        if (run != null) return run.snapshot("status");
+        SoakResult terminal = lastResultsByOwner.get(ownerId);
+        return terminal == null ? SoakResult.fail("no-soak-run") : terminal;
     }
 
     public static boolean isRunning(int ownerId) {
@@ -151,17 +158,17 @@ public final class BotQaSoakRunner {
         }
 
         private void complete() {
+            if (!"running".equals(phase)) return;
             phase = "complete";
             terminalReason = "duration-complete";
-            cancelTask();
-            stopHunters();
+            finish();
         }
 
         private void fail(String reason) {
+            if (!"running".equals(phase)) return;
             phase = "failed";
             terminalReason = reason;
-            cancelTask();
-            stopHunters();
+            finish();
             log.warn("SoloMapling QA soak failed owner={} reason={}", ownerId, reason);
         }
 
@@ -169,8 +176,15 @@ public final class BotQaSoakRunner {
             if (!"running".equals(phase)) return;
             phase = "stopped";
             terminalReason = reason;
+            finish();
+        }
+
+        private void finish() {
             cancelTask();
             stopHunters();
+            SoakResult terminal = snapshot(terminalReason);
+            runsByOwner.remove(ownerId, this);
+            lastResultsByOwner.put(ownerId, terminal);
         }
 
         private void stopHunters() {
