@@ -86,15 +86,22 @@ public final class BotQaFleet {
 
     private static void normalize(Character bot, int jobId, int level, int mesos) {
         stopAll(bot);
-        // Synthetic ids are never persisted, so normalizing this clone cannot alter the template row.
+        // Synthetic ids are never persisted. Strip all inherited combat/account-facing inventory state
+        // before assigning the deterministic QA profile so the GM template cannot influence results.
         bot.loseExp(bot.getExp(), false, false);
         bot.setLevel(Math.max(1, Math.min(level, bot.getMaxClassLevel())));
-        BotQaProfile.apply(bot, jobId);
+        BotQaProfile.ProfileResult profile = BotQaProfile.apply(bot, jobId);
+        if (!profile.applied()) throw new IllegalStateException("QA profile rejected: " + profile.reason());
+
+        clearInventory(bot, InventoryType.EQUIPPED);
         clearInventory(bot, InventoryType.EQUIP);
         clearInventory(bot, InventoryType.USE);
         clearInventory(bot, InventoryType.SETUP);
         clearInventory(bot, InventoryType.ETC);
         clearInventory(bot, InventoryType.CASH);
+
+        BotQaLoadout.LoadoutResult loadout = BotQaLoadout.apply(bot, jobId);
+        if (!loadout.success()) throw new IllegalStateException("QA loadout rejected: " + loadout.reason());
 
         int delta = mesos - bot.getMeso();
         if (delta != 0) bot.gainMeso(delta, false, true, false);
@@ -102,6 +109,7 @@ public final class BotQaFleet {
         InventoryManipulator.addById(bot.getClient(), 2000001, (short) 100, "", -1); // Blue Potion
         if (needsStars(jobId)) InventoryManipulator.addById(bot.getClient(), 2070000, (short) 1, "", -1);
         if (needsBullets(jobId)) InventoryManipulator.addById(bot.getClient(), 2330000, (short) 1, "", -1);
+        bot.healHpMp();
     }
 
     private static void clearInventory(Character bot, InventoryType type) {
@@ -133,7 +141,7 @@ public final class BotQaFleet {
         stopAll(bot);
         try { BotTradeDriver.cancel(bot); } catch (RuntimeException ignored) { }
         try { if (bot.getParty() != null) BotPartyDriver.leave(bot); } catch (RuntimeException ignored) { }
-        try { if (bot.getStorage() != null && bot.getStorage().isStorageOpen()) BotStorageDriver.close(bot); } catch (RuntimeException ignored) { }
+        try { BotStorageDriver.clearBot(bot); } catch (RuntimeException ignored) { }
         try { BareBotFactory.removeBareBot(bot); } catch (RuntimeException ignored) { }
     }
 
@@ -149,6 +157,7 @@ public final class BotQaFleet {
         try { BotBuffDriver.clearBot(bot.getId()); } catch (RuntimeException ignored) { }
         try { BotConsumableDriver.clearBot(bot.getId()); } catch (RuntimeException ignored) { }
         try { BotNpcDriver.cancel(bot); } catch (RuntimeException ignored) { }
+        try { BotStorageDriver.clearBot(bot); } catch (RuntimeException ignored) { }
     }
 
     private static FleetResult snapshot(Fleet fleet, boolean success, String reason) {

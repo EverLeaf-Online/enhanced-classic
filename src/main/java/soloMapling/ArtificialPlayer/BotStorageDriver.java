@@ -12,9 +12,14 @@ import server.ItemInformationProvider;
 import server.Storage;
 import server.life.NPC;
 
-/** Exercises EverLeaf's real account-storage container with the same inventory/meso invariants as clients. */
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+/** Exercises EverLeaf's real storage algorithms without ever attaching to a persisted account trunk. */
 public final class BotStorageDriver {
     private static final double INTERACT_RANGE_SQ = 250.0 * 250.0;
+    private static final int QA_STORAGE_SLOTS = 16;
+    private static final Map<Integer, Storage> qaStorageByBot = new ConcurrentHashMap<>();
 
     private BotStorageDriver() {}
 
@@ -23,25 +28,36 @@ public final class BotStorageDriver {
         NPC npc = BotNpcDriver.findNpc(bot, npcId);
         if (npc == null || npc.getPosition() == null) return StorageResult.fail("npc-not-on-map");
         if (bot.getPosition().distanceSq(npc.getPosition()) > INTERACT_RANGE_SQ) return StorageResult.fail("npc-too-far");
-        Storage storage = bot.getStorage();
-        if (storage == null) return StorageResult.fail("storage-unavailable");
+        Storage storage = qaStorageByBot.computeIfAbsent(bot.getId(), ignored -> Storage.createTransientQaStorage(QA_STORAGE_SLOTS, 0));
         storage.sendStorage(bot.getClient(), npcId);
-        return snapshot(bot, "opened", 0, 0);
+        return snapshot(bot, storage, "opened", 0, 0);
     }
 
     public static StorageResult close(Character bot) {
-        if (!eligible(bot) || bot.getStorage() == null) return StorageResult.fail("not-eligible");
-        bot.getStorage().close();
-        return snapshot(bot, "closed", 0, 0);
+        if (bot == null) return StorageResult.fail("not-eligible");
+        Storage storage = qaStorageByBot.get(bot.getId());
+        if (storage == null) return StorageResult.fail("storage-unavailable");
+        storage.close();
+        return snapshot(bot, storage, "closed", 0, 0);
+    }
+
+    public static void clearBot(Character bot) {
+        if (bot == null) return;
+        Storage storage = qaStorageByBot.remove(bot.getId());
+        if (storage != null) storage.close();
+    }
+
+    public static int activeQaStorageCount() {
+        return qaStorageByBot.size();
     }
 
     public static StorageResult deposit(Character bot, InventoryType type, short slot, short quantity) {
-        if (!sessionValid(bot)) return StorageResult.fail("storage-not-open");
+        Storage storage = session(bot);
+        if (storage == null) return StorageResult.fail("storage-not-open");
         if (type == null || type == InventoryType.UNDEFINED || type == InventoryType.EQUIPPED || quantity <= 0) {
             return StorageResult.fail("invalid-item-request");
         }
 
-        Storage storage = bot.getStorage();
         if (storage.isFull()) return StorageResult.fail("storage-full");
         int fee = storage.getStoreFee();
         if (bot.getMeso() < fee) return StorageResult.fail("insufficient-mesos-for-fee");
@@ -68,17 +84,16 @@ public final class BotStorageDriver {
             }
 
             if (fee > 0) bot.gainMeso(-fee, false, true, false);
-            bot.setUsedStorage();
             storage.sendStored(bot.getClient(), type);
-            return snapshot(bot, "item-deposited", itemId, quantity);
+            return snapshot(bot, storage, "item-deposited", itemId, quantity);
         } finally {
             inv.unlockInventory();
         }
     }
 
     public static StorageResult withdraw(Character bot, int storageIndex) {
-        if (!sessionValid(bot)) return StorageResult.fail("storage-not-open");
-        Storage storage = bot.getStorage();
+        Storage storage = session(bot);
+        if (storage == null) return StorageResult.fail("storage-not-open");
         if (storageIndex < 0 || storageIndex >= storage.getItems().size()) return StorageResult.fail("invalid-storage-index");
 
         Item item = storage.getItems().get(storageIndex);
@@ -96,60 +111,64 @@ public final class BotStorageDriver {
         if (!storage.takeOut(item)) return StorageResult.fail("storage-remove-failed");
         try {
             KarmaManipulator.toggleKarmaFlagToUntradeable(item);
-            InventoryManipulator.addFromDrop(bot.getClient(), item, false);
+            if (!InventoryManipulator.addFromDrop(bot.getClient(), item, false)) {
+                storage.store(item);
+                return StorageResult.fail("inventory-add-rejected");
+            }
         } catch (RuntimeException failure) {
             storage.store(item);
             return StorageResult.fail("inventory-add-failed");
         }
 
         if (fee > 0) bot.gainMeso(-fee, false, true, false);
-        bot.setUsedStorage();
         storage.sendTakenOut(bot.getClient(), item.getInventoryType());
-        return snapshot(bot, "item-withdrawn", item.getItemId(), item.getQuantity());
+        return snapshot(bot, storage, "item-withdrawn", item.getItemId(), item.getQuantity());
     }
 
     public static StorageResult depositMesos(Character bot, int amount) {
-        if (!sessionValid(bot)) return StorageResult.fail("storage-not-open");
+        Storage storage = session(bot);
+        if (storage == null) return StorageResult.fail("storage-not-open");
         if (amount <= 0 || bot.getMeso() < amount) return StorageResult.fail("insufficient-mesos");
-        Storage storage = bot.getStorage();
         long next = (long) storage.getMeso() + amount;
         if (next > Integer.MAX_VALUE) return StorageResult.fail("storage-meso-overflow");
         storage.setMeso((int) next);
         bot.gainMeso(-amount, false, true, false);
-        bot.setUsedStorage();
         storage.sendMeso(bot.getClient());
-        return snapshot(bot, "mesos-deposited", 0, amount);
+        return snapshot(bot, storage, "mesos-deposited", 0, amount);
     }
 
     public static StorageResult withdrawMesos(Character bot, int amount) {
-        if (!sessionValid(bot)) return StorageResult.fail("storage-not-open");
+        Storage storage = session(bot);
+        if (storage == null) return StorageResult.fail("storage-not-open");
         if (amount <= 0) return StorageResult.fail("invalid-mesos");
-        Storage storage = bot.getStorage();
         if (storage.getMeso() < amount) return StorageResult.fail("insufficient-storage-mesos");
         long nextPlayer = (long) bot.getMeso() + amount;
         if (nextPlayer > Integer.MAX_VALUE) return StorageResult.fail("player-meso-overflow");
         storage.setMeso(storage.getMeso() - amount);
         bot.gainMeso(amount, false, true, false);
-        bot.setUsedStorage();
         storage.sendMeso(bot.getClient());
-        return snapshot(bot, "mesos-withdrawn", 0, amount);
+        return snapshot(bot, storage, "mesos-withdrawn", 0, amount);
     }
 
     public static StorageResult status(Character bot) {
-        if (!eligible(bot) || bot.getStorage() == null) return StorageResult.fail("not-eligible");
-        return snapshot(bot, bot.getStorage().isStorageOpen() ? "open" : "closed", 0, 0);
+        if (bot == null) return StorageResult.fail("not-eligible");
+        Storage storage = qaStorageByBot.get(bot.getId());
+        if (storage == null) return StorageResult.fail("storage-unavailable");
+        return snapshot(bot, storage, storage.isStorageOpen() ? "open" : "closed", 0, 0);
     }
 
-    private static StorageResult snapshot(Character bot, String reason, int itemId, int amount) {
-        Storage storage = bot.getStorage();
+    private static Storage session(Character bot) {
+        if (!eligible(bot)) return null;
+        Storage storage = qaStorageByBot.get(bot.getId());
+        if (storage == null || !storage.isStorageOpen()) return null;
+        if (storage.getCurrentMapId() != bot.getMapId()) return null;
+        if (BotNpcDriver.findNpc(bot, storage.getCurrentNpcid()) == null) return null;
+        return storage;
+    }
+
+    private static StorageResult snapshot(Character bot, Storage storage, String reason, int itemId, int amount) {
         return new StorageResult(true, storage.isStorageOpen(), storage.getItems().size(), storage.getSlots(),
-                storage.getMeso(), bot.getMeso(), itemId, amount, reason);
-    }
-
-    private static boolean sessionValid(Character bot) {
-        return eligible(bot) && bot.getStorage() != null && bot.getStorage().isStorageOpen()
-                && bot.getStorage().getCurrentMapId() == bot.getMapId()
-                && BotNpcDriver.findNpc(bot, bot.getStorage().getCurrentNpcid()) != null;
+                storage.getMeso(), bot == null ? 0 : bot.getMeso(), itemId, amount, reason);
     }
 
     private static boolean eligible(Character bot) {

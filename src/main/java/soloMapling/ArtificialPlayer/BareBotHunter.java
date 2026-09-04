@@ -15,20 +15,27 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 
-/** Controlled autonomous QA hunter with death recovery, cross-map restocking and progression. */
+/** Controlled autonomous QA hunter with bounded death recovery, cross-map restocking and progression. */
 public final class BareBotHunter {
     private static final Logger log = LoggerFactory.getLogger(BareBotHunter.class);
     private static final long TICK_MS = 250;
     private static final int APPROACH_MARGIN = 20;
     private static final int PROGRESSION_LEVEL_STEP = 5;
     private static final long TRAVEL_RETRY_MS = 3_000L;
+    private static final int MAX_TRAVEL_ATTEMPTS = 5;
+    private static final int MAX_RECOVERY_ATTEMPTS = 5;
+    private static final int MAX_RESTOCK_FAILURES = 3;
+    private static final int MAX_CONSECUTIVE_TICK_FAILURES = 5;
+    private static final long MAX_NON_HUNTING_PHASE_MS = 120_000L;
     private static final Map<Integer, Hunt> hunts = new ConcurrentHashMap<>();
+    private static final Map<Integer, String> lastFailureByBot = new ConcurrentHashMap<>();
 
     private BareBotHunter() {}
 
     public static boolean start(Character bot) {
         if (bot == null || bot.getMap() == null || bot.getPosition() == null) return false;
         stop(bot);
+        lastFailureByBot.remove(bot.getId());
         BareBotAutopilot.stop(bot);
         GCMovement.enable(bot);
         Hunt hunt = new Hunt(bot, bot.getMapId(), new Point(bot.getPosition()));
@@ -60,6 +67,14 @@ public final class BareBotHunter {
         return hunt == null ? "stopped" : hunt.phase.name().toLowerCase();
     }
 
+    public static String failureReason(Character bot) {
+        return bot == null ? null : lastFailureByBot.get(bot.getId());
+    }
+
+    public static void clearFailure(int botId) {
+        lastFailureByBot.remove(botId);
+    }
+
     private enum Phase { HUNTING, RECOVERING, TO_SHOP, SHOPPING, RETURNING, PROGRESSING }
 
     private static final class Hunt implements Runnable {
@@ -71,6 +86,11 @@ public final class BareBotHunter {
         private volatile int pendingTrainingMapId = -1;
         private volatile int shopMapId = -1;
         private int lastProgressionLevel;
+        private int travelAttempts;
+        private int recoveryAttempts;
+        private int restockFailures;
+        private int consecutiveTickFailures;
+        private long phaseStartedAt = System.currentTimeMillis();
         private long nextTravelRetryAt;
         private long lastFailureLogAt;
 
@@ -83,19 +103,30 @@ public final class BareBotHunter {
 
         @Override
         public void run() {
-            try { tick(); }
-            catch (Throwable t) {
+            try {
+                tick();
+                consecutiveTickFailures = 0;
+            } catch (Throwable t) {
+                consecutiveTickFailures++;
                 long now = System.currentTimeMillis();
                 if (now - lastFailureLogAt >= 5_000L) {
                     lastFailureLogAt = now;
-                    log.warn("SoloMapling QA hunter recovered from tick failure bot={} map={} phase={}",
-                            bot == null ? -1 : bot.getId(), bot == null ? -1 : bot.getMapId(), phase, t);
+                    log.warn("SoloMapling QA hunter tick failure bot={} map={} phase={} consecutive={}",
+                            bot == null ? -1 : bot.getId(), bot == null ? -1 : bot.getMapId(), phase,
+                            consecutiveTickFailures, t);
+                }
+                if (consecutiveTickFailures >= MAX_CONSECUTIVE_TICK_FAILURES) {
+                    failClosed("tick-exception-threshold:" + t.getClass().getSimpleName());
                 }
             }
         }
 
         private void tick() {
-            if (bot.getMap() == null || !BotHelpers.isBot(bot)) { stop(bot); return; }
+            if (bot.getMap() == null || !BotHelpers.isBot(bot)) { failClosed("bot-left-valid-runtime"); return; }
+            if (phase != Phase.HUNTING && System.currentTimeMillis() - phaseStartedAt > MAX_NON_HUNTING_PHASE_MS) {
+                failClosed("phase-timeout:" + phase.name().toLowerCase());
+                return;
+            }
             if (!bot.isAlive()) { recoverFromDeath(); return; }
             switch (phase) {
                 case RECOVERING, RETURNING, TO_SHOP, PROGRESSING -> tickTravel();
@@ -106,14 +137,23 @@ public final class BareBotHunter {
 
         private void recoverFromDeath() {
             long now = System.currentTimeMillis();
-            if (phase == Phase.RECOVERING && now < nextTravelRetryAt) return;
-            phase = Phase.RECOVERING;
+            if (phase != Phase.RECOVERING) {
+                enterPhase(Phase.RECOVERING);
+                recoveryAttempts = 0;
+            }
+            if (now < nextTravelRetryAt) return;
+            if (++recoveryAttempts > MAX_RECOVERY_ATTEMPTS) {
+                failClosed("death-recovery-attempts-exhausted");
+                return;
+            }
+
             stopTransientState();
             int returnMapId = bot.getMap().getReturnMapId();
             try {
                 bot.respawn(returnMapId); // same normal Character path used by ChangeMapHandler
             } catch (RuntimeException e) {
-                log.warn("SoloMapling QA death respawn failed bot={} returnMap={}", bot.getId(), returnMapId, e);
+                log.warn("SoloMapling QA death respawn failed bot={} returnMap={} attempt={}",
+                        bot.getId(), returnMapId, recoveryAttempts, e);
                 nextTravelRetryAt = now + TRAVEL_RETRY_MS;
                 return;
             }
@@ -122,14 +162,15 @@ public final class BareBotHunter {
         }
 
         private void tickTravel() {
-            if (!bot.isAlive() || GCMovement.isTraveling(bot)) return;
+            if (!bot.isAlive()) return;
+            if (GCMovement.isTraveling(bot)) return;
             long now = System.currentTimeMillis();
             if (phase == Phase.RECOVERING) {
                 if (now >= nextTravelRetryAt) recoverFromDeath();
                 return;
             }
             if (phase == Phase.TO_SHOP) {
-                if (shopMapId > 0 && bot.getMapId() == shopMapId) phase = Phase.SHOPPING;
+                if (shopMapId > 0 && bot.getMapId() == shopMapId) enterPhase(Phase.SHOPPING);
                 else if (shopMapId > 0) retryTravel(shopMapId, Phase.TO_SHOP);
                 else beginReturnToTraining();
                 return;
@@ -154,14 +195,26 @@ public final class BareBotHunter {
         private void tickShopping() {
             BotShopDriver.RestockResult restock = BotShopDriver.tickRestock(bot);
             if (restock.active()) return;
-            if ("stocked".equals(restock.reason())) { beginReturnToTraining(); return; }
-            if ("no-shop-on-map".equals(restock.reason()) || "shop-unavailable".equals(restock.reason())) {
-                log.warn("SoloMapling QA restock trip found no usable shop bot={} map={} reason={}",
-                        bot.getId(), bot.getMapId(), restock.reason());
+            if ("stocked".equals(restock.reason())) {
+                restockFailures = 0;
                 beginReturnToTraining();
                 return;
             }
-            if (restock.attempted()) beginReturnToTraining();
+            if ("no-shop-on-map".equals(restock.reason()) || "shop-unavailable".equals(restock.reason())
+                    || "shop-could-not-restock".equals(restock.reason())) {
+                if (++restockFailures >= MAX_RESTOCK_FAILURES) {
+                    failClosed("restock-failures-exhausted:" + restock.reason());
+                    return;
+                }
+                log.warn("SoloMapling QA restock trip failed bot={} map={} reason={} attempt={}",
+                        bot.getId(), bot.getMapId(), restock.reason(), restockFailures);
+                beginReturnToTraining();
+                return;
+            }
+            if (restock.attempted()) {
+                restockFailures = 0;
+                beginReturnToTraining();
+            }
         }
 
         private void tickHunting() {
@@ -207,55 +260,76 @@ public final class BareBotHunter {
         private void beginShopTrip() {
             int destinationMapId = BotShopMapSelector.select(bot);
             if (destinationMapId <= 0) {
-                log.warn("SoloMapling QA could not resolve a restock destination bot={} map={}",
-                        bot.getId(), bot.getMapId());
+                if (++restockFailures >= MAX_RESTOCK_FAILURES) {
+                    failClosed("shop-destination-unavailable");
+                    return;
+                }
+                log.warn("SoloMapling QA could not resolve restock destination bot={} map={} attempt={}",
+                        bot.getId(), bot.getMapId(), restockFailures);
                 return;
             }
             if (destinationMapId == bot.getMapId()) {
-                phase = Phase.SHOPPING;
+                enterPhase(Phase.SHOPPING);
                 return;
             }
             stopTransientState();
             shopMapId = destinationMapId;
-            phase = Phase.TO_SHOP;
             startTravel(shopMapId, Phase.TO_SHOP);
         }
 
         private void beginProgression(int targetMapId) {
             stopTransientState();
             pendingTrainingMapId = targetMapId;
-            phase = Phase.PROGRESSING;
             startTravel(targetMapId, Phase.PROGRESSING);
         }
 
         private void beginReturnToTraining() {
             stopTransientState();
             shopMapId = -1;
-            phase = Phase.RETURNING;
+            enterPhase(Phase.RETURNING);
+            travelAttempts = 0;
             if (bot.getMapId() == trainingMapId) {
                 if (trainingPosition != null) GCMovement.move(bot, trainingPosition.x, trainingPosition.y, this::resumeHunting);
                 else resumeHunting();
                 return;
             }
+            startTravelToTraining();
+        }
+
+        private void startTravelToTraining() {
+            if (!nextTravelAttempt()) return;
             if (trainingPosition == null) {
                 GCMovement.travel(bot, trainingMapId,
                         ok -> { if (ok) resumeHunting(); else scheduleTravelRetry(); });
-                return;
+            } else {
+                GCMovement.travelTo(bot, trainingMapId, trainingPosition.x, trainingPosition.y,
+                        ok -> { if (ok) resumeHunting(); else scheduleTravelRetry(); });
             }
-            GCMovement.travelTo(bot, trainingMapId, trainingPosition.x, trainingPosition.y,
-                    ok -> { if (ok) resumeHunting(); else scheduleTravelRetry(); });
         }
 
         private void startTravel(int mapId, Phase travelPhase) {
-            phase = travelPhase;
+            if (phase != travelPhase) {
+                enterPhase(travelPhase);
+                travelAttempts = 0;
+            }
+            if (!nextTravelAttempt()) return;
             GCMovement.travel(bot, mapId, ok -> { if (!ok) scheduleTravelRetry(); });
+        }
+
+        private boolean nextTravelAttempt() {
+            if (++travelAttempts > MAX_TRAVEL_ATTEMPTS) {
+                failClosed("travel-attempts-exhausted:" + phase.name().toLowerCase());
+                return false;
+            }
+            return true;
         }
 
         private void retryTravel(int mapId, Phase travelPhase) {
             long now = System.currentTimeMillis();
             if (now < nextTravelRetryAt) return;
             nextTravelRetryAt = now + TRAVEL_RETRY_MS;
-            startTravel(mapId, travelPhase);
+            if (travelPhase == Phase.RETURNING) startTravelToTraining();
+            else startTravel(mapId, travelPhase);
         }
 
         private void scheduleTravelRetry() {
@@ -265,8 +339,28 @@ public final class BareBotHunter {
 
         private void resumeHunting() {
             if (!bot.isAlive() || bot.getMap() == null) return;
-            phase = Phase.HUNTING;
+            enterPhase(Phase.HUNTING);
+            travelAttempts = 0;
+            recoveryAttempts = 0;
             GCMovement.enable(bot);
+        }
+
+        private void enterPhase(Phase next) {
+            if (phase != next) {
+                phase = next;
+                phaseStartedAt = System.currentTimeMillis();
+            }
+        }
+
+        private void failClosed(String reason) {
+            if (bot == null) return;
+            lastFailureByBot.put(bot.getId(), reason);
+            log.error("SoloMapling QA hunter failed closed bot={} map={} phase={} reason={}",
+                    bot.getId(), bot.getMapId(), phase, reason);
+            Hunt removed = hunts.remove(bot.getId());
+            if (removed != null) removed.cancel();
+            stopTransientState();
+            try { GCMovement.disable(bot); } catch (RuntimeException ignored) { }
         }
 
         private void stopTransientState() {

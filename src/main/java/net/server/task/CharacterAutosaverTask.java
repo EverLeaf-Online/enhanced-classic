@@ -23,6 +23,7 @@ import client.Character;
 import config.YamlConfig;
 import net.server.PlayerStorage;
 import net.server.world.World;
+import soloMapling.ArtificialPlayer.BotHelpers;
 
 /**
  * @author Ronan
@@ -37,7 +38,9 @@ public class CharacterAutosaverTask extends BaseTask implements Runnable {  // t
 
         PlayerStorage ps = wserv.getPlayerStorage();
         for (Character chr : ps.getAllCharacters()) {
-            if (chr != null && chr.isLoggedin()) {
+            // Synthetic SoloMapling players deliberately reuse a persisted character as a visual/template
+            // source but their high IDs and in-memory state must never enter the persistence pipeline.
+            if (chr != null && chr.isLoggedin() && !BotHelpers.isBot(chr)) {
                 chr.saveCharToDB(false);
             }
         }

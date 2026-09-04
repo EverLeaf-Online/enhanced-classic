@@ -2,6 +2,8 @@ package soloMapling.ArtificialPlayer.BotAttackSystem;
 
 import client.Character;
 import client.Job;
+import client.Skill;
+import client.SkillFactory;
 import client.inventory.WeaponType;
 import constants.skills.Cleric;
 import constants.skills.Hermit;
@@ -24,8 +26,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * EverLeaf-reconciled SoloMapling class-aware attack driver.
  *
  * <p>Preserves the donor's job/weapon profiles, facing, AoE selection, cooldowns,
- * critical-line rendering and visible attack routes. Terrain and movement remain
- * owned by the already-integrated GCMove runtime.</p>
+ * critical-line rendering and visible attack routes. Damage now derives from the synthetic
+ * Character's actual EverLeaf stats/equipment and learned skill effect.</p>
  */
 public final class BotAttackDriver {
     private static final Map<Integer, Long> nextAttackByBot = new ConcurrentHashMap<>();
@@ -139,42 +141,51 @@ public final class BotAttackDriver {
         if (targets.isEmpty()) return AttackResult.miss("nearest mob is outside attack reach");
 
         int skillId = profile.skillFor(weapon);
+        int skillLevel = learnedSkillLevel(bot, skillId);
+        if (skillId > 0 && skillLevel <= 0) return AttackResult.miss("configured skill is not learned: " + skillId);
         int bodyActionId = BotAttackData.actionFor(skillId, weapon);
         int facingMask = facingLeft ? BotAttackData.FACING_LEFT_MASK : BotAttackData.FACING_RIGHT_MASK;
         int linesPerMob = shadowDoubled(bot, profile.numDamage);
         double critChance = BotAttackConfig.critChanceFor(bot.getJob());
         ThreadLocalRandom rng = ThreadLocalRandom.current();
         Map<Monster, List<Integer>> hits = new LinkedHashMap<>();
-        int reported = 0;
+        long reported = 0;
 
         for (Monster mob : targets) {
             List<Integer> lines = new ArrayList<>(linesPerMob);
             for (int i = 0; i < linesPerMob; i++) {
-                int damage = profile.rollDamage(bot.getLevel(), bot.getJob());
+                int damage = profile.rollDamage(bot, weapon);
                 if (rng.nextDouble() < critChance) {
-                    damage = (int) Math.round(damage * BotAttackConfig.CRIT_MULTIPLIER);
+                    damage = (int) Math.min(Integer.MAX_VALUE,
+                            Math.round(damage * BotAttackConfig.CRIT_MULTIPLIER));
                     lines.add(BotAttackData.encodeCritLine(damage));
                 } else {
                     lines.add(damage);
                 }
-                reported += damage;
+                reported = Math.min(Integer.MAX_VALUE, reported + damage);
             }
             hits.put(mob, lines);
         }
 
         boolean killed = switch (profile.route) {
-            case CLOSE -> BotAttackEffects.meleeStrike(bot, hits, skillId, profile.skillLevel,
+            case CLOSE -> BotAttackEffects.meleeStrike(bot, hits, skillId, skillLevel,
                     bodyActionId, facingMask, profile.speed, profile.hitDelayMs);
-            case RANGED -> BotAttackEffects.rangedStrike(bot, hits, skillId, profile.skillLevel,
+            case RANGED -> BotAttackEffects.rangedStrike(bot, hits, skillId, skillLevel,
                     BotAttackData.projectileFor(weapon, bot), bodyActionId, facingMask, profile.speed, profile.hitDelayMs);
-            case MAGIC -> BotAttackEffects.magicStrike(bot, hits, skillId, profile.skillLevel,
+            case MAGIC -> BotAttackEffects.magicStrike(bot, hits, skillId, skillLevel,
                     bodyActionId, facingMask, profile.speed, profile.hitDelayMs);
         };
 
         nextAttackByBot.put(bot.getId(), now + profile.cooldownMs);
         if (profile == ultimate) nextUltimateByBot.put(bot.getId(), now + FULL_MAP_ULTIMATE_COOLDOWN_MS);
         String label = targets.size() > 1 ? targets.size() + " mobs (nearest '" + targets.get(0).getName() + "')" : targets.get(0).getName();
-        return AttackResult.hit(label, reported, killed);
+        return AttackResult.hit(label, (int) reported, killed);
+    }
+
+    private static int learnedSkillLevel(Character bot, int skillId) {
+        if (skillId <= 0) return 0;
+        Skill skill = SkillFactory.getSkill(skillId);
+        return skill == null ? 0 : bot.getSkillLevel(skill);
     }
 
     private static int shadowDoubled(Character bot, int baseLines) {

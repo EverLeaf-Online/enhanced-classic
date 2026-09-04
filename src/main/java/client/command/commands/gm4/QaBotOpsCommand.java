@@ -10,6 +10,7 @@ import soloMapling.ArtificialPlayer.BotPartyDriver;
 import soloMapling.ArtificialPlayer.BotPqDriver;
 import soloMapling.ArtificialPlayer.BotQaFleet;
 import soloMapling.ArtificialPlayer.BotQaSoakRunner;
+import soloMapling.ArtificialPlayer.BotQaSuiteRunner;
 import soloMapling.ArtificialPlayer.BotQuestDriver;
 import soloMapling.ArtificialPlayer.BotStorageDriver;
 import soloMapling.ArtificialPlayer.BotTradeDriver;
@@ -18,18 +19,18 @@ import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovement;
 import java.util.List;
 
 /**
- * GM-only advanced control surface for SoloMapling Batches 4-7.
+ * GM-only advanced control surface for SoloMapling Batches 4-7 and Phase-2 hardening.
  *
  * <p>The existing !qabot command remains the single-bot movement/combat smoke surface. This command
- * controls the bounded multi-bot fleet and invokes the real EverLeaf party, trade, storage, quest,
- * boss and PQ drivers plus explicit recovery/travel/soak scenarios.</p>
+ * controls the bounded multi-bot fleet and invokes the real EverLeaf party, trade, isolated QA
+ * storage, quest, boss and PQ drivers plus explicit recovery/travel/soak/full-suite scenarios.</p>
  */
 public class QaBotOpsCommand extends Command {
     private static final int QA_WORLD = 0;
     private static final int QA_CHANNEL = 1;
 
     {
-        setDescription("Advanced SoloMapling QA: !qabotops fleet|travel|die|huntall|party|trade|storage|quest|boss|pq|soak");
+        setDescription("Advanced SoloMapling QA: !qabotops fleet|travel|die|huntall|party|trade|storage|quest|boss|pq|soak|suite");
     }
 
     @Override
@@ -56,6 +57,7 @@ public class QaBotOpsCommand extends Command {
                 case "boss" -> boss(c, params);
                 case "pq" -> pq(c, params);
                 case "soak" -> soak(c, params);
+                case "suite" -> suite(c, params);
                 default -> usage(c);
             }
         } catch (NumberFormatException e) {
@@ -71,6 +73,7 @@ public class QaBotOpsCommand extends Command {
         switch (p[1].toLowerCase()) {
             case "spawn" -> {
                 if (p.length != 3) { usage(c); return; }
+                BotQaSuiteRunner.stop(owner);
                 BotQaSoakRunner.stop(owner);
                 BotQaFleet.FleetResult r = BotQaFleet.spawn(owner, owner, Integer.parseInt(p[2]), QA_WORLD,
                         QA_CHANNEL, c.getPlayer().getMapId());
@@ -78,6 +81,7 @@ public class QaBotOpsCommand extends Command {
             }
             case "status" -> reportFleet(c, BotQaFleet.status(owner));
             case "remove", "clear" -> {
+                BotQaSuiteRunner.stop(owner);
                 BotQaSoakRunner.stop(owner);
                 reportFleet(c, BotQaFleet.remove(owner));
             }
@@ -300,6 +304,10 @@ public class QaBotOpsCommand extends Command {
         switch (p[1].toLowerCase()) {
             case "start" -> {
                 if (p.length != 4) { usage(c); return; }
+                if (BotQaSuiteRunner.isRunning(owner)) {
+                    c.getPlayer().yellowMessage("A full QA suite owns this fleet; stop the suite before starting a separate soak.");
+                    return;
+                }
                 r = BotQaSoakRunner.start(owner, Integer.parseInt(p[2]), p[3]);
             }
             case "stop" -> r = BotQaSoakRunner.stop(owner);
@@ -308,11 +316,40 @@ public class QaBotOpsCommand extends Command {
         }
         c.getPlayer().yellowMessage("QA soak: " + r.reason() + " success=" + r.success() + " phase=" + r.phase()
                 + " bots=" + r.bots() + " alive=" + r.alive() + " logged=" + r.loggedInWorld()
-                + " hunting=" + r.hunting() + " deaths=" + r.deaths() + " recoveries=" + r.recoveries()
+                + " hunting=" + r.hunting() + " traveling=" + r.traveling() + " maxTraveling=" + r.maxTraveling()
+                + " deaths=" + r.deaths() + " recoveries=" + r.recoveries()
                 + " invariantFailures=" + r.invariantFailures() + " exceptions=" + r.exceptions()
                 + " elapsed=" + r.elapsedMs() + "/" + r.durationMs() + "ms levelGain=" + r.levelGain()
-                + " mesoDelta=" + r.mesoDelta() + " factoryBots=" + r.globalFactoryBots()
-                + " clients=" + r.headlessClients() + ".");
+                + " mesoDelta=" + r.mesoDelta() + " heapDelta=" + r.heapDeltaBytes()
+                + " threadDelta=" + r.threadDelta() + " factoryBots=" + r.globalFactoryBots()
+                + " clients=" + r.headlessClients() + " storages=" + r.activeQaStorages() + ".");
+    }
+
+    private static void suite(Client c, String[] p) {
+        int owner = c.getPlayer().getId();
+        BotQaSuiteRunner.SuiteResult r;
+        if (p.length == 2 && "ARM".equalsIgnoreCase(p[1])) {
+            r = BotQaSuiteRunner.start(owner, owner, c.getPlayer().getMapId(), 3, p[1]);
+        } else if (p.length >= 2 && "start".equalsIgnoreCase(p[1])) {
+            if (p.length == 3) {
+                r = BotQaSuiteRunner.start(owner, owner, c.getPlayer().getMapId(), 3, p[2]);
+            } else if (p.length == 4) {
+                r = BotQaSuiteRunner.start(owner, owner, c.getPlayer().getMapId(), Integer.parseInt(p[2]), p[3]);
+            } else {
+                usage(c);
+                return;
+            }
+        } else if (p.length == 2 && "status".equalsIgnoreCase(p[1])) {
+            r = BotQaSuiteRunner.status(owner);
+        } else if (p.length == 2 && "stop".equalsIgnoreCase(p[1])) {
+            r = BotQaSuiteRunner.stop(owner);
+        } else {
+            usage(c);
+            return;
+        }
+        c.getPlayer().yellowMessage("QA suite: " + r.reason() + " success=" + r.success() + " phase=" + r.phase()
+                + " passed=" + r.passed() + " failed=" + r.failed() + " skipped=" + r.skipped()
+                + " elapsed=" + r.elapsedMs() + "ms stages=" + r.stageSummary() + ".");
     }
 
     private static Character bot(Client c, int oneBasedIndex) {
@@ -361,7 +398,7 @@ public class QaBotOpsCommand extends Command {
         String mode = p[1].toLowerCase();
         return switch (action) {
             case "fleet" -> mode.equals("remove") || mode.equals("clear");
-            case "huntall", "boss", "pq", "soak" -> mode.equals("stop");
+            case "huntall", "boss", "pq", "soak", "suite" -> mode.equals("stop");
             case "trade" -> mode.equals("cancel");
             case "storage" -> mode.equals("close");
             case "party" -> mode.equals("leave");
@@ -370,6 +407,6 @@ public class QaBotOpsCommand extends Command {
     }
 
     private static void usage(Client c) {
-        c.getPlayer().yellowMessage("Usage: !qabotops fleet spawn <1-12>|status|remove; travel <bot#> <mapId> [x y]; die <bot#>; huntall start|stop; party create|leave|status <bot#>|join|leader <bot#> <bot#>; trade open <bot#> <bot#>|mesos <bot#> <amount>|item <bot#> <invType> <slot> <qty>|confirm <bot#> <bot#>|cancel <bot#>; storage open <bot#> <npcId>|close|status <bot#>|deposit <bot#> <invType> <slot> <qty>|withdraw <bot#> <index>|depositmesos|withdrawmesos <bot#> <amount>; quest start|complete|status|forfeit <bot#> <questId> [npcId]; boss start|stop|status <bot#>; pq start <bot#> <entryNpcId>|stop|status <bot#>; soak start <minutes> ARM|status|stop");
+        c.getPlayer().yellowMessage("Usage: !qabotops fleet spawn <1-12>|status|remove; travel <bot#> <mapId> [x y]; die <bot#>; huntall start|stop; party create|leave|status <bot#>|join|leader <bot#> <bot#>; trade open <bot#> <bot#>|mesos <bot#> <amount>|item <bot#> <invType> <slot> <qty>|confirm <bot#> <bot#>|cancel <bot#>; storage open <bot#> <npcId>|close|status <bot#>|deposit <bot#> <invType> <slot> <qty>|withdraw <bot#> <index>|depositmesos|withdrawmesos <bot#> <amount>; quest start|complete|status|forfeit <bot#> <questId> [npcId]; boss start|stop|status <bot#>; pq start <bot#> <entryNpcId>|stop|status <bot#>; soak start <minutes> ARM|status|stop; suite ARM|start [2-12] ARM|status|stop");
     }
 }
