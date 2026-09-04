@@ -1,4 +1,4 @@
-# Durable character-select/network diagnostic: 2026-09-04
+# Durable character-select/network diagnostic: 2026-09-04-v95-final
 name: Diagnose EverLeaf Network
 
 on:
@@ -51,7 +51,7 @@ jobs:
           CONFIG="$CURRENT/config.yaml"
           RELEASE="$(awk '{print $1}' /opt/everleaf/.deployed-release 2>/dev/null || awk '{print $1}' /opt/everleaf/LAST_DEPLOYED_RELEASE 2>/dev/null || true)"
           PRIMARY_CHANNELS="$(awk '/^worlds:/{in_worlds=1;next} in_worlds && /^[[:space:]]*channels:/{print $2; exit}' "$CONFIG")"
-          HOST="$(awk '/^[[:space:]]*HOST:/{gsub(/"/,"",$2); print $2; exit}' "$CONFIG")"
+          HOST="$(awk '/^[[:space:]]*HOST:/{gsub(/\"/,\"\",$2); print $2; exit}' "$CONFIG")"
           EXPECTED=21
           LISTENERS=0
           for port in 8484 $(seq 7575 7594); do
@@ -66,6 +66,8 @@ jobs:
           echo "RECENT_HANDOFF_ERRORS=$RECENT_HANDOFF_ERRORS"
           REMOTE
           cat /tmp/live-network.txt
+          grep -q '^PRIMARY_CHANNELS=20$' /tmp/live-network.txt
+          grep -q '^LISTENERS=21/21$' /tmp/live-network.txt
 
       - name: Probe public login and channel ports
         shell: bash
