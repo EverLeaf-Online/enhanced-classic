@@ -1,1 +1,25 @@
-<%- include("partials/header",{title:"CMS News"}) %><main class="lightPage"><section class="lightTitle"><div class="wrap"><div class="pageEyebrow">CMS Workspace</div><h1>News & Patch Notes</h1><p>Publish, review, and edit EverLeaf updates from one editorial workspace.</p></div></section><%- include("partials/admin-manager-nav") %><div class="cmsWorkspace"><section class="cmsPanel"><div class="cmsManagerTitle"><h2>Published & Draft Posts</h2><p><%=posts.length%> total post<%=posts.length===1?'':'s'%>.</p></div><% posts.forEach(p=>{ %><div class="cmsItem"><div><strong><%=p.title%></strong><div class="cmsMeta"><%=p.type%> · <%=p.published?'Published':'Draft'%> · <%=p.created_at%></div></div><div class="cmsItemActions"><a class="btn small" href="/admin/posts/<%=p.id%>/edit">Edit</a></div></div><% }) %><% if(!posts.length){ %><p class="muted">No posts yet.</p><% } %></section><aside class="cmsPanel"><div class="cmsManagerTitle"><h2>Publish Update</h2><p>Create a news post, patch note, or event announcement.</p></div><form class="cmsFormSection" method="post" action="/admin/posts"><label>Title</label><input name="title" required><label>Slug</label><input name="slug"><label>Excerpt</label><textarea name="excerpt"></textarea><label>Body</label><textarea name="body" style="min-height:230px"></textarea><label>Type</label><select name="type"><option>news</option><option>patch</option><option>event</option></select><label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="published" checked> Published immediately</label><button class="btn primary">PUBLISH UPDATE</button></form></aside></div></main><%- include("partials/footer") %>
+<%- include("partials/header",{title:"CMS World Log"}) %>
+<main class="lightPage">
+  <section class="lightTitle"><div class="wrap"><div class="pageEyebrow">CMS://PUBLISH STREAM</div><h1>WORLD LOG.</h1><p>Publish, review, and edit EverLeaf updates from a split operations workspace.</p></div></section>
+  <%- include("partials/admin-manager-nav") %>
+  <div class="cmsWorkspace">
+    <section class="cmsPanel">
+      <div class="cmsManagerTitle"><h2>ENTRY QUEUE</h2><p><%=posts.length%> total post<%=posts.length===1?'':'s'%>.</p></div>
+      <% posts.forEach(p=>{ %><div class="cmsItem"><div><span class="pageEyebrow"><%=String(p.type||'news').toUpperCase()%> // <%=p.published?'PUBLISHED':'DRAFT'%></span><strong><%=p.title%></strong><div class="cmsMeta"><%=p.created_at%></div></div><div class="cmsItemActions"><a class="btn small" href="/admin/posts/<%=p.id%>/edit">EDIT</a></div></div><% }) %>
+      <% if(!posts.length){ %><p class="muted">NO ENTRIES IN QUEUE.</p><% } %>
+    </section>
+    <aside class="cmsPanel">
+      <div class="cmsManagerTitle"><h2>NEW ENTRY</h2><p>Create a world update, patch note, or event announcement.</p></div>
+      <form class="cmsFormSection" method="post" action="/admin/posts">
+        <label>Title</label><input name="title" required>
+        <label>Slug</label><input name="slug">
+        <label>Excerpt</label><textarea name="excerpt"></textarea>
+        <label>Body</label><textarea name="body" style="min-height:320px"></textarea>
+        <label>Type</label><select name="type"><option>news</option><option>patch</option><option>event</option></select>
+        <label><input style="width:auto;min-height:auto;margin-right:8px" type="checkbox" name="published" checked> Publish immediately</label>
+        <button class="btn primary">PUBLISH ENTRY</button>
+      </form>
+    </aside>
+  </div>
+</main>
+<%- include("partials/footer") %>
