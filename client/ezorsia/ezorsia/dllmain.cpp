@@ -1,6 +1,7 @@
 // dllmain.cpp : EverLeaf v83 Client v2 proxy bootstrap.
 #include "stdafx.h"
 #include "ReplacementFuncs.h"
+#include "SafeEarlyHooks.h"
 #include "dinput8.h"
 #include "CrashDiagnostics.h"
 #include "FrameLimiter.h"
@@ -82,8 +83,8 @@ bool InstallEarlyHook(const char* name, bool (*hook)(bool), bool critical) {
 
 bool InstallEarlyHooks() {
     if (!InstallEarlyHook("CreateMutexA", Hook_CreateMutexA, false)) return false;
-    if (!InstallEarlyHook("WSPStartup", Hook_WSPStartup, true)) return false;
-    if (!InstallEarlyHook("CreateWindowExA", Hook_CreateWindowExA, false)) return false;
+    if (!InstallEarlyHook("WSPStartup", EverLeafEarlyHooks::HookWSPStartup, true)) return false;
+    if (!InstallEarlyHook("CreateWindowExA", EverLeafEarlyHooks::HookCreateWindowExA, false)) return false;
     if (!InstallEarlyHook("FindFirstFileA", Hook_FindFirstFileA, false)) return false;
     if (!InstallEarlyHook("GetACP", Hook_GetACP, false)) return false;
     if (!InstallEarlyHook("GetModuleFileNameW", Hook_GetModuleFileNameW, false)) return false;
