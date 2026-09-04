@@ -1,16 +1,7 @@
 name: Smoke Client v2 boot
 
 on:
-  pull_request:
-    branches:
-      - release-dev
-    paths:
-      - '.github/workflows/smoke-client-v2-boot.yml'
-      - 'client/managed-client-baseline.json'
-      - 'client/ezorsia/**'
-      - 'client/scripts/apply-community-ui-preference.py'
-      - 'client/scripts/apply-client-v2-rebrand.py'
-      - 'client/scripts/verify-client-v2-branding.py'
+  workflow_call:
   workflow_dispatch:
 
 permissions:
