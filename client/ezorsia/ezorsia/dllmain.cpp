@@ -119,16 +119,18 @@ void MainFunc() {
         }
     };
 
-    // The inherited MyGetProcAddress replacement is intentionally not installed.
-    // It is a pass-through in EverLeaf and used to be the first serial unpack
-    // wait, adding startup-failure surface without providing production behavior.
+    // Inherited pass-through/tracking replacements are intentionally omitted.
+    // Most importantly, Client v2 leaves CWvsApp::Run on the stock v83 code path.
+    // The inherited rewrite incorrectly gated Maple's positive Patch/Disconnect/
+    // Terminate Z-exception codes with FAILED(HRESULT), preventing native dispatch.
+    // Keeping stock Run restores the correct v83 exception semantics while calls
+    // to separately hooked functions such as CallUpdate remain detoured normally.
     requiredHook("CClientSocket::Connect(context)", Hook_sub_494CA3(true));
     requiredHook("CClientSocket::Connect(prep)", Hook_sub_494D07(true));
     requiredHook("CClientSocket::Connect(sockaddr)", Hook_sub_494D2F(true));
     requiredHook("CRC update", Hook_sub_9F4E54(true));
     requiredHook("CWvsApp::ctor", Hook_sub_9F4FDA(true));
     requiredHook("CWvsApp::SetUp", Hook_sub_9F5239(true));
-    requiredHook("CWvsApp::Run", Hook_sub_9F5C50(true));
     requiredHook("CWvsApp::InitializeInput", Hook_sub_9F7CE1(true));
     requiredHook("CWvsApp::CallUpdate", Hook_sub_9F84D0(true));
     requiredHook("Dir_BackSlashToSlash", HookCWvsApp__Dir_BackSlashToSlash(true));
@@ -137,9 +139,6 @@ void MainFunc() {
     requiredHook("StringPool::GetString", Hook_StringPool__GetString(true));
     requiredHook("NEXTLEVEL table", Hook_sub_78C8A6(true));
     requiredHook("IWzNameSpace::Getitem", Hook_sub_5D995B(true));
-
-    // Tracking-only hooks inherited from the reverse-engineering template are
-    // deliberately omitted from the production Client v2 startup path.
 
     if (!hooksOk) {
         FailBootstrap(
