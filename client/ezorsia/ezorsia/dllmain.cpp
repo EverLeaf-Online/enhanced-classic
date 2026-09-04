@@ -1,123 +1,242 @@
-// dllmain.cpp : Defines the entry point for the DLL application.
+// dllmain.cpp : EverLeaf v83 Client v2 proxy bootstrap.
 #include "stdafx.h"
 #include "ReplacementFuncs.h"
+#include "SafeEarlyHooks.h"
 #include "dinput8.h"
 
-//NOTE: ideally order hooks by execution order in exe to best bypass themida but im lazy...
+#include <atomic>
 
-//executed after the client is unpacked
-void MainFunc() {
-	//NOTE: rewritten functions will kill all direct memory edits and code caves within their memory range
+namespace {
+constexpr DWORD kClientUnpackTimeoutMs = 30000;
+constexpr DWORD kClientBootstrapTimeoutMs = 45000;
+constexpr DWORD kClientUnpackPollMs = 10;
 
-	//Hook_sub_9F9808(true);//not rewritten//sub_9F9808 end 009F9892
-	//Hook_sub_4959B8(true);//not rewritten//sub_4959B8 end 00495A86
+HANDLE gBootstrapComplete = nullptr;
+std::atomic<bool> gBootstrapFailed{ false };
 
-	//all virtualized sections(v83, ordered top to bottom based on address):
-	//Hook_sub_44E546(false);//unlikely conflict, section virtualized by default //sub_44E546	end 0044E5D4 //unsigned int __cdecl CheckSumForce(char *pbStart, unsigned int dwSize)
-	//Hook_sub_44E5D5(false);//unlikely conflict, section virtualized by default //sub_44E5D5	end	0044E6C2 //unsigned int __cdecl GetGPNMemCrc32(unsigned int dwImgBase, unsigned int dwGPNStart, unsigned int dwGPNSize)
-	//Hook_sub_44E716(false);//unlikely conflict, section virtualized by default //sub_44E716	end 0044E822 //unsigned int __cdecl GetGPNFileCrc32(unsigned int dwImgBase, unsigned int dwGPNStart, unsigned int dwGPNSize)
-	Hook_sub_44E88E(true);//not re-written//unlikely conflict, section virtualized by default //sub_44E88E	end	0044EA61 //int (__stdcall *__stdcall MyGetProcAddress(HINSTANCE__ *hModule, const char *lpProcName))()
-	//Hook_sub_44EA64(false);//unlikely conflict, section virtualized by default //sub_44EA64	end	0044EBEB //HINSTANCE__ *__cdecl InitSafeDll()
-	//Hook_sub_44EC9C(false);//unlikely conflict, section virtualized by default //sub_44EC9C	end	0044ED46 //void __cdecl HideDll(HINSTANCE__ *hModule)
-	//Hook_sub_44ED47(false);//unlikely conflict, section virtualized by default //sub_44ED47	end	0044EEE6 //void __cdecl ResetLSP(void)
-	//Hook_sub_494931(false);//not rewritten//unlikely conflict, section virtualized by default //sub_494931  end 00494BE8 //void __thiscall CClientSocket::ConnectLogin(CClientSocket *this)
-	Hook_sub_494CA3(true);//seems to work//unlikely conflict, section virtualized by default //sub_494CA3  end 00494D04 //CClientSocket::Connect(CClientSocket *this, CClientSocket::CONNECTCONTEXT *ctx)
-	Hook_sub_494D07(true);//seems to work//unlikely conflict, section virtualized by default //sub_494D07	end	00494D2C //unnamed function, part of CClientSocket::Connect in v83, merged together with connect in v95
-	Hook_sub_494D2F(true);//seems to work//unlikely conflict, section virtualized by default //sub_494D2F	end	00494ECE //CClientSocket::Connect(CClientSocket *this, sockaddr_in *pAddr)
-	//Hook_sub_494ED1(false);//not rewritten//unlikely conflict, section virtualized by default //sub_494ED1  end 004954C4 //CClientSocket::OnConnect(CClientSocket * this, int bSuccess)
-	Hook_sub_9F4E54(true);//rewritten friendly CrC non-checker//unlikely conflict, section virtualized by default //sub_9F4E54  end 009F4F08	//likely: unsigned int __cdecl Crc32_GetCrc32_VMTable(unsigned int* pmem, unsigned int size, unsigned int* pcheck, unsigned int *pCrc32)
-	//Hook_sub_9F4F09(false);//not rewritten//unlikely conflict, section virtualized by default //sub_9F4F09  end 009F4FD9 //unknown func, built into cwvsapp::run in v95 //not called by anything
-	Hook_sub_9F4FDA(true);//seems to work//unlikely conflict, section virtualized by default //sub_9F4FDA end 009F51D3 //void __thiscall CWvsApp::CWvsApp(CWvsApp *this, const char *sCmdLine)
-	Hook_sub_9F5239(true);//seems to work//unlikely conflict, section virtualized by default //sub_9F5239 end 009F5C4F //void __thiscall CWvsApp::SetUp(CWvsApp *this)
-	Hook_sub_9F5C50(true);//seems to work//unlikely conflict, section virtualized by default //sub_9F5C50  end 009F698D //void __thiscall CWvsApp::Run(CWvsApp *this, int *pbTerminate)
-	//defined//sub_9F6F27 end 009F7033 //void __thiscall CWvsApp::ConnectLogin(CWvsApp *this)
-	Hook_sub_9F7CE1(true);//seems to work//unlikely conflict, section virtualized by default //sub_9F7CE1 end 009F821E //void __thiscall CWvsApp::InitializeInput(CWvsApp *this)
-	Hook_sub_9F84D0(true);//seems to work//unlikely conflict, section virtualized by default //sub_9F84D0 end 009F8B5E //void __thiscall CWvsApp::CallUpdate(CWvsApp *this, int tCurTime)
-	//sub_A4BB2B end 00A4BC8D //void __thiscall CSecurityClient::InitModule(CSecurityClient *this) //may be useful for re-purposing hackshield
-	//sub_A4BCFF end 00A4BD62 //void __thiscall CSecurityClient::ClearModule(CSecurityClient *this)
-	//sub_A4BD91 end 00A4BDF7 //void __thiscall CSecurityClient::StartModule(CSecurityClient *this)?? may not be right, v95 had start section virtualized
-	//sub_A4BDF8 end 00A4BE5B //void __thiscall CSecurityClient::StopModule(CSecurityClient *this)
-	//other non-virtualized(in v83) that hendi mentioned:
-	//sub_411BBB end 004123D1 //void __thiscall CActionMan::SweepCache(CActionMan *this)
-	//sub_A03EBA end 00A04002 //void __thiscall CWvsContext::OnEnterField(CWvsContext *this)
+struct ClientSignature {
+    DWORD address;
+    BYTE expected;
+    const char* name;
+};
 
-	//!!fixes todo: 005F40A4 006395D3 00A03350 maybe:_sub_9F5239 _sub_9F84D0
-	//! _sub_9F5C50 _sub_9F84D0
+// Stable entry bytes from EverLeaf's pinned GMS v83 client after its protected
+// image has unpacked. Checking several independent owners is safer than letting
+// one individual hook wait forever on a single byte.
+const ClientSignature kUnpackSignatures[] = {
+    { 0x0044E88E, 0x55, "MyGetProcAddress" },
+    { 0x009F5239, 0xB8, "CWvsApp::SetUp" },
+    { 0x009F7159, 0xB8, "CWvsApp::InitializeResMan" },
+};
 
-	//HookPcCreateObject_IWzResMan(true);//not rewritten //sub_9FAF55    end 009FAFB9
-	//HookPcCreateObject_IWzNameSpace(true);//not rewritten	//sub_9FAFBA    end 009FB01E
-	//HookPcCreateObject_IWzFileSystem(true);//not rewritten //sub_9FB01F    end 009FB083
-	HookCWvsApp__Dir_BackSlashToSlash(true);//rewritten but minor utility //sub_9F95FE	end 009F9620
-	//HookCWvsApp__Dir_upDir(true);//not rewritten //sub_9F9644	end 009F9679
-	//Hookbstr_ctor(true);//not rewritten //sub_406301	end	00406356
-	Hook_sub_9F7964(true);//re-written for testing//HRESULT __thiscall IWzFileSystem::Init(IWzFileSystem *this, Ztl_bstr_t sPath)
-	//HookIWzNameSpace__Mount(true);//not rewritten
-	Hook_sub_9F7159(true);//added on some stuff//void __thiscall CWvsApp::InitializeResMan(CWvsApp *this)//sub_9F7159 end 009F7909 //experimental //ty to all the contributors of the ragezone release: Client load .img instead of .wz v62~v92
-	Hook_StringPool__GetString(true);//no conflicts, only modifies return //hook stringpool modification //ty !! popcorn //ty darter
-	Hook_sub_78C8A6(true);//potential conflicts //sub_78C8A6	end 0078D165 //custom exp table client side
-	Hook_CUIStatusBar__ChatLogAdd(false);//@@still crashes	//potential conflicts //sub_8DB070	end 008DB45A //custom Set Any Chat Bar Limit (default is 64) //ty Spiderman
-	Hook_sub_425ADD(true);//not re-written, just tracking//void __thiscall Ztl_bstr_t::Ztl_bstr_t(Ztl_bstr_t *this, const char *s)
-	Hook_sub_9F51F6(true);//not re-written, just tracking process exit for tests//void __thiscall CWvsApp::~CWvsApp(CWvsApp *this)
-	Hook_sub_9FCD88(true);//not re-written, just tracking process exit for tests//void __thiscall <IWzSeekableArchive(IWzSeekableArchive* this, IUnknown* p)
-	Hook_sub_5D995B(true);//re-written!!may conflict//Ztl_variant_t *__thiscall IWzNameSpace::Getitem(IWzNameSpace *this, Ztl_variant_t *result, Ztl_bstr_t sPath)
-	Hook_sub_4032B2(true);//not re-written, just tracking process exit for tests//IUnknown* __thiscall Ztl_variant_t::GetUnknown(Ztl_variant_t* this, bool fAddRef, bool fTryChangeType)
-	//Hook_get_unknown(true);
-	//Hook_get_resource_object(true); //helper function hooks  //ty teto for helping me get started
-	//Hook_com_ptr_t_IWzProperty__ctor(true);
-	//Hook_com_ptr_t_IWzProperty__dtor(true);
-
-	std::cout << " Applying updated startup routines" << std::endl;
-	Client::UpdateGameStartup();
-
-	std::cout << "Applying resolution " << Client::m_nGameWidth << "x" << Client::m_nGameHeight << std::endl;
-	Client::UpdateResolution();
-
-	if (Client::ModernLoginUI) {
-		std::cout << "Applying EverLeaf modern login UI" << std::endl;
-		Client::UpdateLogin();
-	}
-
-	dinput8::CreateHook();	std::cout << "dinput8 hook initialized" << std::endl;
+bool ReadClientByte(DWORD address, BYTE& value) {
+    __try {
+        value = ReadValue<BYTE>(address);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
 }
 
-//gatekeeper thread
-void MainProc() { MainMain::CreateInstance(MainFunc); }
+bool WaitForClientImage() {
+    const ULONGLONG started = GetTickCount64();
+    while (GetTickCount64() - started < kClientUnpackTimeoutMs) {
+        bool ready = true;
+        for (const auto& signature : kUnpackSignatures) {
+            BYTE current = 0;
+            if (!ReadClientByte(signature.address, current) || current != signature.expected) {
+                ready = false;
+                break;
+            }
+        }
+        if (ready) {
+            return true;
+        }
+        Sleep(kClientUnpackPollMs);
+    }
+    return false;
+}
 
-//dll entry point
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved) {
-	switch (ul_reason_for_call) {
-	case DLL_PROCESS_ATTACH:
-	{	//MainMain::CreateConsole(MainMain::stream);//console for devs, use this to log stuff if you want
-		MainMain::mainTHread = OpenThread(THREAD_SUSPEND_RESUME, FALSE, GetCurrentThreadId());
+void FailBootstrap(const wchar_t* message) {
+    bool expected = false;
+    if (!gBootstrapFailed.compare_exchange_strong(expected, true)) {
+        return;
+    }
+    MessageBoxW(nullptr, message, L"EverLeaf Client v2 startup error", MB_OK | MB_ICONERROR);
+}
 
-		//windows API hooks(for ones that are called by the maplestory client)//there is more than this, but the default ones in the client template mostly do logging
-		//note: these are likely not all the Windows API maple uses, for everything it uses you need to look at the dlls it imports on the system and kernel level
-		//it's possible to make hooks for some of these that change how maplestory interacts with the operating system, for example possibly loading up modern-made
-		//anti-cheat(that you bought from the anti-cheat company) into the exe. or could potentially be used to install miners or kill registry (dont do these last 2)
-		Hook_CreateMutexA(true);//Sleep(42);//not in-game edit //multiclient //ty darter, angel, and alias! //new one: credits to the creators of https://github.com/MapleStory-Archive/MapleClientEditTemplate
-		Hook_WSPStartup(true);//allows to set IP for default installed client//credits to the creators of https://github.com/MapleStory-Archive/MapleClientEditTemplate
-		Hook_CreateWindowExA(true);//not in-game edit//enables minimize button //default ezorsia
-		Hook_FindFirstFileA(true);//kills check for .dll already in dir//ty joo for advice with this, check out their releases: https://github.com/OpenRustMS
-		Hook_GetACP(true);//either kills locale checks or feeds the server custom data//credits to the creators of https://github.com/MapleStory-Archive/MapleClientEditTemplate
-		Hook_GetModuleFileNameW(true);//not in-game edit//better call _GetModuleFileNameW more flexible//default ezorsia
-		Hook_GetLastError(false);//for some reason crashes at hooking, still dunno why//mostly for deving, prints last error to console
-		//INITWINHOOK("KERNEL32", "OpenProcess", OpenProcess_Original, OpenProcess_t, WinHooks::OpenProcess_Hook); //Used to track what processes Maple opens.
-		//INITWINHOOK("KERNEL32", "CreateProcessW", CreateProcessW_Original, CreateProcessW_t, WinHooks::CreateProcessW_Hook); //Used to track what maple is trying to start (mainly for anticheat modules).
-		//INITWINHOOK("KERNEL32", "CreateProcessA", CreateProcessA_Original, CreateProcessA_t, WinHooks::CreateProcessA_Hook); //Used same as above and also to kill/redirect some web requests
-		//INITWINHOOK("KERNEL32", "OpenMutexA", OpenMutexA_Original, OpenMutexA_t, WinHooks::OpenMutexA_Hook);//In some versions, Maple calls this library function to check if the anticheat has started. We can spoof this and return a fake handle for it to close.
-		//INITWINHOOK("KERNEL32", "RegCreateKeyExA", RegCreateKeyExA_Original, RegCreateKeyExA_t, WinHooks::RegCreateKeyExA_Hook); //Maplestory saves registry information (config stuff) for a number of things. This can be used to track that.
-		//INITWINHOOK("KERNEL32", "GetProcAddress", GetProcAddress_Original, GetProcAddress_t, WinHooks::GetProcAddress_Hook); //Used to map out imports used by MapleStory
-		//INITWINHOOK("NTDLL", "NtTerminateProcess", NtTerminateProcess_Original, NtTerminateProcess_t, WinHooks::NtTerminateProcess_Hook); //We use this function to track what memory addresses are killing the process,There are more ways that Maple kills itself, but this is one of them.
+bool InstallEarlyHook(const char* name, bool (*hook)(bool), bool critical) {
+    const bool installed = hook(true);
+    if (!installed) {
+        std::cout << "EverLeaf Client v2: failed to install early hook " << name << std::endl;
+        if (critical) {
+            return false;
+        }
+    }
+    return true;
+}
 
-		DisableThreadLibraryCalls(hModule);
-		CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)&MainProc, NULL, 0, 0);
-		break;
-	}
-	default: break;
-	case DLL_PROCESS_DETACH:
-	{
-		MainMain::GetInstance()->~MainMain();
-		break;
-	} }
-	return TRUE;
+bool InstallEarlyHooks() {
+    // Detours transactions are deliberately installed on the bootstrap worker
+    // instead of inside DllMain, avoiding transaction/loader-sensitive work
+    // while the Windows loader lock is held.
+    if (!InstallEarlyHook("CreateMutexA", Hook_CreateMutexA, false)) return false;
+    if (!InstallEarlyHook("WSPStartup", EverLeafEarlyHooks::HookWSPStartup, true)) return false;
+    if (!InstallEarlyHook("CreateWindowExA", EverLeafEarlyHooks::HookCreateWindowExA, false)) return false;
+    if (!InstallEarlyHook("FindFirstFileA", Hook_FindFirstFileA, false)) return false;
+    if (!InstallEarlyHook("GetACP", Hook_GetACP, false)) return false;
+    if (!InstallEarlyHook("GetModuleFileNameW", Hook_GetModuleFileNameW, false)) return false;
+    return true;
+}
+
+DWORD WINAPI BootstrapWatchdog(LPVOID) {
+    if (!gBootstrapComplete) {
+        return 0;
+    }
+
+    const DWORD result = WaitForSingleObject(gBootstrapComplete, kClientBootstrapTimeoutMs);
+    if (result == WAIT_TIMEOUT && !gBootstrapFailed.load()) {
+        FailBootstrap(
+            L"EverLeaf could not finish initializing the v83 client.\n\n"
+            L"The client build or unpacked memory layout did not match the expected EverLeaf baseline. "
+            L"The game will close instead of remaining stuck on startup."
+        );
+        ExitProcess(ERROR_TIMEOUT);
+    }
+    return 0;
+}
+} // namespace
+
+// Executed only after the pinned v83 image has reached its expected unpacked
+// state. Function-level installers still retain their legacy readiness checks,
+// but Client v2 preflight prevents normal startup from entering them early.
+void MainFunc() {
+    bool hooksOk = true;
+    const auto requiredHook = [&hooksOk](const char* name, bool result) {
+        if (!result) {
+            hooksOk = false;
+            std::cout << "EverLeaf Client v2: hook failed: " << name << std::endl;
+        }
+    };
+
+    // Inherited pass-through/tracking replacements are intentionally omitted.
+    // Most importantly, Client v2 leaves CWvsApp::Run on the stock v83 code path.
+    // The inherited rewrite incorrectly gated Maple's positive Patch/Disconnect/
+    // Terminate Z-exception codes with FAILED(HRESULT), preventing native dispatch.
+    // Keeping stock Run restores the correct v83 exception semantics while calls
+    // to separately hooked functions such as CallUpdate remain detoured normally.
+    requiredHook("CClientSocket::Connect(context)", Hook_sub_494CA3(true));
+    requiredHook("CClientSocket::Connect(prep)", Hook_sub_494D07(true));
+    requiredHook("CClientSocket::Connect(sockaddr)", Hook_sub_494D2F(true));
+    requiredHook("CRC update", Hook_sub_9F4E54(true));
+    requiredHook("CWvsApp::ctor", Hook_sub_9F4FDA(true));
+    requiredHook("CWvsApp::SetUp", Hook_sub_9F5239(true));
+    requiredHook("CWvsApp::InitializeInput", Hook_sub_9F7CE1(true));
+    requiredHook("CWvsApp::CallUpdate", Hook_sub_9F84D0(true));
+    requiredHook("Dir_BackSlashToSlash", HookCWvsApp__Dir_BackSlashToSlash(true));
+    requiredHook("IWzFileSystem::Init", Hook_sub_9F7964(true));
+    requiredHook("CWvsApp::InitializeResMan", Hook_sub_9F7159(true));
+    requiredHook("StringPool::GetString", Hook_StringPool__GetString(true));
+    requiredHook("NEXTLEVEL table", Hook_sub_78C8A6(true));
+    requiredHook("IWzNameSpace::Getitem", Hook_sub_5D995B(true));
+
+    if (!hooksOk) {
+        FailBootstrap(
+            L"EverLeaf detected a client hook mismatch.\n\n"
+            L"Please repair/update the client before launching again. No live-server changes were made."
+        );
+        ExitProcess(ERROR_BAD_EXE_FORMAT);
+    }
+
+    std::cout << "EverLeaf Client v2: applying startup routines" << std::endl;
+    Client::UpdateGameStartup();
+
+    std::cout << "EverLeaf Client v2: applying resolution "
+              << Client::m_nGameWidth << "x" << Client::m_nGameHeight << std::endl;
+    Client::UpdateResolution();
+
+    if (Client::ModernLoginUI) {
+        std::cout << "EverLeaf Client v2: applying modern login UI" << std::endl;
+        Client::UpdateLogin();
+    }
+
+    dinput8::CreateHook();
+    std::cout << "EverLeaf Client v2: dinput8 proxy hook initialized" << std::endl;
+}
+
+DWORD WINAPI MainProc(LPVOID) {
+    if (!InstallEarlyHooks()) {
+        FailBootstrap(
+            L"EverLeaf could not initialize the network/client compatibility layer.\n\n"
+            L"Please repair/update the client and try again."
+        );
+        if (gBootstrapComplete) SetEvent(gBootstrapComplete);
+        ExitProcess(ERROR_DLL_INIT_FAILED);
+        return ERROR_DLL_INIT_FAILED;
+    }
+
+    if (!WaitForClientImage()) {
+        FailBootstrap(
+            L"EverLeaf did not recognize the unpacked v83 client image.\n\n"
+            L"This usually means the executable does not match the EverLeaf Client v2 baseline. "
+            L"The client will close instead of hanging indefinitely."
+        );
+        if (gBootstrapComplete) SetEvent(gBootstrapComplete);
+        ExitProcess(ERROR_BAD_EXE_FORMAT);
+        return ERROR_BAD_EXE_FORMAT;
+    }
+
+    MainMain::CreateInstance(MainFunc);
+    if (gBootstrapComplete) SetEvent(gBootstrapComplete);
+    return 0;
+}
+
+// DllMain stays intentionally small. In particular, Detours transactions,
+// client memory patching, network provider work, and singleton destruction are
+// not performed while the loader lock is held.
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
+    switch (ul_reason_for_call) {
+    case DLL_PROCESS_ATTACH: {
+        DisableThreadLibraryCalls(hModule);
+
+        // Capture a handle to MapleStory's loader/main thread for the legacy
+        // resource bootstrap code that briefly suspends it while generating
+        // missing config/UI resources.
+        MainMain::mainTHread = OpenThread(
+            THREAD_SUSPEND_RESUME | THREAD_QUERY_INFORMATION,
+            FALSE,
+            GetCurrentThreadId()
+        );
+
+        gBootstrapComplete = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        HANDLE bootstrap = CreateThread(nullptr, 0, MainProc, nullptr, 0, nullptr);
+        if (!bootstrap) {
+            return FALSE;
+        }
+        CloseHandle(bootstrap);
+
+        HANDLE watchdog = CreateThread(nullptr, 0, BootstrapWatchdog, nullptr, 0, nullptr);
+        if (watchdog) {
+            CloseHandle(watchdog);
+        }
+        break;
+    }
+    case DLL_PROCESS_DETACH:
+        // Do not manually invoke MainMain's destructor here. Process teardown
+        // already reclaims these resources, and provider/destructor work during
+        // loader-lock teardown was a known crash/null-dereference risk.
+        if (lpReserved == nullptr && gBootstrapComplete) {
+            CloseHandle(gBootstrapComplete);
+            gBootstrapComplete = nullptr;
+        }
+        if (lpReserved == nullptr && MainMain::mainTHread) {
+            CloseHandle(MainMain::mainTHread);
+            MainMain::mainTHread = nullptr;
+        }
+        break;
+    default:
+        break;
+    }
+    return TRUE;
 }
