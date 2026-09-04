@@ -1,0 +1,57 @@
+name: Verify EverLeaf Public Portal
+
+on:
+  workflow_run:
+    workflows: ["Deploy EverLeaf Web"]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify redesigned public routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://everleafms.online'
+
+          check_page() {
+            local path="$1"
+            local marker="$2"
+            local html
+            html="$(curl --fail --silent --show-error --location --max-time 30 "$BASE$path")"
+            grep -Fqi "$marker" <<<"$html"
+            grep -Fq '/js/site.js?v=1' <<<"$html"
+            printf 'verified %s (%s)\n' "$path" "$marker"
+          }
+
+          check_page '/' 'Classic Maple'
+          check_page '/news' 'EverLeaf News'
+          check_page '/downloads' 'Launcher & Downloads'
+          check_page '/rankings' 'EverLeaf Rankings'
+          check_page '/wiki' 'EVERLEAF DATA WIKI'
+          check_page '/help' 'Player Help'
+          check_page '/login' 'Sign in to EverLeaf'
+          check_page '/register' 'EverLeaf'
+          check_page '/recover' 'Account Recovery'
+          check_page '/terms' 'Terms of Service'
+          check_page '/rules' 'Rules'
+
+          curl --fail --silent --show-error --max-time 30 "$BASE/css/full-site-portal-2026.css?v=1" | grep -Fq 'EverLeaf full-site portal pass'
+
+          ACCOUNT_CODE="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 30 "$BASE/account")"
+          case "$ACCOUNT_CODE" in
+            200|301|302|303|307|308) ;;
+            *) echo "Unexpected /account response: $ACCOUNT_CODE" >&2; exit 1 ;;
+          esac
+
+          NOT_FOUND="$(curl --silent --show-error --max-time 30 "$BASE/this-route-should-not-exist-everleaf-portal" || true)"
+          grep -Fq 'Map not found.' <<<"$NOT_FOUND"
+
+          echo 'EverLeaf full public portal route verification passed.'
