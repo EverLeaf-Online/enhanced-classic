@@ -10,7 +10,7 @@ const header = fs.readFileSync(path.join(root, "src/views/partials/header.ejs"),
 
 test("Discord remains accessible without restoring the removed top navigation", () => {
   assert.doesNotMatch(header, /terminalNav|mobileMenu|worldRibbon|terminalRibbon/);
-  assert.match(home, /href="<%=brand\.discordUrl%>" target="_blank" rel="noopener noreferrer">DISCORD ↗<\/a>/);
+  assert.match(home, /href="<%=brand\.discordUrl%>" target="_blank" rel="noopener noreferrer"><span>05<\/span><strong>DISCORD<\/strong><small>Community \+ support<\/small><\/a>/);
   assert.match(footer, /href="<%=brand\.discordUrl%>" target="_blank" rel="noopener noreferrer">DISCORD ↗<\/a>/);
   assert.doesNotMatch(header, /href="\/community"/);
 });
