@@ -65,27 +65,39 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
           cat > ~/.ssh/config <<EOF
           Host $EVERLEAF_DEPLOY_HOST
-            ServerAliveInterval 30
-            ServerAliveCountMax 20
+            BatchMode yes
+            ConnectionAttempts 1
+            ServerAliveInterval 10
+            ServerAliveCountMax 3
             TCPKeepAlive yes
-            ConnectTimeout 20
+            ConnectTimeout 8
           EOF
           chmod 600 ~/.ssh/config
           ssh-keygen -lf ~/.ssh/known_hosts || true
 
       - name: Verify SSH access
+        shell: bash
         run: |
-          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
-            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'echo EverLeaf SSH OK'
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6; do
+            echo "Verifying SSH access (attempt $attempt/6)..."
+            if timeout 25s ssh -i ~/.ssh/id_everleaf \
+              "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'echo EverLeaf SSH OK'; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 6 ]; then sleep 5; fi
+          done
+          echo 'Unable to establish a bounded SSH session after 6 attempts.' >&2
+          exit 1
 
       - name: Backup production state
         run: |
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+          timeout 180s ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
             'if [ -f /opt/everleaf/web/scripts/backup-production.sh ]; then sudo bash /opt/everleaf/web/scripts/backup-production.sh; fi'
 
       - name: Sync web source
         run: |
-          rsync -az --delete \
+          timeout 240s rsync -az --delete \
             --exclude='.env' \
             --exclude='data/' \
             --exclude='node_modules/' \
@@ -94,7 +106,7 @@ jobs:
 
       - name: Install, migrate domain, configure HTTPS, and restart
         run: |
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "EVERLEAF_TLS_HOST='$EVERLEAF_TLS_HOST' EVERLEAF_WWW_HOST='$EVERLEAF_WWW_HOST' EVERLEAF_LEGACY_TLS_HOST='$EVERLEAF_LEGACY_TLS_HOST' bash -s" <<'REMOTE'
+          timeout 900s ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "EVERLEAF_TLS_HOST='$EVERLEAF_TLS_HOST' EVERLEAF_WWW_HOST='$EVERLEAF_WWW_HOST' EVERLEAF_LEGACY_TLS_HOST='$EVERLEAF_LEGACY_TLS_HOST' bash -s" <<'REMOTE'
             set -euo pipefail
             cd /opt/everleaf/web
 
@@ -174,14 +186,14 @@ jobs:
             systemctl is-active --quiet everleaf-web
             systemctl is-active --quiet everleaf-wz-avatar
             systemctl is-active --quiet nginx
-            curl -fsS http://127.0.0.1:3000/ >/dev/null
-            curl -fsS --resolve "$EVERLEAF_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_TLS_HOST/v1/launcher/status" >/dev/null
-            curl -fsS --resolve "$EVERLEAF_WWW_HOST:443:127.0.0.1" "https://$EVERLEAF_WWW_HOST/v1/launcher/status" >/dev/null
-            curl -fsS --resolve "$EVERLEAF_LEGACY_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_LEGACY_TLS_HOST/v1/launcher/status" >/dev/null
-            STATUS_JSON="$(curl -fsS http://127.0.0.1:3000/api/status)"
+            curl -fsS --max-time 20 http://127.0.0.1:3000/ >/dev/null
+            curl -fsS --max-time 20 --resolve "$EVERLEAF_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_TLS_HOST/v1/launcher/status" >/dev/null
+            curl -fsS --max-time 20 --resolve "$EVERLEAF_WWW_HOST:443:127.0.0.1" "https://$EVERLEAF_WWW_HOST/v1/launcher/status" >/dev/null
+            curl -fsS --max-time 20 --resolve "$EVERLEAF_LEGACY_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_LEGACY_TLS_HOST/v1/launcher/status" >/dev/null
+            STATUS_JSON="$(curl -fsS --max-time 20 http://127.0.0.1:3000/api/status)"
             node -e 'const s=JSON.parse(process.argv[1]); if(s.totalChannels!==20) process.exit(1);' "$STATUS_JSON"
 
-            RANKINGS_HTML="$(curl -fsS http://127.0.0.1:3000/rankings)"
+            RANKINGS_HTML="$(curl -fsS --max-time 20 http://127.0.0.1:3000/rankings)"
             AVATAR_PATH="$(grep -oE 'data-live-avatar="/character-avatar/[0-9]+\.png\?job=[0-9]+"' <<<"$RANKINGS_HTML" | head -n1 | cut -d'"' -f2)"
             test -n "$AVATAR_PATH"
             AVATAR_HEADERS="$(mktemp)"
