@@ -1,198 +1,261 @@
 # EverLeaf Web — DESIGN.md
 
-> Storybook field journal meets classic MMORPG portal: warm paper, evergreen ink, hand-drawn energy, generous breathing room, and Maple-world character art used as the emotional anchor.
+> EverLeaf now uses a dark, full-bleed, edge-anchored operating-system aesthetic adapted from the Max Yinger Refero style reference: near-black canvas, warm bone-white type, compact telemetry, pill interactions, flat surfaces, and a single central game artifact carrying the visual depth.
 
 ## Intent
 
-EverLeaf should feel like a handcrafted companion site for a living Maple world — playful and nostalgic without looking juvenile, polished without becoming a generic SaaS dashboard, and readable enough to support rankings, account management, downloads, wiki data, news, and help pages.
+The website and CMS should feel like a live EverLeaf world terminal rather than a themed marketing site. Every page should read as a running system: current world state, real player data, launcher state, Wiki data, CMS queues, publishing controls, and account security all belong to the same visual language.
 
-This system is informed by Refero Styles patterns such as playful warm-paper canvases, mascot-led illustration, botanical restraint, strong display hierarchy, soft cards, and intentionally limited accent color. It must be adapted to EverLeaf rather than copied from any source website.
+This is an EverLeaf adaptation of the chosen reference system. Do not copy reference code, proprietary fonts, assets, names, or 3D objects.
 
-## Principles
+## Core principles
 
-1. **Game world first.** Character/map art and server identity should carry the emotion; UI chrome supports it.
-2. **Warm, not sterile.** Use parchment/cream surfaces instead of pure white for most backgrounds.
-3. **One strong brand voice.** Evergreen is structural; leaf green is action; gold is reward/status. Avoid rainbow UI.
-4. **Big editorial moments.** Each page gets one memorable headline/hero composition, then quieter utility content.
-5. **Soft but deliberate shapes.** Large cards are rounded and tactile; controls are pill-like where appropriate.
-6. **Useful after download.** Rankings, Wiki, account, support, and news must feel as designed as the homepage.
-7. **No fake game UI.** Do not imitate MapleStory client windows pixel-for-pixel; this is a modern web portal with nostalgic cues.
+1. **Full-bleed first.** Avoid centered card stacks and conventional 1200px marketing containers.
+2. **The interface is the layout.** Information is distributed to edges, corners, rails, split panes, and large empty fields.
+3. **Two-color system.** Warm bone-white on midnight carbon does nearly all UI work.
+4. **One visual artifact.** EverLeaf game art/character art may carry subtle rose edge light. UI chrome stays monochrome.
+5. **Flat by design.** No decorative card shadows, glass panels, gradients, or elevation stacks.
+6. **Compact telemetry.** Meta labels, counts, timestamps, status, IDs, and system state use 12px monospace treatment.
+7. **Large compressed displays.** Page titles and primary live values are oversized and tight, creating cockpit-like density.
+8. **Function survives the redesign.** Rankings, WZ avatars, Wiki, account forms, launcher downloads, CMS publishing, recovery, supporter tools, audit log, settings, and status checks remain intact.
 
-## Color system
+## Color tokens
 
-### Core
-- `--el-ink: #173f38` — primary text, structural dark surfaces
-- `--el-ink-2: #2f5b52` — secondary text
-- `--el-paper: #fbf6e9` — main page canvas
-- `--el-paper-2: #f2ead7` — alternate surface / bands
-- `--el-card: #fffdf5` — cards and forms
-- `--el-line: #d7cfb7` — default borders
+- `--terminal-bg: #12130f` — page canvas and primary surface
+- `--terminal-ink: #e4dfda` — all primary text, headings, button text, form text
+- `--terminal-line: #3c3c38` — separators, input outlines, subdued chrome
+- `--terminal-dim: #9d9993` — secondary copy and noncritical telemetry
+- `--terminal-rose: #f5c2c8` — visual-art edge light only; not normal UI chrome
+- `--terminal-danger: #d79b92` — errors only
+- `--terminal-success: #cfd7bd` — success text only; keep subdued
 
-### Brand
-- `--el-leaf: #59ad62` — primary CTA / active accents
-- `--el-leaf-deep: #347b49` — hover / pressed state
-- `--el-mint: #cce8ce` — pale accent surface
-- `--el-sky: #dcefed` — cool supporting surface
-- `--el-gold: #e5bd5d` — reward / status / premium emphasis
-- `--el-peach: #f2b18e` — rare warm illustration accent, never primary action
-
-### Semantic
-- success: `#3f9954`
-- warning: `#b27b26`
-- danger: `#b64f45`
-- info: `#4b8f9d`
+Do not introduce green/gold/blue CTA systems. The prior EverLeaf palette is retired for this layout.
 
 ## Typography
 
-Use locally available/system fonts only. Do not import proprietary reference fonts.
+Use system/local substitutes only.
 
-- **Display:** Georgia, `Times New Roman`, serif — large, high-contrast, slightly editorial.
-- **Interface/body:** Inter-like system stack: `ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`.
-- **Utility labels:** same sans stack, 700–800 weight, uppercase, 0.08–0.14em tracking.
+### Display
+`"Arial Narrow", "Roboto Condensed", "DIN Condensed", Impact, sans-serif`
 
-### Scale
-- Hero display: clamp(3.4rem, 7vw, 7rem), 0.90–0.98 line-height
-- Page title: clamp(2.5rem, 5vw, 4.8rem), 0.96–1.05
-- Section title: clamp(2rem, 3.5vw, 3.6rem)
-- Card title: 1.1–1.45rem
-- Body: 15–17px, 1.65–1.8 line-height
-- Utility: 10–12px
+Use for:
+- 64–104px hero statements
+- 48–80px page titles
+- giant player counts / level values / CMS totals
 
-## Layout
+Weight: 400–500. Tight line height: 0.72–0.9.
 
-- Max content width: 1200px
-- Narrow reading width: 760px
-- Section vertical gap: 72–120px desktop, 48–72px mobile
-- Card padding: 22–32px
-- Base spacing unit: 4px
-- Prefer asymmetrical editorial grids over repeated equal-width boxes when content allows.
+### Interface / readable copy
+`Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
+
+Use for body copy, forms, article text, Wiki descriptions, player names.
+
+### Telemetry
+`"IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", Consolas, monospace`
+
+Use at 11–12px for:
+- labels
+- route names
+- status
+- IDs
+- timestamps
+- counts
+- table metadata
+- CMS navigation
+
+Letter spacing: approximately -0.04em to 0.04em depending on readability.
+
+## Spacing
+
+Base unit: 4px.
+
+- inline gap: 4px
+- compact control gap: 8px
+- cluster gap: 12px
+- content block gap: 24–32px
+- section gap: 64px
+- viewport edge padding: clamp(12px, 2vw, 28px)
+
+Do not use large padded cards everywhere. Empty space should appear between clusters rather than inside containers.
 
 ## Shape
 
-- tiny controls: 8px radius
-- inputs: 14px
-- buttons: 999px pill by default
-- standard cards: 22–28px
-- feature/hero panels: 32–44px
-- image frames: 28–40px
+- cards / content blocks: 0px radius
+- tables: 0px radius
+- forms: 0px or 2px radius
+- inline text links: 2px radius
+- pills / tags / buttons: 9999px radius
 
 ## Elevation
 
-Shadows are soft and warm, never glossy:
-- subtle: `0 1px 0 rgba(255,255,255,.8) inset, 0 10px 26px rgba(39,75,58,.08)`
-- card: `0 18px 50px rgba(39,75,58,.11)`
-- hero float: `0 30px 90px rgba(23,63,56,.18)`
+None for UI.
 
-Avoid glassmorphism as a dominant motif. Backdrop blur is acceptable only for sticky navigation.
+No box-shadow. No drop-shadow. No blur-based panels. The only allowed depth effect is subtle glow/edge-light on the central EverLeaf visual artifact.
 
-## Navigation
+## Global shell
 
-- Sticky, paper-toned nav on inner pages.
-- Homepage may begin over the hero, but must become solid on scroll.
-- Active section should use leaf-green ink/highlight, not an underline-only treatment.
-- Primary account/play CTA is a filled leaf-green pill.
+### Desktop
+- brand stamp anchored top-left
+- route / environment telemetry near brand
+- primary navigation as pill links anchored top-right
+- page content may extend edge-to-edge
+- footer behaves like a bottom telemetry strip, not a marketing sitemap block
 
-## Buttons
-
-### Primary
-Leaf-green fill, cream text, slightly lifted shadow. Hover darkens and moves up 1px.
-
-### Secondary
-Paper/card fill, evergreen text, hairline border.
-
-### Ghost
-Transparent or low-opacity surface used only on dark/illustrated backgrounds.
-
-No square corporate buttons. No neon glow.
-
-## Cards
-
-- Cards should feel like pages, stickers, or field-guide panels, not admin dashboard widgets.
-- Large cards can use pastel category surfaces (mint, sky, pale gold, peach) but keep text evergreen.
-- Prefer one dominant illustration/number/status rather than many small icons.
-- Tables may sit inside a large paper card with rounded outer clipping.
+### Mobile
+- preserve top-left brand
+- navigation becomes a compact disclosure panel
+- full-bleed rows collapse into stacked terminal clusters
+- no horizontal overflow for forms/tables; tables may scroll within their own region
 
 ## Homepage
 
-1. Full visual hero using EverLeaf forest/character art.
-2. Strong editorial line: one large statement, restrained supporting copy.
-3. Server status as a compact floating field-note panel.
-4. Quick actions as large tactile tabs/tiles rather than a SaaS icon grid.
-5. "How to start" as an illustrated journey strip.
-6. Features / classes / news / rankings should each have distinct composition, not identical card grids.
-7. End with a confident green CTA band and an editorial footer.
+### First viewport
+Use a full-height terminal composition:
+- EverLeaf brand at top-left via global shell
+- central floating Maple-world artifact made from local EverLeaf art
+- large world-state readout at bottom-left
+- server telemetry directly beside/below it
+- vertical action pills bottom-right
+- minimal descriptive copy; no traditional hero card
 
-## Inner-page heroes
+### Following sections
+Use flat indexed rows, split strips, and dense logs:
+- `01 / START` installation and account flow
+- `02 / WORLD DATA` Wiki entry points
+- `03 / JOB INDEX` classes as horizontal/stacked data rows
+- `04 / WORLD LOG` news posts as journal/log lines
+- `05 / HALL` live ranking preview with real character avatars
 
-Every major public page gets a visual intro band with:
-- eyebrow label
-- large serif title
-- 1–2 sentence purpose statement
-- optional illustration or compact status panel
+No repeating rounded feature-card grid.
 
-Do not use the exact same hero height/composition on every page.
+## News
+
+Treat news as a world log:
+- giant `WORLD LOG` title
+- left rail for category/count/current date context
+- posts as bordered horizontal rows with timestamp, type, title, excerpt, arrow
+- imagery optional and secondary
+
+## Downloads
+
+Treat downloads as a client deployment console:
+- current launcher version / required state as giant telemetry
+- recommended launcher as primary command block
+- secondary files as compact manifest rows
+- setup/repair instructions in a right-side diagnostic rail
 
 ## Rankings
 
-- Treat as a Hall of Legends, not a spreadsheet.
-- Podium characters are the visual focus.
-- Keep live character rendering intact.
-- Leaderboard table should remain highly readable and responsive.
-- Gold is reserved for #1 / rank emphasis; silver/bronze are subdued neutrals.
+Treat rankings as a live process monitor / Hall of Legends:
+- live world status and query timestamp at edges
+- top three character renders isolated in negative space rather than enclosed cards
+- table becomes a flat ledger with strong row dividers
+- search/filter controls resemble command inputs/pills
+- keep `/character-avatar/:id.png` live WZ rendering and fallback logic intact
 
 ## Wiki
 
-- Treat as an explorer field guide / encyclopedia.
-- Search is the primary action.
-- Data categories can use distinct pale surfaces while sharing one typography system.
-- WZ/MySQL trust/status must be visible without reading like developer telemetry.
+Treat Wiki as a database explorer:
+- giant data query input
+- category namespaces as compact command pills / index rows
+- count totals rendered as telemetry
+- results as flat database rows with type, ID, name, metadata
+- WZ + MySQL status remains visible
 
-## Account / Auth
+## Auth
 
-- Warm two-column composition on desktop: story/identity side + focused form card.
-- Forms use generous labels, 48–52px controls, large hit targets.
-- Security/reward sections are grouped as readable cards, not dense admin rows.
+Treat login/register/recovery as secure terminal sessions:
+- split viewport
+- left side contains identity/system context and minimal giant title
+- right side contains a compact form stack
+- no warm cards or decorative marketing metrics
+- fields use dark surface, bone text, line borders
 
-## Downloads / Help
+## Account
 
-- Downloads should feel like a "ready your client" workshop.
-- Help should feel like a guide desk / handbook.
-- Strong single primary action per section.
+Treat account as a player control surface:
+- top telemetry: account, character count, NX, Discord state
+- character roster as rows rather than cards
+- reward/security/community tools as independent flat panes separated by rules
+- preserve all forms and actions
 
-## News / Articles / Legal
+## CMS
 
-- Editorial reading experience with generous measure and clear metadata.
-- News cards can use larger image crops and fewer borders.
-- Long-form article/legal content should avoid dashboard card repetition.
+The CMS must be redesigned as an operations terminal, not merely reskinned.
+
+### Shell
+- fixed left navigation rail on desktop
+- compact `STAFF://CMS` identity and environment state
+- active module visually identified by bone-white text and a simple marker
+- main pane fills the rest of the viewport
+
+### Overview
+- giant live world/player/account readouts across the top
+- publishing queue and runtime state in asymmetric split panes
+- audit activity as a log stream
+- no rounded dashboard-card mosaic
+
+### Manager pages
+- shared left rail remains fixed
+- list/edit screens become split views where practical
+- list rows use compact telemetry columns
+- forms use full-width flat editors with label rails
+- tables and queues use separators, not elevated cards
+
+### Editors
+- metadata controls in a narrow side column
+- main title/body editor takes remaining width
+- publish state and save actions stay visible
+
+## Interactions
+
+Buttons:
+- pill shape
+- transparent by default
+- bone text
+- 1px `--terminal-line` border only when separation is needed
+- hover may invert to bone background + dark text
+
+Inline links:
+- underline or minimal pill treatment
+
+Inputs:
+- dark background
+- bone text
+- 1px charcoal border
+- square/2px corners
+- visible focus outline in bone-white
 
 ## Motion
 
-- 150–260ms for controls.
-- 400–700ms for section reveals / illustration drift.
-- Hero ambient motion must be subtle.
-- Respect `prefers-reduced-motion` and remove decorative movement.
+- 120–220ms UI transitions
+- subtle central-artifact drift only
+- no parallax-heavy section animation
+- respect `prefers-reduced-motion`
 
 ## Accessibility
 
-- Maintain WCAG-readable contrast.
-- Keep visible focus states.
-- Minimum 44px interactive targets when practical.
-- Do not encode status only by color.
-- Keep semantic headings and forms intact.
+- retain skip link
+- maintain semantic heading order
+- preserve visible labels on forms
+- keep focus indicators high contrast
+- keep status text alongside any status color
+- preserve minimum practical hit areas for navigation/buttons
+- data tables remain keyboard/scroll accessible
 
-## Do
+## Hard rules
 
-- Use EverLeaf-owned/local art and icons.
-- Let large type and illustration create personality.
-- Keep green/gold brand accents disciplined.
-- Make each route feel intentionally composed.
-- Preserve working account, rankings, Wiki, launcher, CMS, and server integrations.
+### Do
+- restructure markup when the old layout fights this system
+- keep the canvas near-black and typography warm off-white
+- use dense telemetry labels to clarify live/system information
+- use large display text as the primary hierarchy tool
+- keep EverLeaf local art as the single visual depth source
+- redesign CMS workflows and public pages under one coherent system
 
-## Do not
-
-- Copy source-site code, assets, logos, or proprietary fonts.
-- Recreate Refero example sites verbatim.
-- Use generic dark gaming-neon styling.
-- Use glassmorphism as the primary surface language.
-- Overfill pages with cards, badges, gradients, or shadows.
-- Sacrifice data density/readability for decoration.
+### Do not
+- simply change fonts/colors on the old card layouts
+- keep the previous rounded green/gold portal aesthetic
+- use generic SaaS cards, glassmorphism, shadows, glossy gradients, or neon gamer chrome
+- import Refero example code/assets/fonts
+- remove or weaken live integrations for visual reasons
