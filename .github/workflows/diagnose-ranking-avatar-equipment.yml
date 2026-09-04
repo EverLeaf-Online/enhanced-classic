@@ -17,7 +17,7 @@ env:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -43,37 +43,45 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'cd /opt/everleaf/web && node -' <<'NODE'
+          timeout 75s ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'cd /opt/everleaf/web && timeout 60s node -' <<'NODE'
           const env = require('./src/config/env');
-          const game = require('./src/services/gameService');
           const { getPool, safeIdent: I } = require('./src/db/game');
 
           (async () => {
             const db = getPool();
             const g = env.gameDb;
-            const page = await game.rankingPage({limit:10,offset:0});
-            console.log('top-ranked-characters');
-            for (const row of page.rows) {
-              const id = Number(row.id);
-              const appearance = await game.characterAppearance(id);
+            const [characters] = await db.query(`
+              SELECT c.${I(g.characterId)} id,
+                     c.${I(g.characterName)} name,
+                     c.${I(g.characterJob)} job,
+                     c.${I(g.characterSkin)} skincolor,
+                     c.${I(g.characterFace)} face,
+                     c.${I(g.characterHair)} hair
+                FROM ${I(g.charactersTable)} c
+                JOIN ${I(g.accountsTable)} a ON a.${I(g.accountId)}=c.${I(g.characterAccountId)}
+               WHERE COALESCE(c.${I(g.characterGm)},0)=0
+                 AND COALESCE(a.${I(g.accountBanned)},0)=0
+               ORDER BY c.${I(g.characterLevel)} DESC,
+                        c.${I(g.characterExp)} DESC,
+                        c.${I(g.characterFame)} DESC,
+                        c.${I(g.characterName)} ASC
+               LIMIT 10
+            `);
+            for (const row of characters) {
               const [items] = await db.query(`
-                SELECT inventoryitemid, itemid, inventorytype, position, type, characterid, accountid
+                SELECT inventoryitemid, itemid, inventorytype, position, type
                   FROM ${I(g.inventoryItemsTable)}
                  WHERE characterid=?
                  ORDER BY inventorytype, position, inventoryitemid
-              `,[id]);
-              const candidates = items.filter(item => Number(item.type)===1);
+              `,[Number(row.id)]);
               console.log(JSON.stringify({
-                id,
-                name:String(row.name),
-                job:Number(row.job),
-                appearance,
-                equipLikeRows:candidates
+                character:{id:Number(row.id),name:String(row.name),job:Number(row.job),skincolor:Number(row.skincolor),face:Number(row.face),hair:Number(row.hair)},
+                inventoryRows:items
               }));
             }
-            await db.end();
+            process.exit(0);
           })().catch(error => {
             console.error(error && error.stack || error);
-            process.exitCode = 1;
+            process.exit(1);
           });
           NODE
