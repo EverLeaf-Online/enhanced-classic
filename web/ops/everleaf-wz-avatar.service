@@ -8,7 +8,8 @@ ConditionPathExists=/opt/everleaf/patches/files/Character.wz
 Type=simple
 User=ubuntu
 WorkingDirectory=/opt/everleaf/wz-python
-ExecStart=/opt/everleaf/wz-python/.venv/bin/python /opt/everleaf/wz-python/run.py /opt/everleaf/patches/files/Character.wz --region GMS --version 83 --host 127.0.0.1 --port 3011
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/everleaf/wz-python/.venv/bin/python /opt/everleaf/web/ops/run-wz-avatar-renderer.py
 Restart=always
 RestartSec=3
 NoNewPrivileges=true
