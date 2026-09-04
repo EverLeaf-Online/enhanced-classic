@@ -2,6 +2,7 @@
 #include "stdafx.h"
 #include "ReplacementFuncs.h"
 #include "dinput8.h"
+#include "INIReader.h"
 
 #include <atomic>
 
@@ -9,6 +10,8 @@ namespace {
 constexpr DWORD kClientUnpackTimeoutMs = 30000;
 constexpr DWORD kClientBootstrapTimeoutMs = 45000;
 constexpr DWORD kClientUnpackPollMs = 10;
+constexpr DWORD kDisplayWindowTimeoutMs = 60000;
+constexpr DWORD kDisplayWindowPollMs = 25;
 
 HANDLE gBootstrapComplete = nullptr;
 std::atomic<bool> gBootstrapFailed{ false };
@@ -87,6 +90,161 @@ bool InstallEarlyHooks() {
     if (!InstallEarlyHook("GetACP", Hook_GetACP, false)) return false;
     if (!InstallEarlyHook("GetModuleFileNameW", Hook_GetModuleFileNameW, false)) return false;
     return true;
+}
+
+HWND FindEverLeafGameWindow() {
+    HWND window = FindWindowA("MapleStoryClass", nullptr);
+    if (!window) {
+        return nullptr;
+    }
+
+    DWORD windowProcess = 0;
+    GetWindowThreadProcessId(window, &windowProcess);
+    return windowProcess == GetCurrentProcessId() ? window : nullptr;
+}
+
+bool GetMonitorRectForWindow(HWND window, bool useWorkArea, RECT& result) {
+    const HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+    if (!monitor) {
+        return false;
+    }
+
+    MONITORINFO info = {};
+    info.cbSize = sizeof(info);
+    if (!GetMonitorInfoW(monitor, &info)) {
+        return false;
+    }
+
+    result = useWorkArea ? info.rcWork : info.rcMonitor;
+    return true;
+}
+
+void ApplyBorderlessWindow(HWND window) {
+    LONG_PTR style = GetWindowLongPtrW(window, GWL_STYLE);
+    LONG_PTR exStyle = GetWindowLongPtrW(window, GWL_EXSTYLE);
+
+    style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
+    style |= WS_POPUP;
+    exStyle &= ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE | WS_EX_WINDOWEDGE);
+
+    SetWindowLongPtrW(window, GWL_STYLE, style);
+    SetWindowLongPtrW(window, GWL_EXSTYLE, exStyle);
+
+    RECT monitorRect = {};
+    if (!GetMonitorRectForWindow(window, false, monitorRect)) {
+        monitorRect.left = 0;
+        monitorRect.top = 0;
+        monitorRect.right = GetSystemMetrics(SM_CXSCREEN);
+        monitorRect.bottom = GetSystemMetrics(SM_CYSCREEN);
+    }
+
+    const int monitorWidth = monitorRect.right - monitorRect.left;
+    const int monitorHeight = monitorRect.bottom - monitorRect.top;
+    const int width = Client::m_nGameWidth;
+    const int height = Client::m_nGameHeight;
+    const bool monitorSized = width == monitorWidth && height == monitorHeight;
+    const int x = monitorSized ? monitorRect.left : monitorRect.left + (monitorWidth - width) / 2;
+    const int y = monitorSized ? monitorRect.top : monitorRect.top + (monitorHeight - height) / 2;
+
+    SetWindowPos(
+        window,
+        HWND_TOP,
+        x,
+        y,
+        width,
+        height,
+        SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW
+    );
+
+    std::cout << "EverLeaf Client v2: borderless window applied at "
+              << width << "x" << height
+              << (monitorSized ? " (fullscreen)" : " (centered)")
+              << std::endl;
+}
+
+void CenterWindowedClient(HWND window) {
+    LONG_PTR style = GetWindowLongPtrW(window, GWL_STYLE);
+    LONG_PTR exStyle = GetWindowLongPtrW(window, GWL_EXSTYLE);
+
+    RECT outer = { 0, 0, Client::m_nGameWidth, Client::m_nGameHeight };
+    if (!AdjustWindowRectEx(&outer, static_cast<DWORD>(style), FALSE, static_cast<DWORD>(exStyle))) {
+        return;
+    }
+
+    RECT work = {};
+    if (!GetMonitorRectForWindow(window, true, work)) {
+        SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
+    }
+
+    const int width = outer.right - outer.left;
+    const int height = outer.bottom - outer.top;
+    const int workWidth = work.right - work.left;
+    const int workHeight = work.bottom - work.top;
+    const int x = work.left + (workWidth - width) / 2;
+    const int y = work.top + (workHeight - height) / 2;
+
+    SetWindowPos(
+        window,
+        nullptr,
+        x,
+        y,
+        width,
+        height,
+        SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED
+    );
+
+    std::cout << "EverLeaf Client v2: centered windowed client" << std::endl;
+}
+
+DWORD WINAPI DisplayModeWorker(LPVOID) {
+    INIReader displayConfig("config.ini");
+    if (displayConfig.ParseError()) {
+        return ERROR_BAD_FORMAT;
+    }
+
+    const bool borderless = displayConfig.GetBoolean("general", "BorderlessWindow", false);
+    const bool centerWindow = displayConfig.GetBoolean("general", "CenterWindow", true);
+    if (!borderless && !centerWindow) {
+        return 0;
+    }
+
+    if (borderless && !Client::WindowedMode) {
+        MessageBoxW(
+            nullptr,
+            L"BorderlessWindow requires WindowedMode=true. EverLeaf will leave the current display mode unchanged.",
+            L"EverLeaf Client v2 display setting",
+            MB_OK | MB_ICONWARNING
+        );
+        return ERROR_INVALID_PARAMETER;
+    }
+
+    const ULONGLONG started = GetTickCount64();
+    while (GetTickCount64() - started < kDisplayWindowTimeoutMs) {
+        HWND window = FindEverLeafGameWindow();
+        if (window) {
+            if (borderless) {
+                ApplyBorderlessWindow(window);
+            }
+            else if (centerWindow) {
+                CenterWindowedClient(window);
+            }
+            return 0;
+        }
+        Sleep(kDisplayWindowPollMs);
+    }
+
+    // Display polish is deliberately non-fatal. The bootstrap watchdog handles
+    // actual client initialization failures; a missing/late HWND should not stop
+    // an otherwise playable client.
+    std::cout << "EverLeaf Client v2: display worker did not find MapleStoryClass before timeout" << std::endl;
+    return WAIT_TIMEOUT;
+}
+
+void StartDisplayModeWorker() {
+    HANDLE thread = CreateThread(nullptr, 0, DisplayModeWorker, nullptr, 0, nullptr);
+    if (thread) {
+        CloseHandle(thread);
+    }
 }
 
 DWORD WINAPI BootstrapWatchdog(LPVOID) {
@@ -187,6 +345,7 @@ DWORD WINAPI MainProc(LPVOID) {
     }
 
     MainMain::CreateInstance(MainFunc);
+    StartDisplayModeWorker();
     if (gBootstrapComplete) SetEvent(gBootstrapComplete);
     return 0;
 }
