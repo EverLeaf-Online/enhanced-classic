@@ -1,10 +1,10 @@
 # EverLeaf Live Release Status
 
-Verified UTC: 2026-09-02T06:12:09Z
+Verified UTC: 2026-09-04T05:02:07Z
 
-- Game server recorded release: `766963511b91727df107bde8197aac549b8b146a`
-- Active release directory: `/opt/everleaf/releases/766963511b91727df107bde8197aac549b8b146a-33597546818-1`
-- Client patch manifest version: `rollback-manual`
+- Game server recorded release: `339810def4ed409a9cd51d5b46bf70e94be06f40`
+- Active release directory: `/opt/everleaf/releases/solomapling-live-smoke-339810def4ed409a9cd51d5b46bf70e94be06f40-33836473823-1`
+- Client patch manifest version: `72f2f009dfd3f6a2ab894cc601afd27aa047cbf3`
 - Launcher version: `6f9a37c68bf472d55e67fbd770f48f2ce51d8404`
 - Managed client files: `36/36`
 - Game service: active
