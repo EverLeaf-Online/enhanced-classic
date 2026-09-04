@@ -94,8 +94,8 @@ static string MergeQuestNode(WzImage target, WzImage donor, int id, string label
         existing.Value.prop.Remove();
         action = "replace";
     }
-    var parent = EnsureParents(target, source.Value.parents);
-    parent.AddProperty(source.Value.prop.DeepClone());
+    var parent = EnsureParents(target, source.parents);
+    parent.AddProperty(source.prop.DeepClone());
     return action;
 }
 
