@@ -23,6 +23,7 @@
   <link rel="canonical" href="<%=canonicalUrl%>">
   <link rel="icon" href="/assets/everleaf-remaster.svg" type="image/svg+xml">
   <% if(isHome){ %>
+    <link rel="preload" as="image" href="/assets/hero-forest.webp" type="image/webp">
     <link rel="preload" as="image" href="/assets/hero-right.webp" type="image/webp">
     <link rel="preload" as="image" href="/assets/hero-left.webp" type="image/webp">
   <% } %>
@@ -98,7 +99,7 @@
     </a>
     <div class="links desktopLinks terminalLinks">
       <% navLinks.forEach(({href,label,index,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
-        <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><span><%=index%></span><%=label%></a>
+        <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><% if(external){ %><%=label%><% }else{ %><span><%=index%></span><%=label%><% } %></a>
       <% }) %>
     </div>
     <div class="navActions terminalNavActions">
@@ -113,7 +114,7 @@
       <summary aria-label="Open navigation" aria-controls="mobile-navigation" aria-expanded="false">MENU <span aria-hidden="true">＋</span></summary>
       <div id="mobile-navigation" class="mobileMenuPanel">
         <% navLinks.forEach(({href,label,index,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
-          <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><span><%=index%></span><%=label%></a>
+          <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><% if(external){ %><%=label%><% }else{ %><span><%=index%></span><%=label%><% } %></a>
         <% }) %>
         <div class="mobileAuth">
           <% if(typeof player!=='undefined'&&player){ %>
