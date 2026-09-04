@@ -73,9 +73,16 @@ jobs:
             'DisplayModeWorker',
             'BorderlessWindow',
             'CenterWindow',
+            'EnableAltEnterToggle',
             'ApplyBorderlessWindow',
             'CenterWindowedClient',
-            'FindEverLeafGameWindow'
+            'FindEverLeafGameWindow',
+            'CaptureWindowedState',
+            'RestoreWindowedState',
+            'ToggleBorderlessWindow',
+            'EverLeafWindowProc',
+            'WM_SYSKEYDOWN',
+            'WM_SYSCHAR'
           )) {
             if (-not $bootstrap.Contains($pattern)) { throw "Missing Client v2 bootstrap/display marker: $pattern" }
           }
@@ -135,6 +142,7 @@ jobs:
           if (-not ($config -match 'PreferCommunityUI=true')) { throw "Managed client does not default to Community UI" }
           if (-not ($config -match 'WindowedMode=true')) { throw "Managed client must keep the safe windowed renderer by default" }
           if (-not ($config -match 'BorderlessWindow=false')) { throw "Managed client must expose borderless mode as opt-in until runtime validation is green" }
+          if (-not ($config -match 'EnableAltEnterToggle=true')) { throw "Managed client must expose the reversible Alt+Enter borderless toggle" }
           if (-not ($config -match 'CenterWindow=true')) { throw "Managed client must center framed windowed mode by default" }
           if (-not (Test-Path "$package/EverLeaf_UI.wz")) { throw "Missing branded EverLeaf UI file" }
           if (Test-Path "$package/EzorsiaV2_UI.wz") { throw "Legacy UI filename leaked into package" }
