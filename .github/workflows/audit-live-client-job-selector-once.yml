@@ -7,7 +7,7 @@ on:
       - '.github/workflows/audit-live-client-job-selector-once.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
@@ -19,6 +19,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: feature/client-job-selector-modernization-20260904
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
@@ -28,52 +30,89 @@ jobs:
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
           chmod 600 ~/.ssh/id_everleaf
-          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
-      - name: Inspect live selector XML structure
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+      - name: Record concise live selector structure
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          mkdir -p docs
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' > docs/CLIENT_SELECTOR_LIVE_STRUCTURE.md <<'REMOTE'
           set -euo pipefail
           CURRENT="$(readlink -f /opt/everleaf/current)"
           LOGIN="$CURRENT/wz/UI.wz/Login.img.xml"
-          echo "CURRENT=$CURRENT"
           test -s "$LOGIN"
-          echo '--- literal class-family matches ---'
-          grep -nEi 'Evan|Aran|Cygnus|Noblesse|Legend|character|newchar|create|select' "$LOGIN" | head -n 240 || true
-          echo '--- login imgdir paths (depth <= 5) ---'
-          python3 - "$LOGIN" <<'PY'
-          import sys, xml.etree.ElementTree as ET
-          root=ET.parse(sys.argv[1]).getroot()
-          rows=[]
-          numeric=[]
-          def walk(node,path):
-              kids=[c for c in node if c.tag=='imgdir']
-              names=[c.attrib.get('name','') for c in kids]
-              if path.count('/')<=5:
-                  rows.append((path,names))
-              nums=[n for n in names if n.isdigit()]
-              if len(nums)>=3:
-                  numeric.append((path,names))
-              for c in kids:
-                  walk(c,path+'/'+c.attrib.get('name',''))
-          walk(root,root.attrib.get('name','Login.img'))
-          for p,n in rows:
-              print(f'PATH|{p}|CHILDREN={",".join(n)}')
-          print('--- candidate indexed selector nodes ---')
-          for p,n in numeric:
-              print(f'INDEXED|{p}|CHILDREN={",".join(n)}')
-          PY
-          echo '--- relevant leaf/resource names ---'
-          python3 - "$LOGIN" <<'PY'
-          import sys, xml.etree.ElementTree as ET, re
-          root=ET.parse(sys.argv[1]).getroot()
-          rx=re.compile(r'(char|create|select|job|aran|cygn|legend|evan|knight|advent|explor)',re.I)
-          def walk(node,path):
+          python3 - "$LOGIN" "$CURRENT" <<'PY'
+          import re, sys, xml.etree.ElementTree as ET
+          login, current = sys.argv[1:]
+          root = ET.parse(login).getroot()
+          family_rx = re.compile(r'(evan|aran|cygn|noblesse|legend|dual|resistance|citizen|battle.?mage|wild.?hunter|mechanic|explor|advent|knight)', re.I)
+          selector_rx = re.compile(r'(char|create|select|job|type|new)', re.I)
+          indexed=[]
+          family=[]
+          selector=[]
+          def walk(node, path):
               name=node.attrib.get('name','')
-              p=path+'/'+name if name else path
-              if rx.search(p) or any(rx.search(str(v)) for v in node.attrib.values()):
-                  print(f'{node.tag}|{p}|{node.attrib}')
-              for c in node: walk(c,p)
-          walk(root,'')
+              here=f'{path}/{name}' if name else path
+              imgkids=[c for c in node if c.tag=='imgdir']
+              names=[c.attrib.get('name','') for c in imgkids]
+              nums=[n for n in names if n.isdigit()]
+              if len(nums) >= 3:
+                  score=(2 if selector_rx.search(here) else 0)+(1 if family_rx.search(here) else 0)
+                  indexed.append((score, here, names))
+              attrs=' '.join(f'{k}={v}' for k,v in node.attrib.items())
+              if family_rx.search(here) or family_rx.search(attrs):
+                  family.append((node.tag, here, dict(node.attrib)))
+              if node.tag=='imgdir' and selector_rx.search(here):
+                  selector.append((here, names))
+              for c in node:
+                  walk(c, here)
+          walk(root, '')
+          print('# EverLeaf live character-selector structure')
+          print()
+          print(f'- Active release: `{current}`')
+          print(f'- Source: `{login}`')
+          print()
+          print('## Indexed node candidates')
+          for _,p,n in sorted(indexed, key=lambda r:(-r[0],r[1]))[:80]:
+              print(f'- `{p}` -> `{", ".join(n)}`')
+          print()
+          print('## Selector/create paths')
+          seen=set()
+          for p,n in selector:
+              if p in seen: continue
+              seen.add(p)
+              print(f'- `{p}` -> `{", ".join(n)}`')
+          print()
+          print('## Class-family markers')
+          seen=set()
+          for tag,p,a in family:
+              key=(tag,p,tuple(sorted(a.items())))
+              if key in seen: continue
+              seen.add(key)
+              print(f'- `{tag}` `{p}` `{a}`')
+          print()
+          print('## Marker summary')
+          xml=open(login,encoding='utf-8',errors='ignore').read()
+          for label,rx in [
+              ('Explorer',r'explor|advent'),('Cygnus',r'cygn|noblesse|knight'),('Aran',r'aran|legend'),
+              ('Evan',r'evan'),('Dual Blade',r'dual'),('Resistance',r'resistance|citizen'),
+              ('Battle Mage',r'battle.?mage'),('Wild Hunter',r'wild.?hunter'),('Mechanic',r'mechanic')]:
+              print(f'- {label}: {len(re.findall(rx,xml,re.I))} textual/path matches')
           PY
           REMOTE
+          sed -n '1,240p' docs/CLIENT_SELECTOR_LIVE_STRUCTURE.md
+      - name: Commit report
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- docs/CLIENT_SELECTOR_LIVE_STRUCTURE.md && git ls-files --error-unmatch docs/CLIENT_SELECTOR_LIVE_STRUCTURE.md >/dev/null 2>&1; then
+            echo 'selector report unchanged'
+            exit 0
+          fi
+          git config user.name everleaf-client-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add docs/CLIENT_SELECTOR_LIVE_STRUCTURE.md
+          git commit -m 'docs: record live client selector structure'
+          git push origin HEAD:feature/client-job-selector-modernization-20260904
