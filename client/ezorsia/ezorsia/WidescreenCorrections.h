@@ -8,6 +8,9 @@ namespace detail {
 constexpr DWORD kCWndHorizontalLowerBound = 0x009DFCF3;
 constexpr DWORD kCWndVerticalLowerBound = 0x009DFE6B;
 constexpr DWORD kLimitedViewDarkHeight = 0x0055B885;
+constexpr DWORD kHorizontalWidthOperand = 0x004D59B3;
+constexpr DWORD kLoginDialogVerticalAnimate = 0x0060F79C;
+constexpr DWORD kLoginDialogVerticalPosition = 0x0060F7A5;
 
 inline bool ReadInt(DWORD address, int& value) {
     __try {
@@ -23,9 +26,16 @@ inline bool MatchesInheritedWrongValues() {
     int horizontalLower = 0;
     int verticalLower = 0;
     int limitedViewHeight = 0;
+    int horizontalWidth = 0;
+    int loginVerticalAnimate = 0;
+    int loginVerticalPosition = 0;
+
     if (!ReadInt(kCWndHorizontalLowerBound, horizontalLower) ||
         !ReadInt(kCWndVerticalLowerBound, verticalLower) ||
-        !ReadInt(kLimitedViewDarkHeight, limitedViewHeight)) {
+        !ReadInt(kLimitedViewDarkHeight, limitedViewHeight) ||
+        !ReadInt(kHorizontalWidthOperand, horizontalWidth) ||
+        !ReadInt(kLoginDialogVerticalAnimate, loginVerticalAnimate) ||
+        !ReadInt(kLoginDialogVerticalPosition, loginVerticalPosition)) {
         return false;
     }
 
@@ -33,7 +43,10 @@ inline bool MatchesInheritedWrongValues() {
     // before this correction runs. Refuse to patch an unexpected client layout.
     return horizontalLower == Client::m_nGameHeight &&
            verticalLower == Client::m_nGameWidth &&
-           limitedViewHeight == Client::m_nGameWidth;
+           limitedViewHeight == Client::m_nGameWidth &&
+           horizontalWidth == Client::m_nGameHeight &&
+           loginVerticalAnimate == (Client::m_nGameHeight / 2) - 201 &&
+           loginVerticalPosition == (Client::m_nGameHeight / 2) - 181;
 }
 } // namespace detail
 
@@ -62,7 +75,26 @@ inline bool Apply() {
         static_cast<unsigned int>(Client::m_nGameHeight)
     );
 
-    std::cout << "EverLeaf Client v2: applied verified CWnd/LimitedView widescreen corrections" << std::endl;
+    // Independent exact-v83 widescreen ownership identifies this immediate as a
+    // horizontal/screen-width value. The inherited patch feeds it screen height.
+    Memory::WriteInt(
+        detail::kHorizontalWidthOperand,
+        static_cast<unsigned int>(Client::m_nGameWidth)
+    );
+
+    // Login utility/error-dialog vertical coordinates have a distinct vertical
+    // offset family. The inherited patch copied the horizontal -201/-181 pair
+    // into these Y calculations; restore the known height/2 -150/-130 values.
+    Memory::WriteInt(
+        detail::kLoginDialogVerticalAnimate,
+        static_cast<unsigned int>((Client::m_nGameHeight / 2) - 150)
+    );
+    Memory::WriteInt(
+        detail::kLoginDialogVerticalPosition,
+        static_cast<unsigned int>((Client::m_nGameHeight / 2) - 130)
+    );
+
+    std::cout << "EverLeaf Client v2: applied verified widescreen axis corrections" << std::endl;
     return true;
 }
 } // namespace WidescreenCorrections
