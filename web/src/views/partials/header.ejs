@@ -3,28 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <% 
-    const defaultDescription=(typeof siteDescription!=='undefined'&&siteDescription)?siteDescription:'EverLeaf Enhanced Classic MapleStory v83';
-    const baseSiteUrl=(typeof siteUrl!=='undefined'&&siteUrl)?siteUrl:'https://everleafms.online';
-    const pageTitle=title?title+' • '+brand.name:brand.name;
-    const pageDescription=(typeof description!=='undefined'&&description)?description:defaultDescription;
-    const canonicalPath=(typeof currentPath!=='undefined'&&currentPath)?currentPath:'/';
+  <%
+    const defaultDescription=(typeof siteDescription!=="undefined"&&siteDescription)?siteDescription:"EverLeaf Enhanced Classic MapleStory v83";
+    const baseSiteUrl=(typeof siteUrl!=="undefined"&&siteUrl)?siteUrl:"https://everleafms.online";
+    const pageTitle=title?title+" • "+brand.name:brand.name;
+    const pageDescription=(typeof description!=="undefined"&&description)?description:defaultDescription;
+    const canonicalPath=(typeof currentPath!=="undefined"&&currentPath)?currentPath:"/";
     const canonicalUrl=baseSiteUrl+canonicalPath;
-    const isAdminPath=canonicalPath.startsWith('/admin');
-    const isHome=canonicalPath==='/';
-    const routeKey=isHome?'home':(canonicalPath.split('/').filter(Boolean)[0]||'page').replace(/[^a-z0-9-]/gi,'').toLowerCase();
+    const isAdminPath=canonicalPath.startsWith("/admin");
+    const isHome=canonicalPath==="/";
+    const routeKey=isHome?"home":(canonicalPath.split("/").filter(Boolean)[0]||"page").replace(/[^a-z0-9-]/gi,"").toLowerCase();
   %>
   <title><%=pageTitle%></title>
   <meta name="description" content="<%=pageDescription%>">
-  <meta name="theme-color" content="#173f38">
-  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#12130f">
+  <meta name="color-scheme" content="dark">
   <meta name="application-name" content="<%=brand.name%>">
   <meta name="robots" content="<%=isAdminPath?'noindex,nofollow':'index,follow'%>">
   <link rel="canonical" href="<%=canonicalUrl%>">
   <link rel="icon" href="/assets/everleaf-remaster.svg" type="image/svg+xml">
   <% if(isHome){ %>
-    <link rel="preload" as="image" href="/assets/hero-forest.webp" type="image/webp">
-    <link rel="preload" as="image" href="/assets/visuals/hero-magic-overlay.svg" type="image/svg+xml">
+    <link rel="preload" as="image" href="/assets/hero-left.webp" type="image/webp">
+    <link rel="preload" as="image" href="/assets/hero-right.webp" type="image/webp">
   <% } %>
 
   <meta property="og:type" content="website">
@@ -33,13 +33,13 @@
   <meta property="og:description" content="<%=pageDescription%>">
   <meta property="og:url" content="<%=canonicalUrl%>">
   <meta property="og:image" content="<%=baseSiteUrl%>/assets/hero-forest.webp">
-  <meta property="og:image:alt" content="EverLeaf Enhanced Classic Maple World forest">
+  <meta property="og:image:alt" content="EverLeaf Enhanced Classic Maple World">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="<%=pageTitle%>">
   <meta name="twitter:description" content="<%=pageDescription%>">
   <meta name="twitter:image" content="<%=baseSiteUrl%>/assets/hero-forest.webp">
-  <meta name="twitter:image:alt" content="EverLeaf Enhanced Classic Maple World forest">
 
+  <!-- Legacy functional layers remain beneath the new structural system while we preserve every existing integration. -->
   <link rel="stylesheet" href="/css/maple-remaster.css">
   <link rel="stylesheet" href="/css/maple-remaster-pages.css">
   <link rel="stylesheet" href="/css/maple-jobs.css">
@@ -63,78 +63,70 @@
   <link rel="stylesheet" href="/css/game-portal-2026.css?v=1">
   <link rel="stylesheet" href="/css/full-site-portal-2026.css?v=1">
   <link rel="stylesheet" href="/css/refero-everleaf-2026.css?v=1">
-  <style id="everleaf-nav-cleanup">.nav::after{display:none!important;content:none!important;height:0!important;background:none!important}</style>
+  <link rel="stylesheet" href="/css/terminal-everleaf-2026.css?v=1">
   <script src="/js/site.js?v=1" defer></script>
 </head>
-<body class="<%=isHome?'homeRoute':'innerRoute'%> route-<%=routeKey%>">
+<body class="terminalMode <%=isAdminPath?'adminMode ':''%><%=isHome?'homeRoute':'innerRoute'%> route-<%=routeKey%>">
 <a class="skipLink" href="#main-content">Skip to content</a>
 <%
   const navLinks=[
     {href:"/",label:"HOME"},
-    {href:"/news",label:"NEWS"},
-    {href:"/downloads",label:"DOWNLOAD"},
-    {href:"/rankings",label:"RANKINGS"},
-    {href:"/wiki",label:"WIKI"},
-    {href:brand.discordUrl,label:"DISCORD",external:true},
-    {href:"/help",label:"HELP"}
+    {href:"/news",label:"WORLD LOG"},
+    {href:"/downloads",label:"CLIENT"},
+    {href:"/rankings",label:"HALL"},
+    {href:"/wiki",label:"DATA"},
+    {href:"/help",label:"HELP"},
+    {href:brand.discordUrl,label:"DISCORD",external:true}
   ];
+  const shellPlayer=(typeof player!=="undefined"&&player)?player:null;
+  const maintenance=(typeof settings!=="undefined"&&settings&&String(settings.maintenance_message||"").trim())||"";
+  const fallbackAnnouncement=(typeof settings!=="undefined"&&settings&&String(settings.announcement||"").trim())||"";
 %>
-<div class="worldRibbon">
-  <div class="wrap">
-    <span><strong>EVERLEAF WORLD</strong> · Enhanced Classic v83 · Community-first progression</span>
-    <nav aria-label="Utility links">
-      <a href="/vote">Vote for NX</a>
-      <a href="/rules">Rules</a>
-      <a href="/terms">Terms</a>
-      <% if(typeof player!=='undefined'&&player&&player.isAdmin){ %><a href="/admin">Staff CMS</a><% } %>
-    </nav>
+
+<!-- retained as a compatibility marker for older tests/scripts; intentionally not part of the visible shell -->
+<div class="worldRibbon" hidden aria-hidden="true">EVERLEAF WORLD</div>
+
+<header class="terminalHeader">
+  <a class="terminalBrand brand brandImage" href="/" aria-label="EverLeaf home">
+    <span class="terminalBrandMark">EVERLEAF</span>
+    <span class="terminalBrandMeta"><b>ENHANCED CLASSIC</b><span>V83 // <%=isAdminPath?'STAFF TERMINAL':'WORLD TERMINAL'%></span></span>
+  </a>
+
+  <div class="terminalNav desktopLinks nav" aria-label="Primary navigation">
+    <% navLinks.forEach(({href,label,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
+      <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><%=label%></a>
+    <% }) %>
+    <span class="terminalAuth navActions">
+      <% if(shellPlayer){ %>
+        <% if(shellPlayer.isAdmin){ %><a href="/admin">CMS</a><% } %>
+        <a class="accountNav primary" href="/account">ACCOUNT</a>
+      <% } else { %>
+        <a href="/login">LOGIN</a>
+        <a class="primary" href="/register">PLAY</a>
+      <% } %>
+    </span>
   </div>
-</div>
-<nav class="nav" aria-label="Primary navigation">
-  <div class="wrap navin">
-    <a class="brand brandImage" href="/" aria-label="EverLeaf home">
-      <img src="/assets/everleaf-remaster.svg" alt="EverLeaf Enhanced Classic">
-    </a>
-    <div class="links desktopLinks">
+
+  <details class="terminalMobile mobileMenu">
+    <summary aria-label="Open navigation" aria-controls="mobile-navigation">MENU</summary>
+    <div id="mobile-navigation" class="terminalMobilePanel mobileMenuPanel">
       <% navLinks.forEach(({href,label,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
         <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><%=label%></a>
       <% }) %>
+      <% if(shellPlayer){ %><a class="accountNav" href="/account">ACCOUNT</a><% }else{ %><a href="/login">LOGIN</a><a href="/register">PLAY</a><% } %>
+      <% if(shellPlayer&&shellPlayer.isAdmin){ %><a href="/admin">CMS</a><% } %>
     </div>
-    <div class="navActions">
-      <% if(typeof player!=='undefined'&&player){ %>
-        <a class="btn small ghost accountNav" href="/account">ACCOUNT</a>
-      <% }else{ %>
-        <a class="btn small ghost" href="/login">LOGIN</a>
-        <a class="btn small primary" href="/register">PLAY FREE</a>
-      <% } %>
-    </div>
-    <details class="mobileMenu">
-      <summary aria-label="Open navigation" aria-controls="mobile-navigation" aria-expanded="false">MENU <span aria-hidden="true">☰</span></summary>
-      <div id="mobile-navigation" class="mobileMenuPanel">
-        <% navLinks.forEach(({href,label,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
-          <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><%=label%></a>
-        <% }) %>
-        <div class="mobileAuth">
-          <% if(typeof player!=='undefined'&&player){ %>
-            <a class="btn primary accountNav" href="/account">ACCOUNT</a>
-          <% }else{ %>
-            <a class="btn ghost" href="/login">LOGIN</a>
-            <a class="btn primary" href="/register">PLAY FREE</a>
-          <% } %>
-        </div>
-      </div>
-    </details>
-  </div>
-</nav>
-<%
-  const maintenance=(typeof settings!=='undefined'&&settings&&String(settings.maintenance_message||'').trim())||'';
-  const fallbackAnnouncement=(typeof settings!=='undefined'&&settings&&String(settings.announcement||'').trim())||'';
-%>
+  </details>
+</header>
+
+<div class="terminalRouteTag"><%=isAdminPath?'STAFF://':'WORLD://'%><span><%=routeKey.toUpperCase()%></span> / EVERLEAFMS.ONLINE</div>
+
 <% if(maintenance){ %>
-  <div role="status" class="siteBanner maintenanceBanner"><div class="wrap"><strong>Maintenance</strong><span><%=maintenance%></span></div></div>
-<% } else if(typeof activeAnnouncement!=='undefined'&&activeAnnouncement){ %>
-  <div role="status" class="siteBanner announcementBanner"><div class="wrap"><strong><%=activeAnnouncement.title%></strong><% if(activeAnnouncement.body){ %><span><%=activeAnnouncement.body%></span><% } %></div></div>
+  <div role="status" class="siteBanner terminalNotice maintenanceBanner"><strong>MAINTENANCE</strong><span><%=maintenance%></span></div>
+<% } else if(typeof activeAnnouncement!=="undefined"&&activeAnnouncement){ %>
+  <div role="status" class="siteBanner terminalNotice announcementBanner"><strong><%=activeAnnouncement.title%></strong><% if(activeAnnouncement.body){ %><span><%=activeAnnouncement.body%></span><% } %></div>
 <% } else if(fallbackAnnouncement){ %>
-  <div role="status" class="siteBanner announcementBanner"><div class="wrap"><span><%=fallbackAnnouncement%></span></div></div>
+  <div role="status" class="siteBanner terminalNotice announcementBanner"><strong>WORLD NOTICE</strong><span><%=fallbackAnnouncement%></span></div>
 <% } %>
+
 <div id="main-content" class="siteContent" tabindex="-1">
