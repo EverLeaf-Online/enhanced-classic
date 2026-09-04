@@ -203,8 +203,10 @@ jobs:
 
           shared=/opt/everleaf/shared/wz-v95
           candidate="/opt/everleaf/shared/wz-v95.candidate-$run_id"
-          rm -rf "$candidate"
-          mkdir -p /opt/everleaf/shared "$candidate"
+          sudo mkdir -p /opt/everleaf/shared
+          sudo rm -rf "$candidate"
+          sudo mkdir -p "$candidate"
+          sudo chown "$(id -u):$(id -g)" "$candidate"
           rsync -a --delete "$source_tree/" "$candidate/"
           rm -rf "$candidate/Map.wz" "$candidate/Mob.wz" "$candidate/Npc.wz" "$candidate/Item.wz" "$candidate/Quest.wz" "$candidate/String.wz"
           tar -xzf "$archive" -C "$candidate"
@@ -223,31 +225,32 @@ jobs:
           printf 'source=live-client-v95\nrun=%s\nxml_count=%s\ncreated_utc=%s\n' "$run_id" "$count" "$(date -u +%FT%TZ)" > "$candidate/.everleaf-v95-baseline"
 
           backup="/opt/everleaf/backups/v95-wz-repair-$run_id"
-          mkdir -p "$backup"
+          sudo mkdir -p "$backup"
+          sudo chown "$(id -u):$(id -g)" "$backup"
           rsync -a "$current/wz/" "$backup/server-wz-before/"
           old_shared=''
           if [ -d "$shared" ]; then
             old_shared="/opt/everleaf/shared/wz-v95.previous-$run_id"
-            rm -rf "$old_shared"
-            mv "$shared" "$old_shared"
+            sudo rm -rf "$old_shared"
+            sudo mv "$shared" "$old_shared"
           fi
-          mv "$candidate" "$shared"
+          sudo mv "$candidate" "$shared"
 
           rollback() {
             echo 'WZ promotion failed; rolling back live server WZ' >&2
-            rm -rf "$current/wz"
-            mkdir -p "$current/wz"
-            rsync -a "$backup/server-wz-before/" "$current/wz/"
+            sudo rm -rf "$current/wz"
+            sudo mkdir -p "$current/wz"
+            sudo rsync -a "$backup/server-wz-before/" "$current/wz/"
             if [ -n "$old_shared" ] && [ -d "$old_shared" ]; then
-              rm -rf "$shared"
-              mv "$old_shared" "$shared"
+              sudo rm -rf "$shared"
+              sudo mv "$old_shared" "$shared"
             fi
             sudo systemctl restart everleaf.service || true
           }
           trap rollback ERR
-          rm -rf "$current/wz"
-          mkdir -p "$current/wz"
-          rsync -a --delete "$shared/" "$current/wz/"
+          sudo rm -rf "$current/wz"
+          sudo mkdir -p "$current/wz"
+          sudo rsync -a --delete "$shared/" "$current/wz/"
           sudo systemctl restart everleaf.service
           for i in $(seq 1 30); do
             if systemctl is-active --quiet everleaf.service && ss -ltn | grep -q ':8484 '; then break; fi
@@ -262,7 +265,7 @@ jobs:
           rm -f "$archive"
           echo "LIVE_V95_SERVER_XML_PROMOTED xml_count=$count shared=$shared current=$current/wz backup=$backup"
           '@
-          $remote | & $ssh -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "bash -s -- '$remoteArchive' '$env:GITHUB_RUN_ID'"
+          ($remote -replace "`r","") | & $ssh -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "bash -s -- '$remoteArchive' '$env:GITHUB_RUN_ID'"
           if($LASTEXITCODE){throw 'Oracle full-v95 server XML promotion failed'}
 
       - name: Verify public EverLeaf ports after WZ promotion
