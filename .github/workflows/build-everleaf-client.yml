@@ -69,9 +69,15 @@ jobs:
             'EverLeaf Client v2 startup error',
             'kClientUnpackTimeoutMs',
             'kClientBootstrapTimeoutMs',
-            'ExitProcess(ERROR_DLL_INIT_FAILED)'
+            'ExitProcess(ERROR_DLL_INIT_FAILED)',
+            'DisplayModeWorker',
+            'BorderlessWindow',
+            'CenterWindow',
+            'ApplyBorderlessWindow',
+            'CenterWindowedClient',
+            'FindEverLeafGameWindow'
           )) {
-            if (-not $bootstrap.Contains($pattern)) { throw "Missing Client v2 bootstrap marker: $pattern" }
+            if (-not $bootstrap.Contains($pattern)) { throw "Missing Client v2 bootstrap/display marker: $pattern" }
           }
           if ($bootstrap.Contains('MainMain::GetInstance()->~MainMain()')) {
             throw "Client v2 must not manually destroy MainMain under DllMain loader lock"
@@ -127,6 +133,9 @@ jobs:
             if ($config -match [regex]::Escape($name)) { throw "Player config exposes forbidden setting: $name" }
           }
           if (-not ($config -match 'PreferCommunityUI=true')) { throw "Managed client does not default to Community UI" }
+          if (-not ($config -match 'WindowedMode=true')) { throw "Managed client must keep the safe windowed renderer by default" }
+          if (-not ($config -match 'BorderlessWindow=false')) { throw "Managed client must expose borderless mode as opt-in until runtime validation is green" }
+          if (-not ($config -match 'CenterWindow=true')) { throw "Managed client must center framed windowed mode by default" }
           if (-not (Test-Path "$package/EverLeaf_UI.wz")) { throw "Missing branded EverLeaf UI file" }
           if (Test-Path "$package/EzorsiaV2_UI.wz") { throw "Legacy UI filename leaked into package" }
           Compress-Archive -Path "$package/*" -DestinationPath "EverleafClient-source-built.zip"
