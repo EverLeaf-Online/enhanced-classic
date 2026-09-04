@@ -1,0 +1,55 @@
+name: Import Empress runtime once
+
+on:
+  push:
+    branches: [integrate/empress-runtime-20260904]
+    paths:
+      - '.github/workflows/import-empress-runtime-once.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: integrate/empress-runtime-20260904
+          fetch-depth: 0
+      - name: Import only unique Empress server behavior
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin empress-dev
+          files=(
+            database/sql/migration/everleaf_boss_rare_scroll_drops.sql
+            database/sql/migration/everleaf_empress_stronghold_progress.sql
+            database/sql/migration/everleaf_empress_weekly_lockout.sql
+            scripts/event/EmpressBattle.js
+            scripts/npc/2143000.js
+            scripts/npc/2143004.js
+            scripts/portal/back_cygnus.js
+            scripts/portal/out_cygnusBackGarden.js
+            src/main/java/everleaf/content/EmpressContentPolicy.java
+            src/main/java/everleaf/content/EmpressStrongholdProgressService.java
+            src/main/java/everleaf/content/EmpressWeeklyLockoutService.java
+            src/main/java/server/expeditions/ExpeditionType.java
+            tools/apply_empress_progress_hooks.py
+            tools/audit_empress_content.py
+            tools/audit_empress_mobskills.py
+            tools/retune_empress_server_xml.py
+            tools/sanitize_empress_mobskills.py
+          )
+          for f in "${files[@]}"; do
+            git cat-file -e "origin/empress-dev:$f"
+          done
+          git checkout origin/empress-dev -- "${files[@]}"
+          git rm .github/workflows/import-empress-runtime-once.yml
+          git add --all
+          git diff --cached --stat
+          git diff --cached --quiet && { echo 'No Empress runtime delta to import'; exit 0; }
+          git commit -m 'content: fold Empress runtime into canonical release line'
+          git push origin HEAD:integrate/empress-runtime-20260904
