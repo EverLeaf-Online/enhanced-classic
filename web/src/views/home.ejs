@@ -141,8 +141,8 @@
     <div class="sectionIndex"><span>SECTION / 05</span><span>KNOWLEDGE SIGNAL</span></div>
     <div class="wikiSignalHeader"><div><p class="terminalLabel">EVERLEAF HANDBOOK</p><h2 id="wiki-signal-title">KNOW THE WORLD<br>BEFORE IT KNOWS YOU.</h2></div><a class="btn ghost" href="/wiki">OPEN WIKI</a></div>
     <div class="wikiSignalRows">
-      <% (featuredWiki||[]).slice(0,4).forEach((entry,i)=>{ %>
-        <a href="/wiki/<%=entry.slug%>" class="wikiSignalRow"><span><%=String(i+1).padStart(2,'0')%></span><div><small><%=entry.status||'REFERENCE'%></small><strong><%=entry.title%></strong><p><%=entry.summary%></p></div><b>↗</b></a>
+      <% (featuredWiki||[]).forEach((entry,i)=>{ %>
+        <a href="/wiki/<%=entry.slug%>" class="wikiSignalRow" data-source="<%=entry.sourceDoc||''%>"><span><%=String(i+1).padStart(2,'0')%></span><div><small><%=entry.status||'REFERENCE'%></small><strong><%=entry.title%></strong><p><%=entry.summary%></p></div><b>↗</b></a>
       <% }) %>
     </div>
   </section>
