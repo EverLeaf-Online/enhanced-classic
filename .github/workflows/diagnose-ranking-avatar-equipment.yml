@@ -47,21 +47,12 @@ jobs:
             set -euo pipefail
             cd /opt/everleaf/web
             echo 'non-secret game DB configuration:'
-            grep -E '^(GAME_DB_NAME|GAME_CHARACTERS_TABLE|GAME_INVENTORY_ITEMS_TABLE)=' .env || true
+            grep -E '^(GAME_DB_HOST|GAME_DB_PORT|GAME_DB_NAME|GAME_CHARACTERS_TABLE|GAME_INVENTORY_ITEMS_TABLE)=' .env || true
             echo 'gameService.characterAppearance results:'
-            timeout 45s node - <<'NODE'
-            const game = require('./src/services/gameService');
-            (async () => {
-              for (const id of [12,14,16,17]) {
-                const appearance = await game.characterAppearance(id);
-                console.log(JSON.stringify(appearance));
-              }
-              process.exit(0);
-            })().catch(error => { console.error(error && error.stack || error); process.exit(1); });
-            NODE
+            timeout 45s node -e "const game=require('./src/services/gameService'); (async()=>{for(const id of [12,14,16,17]) console.log(JSON.stringify(await game.characterAppearance(id))); process.exit(0)})().catch(e=>{console.error(e&&e.stack||e);process.exit(1)})"
             echo 'live route headers:'
             for spec in '12:410' '14:420' '16:1310' '17:1110'; do
               id="${spec%%:*}"; job="${spec##*:}"
-              curl -fsSI "http://127.0.0.1:3000/character-avatar/${id}.png?job=${job}" | grep -Ei '^(HTTP/|content-type:|x-everleaf-avatar-(source|mode|equipment-count):)'
+              curl -fsS -D - -o /dev/null "http://127.0.0.1:3000/character-avatar/${id}.png?job=${job}" | grep -Ei '^(HTTP/|content-type:|x-everleaf-avatar-(source|mode|equipment-count):)'
             done
           REMOTE
