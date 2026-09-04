@@ -4,13 +4,17 @@ const fs=require('node:fs');
 const path=require('node:path');
 const workflow=fs.readFileSync(path.join(__dirname,'../../.github/workflows/verify-web-data-wiki.yml'),'utf8');
 
-test('production verification requires a non-empty live data Wiki',()=>{
+test('production verification requires a cleaned non-empty live data Wiki',()=>{
   assert.match(workflow,/workflow_run/);
   assert.match(workflow,/Deploy EverLeaf Web/);
   assert.match(workflow,/EVERLEAF DATA WIKI/);
   assert.match(workflow,/WZ \+ MySQL/);
   assert.match(workflow,/Server data unavailable/);
+  assert.match(workflow,/HOW IT WORKS/);
   assert.match(workflow,/\/wiki\/items/);
   assert.match(workflow,/\/wiki\/monsters/);
-  assert.match(workflow,/indexed records/);
+  assert.match(workflow,/Cleaned live catalog/);
+  assert.match(workflow,/player-useful records/);
+  assert.match(workflow,/Open record →/);
+  assert.match(workflow,/>View →</);
 });

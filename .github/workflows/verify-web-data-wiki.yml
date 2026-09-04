@@ -28,14 +28,24 @@ jobs:
             echo 'EverLeaf Wiki rendered, but its WZ/MySQL data catalog is unavailable.' >&2
             exit 1
           fi
+          if grep -Fq 'HOW IT WORKS' <<<"$WIKI_HTML" || grep -Fq 'EverLeaf data, not a generic MapleStory copy' <<<"$WIKI_HTML"; then
+            echo 'Removed Wiki explainer section is still present in production.' >&2
+            exit 1
+          fi
 
           ITEMS_HTML="$(curl --fail --silent --show-error --location --max-time 30 "$BASE/wiki/items")"
           grep -Fq 'ITEM DATABASE' <<<"$ITEMS_HTML"
-          grep -Fq 'Live WZ catalog' <<<"$ITEMS_HTML"
-          grep -Eq '<strong>[1-9][0-9,]*</strong><span>indexed records</span>' <<<"$ITEMS_HTML"
+          grep -Fq 'Cleaned live catalog' <<<"$ITEMS_HTML"
+          grep -Eq '<strong>[1-9][0-9,]*</strong><span>player-useful records</span>' <<<"$ITEMS_HTML"
+          grep -Fq 'Open record →' <<<"$ITEMS_HTML"
+          if grep -Fq '>View →<' <<<"$ITEMS_HTML"; then
+            echo 'Legacy View links are still present in the production Wiki catalog.' >&2
+            exit 1
+          fi
 
           MONSTERS_HTML="$(curl --fail --silent --show-error --location --max-time 30 "$BASE/wiki/monsters")"
           grep -Fq 'MONSTER DATABASE' <<<"$MONSTERS_HTML"
-          grep -Eq '<strong>[1-9][0-9,]*</strong><span>indexed records</span>' <<<"$MONSTERS_HTML"
+          grep -Fq 'Cleaned live catalog' <<<"$MONSTERS_HTML"
+          grep -Eq '<strong>[1-9][0-9,]*</strong><span>player-useful records</span>' <<<"$MONSTERS_HTML"
 
-          echo 'EverLeaf production data Wiki is live with non-empty item and monster catalogs.'
+          echo 'EverLeaf production data Wiki is live with cleaned, non-empty item and monster catalogs.'
