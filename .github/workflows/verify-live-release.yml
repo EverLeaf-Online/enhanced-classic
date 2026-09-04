@@ -1,4 +1,4 @@
-# Manual live audit trigger: 2026-09-04-v95-final
+# Manual live audit trigger: 2026-09-04-v95-final-r2
 name: Verify EverLeaf Live Release
 
 on:
@@ -82,11 +82,12 @@ jobs:
       - name: Verify public endpoints
         run: |
           set -euo pipefail
-          curl -fsS --max-time 20 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" -o /tmp/manifest.json
+          curl_retry() { curl -fsS --retry 6 --retry-delay 3 --retry-all-errors "$@"; }
+          curl_retry --max-time 20 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" -o /tmp/manifest.json
           node -e "const m=require('/tmp/manifest.json'); if(!Array.isArray(m.files)||m.files.length!==36) process.exit(1); if(!m.files.some(f=>f.path==='Quest.wz')) process.exit(1)"
-          curl -fsS --max-time 60 "https://$EVERLEAF_PUBLIC_HOST/launcher/download" -o /tmp/launcher.zip
+          curl_retry --max-time 60 "https://$EVERLEAF_PUBLIC_HOST/launcher/download" -o /tmp/launcher.zip
           test -s /tmp/launcher.zip
-          for f in config.ini dinput8.dll EverLeaf_UI.wz Quest.wz; do curl -fsS --max-time 60 "https://$EVERLEAF_PUBLIC_HOST/patches/$f" -o "/tmp/$f"; test -s "/tmp/$f"; done
+          for f in config.ini dinput8.dll EverLeaf_UI.wz Quest.wz; do curl_retry --max-time 60 "https://$EVERLEAF_PUBLIC_HOST/patches/$f" -o "/tmp/$f"; test -s "/tmp/$f"; done
           for port in 8484 $(seq 7575 7594); do timeout 5 bash -c "</dev/tcp/$EVERLEAF_DEPLOY_HOST/$port"; done
 
       - name: Publish sanitized live status
