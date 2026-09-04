@@ -16,6 +16,12 @@ constexpr DWORD kDisplayWindowPollMs = 25;
 
 HANDLE gBootstrapComplete = nullptr;
 std::atomic<bool> gBootstrapFailed{ false };
+WNDPROC gOriginalWindowProc = nullptr;
+LONG_PTR gWindowedStyle = 0;
+LONG_PTR gWindowedExStyle = 0;
+RECT gWindowedRect = {};
+bool gHasWindowedState = false;
+bool gBorderlessActive = false;
 
 struct ClientSignature {
     DWORD address;
@@ -135,6 +141,23 @@ bool GetMonitorRectForWindow(HWND window, bool useWorkArea, RECT& result) {
     return true;
 }
 
+bool CaptureWindowedState(HWND window) {
+    if (!window) {
+        return false;
+    }
+
+    RECT rect = {};
+    if (!GetWindowRect(window, &rect)) {
+        return false;
+    }
+
+    gWindowedStyle = GetWindowLongPtrW(window, GWL_STYLE);
+    gWindowedExStyle = GetWindowLongPtrW(window, GWL_EXSTYLE);
+    gWindowedRect = rect;
+    gHasWindowedState = true;
+    return true;
+}
+
 void ApplyBorderlessWindow(HWND window) {
     LONG_PTR style = GetWindowLongPtrW(window, GWL_STYLE);
     LONG_PTR exStyle = GetWindowLongPtrW(window, GWL_EXSTYLE);
@@ -172,10 +195,36 @@ void ApplyBorderlessWindow(HWND window) {
         SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW
     );
 
+    gBorderlessActive = true;
     std::cout << "EverLeaf Client v2: borderless window applied at "
               << width << "x" << height
               << (monitorSized ? " (fullscreen)" : " (centered)")
               << std::endl;
+}
+
+bool RestoreWindowedState(HWND window) {
+    if (!window || !gHasWindowedState) {
+        return false;
+    }
+
+    SetWindowLongPtrW(window, GWL_STYLE, gWindowedStyle);
+    SetWindowLongPtrW(window, GWL_EXSTYLE, gWindowedExStyle);
+
+    const int width = gWindowedRect.right - gWindowedRect.left;
+    const int height = gWindowedRect.bottom - gWindowedRect.top;
+    SetWindowPos(
+        window,
+        nullptr,
+        gWindowedRect.left,
+        gWindowedRect.top,
+        width,
+        height,
+        SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW
+    );
+
+    gBorderlessActive = false;
+    std::cout << "EverLeaf Client v2: restored framed window" << std::endl;
+    return true;
 }
 
 void CenterWindowedClient(HWND window) {
@@ -212,6 +261,70 @@ void CenterWindowedClient(HWND window) {
     std::cout << "EverLeaf Client v2: centered windowed client" << std::endl;
 }
 
+void ToggleBorderlessWindow(HWND window) {
+    if (!window || !Client::WindowedMode) {
+        return;
+    }
+
+    if (gBorderlessActive) {
+        RestoreWindowedState(window);
+        return;
+    }
+
+    // Remember the player's current framed location before every transition so
+    // moving the window between monitors is preserved across later toggles.
+    CaptureWindowedState(window);
+    ApplyBorderlessWindow(window);
+}
+
+LRESULT CALLBACK EverLeafWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
+    const bool altEnter =
+        message == WM_SYSKEYDOWN &&
+        wParam == VK_RETURN &&
+        (lParam & (1L << 29)) != 0 &&
+        (lParam & (1L << 30)) == 0;
+
+    if (altEnter) {
+        ToggleBorderlessWindow(window);
+        return 0;
+    }
+
+    // Suppress the follow-up system character so Alt+Enter does not produce the
+    // standard Windows menu/beep behavior after the display transition.
+    if (message == WM_SYSCHAR && wParam == VK_RETURN) {
+        return 0;
+    }
+
+    WNDPROC original = gOriginalWindowProc;
+    if (!original) {
+        return DefWindowProcW(window, message, wParam, lParam);
+    }
+
+    if (message == WM_NCDESTROY) {
+        SetWindowLongPtrW(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(original));
+        gOriginalWindowProc = nullptr;
+    }
+
+    return CallWindowProcW(original, window, message, wParam, lParam);
+}
+
+bool InstallAltEnterToggle(HWND window) {
+    SetLastError(ERROR_SUCCESS);
+    const LONG_PTR previous = SetWindowLongPtrW(
+        window,
+        GWLP_WNDPROC,
+        reinterpret_cast<LONG_PTR>(EverLeafWindowProc)
+    );
+    if (previous == 0 && GetLastError() != ERROR_SUCCESS) {
+        std::cout << "EverLeaf Client v2: could not install Alt+Enter display toggle" << std::endl;
+        return false;
+    }
+
+    gOriginalWindowProc = reinterpret_cast<WNDPROC>(previous);
+    std::cout << "EverLeaf Client v2: Alt+Enter display toggle enabled" << std::endl;
+    return true;
+}
+
 DWORD WINAPI DisplayModeWorker(LPVOID) {
     INIReader displayConfig("config.ini");
     if (displayConfig.ParseError()) {
@@ -220,7 +333,8 @@ DWORD WINAPI DisplayModeWorker(LPVOID) {
 
     const bool borderless = displayConfig.GetBoolean("general", "BorderlessWindow", false);
     const bool centerWindow = displayConfig.GetBoolean("general", "CenterWindow", true);
-    if (!borderless && !centerWindow) {
+    const bool enableAltEnter = displayConfig.GetBoolean("general", "EnableAltEnterToggle", true);
+    if (!borderless && !centerWindow && !enableAltEnter) {
         return 0;
     }
 
@@ -238,11 +352,22 @@ DWORD WINAPI DisplayModeWorker(LPVOID) {
     while (GetTickCount64() - started < kDisplayWindowTimeoutMs) {
         HWND window = FindEverLeafGameWindow();
         if (window) {
+            // Center first so the saved framed position is the one the user will
+            // return to after leaving borderless mode.
+            if (centerWindow) {
+                CenterWindowedClient(window);
+            }
+            CaptureWindowedState(window);
+
             if (borderless) {
                 ApplyBorderlessWindow(window);
             }
-            else if (centerWindow) {
-                CenterWindowedClient(window);
+            else {
+                gBorderlessActive = false;
+            }
+
+            if (enableAltEnter && Client::WindowedMode) {
+                InstallAltEnterToggle(window);
             }
             return 0;
         }
