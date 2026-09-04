@@ -19,7 +19,7 @@ const admin = read("public/css/maple-remaster-admin.css");
 const jobs = read("public/css/maple-jobs.css");
 const final = read("public/css/maple-final.css");
 const rankingsCss = read("public/css/rankings-remaster.css");
-const wikiPlayerCss = read("public/css/wiki-player-2026.css");
+const wikiDataCss = read("public/css/wiki-data.css");
 const homePolish = read("public/css/home-polish.css");
 const uiux = read("public/css/uiux-2026.css");
 const assertRgbaPng = relative => {
@@ -41,6 +41,7 @@ test("global navigation loads the unified Maple remaster design system",()=>{
   assert.match(header,/wiki-remaster\.css/);
   assert.match(header,/wiki-cms\.css/);
   assert.match(header,/wiki-player-2026\.css/);
+  assert.match(header,/wiki-data\.css/);
   assert.match(header,/uiux-2026\.css/);
   assert.match(header,/maple-remaster-admin\.css/);
   assert.doesNotMatch(header,/design-v2\.css/);
@@ -113,18 +114,21 @@ test("homepage class guide uses clean centered local artwork",()=>{
   for(const asset of ["launcher","trophy","journal","community","account"]) assert.match(home,new RegExp(`/assets/ui/${asset}\\.svg`));
 });
 
-test("wiki is a visibly player-facing CMS knowledge base",()=>{
-  assert.match(wiki,/EVERLEAF PLAYER WIKI/);
-  assert.match(wiki,/wikiSearch/);
-  assert.match(wiki,/Browse Player Guides/);
-  assert.match(wiki,/Staff maintained/);
-  assert.match(wiki,/QUICK START/);
-  assert.match(wiki,/getting-started/);
-  assert.match(wiki,/entry\.updatedAt/);
-  assert.doesNotMatch(wiki,/entry\.sourceDoc\|\|entry\.source/);
-  assert.match(wikiPlayerCss,/\.wikiQuickGrid/);
-  assert.match(wikiPlayerCss,/\.wikiPlayerCard/);
-  assert.doesNotMatch(wiki,/Wiki is being built/);
+test("wiki is a live WZ and MySQL server-data encyclopedia",()=>{
+  assert.match(wiki,/EVERLEAF DATA WIKI/);
+  assert.match(wiki,/Items/);
+  assert.match(wiki,/Monsters/);
+  assert.match(wiki,/Maps/);
+  assert.match(wiki,/Skills/);
+  assert.match(wiki,/NPCs/);
+  assert.match(wiki,/Quests/);
+  assert.match(wiki,/WZ \+ MySQL/);
+  assert.match(wiki,/BROWSE CATALOG/);
+  assert.match(wiki,/\/wiki\/guides/);
+  assert.match(wikiDataCss,/\.wikiCatalogGrid/);
+  assert.match(wikiDataCss,/\.wikiEntityPage/);
+  assert.match(wikiDataCss,/\.wikiDataTable/);
+  assert.doesNotMatch(wiki,/EVERLEAF PLAYER WIKI/);
 });
 
 test("rankings render live saved character avatars with local class-art fallback",()=>{
