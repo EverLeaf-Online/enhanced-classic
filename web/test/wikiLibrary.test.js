@@ -59,7 +59,7 @@ test('Wiki UI is explicitly a searchable server-data encyclopedia',()=>{
   assert.match(hub,/BROWSE CATALOG/);
   assert.match(hub,/wikiDataSearch/);
   assert.match(hub,/\/wiki\/guides/);
-  assert.match(list,/wikiDataList/);
+  assert.match(list,/wikiCatalogListPage/);
   assert.match(entry,/wikiEntityPage/);
   assert.match(css,/\.wikiCatalogGrid/);
   assert.match(css,/\.wikiDataTable/);
