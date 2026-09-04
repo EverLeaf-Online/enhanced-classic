@@ -172,6 +172,7 @@ DWORD WINAPI MainProc(LPVOID) {
             L"Please repair/update the client and try again."
         );
         if (gBootstrapComplete) SetEvent(gBootstrapComplete);
+        ExitProcess(ERROR_DLL_INIT_FAILED);
         return ERROR_DLL_INIT_FAILED;
     }
 
