@@ -4,8 +4,10 @@ import client.Character;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.TimerManager;
+import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovement;
 
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -16,14 +18,15 @@ import java.util.concurrent.ScheduledFuture;
  * Explicitly armed, bounded multi-bot soak runner for controlled EverLeaf QA.
  *
  * <p>This never starts from server bootstrap. A GM must first create a bounded {@link BotQaFleet}
- * and then arm a soak run. The runner keeps EverLeaf authoritative, starts the normal autonomous
- * hunter on each synthetic player, records recovery/health invariants, and stops all hunters when
- * the requested duration expires.</p>
+ * and then arm a soak run. Sustained invariant failures or exceptions fail closed instead of
+ * producing a superficially "complete" soak after a broken run.</p>
  */
 public final class BotQaSoakRunner {
     private static final Logger log = LoggerFactory.getLogger(BotQaSoakRunner.class);
     private static final long TICK_MS = 1_000L;
     private static final String ARM_TOKEN = "ARM";
+    private static final int MAX_CONSECUTIVE_INVARIANT_FAILURES = 10;
+    private static final int MAX_CONSECUTIVE_EXCEPTIONS = 3;
     public static final int MAX_DURATION_MINUTES = 12 * 60;
     private static final Map<Integer, Run> runsByOwner = new ConcurrentHashMap<>();
     // Terminal snapshots deliberately contain no Character references, so completed/stopped soak runs
@@ -92,6 +95,8 @@ public final class BotQaSoakRunner {
         private final long startedAt = System.currentTimeMillis();
         private final long baselineLevelSum;
         private final long baselineMesosSum;
+        private final long baselineHeapBytes = usedHeapBytes();
+        private final int baselineThreads = Thread.activeCount();
         private final Set<Integer> deadLastTick = new HashSet<>();
         private volatile ScheduledFuture<?> task;
         private volatile String phase = "running";
@@ -101,6 +106,9 @@ public final class BotQaSoakRunner {
         private int invariantFailures;
         private int exceptions;
         private int ticks;
+        private int consecutiveInvariantFailures;
+        private int consecutiveExceptions;
+        private int maxTraveling;
 
         private Run(int ownerId, List<Character> bots, long durationMs) {
             this.ownerId = ownerId;
@@ -114,9 +122,15 @@ public final class BotQaSoakRunner {
         public void run() {
             try {
                 tick();
+                consecutiveExceptions = 0;
             } catch (Throwable t) {
                 exceptions++;
-                log.warn("SoloMapling QA soak tick recovered owner={} phase={}", ownerId, phase, t);
+                consecutiveExceptions++;
+                log.warn("SoloMapling QA soak tick failure owner={} phase={} consecutive={}",
+                        ownerId, phase, consecutiveExceptions, t);
+                if (consecutiveExceptions >= MAX_CONSECUTIVE_EXCEPTIONS) {
+                    fail("exception-threshold:" + t.getClass().getSimpleName());
+                }
             }
         }
 
@@ -131,12 +145,19 @@ public final class BotQaSoakRunner {
             }
 
             int unhealthy = 0;
+            int traveling = 0;
             Set<Integer> deadNow = new HashSet<>();
             for (Character bot : bots) {
                 if (bot == null || !bot.isLoggedinWorld() || bot.getMap() == null) {
                     unhealthy++;
                     continue;
                 }
+                String hunterFailure = BareBotHunter.failureReason(bot);
+                if (hunterFailure != null) {
+                    fail("hunter-failed:" + bot.getId() + ":" + hunterFailure);
+                    return;
+                }
+                if (GCMovement.isTraveling(bot)) traveling++;
                 if (!bot.isAlive()) {
                     deadNow.add(bot.getId());
                     if (!deadLastTick.contains(bot.getId())) deaths++;
@@ -145,13 +166,22 @@ public final class BotQaSoakRunner {
                     if (!BareBotHunter.isHunting(bot)) unhealthy++;
                 }
             }
+            maxTraveling = Math.max(maxTraveling, traveling);
             deadLastTick.clear();
             deadLastTick.addAll(deadNow);
 
-            if (BareBotFactory.activeBotCount() < bots.size()
+            boolean invariantBad = BareBotFactory.activeBotCount() < bots.size()
                     || BotClientHandler.activeClientCount() < bots.size()
-                    || unhealthy > 0) {
+                    || unhealthy > 0;
+            if (invariantBad) {
                 invariantFailures++;
+                consecutiveInvariantFailures++;
+                if (consecutiveInvariantFailures >= MAX_CONSECUTIVE_INVARIANT_FAILURES) {
+                    fail("sustained-runtime-invariant-failure");
+                    return;
+                }
+            } else {
+                consecutiveInvariantFailures = 0;
             }
 
             if (System.currentTimeMillis() - startedAt >= durationMs) complete();
@@ -185,6 +215,20 @@ public final class BotQaSoakRunner {
             SoakResult terminal = snapshot(terminalReason);
             runsByOwner.remove(ownerId, this);
             lastResultsByOwner.put(ownerId, terminal);
+
+            Map<String, Object> fields = new LinkedHashMap<>();
+            fields.put("ownerId", ownerId);
+            fields.put("phase", terminal.phase());
+            fields.put("success", terminal.success());
+            fields.put("bots", terminal.bots());
+            fields.put("deaths", terminal.deaths());
+            fields.put("recoveries", terminal.recoveries());
+            fields.put("invariantFailures", terminal.invariantFailures());
+            fields.put("exceptions", terminal.exceptions());
+            fields.put("heapDeltaBytes", terminal.heapDeltaBytes());
+            fields.put("threadDelta", terminal.threadDelta());
+            fields.put("reason", terminal.reason());
+            BotQaReport.emit("soak", fields);
         }
 
         private void stopHunters() {
@@ -203,18 +247,30 @@ public final class BotQaSoakRunner {
             int alive = 0;
             int logged = 0;
             int hunting = 0;
+            int traveling = 0;
+            int parties = 0;
+            int trades = 0;
             for (Character bot : bots) {
                 if (bot == null) continue;
                 if (bot.isAlive()) alive++;
                 if (bot.isLoggedinWorld()) logged++;
                 if (BareBotHunter.isHunting(bot)) hunting++;
+                if (GCMovement.isTraveling(bot)) traveling++;
+                if (bot.getParty() != null) parties++;
+                if (bot.getTrade() != null) trades++;
             }
             long elapsed = Math.min(System.currentTimeMillis() - startedAt, durationMs);
             String detail = terminalReason.isEmpty() ? reason : terminalReason;
-            return new SoakResult(true, phase, bots.size(), alive, logged, hunting, deaths, recoveries,
+            long currentHeap = usedHeapBytes();
+            int currentThreads = Thread.activeCount();
+            boolean success = !"failed".equals(phase);
+            return new SoakResult(success, phase, bots.size(), alive, logged, hunting, deaths, recoveries,
                     invariantFailures, exceptions, ticks, elapsed, durationMs,
                     levelSum(bots) - baselineLevelSum, mesoSum(bots) - baselineMesosSum,
-                    BareBotFactory.activeBotCount(), BotClientHandler.activeClientCount(), detail);
+                    BareBotFactory.activeBotCount(), BotClientHandler.activeClientCount(), detail,
+                    traveling, maxTraveling, parties, trades, BotStorageDriver.activeQaStorageCount(),
+                    baselineHeapBytes, currentHeap - baselineHeapBytes, baselineThreads,
+                    currentThreads - baselineThreads);
         }
     }
 
@@ -230,13 +286,22 @@ public final class BotQaSoakRunner {
         return total;
     }
 
+    private static long usedHeapBytes() {
+        Runtime runtime = Runtime.getRuntime();
+        return runtime.totalMemory() - runtime.freeMemory();
+    }
+
     public record SoakResult(boolean success, String phase, int bots, int alive, int loggedInWorld, int hunting,
                              int deaths, int recoveries, int invariantFailures, int exceptions, int ticks,
                              long elapsedMs, long durationMs, long levelGain, long mesoDelta,
-                             int globalFactoryBots, int headlessClients, String reason) {
+                             int globalFactoryBots, int headlessClients, String reason,
+                             int traveling, int maxTraveling, int partyMemberships, int activeTrades,
+                             int activeQaStorages, long baselineHeapBytes, long heapDeltaBytes,
+                             int baselineThreads, int threadDelta) {
         static SoakResult fail(String reason) {
             return new SoakResult(false, "stopped", 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0L, 0L, 0L, 0L, BareBotFactory.activeBotCount(), BotClientHandler.activeClientCount(), reason);
+                    0L, 0L, 0L, 0L, BareBotFactory.activeBotCount(), BotClientHandler.activeClientCount(), reason,
+                    0, 0, 0, 0, BotStorageDriver.activeQaStorageCount(), 0L, 0L, 0, 0);
         }
     }
 }
