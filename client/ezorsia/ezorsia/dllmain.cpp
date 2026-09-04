@@ -2,6 +2,7 @@
 #include "stdafx.h"
 #include "ReplacementFuncs.h"
 #include "dinput8.h"
+#include "CrashDiagnostics.h"
 
 #include <atomic>
 
@@ -62,6 +63,7 @@ void FailBootstrap(const wchar_t* message) {
     if (!gBootstrapFailed.compare_exchange_strong(expected, true)) {
         return;
     }
+    CrashDiagnostics::LogEvent("bootstrap failure dialog raised");
     MessageBoxW(nullptr, message, L"EverLeaf Client v2 startup error", MB_OK | MB_ICONERROR);
 }
 
@@ -69,6 +71,7 @@ bool InstallEarlyHook(const char* name, bool (*hook)(bool), bool critical) {
     const bool installed = hook(true);
     if (!installed) {
         std::cout << "EverLeaf Client v2: failed to install early hook " << name << std::endl;
+        CrashDiagnostics::LogEvent(name);
         if (critical) {
             return false;
         }
@@ -96,6 +99,7 @@ DWORD WINAPI BootstrapWatchdog(LPVOID) {
 
     const DWORD result = WaitForSingleObject(gBootstrapComplete, kClientBootstrapTimeoutMs);
     if (result == WAIT_TIMEOUT && !gBootstrapFailed.load()) {
+        CrashDiagnostics::SetPhase("bootstrap-watchdog-timeout");
         FailBootstrap(
             L"EverLeaf could not finish initializing the v83 client.\n\n"
             L"The client build or unpacked memory layout did not match the expected EverLeaf baseline. "
@@ -111,11 +115,14 @@ DWORD WINAPI BootstrapWatchdog(LPVOID) {
 // state. Function-level installers still retain their legacy readiness checks,
 // but Client v2 preflight prevents normal startup from entering them early.
 void MainFunc() {
+    CrashDiagnostics::SetPhase("installing-client-hooks");
+
     bool hooksOk = true;
     const auto requiredHook = [&hooksOk](const char* name, bool result) {
         if (!result) {
             hooksOk = false;
             std::cout << "EverLeaf Client v2: hook failed: " << name << std::endl;
+            CrashDiagnostics::LogEvent(name);
         }
     };
 
@@ -141,6 +148,7 @@ void MainFunc() {
     requiredHook("IWzNameSpace::Getitem", Hook_sub_5D995B(true));
 
     if (!hooksOk) {
+        CrashDiagnostics::SetPhase("client-hook-mismatch");
         FailBootstrap(
             L"EverLeaf detected a client hook mismatch.\n\n"
             L"Please repair/update the client before launching again. No live-server changes were made."
@@ -148,24 +156,33 @@ void MainFunc() {
         ExitProcess(ERROR_BAD_EXE_FORMAT);
     }
 
+    CrashDiagnostics::SetPhase("applying-startup-patches");
     std::cout << "EverLeaf Client v2: applying startup routines" << std::endl;
     Client::UpdateGameStartup();
 
+    CrashDiagnostics::SetPhase("applying-resolution-patches");
     std::cout << "EverLeaf Client v2: applying resolution "
               << Client::m_nGameWidth << "x" << Client::m_nGameHeight << std::endl;
     Client::UpdateResolution();
 
     if (Client::ModernLoginUI) {
+        CrashDiagnostics::SetPhase("applying-login-ui");
         std::cout << "EverLeaf Client v2: applying modern login UI" << std::endl;
         Client::UpdateLogin();
     }
 
+    CrashDiagnostics::SetPhase("initializing-dinput-proxy");
     dinput8::CreateHook();
     std::cout << "EverLeaf Client v2: dinput8 proxy hook initialized" << std::endl;
+    CrashDiagnostics::SetPhase("client-hooks-ready");
 }
 
 DWORD WINAPI MainProc(LPVOID) {
+    CrashDiagnostics::Install();
+    CrashDiagnostics::SetPhase("installing-early-hooks");
+
     if (!InstallEarlyHooks()) {
+        CrashDiagnostics::SetPhase("early-hook-failure");
         FailBootstrap(
             L"EverLeaf could not initialize the network/client compatibility layer.\n\n"
             L"Please repair/update the client and try again."
@@ -175,7 +192,9 @@ DWORD WINAPI MainProc(LPVOID) {
         return ERROR_DLL_INIT_FAILED;
     }
 
+    CrashDiagnostics::SetPhase("waiting-for-v83-unpack");
     if (!WaitForClientImage()) {
+        CrashDiagnostics::SetPhase("v83-unpack-mismatch");
         FailBootstrap(
             L"EverLeaf did not recognize the unpacked v83 client image.\n\n"
             L"This usually means the executable does not match the EverLeaf Client v2 baseline. "
@@ -186,7 +205,9 @@ DWORD WINAPI MainProc(LPVOID) {
         return ERROR_BAD_EXE_FORMAT;
     }
 
+    CrashDiagnostics::SetPhase("creating-client-runtime");
     MainMain::CreateInstance(MainFunc);
+    CrashDiagnostics::SetPhase("bootstrap-complete");
     if (gBootstrapComplete) SetEvent(gBootstrapComplete);
     return 0;
 }
