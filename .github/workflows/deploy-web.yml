@@ -113,6 +113,24 @@ jobs:
             if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
             npm run init-db
 
+            # The public site account is intentionally read-only, but rankings
+            # must be able to read equipped item IDs/positions. Apply the grant
+            # to every existing everleaf_web host entry so MySQL host resolution
+            # (localhost vs 127.0.0.1) cannot silently remove the outfit.
+            WEB_DB_ACCOUNT_COUNT=0
+            while IFS=$'\t' read -r db_user db_host; do
+              [ -n "$db_user" ] || continue
+              escaped_user="${db_user//\'/\'\'}"
+              escaped_host="${db_host//\'/\'\'}"
+              sudo mysql -e "GRANT SELECT ON \`cosmic\`.\`inventoryitems\` TO '${escaped_user}'@'${escaped_host}';"
+              WEB_DB_ACCOUNT_COUNT=$((WEB_DB_ACCOUNT_COUNT + 1))
+            done < <(sudo mysql -NBe "SELECT User,Host FROM mysql.user WHERE User='everleaf_web' ORDER BY Host;")
+            if [ "$WEB_DB_ACCOUNT_COUNT" -lt 1 ]; then
+              echo 'No existing everleaf_web MySQL account was found; refusing to deploy rankings without equipment access.' >&2
+              exit 1
+            fi
+            sudo mysql -e 'FLUSH PRIVILEGES;'
+
             sudo apt-get update -y
             sudo apt-get install -y nginx certbot python3-certbot-nginx python3-venv git
             bash /opt/everleaf/web/scripts/install-wz-avatar-renderer.sh
@@ -157,8 +175,8 @@ jobs:
             STATUS_JSON="$(curl -fsS http://127.0.0.1:3000/api/status)"
             node -e 'const s=JSON.parse(process.argv[1]); if(s.totalChannels!==20) process.exit(1);' "$STATUS_JSON"
 
-            # Prove the rankings page is not merely returning generic class art:
-            # request a real MySQL character URL and require local Character.wz.
+            # Prove the rankings page is rendering a real equipped MySQL
+            # character from local Character.wz, not the naked/base fallback.
             RANKINGS_HTML="$(curl -fsS http://127.0.0.1:3000/rankings)"
             AVATAR_PATH="$(grep -oE 'data-live-avatar="/character-avatar/[0-9]+\.png\?job=[0-9]+"' <<<"$RANKINGS_HTML" | head -n1 | cut -d'"' -f2)"
             test -n "$AVATAR_PATH"
@@ -167,6 +185,8 @@ jobs:
             curl -fsS --max-time 30 -D "$AVATAR_HEADERS" -o "$AVATAR_IMAGE" "http://127.0.0.1:3000$AVATAR_PATH"
             grep -Eqi '^content-type:[[:space:]]*image/' "$AVATAR_HEADERS"
             grep -Eqi '^x-everleaf-avatar-source:[[:space:]]*local-wz(-cache)?[[:space:]]*$' "$AVATAR_HEADERS"
+            grep -Eqi '^x-everleaf-avatar-mode:[[:space:]]*full[[:space:]]*$' "$AVATAR_HEADERS"
+            grep -Eqi '^x-everleaf-avatar-equipment-count:[[:space:]]*[1-9][0-9]*[[:space:]]*$' "$AVATAR_HEADERS"
             python3 -c 'import pathlib,sys; d=pathlib.Path(sys.argv[1]).read_bytes(); raise SystemExit(0 if len(d)>=100 and d[:8]==b"\x89PNG\r\n\x1a\n" else 1)' "$AVATAR_IMAGE"
             rm -f "$AVATAR_HEADERS" "$AVATAR_IMAGE"
 
@@ -176,7 +196,7 @@ jobs:
             sudo bash /opt/everleaf/web/scripts/backup-production.sh
             sudo systemctl is-enabled --quiet everleaf-backup.timer
             sudo systemctl is-active --quiet everleaf-backup.timer
-            echo 'EverLeaf web deployment, local WZ avatars, and domain health checks passed.'
+            echo 'EverLeaf web deployment, equipped local WZ avatars, and domain health checks passed.'
           REMOTE
 
       - name: Verify public HTTPS
