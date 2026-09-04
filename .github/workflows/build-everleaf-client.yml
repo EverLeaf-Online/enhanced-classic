@@ -30,6 +30,10 @@ jobs:
         shell: pwsh
         run: python client/scripts/apply-community-ui-preference.py
 
+      - name: Apply Client v2 loader-lock import cleanup
+        shell: pwsh
+        run: python client/scripts/apply-client-v2-loader-cleanup.py
+
       - name: Configure MSBuild
         uses: microsoft/setup-msbuild@v2
 
@@ -87,6 +91,25 @@ jobs:
             if ($attachBlock.Contains($pattern)) {
               throw "Detours hook installation leaked back into DllMain: $pattern"
             }
+          }
+
+          $autoTypes = Get-Content "client/ezorsia/ezorsia/AutoTypes.h" -Raw
+          if ($autoTypes.Contains('HMODULE mod = LoadLibraryA(lpModule)')) {
+            throw "GetFuncAddress still performs LoadLibrary during DLL/global initialization"
+          }
+          if (-not $autoTypes.Contains('HMODULE mod = GetModuleHandleA(lpModule)')) {
+            throw "Client v2 loader cleanup did not make GetFuncAddress lookup-only"
+          }
+
+          $safeEarly = Get-Content "client/ezorsia/ezorsia/SafeEarlyHooks.h" -Raw
+          foreach ($pattern in @(
+            'gWSPStartupOriginal = nullptr',
+            'ResolveWSPStartupOnWorker',
+            'GetModuleHandleA("mswsock.dll")',
+            'LoadLibraryA("mswsock.dll")',
+            'enable && !detail::ResolveWSPStartupOnWorker()'
+          )) {
+            if (-not $safeEarly.Contains($pattern)) { throw "Missing deferred WSPStartup resolution marker: $pattern" }
           }
 
           $dinput = Get-Content "client/ezorsia/ezorsia/dinput8.cpp" -Raw
