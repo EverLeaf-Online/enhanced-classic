@@ -8,7 +8,9 @@ on:
     paths:
       - 'src/main/java/soloMapling/**'
       - 'src/main/java/client/BotClient.java'
+      - 'src/main/java/client/command/CommandsExecutor.java'
       - 'src/main/java/client/command/commands/gm4/QaBotCommand.java'
+      - 'src/main/java/client/command/commands/gm4/QaBotOpsCommand.java'
       - 'tools/apply_solomapling_*.py'
       - 'tools/audit_solomapling_qa.py'
       - '.github/workflows/deploy-solomapling-live-smoke.yml'
