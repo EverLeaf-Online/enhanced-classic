@@ -39,16 +39,29 @@ jobs:
           fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Inspect saved equipment rows
+      - name: Compare website extraction with saved rows
         shell: bash
         run: |
           set -euo pipefail
           ssh -o BatchMode=yes -o ConnectTimeout=15 -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
             set -euo pipefail
-            echo 'characters:'
-            sudo mysql cosmic -NBe "SELECT id,name,level,job,skincolor,face,hair FROM characters WHERE name IN ('Kuro','Scar','Galletas','Kira') ORDER BY name;"
-            echo 'inventory rows:'
-            sudo mysql cosmic -NBe "SELECT c.id,c.name,i.inventoryitemid,i.itemid,i.inventorytype,i.position,i.type FROM characters c LEFT JOIN inventoryitems i ON i.characterid=c.id WHERE c.name IN ('Kuro','Scar','Galletas','Kira') ORDER BY c.name,i.inventorytype,i.position,i.inventoryitemid;"
-            echo 'equipped rows only:'
-            sudo mysql cosmic -NBe "SELECT c.id,c.name,i.inventoryitemid,i.itemid,i.inventorytype,i.position,i.type FROM characters c JOIN inventoryitems i ON i.characterid=c.id WHERE c.name IN ('Kuro','Scar','Galletas','Kira') AND i.inventorytype=-1 ORDER BY c.name,i.position,i.inventoryitemid;"
+            cd /opt/everleaf/web
+            echo 'non-secret game DB configuration:'
+            grep -E '^(GAME_DB_NAME|GAME_CHARACTERS_TABLE|GAME_INVENTORY_ITEMS_TABLE)=' .env || true
+            echo 'gameService.characterAppearance results:'
+            timeout 45s node - <<'NODE'
+            const game = require('./src/services/gameService');
+            (async () => {
+              for (const id of [12,14,16,17]) {
+                const appearance = await game.characterAppearance(id);
+                console.log(JSON.stringify(appearance));
+              }
+              process.exit(0);
+            })().catch(error => { console.error(error && error.stack || error); process.exit(1); });
+            NODE
+            echo 'live route headers:'
+            for spec in '12:410' '14:420' '16:1310' '17:1110'; do
+              id="${spec%%:*}"; job="${spec##*:}"
+              curl -fsSI "http://127.0.0.1:3000/character-avatar/${id}.png?job=${job}" | grep -Ei '^(HTTP/|content-type:|x-everleaf-avatar-(source|mode|equipment-count):)'
+            done
           REMOTE
