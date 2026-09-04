@@ -340,6 +340,8 @@ public class CommandsExecutor {
         addCommand("pnpcremove", 4, PnpcRemoveCommand.class);
         addCommand("pmob", 4, PmobCommand.class);
         addCommand("pmobremove", 4, PmobRemoveCommand.class);
+        addCommand("qabot", 4, QaBotCommand.class);
+        addCommand("qabotops", 4, QaBotOpsCommand.class);
 
         commandsNameDesc.add(levelCommandsCursor);
     }
