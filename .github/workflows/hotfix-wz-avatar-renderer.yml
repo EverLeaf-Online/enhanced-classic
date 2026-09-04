@@ -1,0 +1,102 @@
+name: Recover EverLeaf WZ Avatar Renderer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'web/ops/run-wz-avatar-renderer.py'
+      - '.github/workflows/hotfix-wz-avatar-renderer.yml'
+
+concurrency:
+  group: everleaf-wz-avatar-recovery
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host $EVERLEAF_DEPLOY_HOST
+            ServerAliveInterval 30
+            ServerAliveCountMax 20
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Install read-only renderer runner and prove live ranking portrait
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_everleaf web/ops/run-wz-avatar-renderer.py \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/tmp/run-wz-avatar-renderer.py"
+
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+            set -euo pipefail
+            sudo install -m 755 /tmp/run-wz-avatar-renderer.py /opt/everleaf/web/ops/run-wz-avatar-renderer.py
+            rm -f /tmp/run-wz-avatar-renderer.py
+
+            cd /opt/everleaf/web
+            set_env_var() {
+              local key="$1" value="$2"
+              touch .env
+              if grep -q "^${key}=" .env; then
+                sed -i "s|^${key}=.*|${key}=${value}|" .env
+              else
+                printf '%s=%s\n' "$key" "$value" >> .env
+              fi
+            }
+            set_env_var CHARACTER_WZ_RENDERER_URL 'http://127.0.0.1:3011'
+            set_env_var MAPLESTORY_IO_BASE_URL ''
+            set_env_var MAPLESTORY_IO_VERSION '83'
+
+            # PR #313 already installs the pinned dependency and unit. Running
+            # the idempotent installer here also repairs either if needed.
+            bash scripts/install-wz-avatar-renderer.sh
+            systemctl is-active --quiet everleaf-wz-avatar
+
+            sudo systemctl restart everleaf-web
+            sleep 2
+            systemctl is-active --quiet everleaf-web
+
+            RANKINGS_HTML="$(curl -fsS http://127.0.0.1:3000/rankings)"
+            AVATAR_PATH="$(grep -oE 'data-live-avatar="/character-avatar/[0-9]+\.png\?job=[0-9]+"' <<<"$RANKINGS_HTML" | head -n1 | cut -d'"' -f2)"
+            test -n "$AVATAR_PATH"
+
+            HEADERS="$(mktemp)"
+            IMAGE="$(mktemp)"
+            trap 'rm -f "$HEADERS" "$IMAGE"' EXIT
+            curl -fsS --max-time 30 -D "$HEADERS" -o "$IMAGE" "http://127.0.0.1:3000$AVATAR_PATH"
+            grep -Eqi '^content-type:[[:space:]]*image/png' "$HEADERS"
+            grep -Eqi '^x-everleaf-avatar-source:[[:space:]]*local-wz(-cache)?[[:space:]]*$' "$HEADERS"
+            python3 -c 'import pathlib,sys; d=pathlib.Path(sys.argv[1]).read_bytes(); raise SystemExit(0 if len(d)>=100 and d[:8]==b"\x89PNG\r\n\x1a\n" else 1)' "$IMAGE"
+            echo "EverLeaf local Character.wz ranking portrait is live: $AVATAR_PATH ($(wc -c < "$IMAGE") bytes)."
+          REMOTE
