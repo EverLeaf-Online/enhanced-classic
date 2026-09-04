@@ -1,0 +1,56 @@
+name: Patch client UI overlay frame semantics once
+
+on:
+  push:
+    branches: [feature/client-job-selector-modernization-20260904]
+    paths: ['.github/workflows/patch-client-ui-overlay-frame-once.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/client-job-selector-modernization-20260904
+      - name: Decouple helper overlay from custom login frame
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $path='client/ezorsia/ezorsia/MainMain.cpp'
+          $text=[IO.File]::ReadAllText($path)
+          $replacements=@(
+            @('MainMain::EzorsiaV2WzIncluded = true; MainMain::CustomLoginFrame = true; MainMain::usingEzorsiaV2Wz = true;', 'MainMain::EzorsiaV2WzIncluded = true; MainMain::usingEzorsiaV2Wz = true;'),
+            @('MainMain::EzorsiaV2WzIncluded = true; MainMain::CustomLoginFrame = true; }', 'MainMain::EzorsiaV2WzIncluded = true; }'),
+            @('MainMain::EzorsiaV2WzIncluded = true; MainMain::CustomLoginFrame = true; MainMain::usingEzorsiaV2Wz = true;', 'MainMain::EzorsiaV2WzIncluded = true; MainMain::usingEzorsiaV2Wz = true;'),
+            @('MainMain::EzorsiaV2WzIncluded = true; MainMain::CustomLoginFrame = true;', 'MainMain::EzorsiaV2WzIncluded = true;')
+          )
+          $changed=$false
+          foreach($pair in $replacements){
+            if($text.Contains($pair[0])){ $text=$text.Replace($pair[0],$pair[1]); $changed=$true }
+          }
+          if(-not $changed){ throw 'Expected overlay/login-frame coupling was not found' }
+          if($text -match 'EzorsiaV2WzIncluded\s*=\s*true;\s*MainMain::CustomLoginFrame\s*=\s*true'){
+            throw 'Overlay still implicitly enables CustomLoginFrame'
+          }
+          $anchor='MainMain::CustomLoginFrame = false; // official EverLeaf UI only'
+          $replacement="MainMain::CustomLoginFrame = false; // EverLeaf helper overlays do not imply a replacement Login.img`r`n`t// CustomLoginFrame is reserved for an explicit full login-frame override."
+          if($text.Contains($anchor)){ $text=$text.Replace($anchor,$replacement) }
+          [IO.File]::WriteAllText($path,$text,(New-Object Text.UTF8Encoding($false)))
+          git diff --check
+          git diff -- $path
+      - name: Build Win32 client DLL
+        shell: pwsh
+        run: msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+      - name: Commit patch
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name everleaf-client-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add client/ezorsia/ezorsia/MainMain.cpp
+          git commit -m 'fix(client-ui): decouple helper overlay from login frame mode'
+          git push origin HEAD:feature/client-job-selector-modernization-20260904
