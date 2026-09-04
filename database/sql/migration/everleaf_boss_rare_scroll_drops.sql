@@ -16,11 +16,12 @@
 --   Scarlion / Targa:          Chaos 3.0%, White 0.50%
 --   Zakum:                     Chaos 4.0%, White 0.70%
 --   Horntail:                  Chaos 6.0%, White 1.50%
+--   Empress Cygnus:            Chaos 8.0%, White 2.00%
 --   Pink Bean:                 Chaos 10.0%, White 3.00%
 --
 -- Only final/reward-bearing boss bodies are included; arms, preheads, summons,
--- and transitional forms are intentionally excluded to prevent multiple rolls
--- from one clear.
+-- Chief Knights, Shinsoo, and transitional forms are intentionally excluded to
+-- prevent multiple rare-scroll rolls from one clear.
 
 USE `cosmic`;
 
@@ -42,6 +43,7 @@ VALUES
     (9420544, 'Furious Targa',     15000,  2500),
     (8800002, 'Zakum',             20000,  3500),
     (8810018, 'Horntail',          30000,  7500),
+    (8850011, 'Empress Cygnus',    40000, 10000),
     (8820001, 'Pink Bean',         50000, 15000);
 
 -- Idempotently replace EverLeaf-managed Chaos rows for these bosses.

@@ -1,7 +1,14 @@
 function enter(pi) {
-    var player = pi.getPlayer();
-    var eim = player.getEventInstance();
-    if (eim != null) eim.unregisterPlayer(player);
-    pi.warp(271040000, 0);
+    const EmpressContentPolicy = Java.type('everleaf.content.EmpressContentPolicy');
+
+    if (!EmpressContentPolicy.isEnabled()) {
+        pi.getPlayer().dropMessage(5, EmpressContentPolicy.disabledMessage());
+        return false;
+    }
+
+    // Scrubby Garden is outside the reward-bearing boss room. Keep the return
+    // deterministic and avoid fabricating progression through the imported maps.
+    pi.playPortalSound();
+    pi.warp(271040200, 0);
     return true;
 }
