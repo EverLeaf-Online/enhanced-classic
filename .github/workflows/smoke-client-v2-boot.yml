@@ -1,0 +1,240 @@
+name: Smoke Client v2 boot
+
+on:
+  pull_request:
+    branches:
+      - release-dev
+    paths:
+      - '.github/workflows/smoke-client-v2-boot.yml'
+      - 'client/managed-client-baseline.json'
+      - 'client/ezorsia/**'
+      - 'client/scripts/apply-community-ui-preference.py'
+      - 'client/scripts/apply-client-v2-rebrand.py'
+      - 'client/scripts/verify-client-v2-branding.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  isolated-boot-smoke:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout EverLeaf candidate
+        uses: actions/checkout@v5
+
+      - name: Configure SSH for read-only client reconstruction
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:SSH_PRIVATE_KEY) { throw 'EVERLEAF_SSH_PRIVATE_KEY is unavailable' }
+          $sshDir = Join-Path $HOME '.ssh'
+          New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          $keyPath = Join-Path $sshDir 'id_everleaf'
+          [IO.File]::WriteAllText($keyPath, ($env:SSH_PRIVATE_KEY -replace "`r", "") + "`n")
+          $knownHosts = Join-Path $sshDir 'known_hosts'
+          $gitKeyscan = 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe'
+          if (-not (Test-Path $gitKeyscan)) { throw "Git OpenSSH keyscan not found: $gitKeyscan" }
+          if ($env:SSH_KNOWN_HOSTS) {
+            [IO.File]::WriteAllText($knownHosts, ($env:SSH_KNOWN_HOSTS -replace "`r", "") + "`n")
+          } else {
+            & $gitKeyscan -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $knownHosts
+            if ($LASTEXITCODE -ne 0) { throw "Git ssh-keyscan failed with exit code $LASTEXITCODE" }
+          }
+          if (-not (Test-Path $knownHosts) -or (Get-Item $knownHosts).Length -eq 0) { throw 'known_hosts is empty' }
+
+      - name: Fetch exact managed v83 client baseline
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $keyPath = Join-Path $HOME '.ssh/id_everleaf'
+          $sshExe = 'C:\Program Files\Git\usr\bin\ssh.exe'
+          $scpExe = 'C:\Program Files\Git\usr\bin\scp.exe'
+          $baseline = Get-Content 'client/managed-client-baseline.json' -Raw | ConvertFrom-Json
+          if ($baseline.schemaVersion -ne 1) { throw 'Unsupported managed client baseline schema' }
+
+          $names = @($baseline.managedFiles | ForEach-Object { [string]$_.path })
+          foreach ($required in @('EverLeaf.exe','Base.wz','UI.wz','Character.wz','Map.wz','Mob.wz','Npc.wz','Item.wz','Skill.wz','String.wz')) {
+            if ($names -notcontains $required) { throw "Managed baseline is missing required client file: $required" }
+          }
+          foreach ($name in $names) {
+            if ($name -notmatch '^[A-Za-z0-9_.-]+$') { throw "Unsafe managed client filename: $name" }
+          }
+
+          # The Oracle command only reads the production patch file set. It writes
+          # a temporary archive/hash inventory under /tmp, which is removed after
+          # transfer; no production patch/client files are modified.
+          $remoteRoot = '/opt/everleaf/patches/files'
+          $remoteArchive = "/tmp/everleaf-client-v2-boot-$env:GITHUB_RUN_ID.tgz"
+          $remoteHashes = "/tmp/everleaf-client-v2-boot-$env:GITHUB_RUN_ID.sha256"
+          $quoted = ($names | ForEach-Object { "'$_'" }) -join ' '
+          $remoteCommand = "set -euo pipefail; cd '$remoteRoot'; for f in $quoted; do test -f `"`$f`"; done; sha256sum $quoted > '$remoteHashes'; tar -czf '$remoteArchive' $quoted; sha256sum '$remoteArchive'"
+          $archiveHashLine = & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" $remoteCommand
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to prepare exact managed client archive on Oracle' }
+          $remoteArchiveHash = (($archiveHashLine | Select-Object -Last 1) -split '\s+')[0].ToLowerInvariant()
+          if ($remoteArchiveHash.Length -ne 64) { throw 'Invalid remote managed-client archive hash' }
+
+          $archive = Join-Path $env:RUNNER_TEMP 'everleaf-v83-client.tgz'
+          & $scpExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteArchive" $archive
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to fetch private managed client archive' }
+          $localArchiveHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($localArchiveHash -ne $remoteArchiveHash) { throw 'Managed client archive hash mismatch after transfer' }
+
+          $hashes = Join-Path $env:RUNNER_TEMP 'CLIENT_V2_BASELINE_HASHES.txt'
+          & $scpExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteHashes" $hashes
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to fetch managed client hash inventory' }
+          & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "rm -f '$remoteArchive' '$remoteHashes'"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to remove temporary Oracle smoke archives' }
+
+          $clientDir = Join-Path $env:RUNNER_TEMP 'everleaf-client-v2'
+          New-Item -ItemType Directory -Force -Path $clientDir | Out-Null
+          tar -xzf $archive -C $clientDir
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to extract managed EverLeaf client' }
+          foreach ($name in $names) {
+            if (-not (Test-Path (Join-Path $clientDir $name) -PathType Leaf)) { throw "Extracted client missing $name" }
+          }
+
+          "CLIENT_DIR=$clientDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "BASELINE_ARCHIVE_SHA256=$localArchiveHash" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build exact Client v2 candidate overlay
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python client/scripts/apply-community-ui-preference.py
+          python client/scripts/apply-client-v2-rebrand.py
+
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) { throw 'vswhere not found' }
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild not found' }
+          & $msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+          if ($LASTEXITCODE -ne 0) { throw "Client v2 MSBuild failed with exit code $LASTEXITCODE" }
+
+          $candidateDll = [IO.Path]::GetFullPath('client/ezorsia/out/Release/dinput8.dll')
+          if (-not (Test-Path $candidateDll -PathType Leaf)) { throw 'Built Client v2 dinput8.dll missing' }
+          python client/scripts/verify-client-v2-branding.py $candidateDll
+
+          Copy-Item $candidateDll (Join-Path $env:CLIENT_DIR 'dinput8.dll') -Force
+          Copy-Item 'client/ezorsia/ezorsia/config.ini' (Join-Path $env:CLIENT_DIR 'config.ini') -Force
+          Copy-Item 'client/ezorsia/ezorsia/EzorsiaV2_UI.wz' (Join-Path $env:CLIENT_DIR 'EverLeaf_UI.wz') -Force
+
+          $dllHash = (Get-FileHash (Join-Path $env:CLIENT_DIR 'dinput8.dll') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $configHash = (Get-FileHash (Join-Path $env:CLIENT_DIR 'config.ini') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $uiHash = (Get-FileHash (Join-Path $env:CLIENT_DIR 'EverLeaf_UI.wz') -Algorithm SHA256).Hash.ToLowerInvariant()
+          "CANDIDATE_DLL_SHA256=$dllHash" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "CANDIDATE_CONFIG_SHA256=$configHash" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "CANDIDATE_UI_SHA256=$uiHash" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Block game network and boot Client v2 in isolation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = [IO.Path]::GetFullPath((Join-Path $env:CLIENT_DIR 'EverLeaf.exe'))
+          if (-not (Test-Path $exe -PathType Leaf)) { throw 'EverLeaf.exe missing from reconstructed client' }
+          $exeHash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $startedAt = Get-Date
+          $ruleName = "EverLeaf-client-v2-boot-smoke-$env:GITHUB_RUN_ID"
+          $launched = $null
+          $matching = @()
+          $logPath = Join-Path $env:CLIENT_DIR 'EverLeafClient.log'
+          $eventPath = Join-Path $env:RUNNER_TEMP 'CLIENT_V2_WINDOWS_ERRORS.txt'
+          $reportPath = Join-Path $env:RUNNER_TEMP 'CLIENT_V2_BOOT_SMOKE_REPORT.json'
+
+          try {
+            # Reproduce the launcher's existing single-use 120-second handoff
+            # ticket without starting the patch/update UI. The dinput proxy deletes
+            # it on consumption.
+            $ticket = Join-Path $env:CLIENT_DIR '.everleaf-launch'
+            [DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString() | Set-Content -NoNewline -Encoding ascii $ticket
+
+            # Runtime smoke is deliberately offline: no login/auth packets and no
+            # network writes can leave this process.
+            New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Program $exe -Action Block -Profile Any | Out-Null
+            $launched = Start-Process -FilePath $exe -WorkingDirectory $env:CLIENT_DIR -PassThru
+            Start-Sleep -Seconds 15
+
+            $matching = @(Get-CimInstance Win32_Process -Filter "Name='EverLeaf.exe'" -ErrorAction SilentlyContinue | Where-Object {
+              try { [IO.Path]::GetFullPath([string]$_.ExecutablePath) -eq $exe } catch { $false }
+            })
+
+            $recentErrors = @(Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=$startedAt} -ErrorAction SilentlyContinue |
+              Where-Object { $_.LevelDisplayName -eq 'Error' -and $_.Message -match 'EverLeaf|MapleStory|dinput8' } |
+              Select-Object -First 20 TimeCreated, Id, ProviderName, Message)
+            $recentErrors | Format-List | Out-String | Set-Content -Encoding utf8 $eventPath
+
+            if ($matching.Count -eq 0) {
+              $launched.Refresh()
+              $exit = if ($launched.HasExited) { $launched.ExitCode } else { '<still-running-unresolved>' }
+              $diag = if (Test-Path $logPath { Get-Content $logPath -Raw } else { '<no EverLeafClient.log>' }
+              $errorText = Get-Content $eventPath -Raw
+              throw "No isolated EverLeaf.exe process survived the 15-second Client v2 boot smoke. Initial process exit=$exit.`nDiagnostics:`n$diag`nWindows errors:`n$errorText"
+            }
+
+            if (-not (Test-Path $logPath -PathType Leaf)) {
+              throw 'Client v2 process survived but EverLeafClient.log was not created; candidate diagnostics layer did not initialize'
+            }
+
+            $diagText = Get-Content $logPath -Raw
+            foreach ($requiredPhase in @('installing-early-hooks','waiting-for-v83-unpack')) {
+              if (-not $diagText.Contains($requiredPhase)) { throw "Client v2 diagnostics missing expected startup phase: $requiredPhase" }
+            }
+
+            $ticketConsumed = -not (Test-Path (Join-Path $env:CLIENT_DIR '.everleaf-launch'))
+            if (-not $ticketConsumed) { throw 'Client v2 launcher handoff ticket was not consumed by the dinput proxy' }
+
+            $processIds = @($matching | ForEach-Object { [int]$_.ProcessId })
+            $report = [ordered]@{
+              schemaVersion = 1
+              kind = 'isolated-everleaf-client-v2-boot-smoke'
+              candidateCommit = $env:GITHUB_SHA
+              baselineArchiveSha256 = $env:BASELINE_ARCHIVE_SHA256
+              executableSha256 = $exeHash
+              candidateDinput8Sha256 = $env:CANDIDATE_DLL_SHA256
+              candidateConfigSha256 = $env:CANDIDATE_CONFIG_SHA256
+              candidateEverLeafUiSha256 = $env:CANDIDATE_UI_SHA256
+              outboundNetworkBlocked = $true
+              authenticationAttempted = $false
+              survivedSeconds = 15
+              survivingProcessCount = $matching.Count
+              survivingProcessIds = $processIds
+              launcherTicketConsumed = $ticketConsumed
+              diagnosticsLogCreated = $true
+              windowsApplicationErrorCount = $recentErrors.Count
+              productionFilesModified = $false
+              approved = $false
+              productionApplyAllowed = $false
+            }
+            $report | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 $reportPath
+            Get-Content $reportPath | Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+          finally {
+            foreach ($proc in $matching) { Stop-Process -Id ([int]$proc.ProcessId) -Force -ErrorAction SilentlyContinue }
+            if ($launched) {
+              try { $launched.Refresh() } catch {}
+              if (-not $launched.HasExited) { Stop-Process -Id $launched.Id -Force -ErrorAction SilentlyContinue }
+            }
+            Remove-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
+            Remove-Item (Join-Path $env:CLIENT_DIR '.everleaf-launch') -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Upload Client v2 boot-smoke evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-v2-boot-smoke-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/CLIENT_V2_BOOT_SMOKE_REPORT.json
+            ${{ runner.temp }}/CLIENT_V2_WINDOWS_ERRORS.txt
+            ${{ runner.temp }}/CLIENT_V2_BASELINE_HASHES.txt
+            ${{ env.CLIENT_DIR }}/EverLeafClient.log
+          retention-days: 14
+          if-no-files-found: warn
