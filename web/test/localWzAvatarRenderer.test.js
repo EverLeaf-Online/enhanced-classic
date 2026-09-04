@@ -11,7 +11,7 @@ test('local avatar sidecar is pinned, loopback-only, and reads production Charac
   const unit=read('ops/everleaf-wz-avatar.service');
   const runner=read('ops/run-wz-avatar-renderer.py');
   const installer=read('scripts/install-wz-avatar-renderer.sh');
-  assert.match(unit,/everleaf-wz-avatar/);
+  assert.match(unit,/Description=EverLeaf local v83 WZ character renderer/);
   assert.match(unit,/run-wz-avatar-renderer\.py/);
   assert.match(unit,/NoNewPrivileges=true/);
   assert.match(unit,/ReadOnlyPaths=\/opt\/everleaf\/patches\/files\/Character\.wz/);
@@ -38,5 +38,5 @@ test('production web deployment installs and proves the local WZ renderer',()=>{
   assert.match(deploy,/systemctl is-active --quiet everleaf-wz-avatar/);
   assert.match(deploy,/x-everleaf-avatar-source:/i);
   assert.match(deploy,/local-wz\(-cache\)/);
-  assert.match(deploy,/live ranking avatar is not a valid PNG/);
+  assert.match(deploy,/d\[:8\]==b"\\x89PNG\\r\\n\\x1a\\n"/);
 });
