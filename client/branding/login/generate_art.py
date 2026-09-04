@@ -34,14 +34,14 @@ def centered_text(draw, box, text, text_font, fill=(246, 244, 224, 255),
 
 def wood_texture(size, seed=0):
     width, height = size
-    image = Image.new("RGBA", size, (54, 34, 17, 255))
+    image = Image.new("RGBA", size, (50, 33, 16, 255))
     draw = ImageDraw.Draw(image)
     for y in range(height):
         wave = ((y * 17 + seed * 11) % 31) / 31
-        shade = int(39 + wave * 14)
-        draw.line((0, y, width, y), fill=(shade + 18, shade + 3, max(12, shade - 17), 255))
+        shade = int(37 + wave * 15)
+        draw.line((0, y, width, y), fill=(shade + 18, shade + 4, max(12, shade - 17), 255))
     for y in range(8, height, 17):
-        draw.line((4, y, width - 5, y + (seed + y) % 3 - 1), fill=(104, 70, 34, 75), width=1)
+        draw.line((4, y, width - 5, y + (seed + y) % 3 - 1), fill=(108, 76, 37, 78), width=1)
     return image
 
 
@@ -49,13 +49,18 @@ def build_background(path):
     source = Image.open(SOURCE / "hero-forest.webp").convert("RGB")
     image = ImageOps.fit(source, (WIDTH, HEIGHT), method=Image.Resampling.LANCZOS,
                          centering=(0.50, 0.50))
-    image = ImageEnhance.Color(image).enhance(0.94)
-    image = ImageEnhance.Contrast(image).enhance(0.96)
+    image = ImageEnhance.Color(image).enhance(0.98)
+    image = ImageEnhance.Contrast(image).enhance(0.97)
     overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
-    for y in range(235):
-        alpha = int(44 * (1 - y / 235) ** 1.7)
-        draw.line((0, y, WIDTH, y), fill=(4, 28, 13, alpha))
+    for y in range(250):
+        alpha = int(48 * (1 - y / 250) ** 1.7)
+        draw.line((0, y, WIDTH, y), fill=(3, 31, 13, alpha))
+    # A restrained lower vignette improves text/button readability while retaining
+    # the classic illustrated Maple login composition.
+    for y in range(HEIGHT - 150, HEIGHT):
+        alpha = int(34 * ((y - (HEIGHT - 150)) / 150) ** 1.5)
+        draw.line((0, y, WIDTH, y), fill=(17, 12, 5, alpha))
     Image.alpha_composite(image.convert("RGBA"), overlay).convert("RGB").save(path, "PNG", optimize=True)
 
 
@@ -69,7 +74,7 @@ def build_logo(path):
     canvas = Image.alpha_composite(canvas, shadow)
     canvas.alpha_composite(source, ((397 - source.width) // 2, 8))
     draw = ImageDraw.Draw(canvas)
-    centered_text(draw, (0, 157, 397, 183), "YOUR ADVENTURE, YOUR STORY",
+    centered_text(draw, (0, 157, 397, 183), "CLASSIC ROOTS • NEW ADVENTURES",
                   font(13, True), fill=(250, 248, 224, 245), stroke_width=2,
                   stroke_fill=(19, 45, 16, 230))
     canvas.save(path, "PNG", optimize=True)
@@ -83,44 +88,52 @@ def build_frame(path):
 
 
 def build_signboard(path):
-    image = wood_texture((368, 236), 3)
+    image = wood_texture((368, 236), 7)
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle((2, 2, 365, 233), radius=12, outline=(35, 25, 9, 255), width=4)
-    draw.rounded_rectangle((7, 7, 360, 228), radius=9, outline=(144, 105, 49, 255), width=2)
-    draw.text((12, 18), "Login ID", font=font(10, True), fill=(244, 239, 211, 255),
+    draw.rounded_rectangle((2, 2, 365, 233), radius=12, outline=(29, 23, 8, 255), width=4)
+    draw.rounded_rectangle((7, 7, 360, 228), radius=9, outline=(151, 117, 52, 255), width=2)
+    draw.rounded_rectangle((11, 10, 356, 80), radius=7, fill=(33, 39, 16, 118), outline=(112, 137, 45, 185), width=1)
+    draw.text((17, 18), "Login ID", font=font(10, True), fill=(244, 239, 211, 255),
               stroke_width=1, stroke_fill=(25, 16, 7, 255))
-    draw.text((12, 53), "Password", font=font(10, True), fill=(244, 239, 211, 255),
+    draw.text((17, 53), "Password", font=font(10, True), fill=(244, 239, 211, 255),
               stroke_width=1, stroke_fill=(25, 16, 7, 255))
     for top in (10, 45):
-        draw.rounded_rectangle((58, top, 208, top + 31), radius=4,
-                               fill=(25, 22, 14, 255), outline=(126, 94, 43, 255), width=2)
-    draw.line((12, 82, 356, 82), fill=(141, 103, 45, 170), width=1)
-    draw.line((12, 122, 356, 122), fill=(36, 22, 8, 180), width=1)
-    centered_text(draw, (10, 186, 358, 213), "WELCOME TO EVERLEAF",
-                  font(11, True), fill=(195, 218, 109, 215), stroke_width=1)
+        draw.rounded_rectangle((63, top, 213, top + 31), radius=5,
+                               fill=(23, 27, 14, 255), outline=(134, 108, 47, 255), width=2)
+    draw.line((12, 88, 356, 88), fill=(151, 117, 52, 175), width=1)
+    draw.line((12, 126, 356, 126), fill=(36, 22, 8, 180), width=1)
+    centered_text(draw, (10, 183, 358, 207), "EVERLEAF • ENHANCED CLASSIC",
+                  font(11, True), fill=(207, 230, 119, 235), stroke_width=1,
+                  stroke_fill=(25, 43, 14, 220))
+    centered_text(draw, (10, 207, 358, 225), "EXPLORE • GROW • ADVENTURE",
+                  font(8, True), fill=(238, 230, 192, 210), stroke_width=1)
     image.save(path, "PNG", optimize=True)
 
 
 def button(path, size, text, state, green=False, text_size=None):
     width, height = size
     palettes = ({
-        "normal": ((103, 132, 15), (151, 180, 36)),
-        "mouseOver": ((128, 158, 21), (183, 208, 52)),
-        "pressed": ((73, 96, 10), (121, 148, 27)),
-        "disabled": ((72, 75, 58), (105, 108, 82)),
+        "normal": ((84, 121, 21), (154, 187, 57)),
+        "mouseOver": ((105, 145, 27), (193, 217, 79)),
+        "pressed": ((61, 91, 14), (125, 158, 38)),
+        "disabled": ((69, 75, 58), (104, 111, 82)),
     } if green else {
-        "normal": ((67, 42, 20), (126, 83, 38)),
-        "mouseOver": ((86, 54, 24), (158, 107, 49)),
-        "pressed": ((47, 30, 15), (102, 66, 31)),
-        "disabled": ((66, 59, 49), (103, 91, 74)),
+        "normal": ((62, 45, 23), (134, 97, 45)),
+        "mouseOver": ((79, 59, 27), (169, 123, 55)),
+        "pressed": ((45, 33, 16), (108, 78, 35)),
+        "disabled": ((65, 61, 50), (103, 95, 75)),
     })
     fill, edge = palettes[state]
     image = Image.new("RGB", size, fill)
     draw = ImageDraw.Draw(image)
     draw.rounded_rectangle((1, 1, width - 2, height - 2), radius=max(3, height // 7),
-                           fill=fill, outline=(28, 20, 9), width=2)
+                           fill=fill, outline=(25, 20, 9), width=2)
     draw.rounded_rectangle((4, 4, width - 5, height - 5), radius=max(2, height // 9),
                            outline=edge, width=1)
+    # A small upper highlight gives native v83 buttons more depth without making
+    # them look like modern mobile UI.
+    if state not in ("pressed", "disabled") and height >= 20:
+        draw.line((6, 5, width - 7, 5), fill=(255, 244, 188, 70), width=1)
     centered_text(draw, (2, 1, width - 2, height - 2), text,
                   font(text_size or max(9, min(15, height // 3)), True),
                   fill=(246, 244, 224), stroke_width=1)
@@ -128,12 +141,12 @@ def button(path, size, text, state, green=False, text_size=None):
 
 
 def build_check(path, checked):
-    image = Image.new("RGB", (18, 23), (58, 40, 20))
+    image = Image.new("RGB", (18, 23), (54, 42, 21))
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle((1, 3, 16, 18), radius=3, fill=(31, 47, 13),
-                           outline=(137, 168, 35), width=2)
+    draw.rounded_rectangle((1, 3, 16, 18), radius=3, fill=(28, 48, 15),
+                           outline=(145, 177, 48), width=2)
     if checked:
-        draw.line((4, 10, 8, 15, 15, 6), fill=(201, 229, 72), width=3, joint="curve")
+        draw.line((4, 10, 8, 15, 15, 6), fill=(211, 235, 91), width=3, joint="curve")
     image.save(path, "PNG", optimize=True)
 
 
@@ -167,7 +180,7 @@ def main():
             button(output / f"{name}-{state}.png", size, label, state, green, text_size)
     build_check(output / "check-0.png", False)
     build_check(output / "check-1.png", True)
-    print(f"Generated complete EverLeaf login theme in {output}")
+    print(f"Generated refreshed EverLeaf login theme in {output}")
 
 
 if __name__ == "__main__":
