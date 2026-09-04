@@ -46,16 +46,19 @@ test('Wiki migration refreshes only untouched seed rows',()=>{
   assert.match(cms,/published=0/);
 });
 
-test('public Wiki presents real player guides rather than internal implementation cards',()=>{
+test('public Wiki is server-data first while preserving staff guides',()=>{
   const catalog=read('src/services/wikiCatalog.js');
+  const dataService=read('src/services/wikiDataService.js');
   const view=read('src/views/wiki.ejs');
+  const route=read('src/routes/wiki.js');
   for(const text of ['Getting Started','Knights of Cygnus','Voting for EverLeaf','Installing EverLeaf','Live Player Rankings']) {
     assert.match(catalog,new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
   }
-  for(const internalTitle of ['Server Authority','Reward Delivery Safety','Custom Item ID Discipline']) {
-    assert.doesNotMatch(catalog,new RegExp(`title:'${internalTitle.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}'`));
-  }
-  assert.match(view,/EVERLEAF PLAYER WIKI/);
-  assert.match(view,/Player essentials/);
-  assert.match(view,/READ GUIDE/);
+  assert.match(dataService,/TYPE_META/);
+  assert.match(dataService,/drop_data/);
+  assert.match(dataService,/shopitems/);
+  assert.match(view,/EVERLEAF DATA WIKI/);
+  assert.match(view,/WZ \+ MySQL/);
+  assert.match(route,/\/wiki\/guides/);
+  assert.doesNotMatch(view,/EVERLEAF PLAYER WIKI/);
 });

@@ -1,0 +1,24 @@
+<%- include("partials/header",{title:"Wiki Guides",description:"Staff-maintained EverLeaf player guides for progression, rewards, launcher help and custom systems."}) %>
+<%
+const fmtDate=value=>{
+  if(!value)return 'Just now';
+  const d=new Date(String(value).includes('T')?value:String(value).replace(' ','T')+'Z');
+  return Number.isNaN(d.valueOf())?'Recently':d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
+};
+const getGuide=slug=>entries.find(entry=>entry.slug===slug);
+const quickGuides=[
+  ['getting-started','START HERE','New to EverLeaf?'],
+  ['adventurer-jobs','JOBS','Choose your path'],
+  ['nx-reward-sources','REWARDS','Earn NX fairly'],
+  ['everleaf-launcher','CLIENT HELP','Install & play']
+].map(([slug,label,title])=>({entry:getGuide(slug),label,title})).filter(x=>x.entry);
+%>
+<main class="lightPage wikiPage wikiPlayerGuide">
+<section class="wikiHero wikiPlayerHero"><div class="wrap wikiHeroInner"><div><div class="pageEyebrow">EVERLEAF GUIDES</div><h1>Staff-written guides<br><em>for EverLeaf systems.</em></h1><p>This section holds curated guides and explanations. For searchable items, monsters, maps, skills, NPCs and quests, use the live server-data Wiki.</p><div class="wikiGuideHeroActions"><a class="btn primary" href="/wiki">OPEN DATA WIKI</a></div><form class="wikiSearch" action="/wiki/guides" method="get"><input type="search" name="q" value="<%=q%>" placeholder="Search progression, NX, launcher help…" aria-label="Search EverLeaf guides"><% if(category&&category!=='all'){ %><input type="hidden" name="category" value="<%=category%>"><% } %><button class="btn" type="submit">SEARCH GUIDES</button></form><div class="wikiHeroMeta"><span><strong><%=stats.published%></strong> player guides</span><span>Staff maintained</span><span>Updated <%=fmtDate(stats.lastUpdated)%></span></div></div><div class="wikiHeroArt wikiFieldBook"><img src="/assets/ui/journal.svg" alt=""><span>EVERLEAF<br>GUIDES</span><small>v83 · Enhanced Classic</small></div></div></section>
+
+<% if(!q&&category==='all'&&quickGuides.length){ %><section class="wrap wikiQuickStart" aria-label="Popular EverLeaf guides"><div class="wikiQuickStartHead"><div><div class="pageEyebrow">QUICK START</div><h2>Find a guide fast.</h2></div><span>Player essentials</span></div><div class="wikiQuickGrid"><% quickGuides.forEach((item,index)=>{ %><a href="/wiki/guides/<%=item.entry.slug%>" class="wikiQuickCard"><span class="wikiQuickNumber">0<%=index+1%></span><div><small><%=item.label%></small><strong><%=item.title%></strong><p><%=item.entry.summary%></p></div><b>→</b></a><% }) %></div></section><% } %>
+
+<div class="wrap wikiLayout"><aside class="wikiSidebar"><div class="wikiSidebarTitle">Browse Player Guides</div><a class="wikiCat <%=category==='all'?'active':''%>" href="/wiki/guides<%=q?'?q='+encodeURIComponent(q):''%>"><strong>All Guides</strong><small><%=entries.length%> published guides</small></a><% categories.forEach(cat=>{ const count=entries.filter(x=>x.category===cat.key).length; %><a class="wikiCat <%=category===cat.key?'active':''%>" href="/wiki/guides?category=<%=cat.key%><%=q?'&q='+encodeURIComponent(q):''%>"><strong><%=cat.label%></strong><small><%=count%> · <%=cat.description%></small></a><% }) %><div class="wikiSidebarNote"><strong>Need game data?</strong><span>The main Wiki is generated from EverLeaf's live WZ and MySQL data.</span><a href="/wiki">Browse server data →</a></div></aside>
+<section class="wikiResults"><div class="wikiResultsHead"><div><div class="pageEyebrow"><%=q?'SEARCH RESULTS':'PLAYER GUIDES'%></div><h2><%=q?`Results for “${q}”`:(categories.find(c=>c.key===category)?.label||'All EverLeaf Guides')%></h2></div><span><%=results.length%> guide<%=results.length===1?'':'s'%></span></div>
+<% if(results.length){ %><div class="wikiArticleGrid"><% results.forEach(entry=>{ const cat=categories.find(c=>c.key===entry.category); %><a class="wikiArticleCard wikiPlayerCard" href="/wiki/guides/<%=entry.slug%>"><div class="wikiArticleTop"><span class="wikiStatus"><%=entry.status%></span><span class="wikiCategory"><%=cat?.label||entry.category%></span></div><h3><%=entry.title%></h3><p><%=entry.summary%></p><div class="wikiTags"><% (entry.tags||[]).slice(0,4).forEach(tag=>{ %><span><%=tag%></span><% }) %></div><div class="wikiArticleFoot"><small><span>Updated <%=fmtDate(entry.updatedAt)%></span><span>Staff-maintained guide</span></small><strong>READ GUIDE →</strong></div></a><% }) %></div><% } else { %><div class="wikiEmpty"><img src="/assets/ui/journal.svg" alt=""><h3>No matching guide yet.</h3><p>Try a broader search or use the server-data Wiki.</p><a class="btn" href="/wiki/guides">CLEAR SEARCH</a></div><% } %>
+</section></div></main><%- include("partials/footer") %>

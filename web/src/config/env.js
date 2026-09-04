@@ -67,6 +67,11 @@ module.exports = {
     cacheMs: Math.max(60_000, Number(process.env.CHARACTER_AVATAR_CACHE_MS || 300_000))
   },
 
+  wikiData: {
+    wzRoot: path.resolve(process.env.WIKI_WZ_ROOT || "/opt/everleaf/current/wz"),
+    catalogTtlMs: Math.max(60_000, Number(process.env.WIKI_CATALOG_TTL_MS || 900_000))
+  },
+
   registration: {
     enabled: bool(process.env.GAME_REGISTRATION_ENABLED, false),
     mode: String(process.env.GAME_PASSWORD_MODE || "bcrypt").toLowerCase()
