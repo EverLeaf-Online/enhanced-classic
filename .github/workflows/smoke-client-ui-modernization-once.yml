@@ -9,8 +9,7 @@ permissions:
   contents: read
 
 env:
-  EVERLEAF_DEPLOY_HOST: 132.145.141.79
-  EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_PUBLIC_BASE: https://everleafms.online
 
 jobs:
   visual-smoke:
@@ -20,73 +19,100 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: feature/client-job-selector-modernization-20260904
+
       - name: Apply client transforms
         shell: pwsh
         run: |
           python client/scripts/apply-ui-modernization.py
           python client/scripts/apply-community-ui-preference.py
+
       - name: Configure MSBuild
         uses: microsoft/setup-msbuild@v2
+
       - name: Build modernization DLL
         shell: pwsh
         run: msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
-      - name: Configure SSH key
-        shell: pwsh
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
-        run: |
-          $ErrorActionPreference='Stop'
-          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
-          $keyPath=Join-Path $sshDir 'id_everleaf'
-          [IO.File]::WriteAllText($keyPath,($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
-      - name: Reconstruct exact managed live client
+
+      - name: Reconstruct exact managed live client over HTTPS
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $keyPath=Join-Path $HOME '.ssh/id_everleaf'
-          $sshExe='C:\Program Files\Git\usr\bin\ssh.exe'; $scpExe='C:\Program Files\Git\usr\bin\scp.exe'
-          $sshOpts=@('-o','StrictHostKeyChecking=no','-o','UserKnownHostsFile=NUL','-i',$keyPath)
+          $client=Join-Path $env:RUNNER_TEMP 'everleaf-ui-client'
+          New-Item -ItemType Directory -Force -Path $client | Out-Null
           $baseline=Get-Content client/managed-client-baseline.json -Raw | ConvertFrom-Json
           $names=@($baseline.managedFiles | ForEach-Object { [string]$_.path })
-          foreach($name in $names){ if($name -notmatch '^[A-Za-z0-9_.-]+$'){ throw "Unsafe client filename: $name" } }
-          foreach($required in @('EverLeaf.exe','UI.wz','dinput8.dll','config.ini')){ if($names -notcontains $required){ throw "Managed baseline missing $required" } }
-          $remoteRoot='/opt/everleaf/patches/files'; $remoteArchive="/tmp/everleaf-ui-smoke-$env:GITHUB_RUN_ID.tgz"
-          $quoted=($names | ForEach-Object { "'$_'" }) -join ' '
-          $cmd="set -euo pipefail; cd '$remoteRoot'; for f in $quoted; do test -f `"`$f`"; done; tar -czf '$remoteArchive' $quoted; sha256sum '$remoteArchive'"
-          $remoteHashLine=& $sshExe @sshOpts "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" $cmd
-          if($LASTEXITCODE -ne 0){ throw 'Unable to prepare managed client archive' }
-          $remoteHash=(($remoteHashLine | Select-Object -Last 1) -split '\s+')[0].ToLowerInvariant()
-          $archive=Join-Path $env:RUNNER_TEMP 'everleaf-live-client.tgz'
-          & $scpExe -o StrictHostKeyChecking=no -o UserKnownHostsFile=NUL -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteArchive" $archive
-          if($LASTEXITCODE -ne 0){ throw 'Unable to fetch managed client archive' }
-          $localHash=(Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant(); if($localHash -ne $remoteHash){ throw 'Managed client archive hash mismatch' }
-          & $sshExe @sshOpts "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "rm -f '$remoteArchive'" | Out-Null
-          $client=Join-Path $env:RUNNER_TEMP 'everleaf-ui-client'; New-Item -ItemType Directory -Force -Path $client | Out-Null
-          tar -xzf $archive -C $client; if($LASTEXITCODE -ne 0){ throw 'Unable to extract managed client' }
+          foreach($name in $names){
+            if($name -notmatch '^[A-Za-z0-9_.-]+$'){ throw "Unsafe client filename: $name" }
+            $url="$env:EVERLEAF_PUBLIC_BASE/patches/$name"
+            $dest=Join-Path $client $name
+            $ok=$false
+            for($attempt=1;$attempt -le 4 -and -not $ok;$attempt++){
+              try {
+                Invoke-WebRequest -Uri $url -OutFile $dest -MaximumRedirection 5 -TimeoutSec 180 -UseBasicParsing
+                if((Test-Path $dest) -and (Get-Item $dest).Length -gt 0){$ok=$true}
+              } catch {
+                if($attempt -eq 4){throw}
+                Start-Sleep -Seconds (3*$attempt)
+              }
+            }
+            if(-not $ok){throw "Unable to download $name"}
+          }
+          foreach($required in @('EverLeaf.exe','UI.wz','dinput8.dll','config.ini')){
+            $p=Join-Path $client $required
+            if(-not(Test-Path $p) -or (Get-Item $p).Length -eq 0){throw "Downloaded client missing $required"}
+          }
           Copy-Item client/ezorsia/out/Release/dinput8.dll (Join-Path $client 'dinput8.dll') -Force
           Copy-Item client/ezorsia/ezorsia/config.ini (Join-Path $client 'config.ini') -Force
+          $inventory=@()
+          foreach($name in $names){
+            $p=Join-Path $client $name
+            $inventory += [ordered]@{path=$name;size=(Get-Item $p).Length;sha256=(Get-FileHash $p -Algorithm SHA256).Hash.ToLowerInvariant()}
+          }
+          [ordered]@{schemaVersion=1;source='production-https-patches';files=$inventory} | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 (Join-Path $env:RUNNER_TEMP 'EVERLEAF_UI_CLIENT_INVENTORY.json')
           "CLIENT_DIR=$client" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-          "LIVE_ARCHIVE_SHA256=$localHash" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Launch and capture real EverLeaf window
         shell: pwsh
         run: |
-          $ErrorActionPreference='Stop'; Add-Type -AssemblyName System.Drawing
+          $ErrorActionPreference='Stop'
+          Add-Type -AssemblyName System.Drawing
           Add-Type @'
           using System; using System.Runtime.InteropServices;
-          public class EverLeafWin32 { [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left,Top,Right,Bottom; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd,out RECT rect); }
+          public class EverLeafWin32 {
+            [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left,Top,Right,Bottom; }
+            [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd,out RECT rect);
+          }
           '@
-          $exe=[IO.Path]::GetFullPath((Join-Path $env:CLIENT_DIR 'EverLeaf.exe')); $launched=Start-Process -FilePath $exe -WorkingDirectory $env:CLIENT_DIR -PassThru
-          $target=$null; for($i=0;$i -lt 30 -and -not $target;$i++){ Start-Sleep 1; $target=Get-Process -Name EverLeaf -ErrorAction SilentlyContinue | Where-Object {$_.MainWindowHandle -ne 0} | Select-Object -First 1 }
-          if(-not $target){ throw 'EverLeaf window did not appear' }; Start-Sleep 8
-          $runtime=Join-Path $env:CLIENT_DIR 'everleaf-selector-runtime.txt'; if(-not(Test-Path $runtime)){ throw 'Unpacked selector runtime dump was not emitted' }
+          $exe=[IO.Path]::GetFullPath((Join-Path $env:CLIENT_DIR 'EverLeaf.exe'))
+          $launched=Start-Process -FilePath $exe -WorkingDirectory $env:CLIENT_DIR -PassThru
+          $target=$null
+          for($i=0;$i -lt 35 -and -not $target;$i++){
+            Start-Sleep -Seconds 1
+            $target=Get-Process -Name EverLeaf -ErrorAction SilentlyContinue | Where-Object {$_.MainWindowHandle -ne 0} | Select-Object -First 1
+          }
+          if(-not $target){
+            $launched.Refresh()
+            $state=if($launched.HasExited){"exit=$($launched.ExitCode)"}else{'running-no-window'}
+            throw "EverLeaf window did not appear ($state)"
+          }
+          Start-Sleep -Seconds 8
+          $runtime=Join-Path $env:CLIENT_DIR 'everleaf-selector-runtime.txt'
+          if(-not(Test-Path $runtime)){ throw 'Unpacked selector runtime dump was not emitted' }
           Copy-Item $runtime (Join-Path $env:RUNNER_TEMP 'everleaf-selector-runtime.txt') -Force
-          $target.Refresh(); $rect=New-Object EverLeafWin32+RECT; if(-not [EverLeafWin32]::GetWindowRect($target.MainWindowHandle,[ref]$rect)){throw 'GetWindowRect failed'}
-          $w=$rect.Right-$rect.Left; $h=$rect.Bottom-$rect.Top; if($w -lt 640 -or $h -lt 480){throw "Unexpected EverLeaf window size ${w}x${h}"}
-          $bmp=New-Object Drawing.Bitmap $w,$h; $gfx=[Drawing.Graphics]::FromImage($bmp); try{$gfx.CopyFromScreen($rect.Left,$rect.Top,0,0,$bmp.Size)}finally{$gfx.Dispose()}
-          $shot=Join-Path $env:RUNNER_TEMP 'everleaf-modern-ui-login.png'; $bmp.Save($shot,[Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
-          [ordered]@{schemaVersion=2;kind='everleaf-modern-ui-visual-smoke';commit=$env:GITHUB_SHA;liveClientArchiveSha256=$env:LIVE_ARCHIVE_SHA256;width=$w;height=$h;runtimeDumpCaptured=$true;productionFilesModified=$false} | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $env:RUNNER_TEMP 'EVERLEAF_UI_SMOKE_REPORT.json')
+          $target.Refresh(); $rect=New-Object EverLeafWin32+RECT
+          if(-not [EverLeafWin32]::GetWindowRect($target.MainWindowHandle,[ref]$rect)){throw 'GetWindowRect failed'}
+          $w=$rect.Right-$rect.Left; $h=$rect.Bottom-$rect.Top
+          if($w -lt 640 -or $h -lt 480){throw "Unexpected EverLeaf window size ${w}x${h}"}
+          $bmp=New-Object Drawing.Bitmap $w,$h
+          $gfx=[Drawing.Graphics]::FromImage($bmp)
+          try{$gfx.CopyFromScreen($rect.Left,$rect.Top,0,0,$bmp.Size)}finally{$gfx.Dispose()}
+          $shot=Join-Path $env:RUNNER_TEMP 'everleaf-modern-ui-login.png'
+          $bmp.Save($shot,[Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
+          [ordered]@{schemaVersion=3;kind='everleaf-modern-ui-visual-smoke';commit=$env:GITHUB_SHA;width=$w;height=$h;runtimeDumpCaptured=$true;productionFilesModified=$false} | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $env:RUNNER_TEMP 'EVERLEAF_UI_SMOKE_REPORT.json')
           Get-Content $runtime | Add-Content $env:GITHUB_STEP_SUMMARY
           Stop-Process -Id $target.Id -Force -ErrorAction SilentlyContinue
+          Get-Process -Name EverLeaf -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
       - name: Upload visual smoke evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -95,6 +121,7 @@ jobs:
           path: |
             ${{ runner.temp }}/everleaf-modern-ui-login.png
             ${{ runner.temp }}/EVERLEAF_UI_SMOKE_REPORT.json
+            ${{ runner.temp }}/EVERLEAF_UI_CLIENT_INVENTORY.json
             ${{ runner.temp }}/everleaf-selector-runtime.txt
           retention-days: 14
           if-no-files-found: warn
