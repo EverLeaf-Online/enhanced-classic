@@ -7,7 +7,7 @@ const repo=path.join(root,'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const readRepo=p=>fs.readFileSync(path.join(repo,p),'utf8');
 
-test('local avatar sidecar is pinned, loopback-only, and reads production Character.wz',()=>{
+test('local avatar sidecar is pinned, loopback-only, and reads production Character.wz without write access',()=>{
   const unit=read('ops/everleaf-wz-avatar.service');
   const runner=read('ops/run-wz-avatar-renderer.py');
   const installer=read('scripts/install-wz-avatar-renderer.sh');
@@ -16,8 +16,10 @@ test('local avatar sidecar is pinned, loopback-only, and reads production Charac
   assert.match(unit,/NoNewPrivileges=true/);
   assert.match(unit,/ReadOnlyPaths=\/opt\/everleaf\/patches\/files\/Character\.wz/);
   assert.match(runner,/\/opt\/everleaf\/patches\/files\/Character\.wz/);
-  assert.match(runner,/region="GMS"/);
-  assert.match(runner,/version=83/);
+  assert.match(runner,/WzFile\.open\(CHARACTER_WZ, region="GMS", version=83, writable=False\)/);
+  assert.doesNotMatch(runner,/create_app\(/);
+  assert.match(runner,/CharacterRenderer\(wz, region="GMS"\)/);
+  assert.match(runner,/api\/character\/compose/);
   assert.match(runner,/127\.0\.0\.1/);
   assert.match(runner,/3011/);
   assert.match(runner,/threaded=False/);
