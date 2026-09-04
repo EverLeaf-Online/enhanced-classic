@@ -1,4 +1,4 @@
-# Manual live audit trigger: 2026-09-04
+# Manual live audit trigger: 2026-09-04-rc55
 name: Verify EverLeaf Live Release
 
 on:
