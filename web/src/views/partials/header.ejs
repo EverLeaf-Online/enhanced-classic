@@ -59,13 +59,11 @@
   <% } %>
   <link rel="stylesheet" href="/css/uiux-2026.css?v=2">
   <link rel="stylesheet" href="/css/site-polish-2026.css?v=1">
-  <link rel="stylesheet" href="/css/visuals-2026.css?v=1">
-  <link rel="stylesheet" href="/css/game-portal-2026.css?v=1">
-  <link rel="stylesheet" href="/css/full-site-portal-2026.css?v=1">
-  <link rel="stylesheet" href="/css/refero-everleaf-2026.css?v=2">
-  <script src="/js/site.js?v=1" defer></script>
+  <link rel="stylesheet" href="/css/refero-everleaf-2026.css?v=3">
+  <link rel="stylesheet" href="/css/unified-terminal-2026.css?v=1">
+  <script src="/js/site.js?v=2" defer></script>
 </head>
-<body class="<%=isHome?'homeRoute':'innerRoute'%> route-<%=routeKey%><%=isAdminPath?' route-admin':''%>">
+<body class="siteRoute route-<%=routeKey%><%=isAdminPath?' route-admin':''%>">
 <a class="skipLink" href="#main-content">Skip to content</a>
 <%
   const navLinks=[

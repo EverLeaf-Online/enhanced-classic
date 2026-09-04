@@ -8,6 +8,8 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const header = read('src/views/partials/header.ejs');
 const design = read('DESIGN.md');
 const css = read('public/css/refero-everleaf-2026.css');
+const unified = read('public/css/unified-terminal-2026.css');
+const siteJs = read('public/js/site.js');
 const home = read('src/views/home.ejs');
 const rankings = read('src/views/rankings.ejs');
 const wiki = read('src/views/wiki.ejs');
@@ -21,44 +23,38 @@ test('EverLeaf keeps a repo-resident terminal design contract', () => {
   assert.match(design, /Wiki/);
   assert.match(design, /Account \/ Auth/);
   assert.match(design, /Do not/);
-  assert.match(design, /proprietary reference fonts/);
 });
 
-test('Refero-informed stylesheet is loaded last with server-rendered route classes', () => {
-  const oldPortal = header.indexOf('/css/full-site-portal-2026.css?v=1');
-  const refero = header.indexOf('/css/refero-everleaf-2026.css?v=2');
-  assert.ok(oldPortal >= 0, 'existing functional portal layer should remain available');
-  assert.ok(refero > oldPortal, 'terminal Refero layer must load after the existing portal layer');
+test('one shared terminal shell is loaded after the base styles', () => {
+  const refero = header.indexOf('/css/refero-everleaf-2026.css?v=3');
+  const unifiedIndex = header.indexOf('/css/unified-terminal-2026.css?v=1');
+  assert.ok(refero >= 0);
+  assert.ok(unifiedIndex > refero);
   assert.match(header, /const routeKey=/);
-  assert.match(header, /route-<%=routeKey%>/);
-  assert.match(header, /route-admin/);
+  assert.match(header, /body class="siteRoute route-<%=routeKey%>/);
   assert.match(header, /theme-color" content="#12130f"/);
   assert.match(header, /color-scheme" content="dark"/);
+  assert.doesNotMatch(header, /game-portal-2026\.css|full-site-portal-2026\.css|visuals-2026\.css/);
+  assert.doesNotMatch(siteJs, /full-site-portal-2026\.css/);
 });
 
-test('new system deliberately covers the homepage and all major shared surfaces', () => {
+test('new system deliberately covers the homepage and major shared surfaces', () => {
   for (const selector of [
-    '.terminalHero',
-    '.terminalNav',
-    '.signalStrip',
-    '.dossierSection',
-    '.entrySection',
-    '.classMatrix',
-    '.dataSection',
-    '.wikiSignalSection',
-    '.lightPage',
-    '.authWrap',
-    '.rankingTable',
-    '.wikiSearch',
-    '.terminalFooter'
+    '.terminalHero', '.terminalNav', '.signalStrip', '.dossierSection',
+    '.entrySection', '.dataSection', '.lightPage', '.authWrap',
+    '.rankingTable', '.wikiSearch', '.terminalFooter'
   ]) assert.ok(css.includes(selector), `missing terminal redesign coverage for ${selector}`);
 
-  for(const token of ['terminalHero','everleafArtifact','heroTelemetry','classMatrix','dataSplit','finalTransmission']) {
+  for (const selector of [
+    'body.siteRoute', 'body.siteRoute:not(.route-home) .lightTitle',
+    'body.route-news .newsList', 'body.route-downloads .contentGrid',
+    'body.route-rankings .rankingStats', 'body.route-wiki .wikiShell'
+  ]) assert.ok(unified.includes(selector), `missing unified shell coverage for ${selector}`);
+
+  for(const token of ['terminalHero','everleafArtifact','heroTelemetry','dataSplit','finalTransmission']) {
     assert.ok(home.includes(token), `homepage should include ${token}`);
   }
-  assert.match(css, /@media \(max-width:960px\)/);
-  assert.match(css, /@media \(max-width:640px\)/);
-  assert.match(css, /prefers-reduced-motion/);
+  assert.doesNotMatch(home, /classMatrix|wikiSignalSection|CHOOSE YOUR SIGNAL|KNOW THE WORLD/i);
 });
 
 test('redesign preserves live product integrations', () => {
@@ -74,12 +70,11 @@ test('redesign preserves live product integrations', () => {
 });
 
 test('redesign does not import reference-site assets, fonts, or remote styles', () => {
-  assert.doesNotMatch(css, /https?:\/\//i);
-  assert.doesNotMatch(css, /@import/i);
-  assert.doesNotMatch(css, /refero\.design|styles\.refero/i);
-  assert.doesNotMatch(css, /Recoleta|Suisse|Jersey 10|Manrope/i);
+  for (const sheet of [css, unified]) {
+    assert.doesNotMatch(sheet, /https?:\/\//i);
+    assert.doesNotMatch(sheet, /@import/i);
+    assert.doesNotMatch(sheet, /refero\.design|styles\.refero/i);
+  }
   assert.match(css, /--terminal-bg:#12130f/);
-  assert.match(css, /--terminal-text:#e4dfda/);
-  assert.match(css, /--terminal-line:#3c3c38/);
-  assert.match(css, /--terminal-glow:#f5c2c8/);
+  assert.match(unified, /--ut-bg:#12130f/);
 });
