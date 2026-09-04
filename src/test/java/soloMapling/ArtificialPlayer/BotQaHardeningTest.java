@@ -34,6 +34,16 @@ class BotQaHardeningTest {
     }
 
     @Test
+    void deterministicHuntAnchorsStayOnKnownPopulatedLowerPlatform() {
+        assertEquals(120, BotQaSuiteRunner.huntTargetXForIndex(0));
+        assertEquals(300, BotQaSuiteRunner.huntTargetXForIndex(1));
+        assertEquals(480, BotQaSuiteRunner.huntTargetXForIndex(2));
+        assertEquals(660, BotQaSuiteRunner.huntTargetXForIndex(3));
+        assertEquals(120, BotQaSuiteRunner.huntTargetXForIndex(4));
+        assertEquals(190, BotQaSuiteRunner.huntTargetY());
+    }
+
+    @Test
     void conservationLedgerDetectsCreationAndExactConservation() {
         BotQaLedger.Snapshot before = new BotQaLedger.Snapshot(10_000L, Map.of(2000000, 100L, 4000000, 5L));
         BotQaLedger.Snapshot same = new BotQaLedger.Snapshot(10_000L, Map.of(2000000, 100L, 4000000, 5L));
