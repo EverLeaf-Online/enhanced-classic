@@ -3,25 +3,13 @@
 const fmt=n=>Number(n||0).toLocaleString();
 const base=`/wiki/${type}`;
 const pageHref=p=>`${base}?${q?`q=${encodeURIComponent(q)}&`:''}${p>1?`page=${p}`:''}`.replace(/\?$/,'');
-const mapleBase='https://maplestory.io/api/GMS/83';
-const skillBook=id=>String(Math.floor(Number(id||0)/10000)).padStart(3,'0');
-const mapleAsset=(entityType,id)=>{
-  const value=Number(id||0);
-  if(!value)return '';
-  if(entityType==='items')return `${mapleBase}/item/${value}/icon`;
-  if(entityType==='monsters')return `${mapleBase}/mob/${value}/icon`;
-  if(entityType==='maps')return `${mapleBase}/map/${value}/icon`;
-  if(entityType==='npcs')return `${mapleBase}/npc/${value}/icon`;
-  if(entityType==='quests')return `${mapleBase}/quest/${value}/icon`;
-  if(entityType==='skills')return `https://maplestory.io/api/wz/img/GMS/83/Skill.wz/${skillBook(value)}.img/skill/${value}/icon`;
-  return '';
-};
+const mapleAsset=(entityType,id)=>Number(id||0)>0?`/wiki/art/${encodeURIComponent(entityType)}/${Number(id)}`:'';
 const typeFallback={items:'IT',monsters:'MB',maps:'MP',skills:'SK',npcs:'NP',quests:'QU'};
 %>
 <main class="lightPage wikiDataPage wikiCatalogListPage wikiAppPage">
 <section class="wikiListHero"><div class="wrap"><div class="wikiBreadcrumb"><a href="/wiki">Wiki</a><span>›</span><strong><%=meta.label%></strong></div><div class="wikiListHeroGrid"><div><div class="pageEyebrow">EVERLEAF <%=meta.singular.toUpperCase()%> DATABASE</div><h1><%=meta.label%></h1><p><%=meta.description%></p></div><div class="wikiListCount"><strong><%=fmt(result.total)%></strong><span><%=q?'matching records':'player-useful records'%></span><small>Cleaned live catalog</small></div></div><form class="wikiDataSearch wikiListSearch" action="<%=base%>" method="get"><input type="search" name="q" value="<%=q%>" placeholder="Search <%=meta.label.toLowerCase()%> by name or ID…" aria-label="Search <%=meta.label%>"><button class="btn primary" type="submit">SEARCH</button><% if(q){ %><a class="btn" href="<%=base%>">CLEAR</a><% } %></form><nav class="wikiTypeTabs" aria-label="Wiki categories"><a href="/wiki">All</a><% Object.entries(types).forEach(([key,item])=>{ %><a class="<%=key===type?'active':''%>" href="/wiki/<%=key%>"><%=item.label%></a><% }) %></nav></div></section>
 <div class="wrap wikiListBody">
-<% if(result.rows.length){ %><div class="wikiDataTableWrap"><table class="wikiDataTable wikiDataTableClean"><thead><tr><th class="wikiArtColumn">Art</th><th>ID</th><th><%=meta.singular%></th><th>Category / description</th></tr></thead><tbody><% result.rows.forEach(entity=>{ const href=`${base}/${entity.id}`; const icon=mapleAsset(type,entity.id); %><tr><td class="wikiArtColumn" data-label="Art"><a class="wikiListAsset wikiMapleAsset" data-fallback="<%=typeFallback[type]||'EL'%>" href="<%=href%>" aria-label="Open <%=entity.name%>"><% if(icon){ %><img src="<%=icon%>" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.hidden=true;this.parentElement.classList.add('is-missing')"><% } %></a></td><td data-label="ID"><code><%=entity.id%></code></td><td data-label="<%=meta.singular%>"><a class="wikiEntityName wikiEntityPrimaryLink" href="<%=href%>"><strong><%=entity.name%></strong><small><%=entity.variantCount>1?`${entity.variantCount} matching server IDs consolidated`:meta.singular%></small><span>Open record →</span></a></td><td data-label="Details"><span class="wikiEntityDescription"><%=entity.description||entity.subtype||'EverLeaf server data'%></span><% if(entity.subtype){ %><small class="wikiEntitySubtype"><%=entity.subtype%></small><% } %></td></tr><% }) %></tbody></table></div>
+<% if(result.rows.length){ %><div class="wikiDataTableWrap"><table class="wikiDataTable wikiDataTableClean"><thead><tr><th class="wikiArtColumn">Art</th><th>ID</th><th><%=meta.singular%></th><th>Category / description</th></tr></thead><tbody><% result.rows.forEach(entity=>{ const href=`${base}/${entity.id}`; const icon=mapleAsset(type,entity.id); %><tr><td class="wikiArtColumn" data-label="Art"><a class="wikiListAsset wikiMapleAsset" data-fallback="<%=typeFallback[type]||'EL'%>" href="<%=href%>" aria-label="Open <%=entity.name%>"><% if(icon){ %><img src="<%=icon%>" alt="" loading="lazy" decoding="async" data-wiki-art><% } %></a></td><td data-label="ID"><code><%=entity.id%></code></td><td data-label="<%=meta.singular%>"><a class="wikiEntityName wikiEntityPrimaryLink" href="<%=href%>"><strong><%=entity.name%></strong><small><%=entity.variantCount>1?`${entity.variantCount} matching server IDs consolidated`:meta.singular%></small><span>Open record →</span></a></td><td data-label="Details"><span class="wikiEntityDescription"><%=entity.description||entity.subtype||'EverLeaf server data'%></span><% if(entity.subtype){ %><small class="wikiEntitySubtype"><%=entity.subtype%></small><% } %></td></tr><% }) %></tbody></table></div>
 <% if(result.pages>1){ %><nav class="wikiPagination" aria-label="Wiki catalog pages"><% if(result.page>1){ %><a href="<%=pageHref(result.page-1)%>">← Previous</a><% } %><span>Page <strong><%=result.page%></strong> of <%=result.pages%></span><% if(result.page<result.pages){ %><a href="<%=pageHref(result.page+1)%>">Next →</a><% } %></nav><% } %>
 <% } else { %><div class="wikiDataEmpty"><span>?</span><h3>No <%=meta.label.toLowerCase()%> found.</h3><p><%=q?'Try another name or an exact ID.':'No player-useful records remain after filtering duplicate and internal entries.'%></p><a class="btn" href="<%=base%>">CLEAR SEARCH</a></div><% } %>
 </div></main><%- include("partials/footer") %>

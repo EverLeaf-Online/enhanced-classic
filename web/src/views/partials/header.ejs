@@ -64,6 +64,10 @@
   <link rel="stylesheet" href="/css/inner-app-clean-2026.css?v=1">
   <link rel="stylesheet" href="/css/app-frame-v2-2026.css?v=1">
   <link rel="stylesheet" href="/css/wiki-app-assets-2026.css?v=1">
+  <% if(routeKey==='wiki'){ %>
+    <link rel="stylesheet" href="/css/wiki-art-fix-2026.css?v=1">
+    <script src="/js/wiki-art.js?v=1" defer></script>
+  <% } %>
   <script src="/js/site.js?v=2" defer></script>
 </head>
 <body class="siteRoute route-<%=routeKey%><%=isAdminPath?' route-admin':''%>">
