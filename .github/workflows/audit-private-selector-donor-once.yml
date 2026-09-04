@@ -30,28 +30,29 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
           chmod 600 ~/.ssh/id_everleaf
           if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
-      - name: Locate donor archives and selector XML
+      - name: Inspect exact v95 selector sources
         run: |
           set -euo pipefail
           mkdir -p docs
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' > docs/CLIENT_SELECTOR_DONOR_INVENTORY.md <<'REMOTE'
           set -u
+          ROOT=/opt/everleaf/private/wz-donors
           echo '# Selector donor inventory'
           echo
-          echo '## Candidate donor files'
-          for root in /opt/everleaf/private /opt/everleaf/shared /opt/everleaf/backups /opt/everleaf/releases; do
-            [ -e "$root" ] || continue
-            find "$root" -maxdepth 4 -type f \( -iname '*v95*.zip' -o -iname '*v84*.zip' -o -iname 'Login.img.xml' -o -iname 'UI.wz' \) -print 2>/dev/null | head -n 250
+          echo '## Preserved raw v95 files'
+          find "$ROOT/gms-v95-raw" -maxdepth 3 -type f -printf '%p | %s bytes\n' 2>/dev/null | sort | head -n 250 || true
+          echo
+          echo '## Selector/UI entries inside preserved archives'
+          for z in "$ROOT"/gms-v95-core7.zip "$ROOT"/gms-v95-extracted.zip "$ROOT"/gms-v95-string.zip "$ROOT"/community-repack-core.zip; do
+            [ -s "$z" ] || continue
+            echo "### $z"
+            unzip -Z1 "$z" 2>/dev/null | grep -Ei '(^|/)(UI\.wz|Login\.img)(/|\.|$)|RaceSelect|NewCharEvan|NewCharDual|NewCharResistance' | head -n 160 || true
           done
           echo
-          echo '## Private donor directory'
-          ls -lah /opt/everleaf/private/wz-donors 2>&1 || true
-          echo
-          echo '## Login XML class markers in preserved trees'
-          find /opt/everleaf/shared /opt/everleaf/backups /opt/everleaf/releases -type f -path '*/UI.wz/Login.img.xml' -print 2>/dev/null | head -n 30 | while read -r f; do
-            printf '%s | ' "$f"
-            grep -Eio 'Evan|Dual|Resistance|Citizen|Mechanic|Wild.?Hunter|Battle.?Mage' "$f" 2>/dev/null | sort -fu | paste -sd, - || true
-            echo
+          echo '## Raw WZ family presence'
+          for n in UI.wz Etc.wz String.wz Skill.wz Character.wz; do
+            p="$ROOT/gms-v95-raw/$n"
+            if [ -f "$p" ]; then stat -c '%n | %s bytes' "$p"; else echo "MISSING $p"; fi
           done
           REMOTE
           cat docs/CLIENT_SELECTOR_DONOR_INVENTORY.md
@@ -61,5 +62,6 @@ jobs:
           git config user.name everleaf-client-bot
           git config user.email 173628847+iampolicy@users.noreply.github.com
           git add docs/CLIENT_SELECTOR_DONOR_INVENTORY.md
-          git commit -m 'docs: inventory selector donor sources'
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'docs: inspect exact v95 selector donor sources'
           git push origin HEAD:feature/client-job-selector-modernization-20260904
