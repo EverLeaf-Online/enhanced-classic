@@ -5,6 +5,13 @@
 bool Memory::UseVirtuProtect = true;
 
 namespace {
+    constexpr DWORD kScreenMsgLayoutXOperand = 0x0089B6F8;
+    constexpr DWORD kMalformedScreenMsgResetYWrite = 0x0089B797;
+    constexpr DWORD kScreenMsgResetYOperand = 0x0089B798;
+    constexpr DWORD kScreenMsgResetXOperand = 0x0089BA04;
+    constexpr int kStockScreenMsgResetY = 600 - 166;
+    constexpr int kStockScreenMsgResetX = 800 - 300;
+
     bool BeginPatch(const DWORD address, const size_t size, DWORD& oldProtect) {
         if (size == 0) {
             return false;
@@ -52,6 +59,68 @@ namespace {
         *reinterpret_cast<T*>(address) = value;
         EndPatch(address, sizeof(T), oldProtect);
         return true;
+    }
+
+    bool ReadIntValue(const DWORD address, int& value) {
+        __try {
+            value = *reinterpret_cast<int*>(address);
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
+    }
+
+    bool HandleScreenMessageWrite(const DWORD address, const unsigned int value) {
+        if (address == kMalformedScreenMsgResetYWrite) {
+            // The inherited HD call points one byte before the real immediate and
+            // would corrupt the instruction before a later post-patch fix could run.
+            // Only redirect when the untouched v83 operand still has its stock value.
+            int currentResetY = 0;
+            if (!ReadIntValue(kScreenMsgResetYOperand, currentResetY) ||
+                currentResetY != kStockScreenMsgResetY) {
+                std::cout << "EverLeaf Client v2: skipped CUIScreenMsg reset-Y redirect; stock operand mismatch" << std::endl;
+                return true;
+            }
+
+            const int inheritedValue = static_cast<int>(value); // height - 18
+            const int inferredScreenHeight = inheritedValue + 18;
+            if (inferredScreenHeight < 600 || inferredScreenHeight > 2160) {
+                std::cout << "EverLeaf Client v2: skipped CUIScreenMsg reset-Y redirect; invalid inferred height" << std::endl;
+                return true;
+            }
+
+            const int correctedValue = inferredScreenHeight - 166;
+            WritePatchedValue(
+                kScreenMsgResetYOperand,
+                static_cast<unsigned int>(correctedValue)
+            );
+            std::cout << "EverLeaf Client v2: redirected CUIScreenMsg reset-Y to the correct immediate" << std::endl;
+            return true;
+        }
+
+        if (address == kScreenMsgLayoutXOperand) {
+            // Keep the active layout write, then mirror its final X coordinate into
+            // the separate MoveScrMsg/reset operand. Original MapleEzorsia patched
+            // both paths, and independent modern v83 work applies the same X
+            // translation to LayoutScrMsg and MoveScrMsg.
+            if (!WritePatchedValue(address, value)) {
+                return true;
+            }
+
+            int currentResetX = 0;
+            if (!ReadIntValue(kScreenMsgResetXOperand, currentResetX) ||
+                currentResetX != kStockScreenMsgResetX) {
+                std::cout << "EverLeaf Client v2: kept CUIScreenMsg layout-X but skipped reset-X; stock operand mismatch" << std::endl;
+                return true;
+            }
+
+            WritePatchedValue(kScreenMsgResetXOperand, value);
+            std::cout << "EverLeaf Client v2: synchronized CUIScreenMsg reset-X with layout-X" << std::endl;
+            return true;
+        }
+
+        return false;
     }
 
     // Apply EverLeaf client-side combat QoL only after the packed v83 client has
@@ -162,6 +231,9 @@ void Memory::WriteShort(const DWORD dwOriginAddress, const unsigned short usValu
 }
 
 void Memory::WriteInt(const DWORD dwOriginAddress, const unsigned int dwValue) {
+    if (HandleScreenMessageWrite(dwOriginAddress, dwValue)) {
+        return;
+    }
     WritePatchedValue(dwOriginAddress, dwValue);
 }
 
