@@ -1,0 +1,64 @@
+name: Client v2 early hooks guard
+
+on:
+  pull_request:
+    branches: [release-dev, master]
+    paths:
+      - "client/ezorsia/ezorsia/SafeEarlyHooks.h"
+      - "client/ezorsia/ezorsia/dllmain.cpp"
+      - ".github/workflows/client-v2-early-hooks-guard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  early-hook-contract:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify guarded Win32 and Winsock hook invariants
+        shell: pwsh
+        run: |
+          $safe = Get-Content "client/ezorsia/ezorsia/SafeEarlyHooks.h" -Raw
+          $bootstrap = Get-Content "client/ezorsia/ezorsia/dllmain.cpp" -Raw
+
+          foreach ($required in @(
+            'IS_INTRESOURCE(className)',
+            'lstrcmpA(className, expected)',
+            'IsLegacyLoginAddress',
+            'name->sa_family == AF_INET',
+            'redirected = *endpoint',
+            'forwardedName = reinterpret_cast<const sockaddr*>(&redirected)',
+            'WSPStartup error code: " << result',
+            'gHaveOriginalGameEndpoint',
+            'ZeroMemory(&gOriginalGameEndpoint',
+            'HookCreateWindowExA',
+            'HookWSPStartup'
+          )) {
+            if (-not $safe.Contains($required)) { throw "Missing safe early-hook invariant: $required" }
+          }
+
+          foreach ($forbidden in @(
+            'WSAAddressToString',
+            'strstr(szAddr',
+            '"WSPStartup Error Code: " +',
+            'strstr(lpClassName'
+          )) {
+            if ($safe.Contains($forbidden)) { throw "Unsafe inherited hook pattern leaked into SafeEarlyHooks.h: $forbidden" }
+          }
+
+          foreach ($required in @(
+            '#include "SafeEarlyHooks.h"',
+            'EverLeafEarlyHooks::HookWSPStartup',
+            'EverLeafEarlyHooks::HookCreateWindowExA'
+          )) {
+            if (-not $bootstrap.Contains($required)) { throw "Bootstrap is not using safe early hooks: $required" }
+          }
+
+          if ($bootstrap.Contains('InstallEarlyHook("WSPStartup", Hook_WSPStartup')) {
+            throw "Bootstrap re-enabled inherited unsafe WSPStartup hook"
+          }
+          if ($bootstrap.Contains('InstallEarlyHook("CreateWindowExA", Hook_CreateWindowExA')) {
+            throw "Bootstrap re-enabled inherited unsafe CreateWindowExA hook"
+          }
