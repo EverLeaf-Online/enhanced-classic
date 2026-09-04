@@ -61,9 +61,10 @@ module.exports = {
   },
 
   avatar: {
-    baseUrl: String(process.env.MAPLESTORY_IO_BASE_URL || "https://maplestory.io").replace(/\/$/, ""),
+    localBaseUrl: String(process.env.CHARACTER_WZ_RENDERER_URL || "http://127.0.0.1:3011").replace(/\/$/, ""),
+    remoteBaseUrl: String(process.env.MAPLESTORY_IO_BASE_URL || "").replace(/\/$/, ""),
     region: String(process.env.MAPLESTORY_IO_REGION || "GMS").replace(/[^A-Za-z]/g, "") || "GMS",
-    version: String(process.env.MAPLESTORY_IO_VERSION || "82").replace(/[^0-9A-Za-z.]/g, "") || "82",
+    version: String(process.env.MAPLESTORY_IO_VERSION || "83").replace(/[^0-9A-Za-z.]/g, "") || "83",
     cacheMs: Math.max(60_000, Number(process.env.CHARACTER_AVATAR_CACHE_MS || 300_000))
   },
 
