@@ -25,10 +25,10 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configure SSH
         shell: bash
@@ -103,12 +103,20 @@ jobs:
             set_env_var TRUST_PROXY "1"
             set_env_var COOKIE_SECURE "true"
             set_env_var CHANNEL_PORTS "7575,7576,7577,7578,7579,7580,7581,7582,7583,7584,7585,7586,7587,7588,7589,7590,7591,7592,7593,7594"
+            set_env_var CHARACTER_WZ_RENDERER_URL "http://127.0.0.1:3011"
+            # EverLeaf renders production portraits from its own v83 Character.wz.
+            # Keep the old public renderer disabled unless it is deliberately
+            # reintroduced as an emergency operator override.
+            set_env_var MAPLESTORY_IO_BASE_URL ""
+            set_env_var MAPLESTORY_IO_VERSION "83"
 
             if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
             npm run init-db
 
             sudo apt-get update -y
-            sudo apt-get install -y nginx certbot python3-certbot-nginx
+            sudo apt-get install -y nginx certbot python3-certbot-nginx python3-venv git
+            bash /opt/everleaf/web/scripts/install-wz-avatar-renderer.sh
+
             sudo install -m 644 /opt/everleaf/web/ops/nginx-everleaf.conf /etc/nginx/conf.d/everleaf.conf
             sudo install -m 644 /opt/everleaf/web/ops/everleaf-backup.service /etc/systemd/system/everleaf-backup.service
             sudo install -m 644 /opt/everleaf/web/ops/everleaf-backup.timer /etc/systemd/system/everleaf-backup.timer
@@ -140,6 +148,7 @@ jobs:
             sudo systemctl reload nginx
             sleep 2
             systemctl is-active --quiet everleaf-web
+            systemctl is-active --quiet everleaf-wz-avatar
             systemctl is-active --quiet nginx
             curl -fsS http://127.0.0.1:3000/ >/dev/null
             curl -fsS --resolve "$EVERLEAF_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_TLS_HOST/v1/launcher/status" >/dev/null
@@ -147,6 +156,26 @@ jobs:
             curl -fsS --resolve "$EVERLEAF_LEGACY_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_LEGACY_TLS_HOST/v1/launcher/status" >/dev/null
             STATUS_JSON="$(curl -fsS http://127.0.0.1:3000/api/status)"
             node -e 'const s=JSON.parse(process.argv[1]); if(s.totalChannels!==20) process.exit(1);' "$STATUS_JSON"
+
+            # Prove the rankings page is not merely returning a generic fallback:
+            # request a real character URL from the live MySQL-driven page and
+            # require the website proxy to report the local Character.wz source.
+            RANKINGS_HTML="$(curl -fsS http://127.0.0.1:3000/rankings)"
+            AVATAR_PATH="$(grep -oE 'data-live-avatar="/character-avatar/[0-9]+\.png\?job=[0-9]+"' <<<"$RANKINGS_HTML" | head -n1 | cut -d'"' -f2)"
+            test -n "$AVATAR_PATH"
+            AVATAR_HEADERS="$(mktemp)"
+            AVATAR_IMAGE="$(mktemp)"
+            curl -fsS --max-time 30 -D "$AVATAR_HEADERS" -o "$AVATAR_IMAGE" "http://127.0.0.1:3000$AVATAR_PATH"
+            grep -Eqi '^content-type:[[:space:]]*image/' "$AVATAR_HEADERS"
+            grep -Eqi '^x-everleaf-avatar-source:[[:space:]]*local-wz(-cache)?[[:space:]]*$' "$AVATAR_HEADERS"
+            python3 - "$AVATAR_IMAGE" <<'PY'
+            import pathlib, sys
+            data = pathlib.Path(sys.argv[1]).read_bytes()
+            if len(data) < 100 or data[:8] != b"\x89PNG\r\n\x1a\n":
+                raise SystemExit("live ranking avatar is not a valid PNG")
+            PY
+            rm -f "$AVATAR_HEADERS" "$AVATAR_IMAGE"
+
             # The bot token is deliberately kept out of the website .env.
             # Read the root-only credential installed for the Discord service
             # and fail the deployment if the live status message cannot sync.
@@ -155,7 +184,7 @@ jobs:
             sudo bash /opt/everleaf/web/scripts/backup-production.sh
             sudo systemctl is-enabled --quiet everleaf-backup.timer
             sudo systemctl is-active --quiet everleaf-backup.timer
-            echo 'EverLeaf web deployment and domain migration health checks passed.'
+            echo 'EverLeaf web deployment, local WZ avatars, and domain health checks passed.'
           REMOTE
 
       - name: Verify public HTTPS
