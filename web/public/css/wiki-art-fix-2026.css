@@ -1,0 +1,137 @@
+/* EverLeaf Wiki artwork regression fix — Sep 2026.
+   Keeps the app layout readable even when an external MapleStory asset is unavailable. */
+.route-wiki .wikiCatalogCard{
+  grid-template-columns:64px minmax(0,1fr) minmax(72px,auto)!important;
+  grid-template-rows:auto minmax(0,1fr)!important;
+  column-gap:14px!important;
+  row-gap:4px!important;
+  align-items:center!important;
+  overflow:hidden!important;
+}
+.route-wiki .wikiCatalogCard>.wikiCatalogIcon{
+  grid-column:1!important;
+  grid-row:1/3!important;
+  position:relative!important;
+  inset:auto!important;
+  margin:0!important;
+  transform:none!important;
+  align-self:center!important;
+  justify-self:start!important;
+  width:52px!important;
+  min-width:52px!important;
+  height:52px!important;
+}
+.route-wiki .wikiCatalogCard>.wikiCatalogCopy{
+  grid-column:2!important;
+  grid-row:1/3!important;
+  min-width:0!important;
+  width:auto!important;
+  margin:0!important;
+  padding:0!important;
+  position:static!important;
+  inset:auto!important;
+  transform:none!important;
+  overflow:hidden!important;
+}
+.route-wiki .wikiCatalogCard>.wikiCatalogCopy h3,
+.route-wiki .wikiCatalogCard>.wikiCatalogCopy p,
+.route-wiki .wikiCatalogCard>.wikiCatalogCopy small{
+  max-width:100%!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+.route-wiki .wikiCatalogCard>strong{
+  grid-column:3!important;
+  grid-row:1!important;
+  align-self:start!important;
+  justify-self:end!important;
+  margin:0!important;
+  min-width:0!important;
+}
+.route-wiki .wikiCatalogCard>b{
+  grid-column:3!important;
+  grid-row:2!important;
+  align-self:end!important;
+  justify-self:end!important;
+  margin:0!important;
+}
+.route-wiki .wikiMapleAsset{
+  isolation:isolate!important;
+  flex:0 0 auto!important;
+}
+.route-wiki .wikiMapleAsset img{
+  display:block!important;
+  position:relative!important;
+  z-index:2!important;
+  min-width:0!important;
+  min-height:0!important;
+  max-width:88%!important;
+  max-height:88%!important;
+  object-fit:contain!important;
+  margin:auto!important;
+}
+.route-wiki .wikiMapleAsset img[hidden],
+.route-wiki .wikiMapleAsset.is-missing img{display:none!important}
+.route-wiki .wikiMapleAsset:after{
+  position:absolute!important;
+  inset:0!important;
+  z-index:1!important;
+  display:grid!important;
+  place-items:center!important;
+  pointer-events:none!important;
+  content:""!important;
+}
+.route-wiki .wikiMapleAsset.is-missing:after,
+.route-wiki .wikiMapleAsset:not(:has(img)):after{
+  content:attr(data-fallback)!important;
+  font:700 11px/1 ui-monospace,SFMono-Regular,Consolas,monospace!important;
+  letter-spacing:.08em!important;
+  color:#6e9874!important;
+}
+.route-wiki .wikiDataResult{
+  grid-template-columns:52px minmax(0,1fr) 18px!important;
+  align-items:center!important;
+  overflow:hidden!important;
+}
+.route-wiki .wikiDataResult>.wikiDataResultIcon{
+  grid-column:1!important;
+  position:relative!important;
+  inset:auto!important;
+  margin:0!important;
+  transform:none!important;
+}
+.route-wiki .wikiDataResult>div{min-width:0!important;overflow:hidden!important}
+.route-wiki .wikiEntityIdentity{
+  grid-template-columns:96px minmax(0,1fr)!important;
+  align-items:center!important;
+  overflow:hidden!important;
+}
+.route-wiki .wikiEntityIdentity>.wikiEntityGlyph{
+  grid-column:1!important;
+  position:relative!important;
+  inset:auto!important;
+  margin:0!important;
+  transform:none!important;
+  justify-self:start!important;
+}
+.route-wiki .wikiEntityIdentity>.wikiEntityCopy{
+  grid-column:2!important;
+  min-width:0!important;
+  margin:0!important;
+  padding:0!important;
+  position:static!important;
+  inset:auto!important;
+  transform:none!important;
+  overflow:hidden!important;
+}
+.route-wiki .wikiEntityCopy h1{
+  max-width:100%!important;
+  overflow-wrap:anywhere!important;
+}
+.route-wiki .wikiListAsset{position:relative!important;margin:0 auto!important}
+.route-wiki .wikiArtColumn{padding-left:10px!important;padding-right:10px!important;text-align:center!important}
+@media(max-width:620px){
+  .route-wiki .wikiCatalogCard{grid-template-columns:54px minmax(0,1fr) minmax(58px,auto)!important;padding:12px!important}
+  .route-wiki .wikiCatalogCard>.wikiCatalogIcon{width:44px!important;min-width:44px!important;height:44px!important}
+  .route-wiki .wikiEntityIdentity{grid-template-columns:70px minmax(0,1fr)!important}
+}
