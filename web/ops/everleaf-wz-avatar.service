@@ -1,0 +1,21 @@
+[Unit]
+Description=EverLeaf local v83 WZ character renderer
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/everleaf/patches/files/Character.wz
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/everleaf/wz-python
+ExecStart=/opt/everleaf/wz-python/.venv/bin/python /opt/everleaf/wz-python/run.py /opt/everleaf/patches/files/Character.wz --region GMS --version 83 --host 127.0.0.1 --port 3011
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadOnlyPaths=/opt/everleaf/patches/files/Character.wz
+
+[Install]
+WantedBy=multi-user.target
