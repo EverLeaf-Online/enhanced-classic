@@ -12,5 +12,6 @@ test('production verification requires a non-empty live data Wiki',()=>{
   assert.match(workflow,/Server data unavailable/);
   assert.match(workflow,/\/wiki\/items/);
   assert.match(workflow,/\/wiki\/monsters/);
-  assert.match(workflow,/indexed records/);
+  assert.match(workflow,/Cleaned live catalog/);
+  assert.match(workflow,/player-useful records/);
 });
