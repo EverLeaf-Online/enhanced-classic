@@ -92,8 +92,8 @@ inline INT WSPAPI WSPConnect_Hook(
     sockaddr_in redirected = {};
     bool redirectedLogin = false;
 
-    // Do not mutate the caller-owned const sockaddr and do not depend on
-    // WSAAddressToStringA/scratch-buffer success just to identify three IPv4s.
+    // Do not mutate the caller-owned const sockaddr and do not depend on text
+    // conversion or a scratch buffer just to identify three fixed IPv4 endpoints.
     if (name && namelen >= static_cast<int>(sizeof(sockaddr_in)) &&
         name->sa_family == AF_INET) {
         const sockaddr_in* endpoint = reinterpret_cast<const sockaddr_in*>(name);
