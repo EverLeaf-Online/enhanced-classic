@@ -7,45 +7,44 @@ const root = path.join(__dirname,"..");
 const read = file => fs.readFileSync(path.join(root,file),"utf8");
 const header = read("src/views/partials/header.ejs");
 const home = read("src/views/home.ejs");
-const portal = read("public/css/game-portal-2026.css");
+const siteJs = read("public/js/site.js");
+const unified = read("public/css/unified-terminal-2026.css");
 const refero = read("public/css/refero-everleaf-2026.css");
 
-test("EverLeaf keeps the existing portal foundation beneath the final terminal layer",()=>{
-  assert.match(header,/game-portal-2026\.css\?v=1/);
-  assert.match(header,/full-site-portal-2026\.css\?v=1/);
-  assert.match(header,/refero-everleaf-2026\.css\?v=2/);
-  assert.match(header,/route-<%=routeKey%>/);
-  assert.match(header,/route-admin/);
-  assert.ok(header.indexOf("game-portal-2026.css") > header.indexOf("visuals-2026.css"));
-  assert.ok(header.indexOf("refero-everleaf-2026.css") > header.indexOf("full-site-portal-2026.css"));
+test("EverLeaf no longer loads or injects the legacy split portal shells",()=>{
+  assert.doesNotMatch(header,/game-portal-2026\.css/);
+  assert.doesNotMatch(header,/full-site-portal-2026\.css/);
+  assert.doesNotMatch(header,/visuals-2026\.css/);
+  assert.doesNotMatch(siteJs,/full-site-portal-2026\.css/);
+  assert.doesNotMatch(siteJs,/data-everleaf-full-site-portal/);
+  assert.match(header,/refero-everleaf-2026\.css\?v=3/);
+  assert.match(header,/unified-terminal-2026\.css\?v=1/);
+  assert.match(header,/body class="siteRoute route-<%=routeKey%>/);
 });
 
-test("home portal uses local EverLeaf artwork inside the new terminal composition",()=>{
+test("home portal uses local EverLeaf artwork inside the terminal composition",()=>{
   assert.match(home,/\/assets\/hero-left\.webp/);
   assert.match(home,/\/assets\/hero-right\.webp/);
   assert.match(home,/terminalHero/);
   assert.match(home,/everleafArtifact/);
   assert.match(home,/heroTelemetry/);
   assert.match(home,/signalStrip/);
-  assert.match(home,/classMatrix/);
   assert.match(refero,/\.terminalHero\{/);
   assert.match(refero,/\.everleafArtifact\{/);
-  assert.match(refero,/\.terminalNav\{/);
+  assert.match(unified,/One header, every route/);
 });
 
-test("portal styling remains original to EverLeaf and does not depend on foreign assets",()=>{
-  for (const foreignToken of ["BeyondMS","beyond-ms.com","hero-world-day","landing-world-day","clouds-footer.png"]) {
-    assert.doesNotMatch(portal,new RegExp(foreignToken,"i"));
-    assert.doesNotMatch(refero,new RegExp(foreignToken,"i"));
-    assert.doesNotMatch(header,new RegExp(foreignToken,"i"));
-  }
-  assert.doesNotMatch(refero,/https?:\/\//i);
-  assert.doesNotMatch(refero,/@import/i);
+test("removed homepage areas stay removed",()=>{
+  assert.doesNotMatch(home,/CHOOSE YOUR SIGNAL/i);
+  assert.doesNotMatch(home,/classMatrix/);
+  assert.doesNotMatch(home,/KNOW THE WORLD/i);
+  assert.doesNotMatch(home,/wikiSignalSection/);
 });
 
-test("terminal portal includes responsive and reduced-motion behavior",()=>{
-  assert.match(refero,/@media \(max-width:960px\)/);
-  assert.match(refero,/@media \(max-width:640px\)/);
-  assert.match(refero,/@media \(prefers-reduced-motion:no-preference\)/);
-  assert.match(refero,/prefers-reduced-motion/);
+test("unified shell explicitly suppresses legacy ribbon decorations",()=>{
+  assert.match(unified,/legacy scallop\/ribbon\/cloud decoration/i);
+  assert.match(unified,/body\.siteRoute \.nav::after/);
+  assert.match(unified,/body\.siteRoute \.lightTitle::after/);
+  assert.match(unified,/@media\(max-width:960px\)/);
+  assert.match(unified,/@media\(max-width:640px\)/);
 });
