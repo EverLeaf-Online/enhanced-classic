@@ -1,4 +1,4 @@
-# Retry marker: allow inline config comments in contract audit
+# Retry marker: materialize non-workflow production contract files only
 name: Materialize EverLeaf production contract
 
 on:
@@ -19,7 +19,7 @@ jobs:
           ref: fix/production-contract-v2-20260904
       - name: Materialize authoritative runtime defaults
         run: python3 tools/apply_everleaf_config.py
-      - name: Normalize Docker, docs, and CI contract
+      - name: Normalize Docker, docs, and contract audit
         shell: bash
         run: |
           python3 - <<'PY'
@@ -48,15 +48,6 @@ jobs:
           Path('docs/PRODUCTION_CONTRACT.md').write_text('''# EverLeaf Production Contract\n\nThis is the authoritative non-Empress production baseline. A checked-in release must already satisfy it; deployment transforms are validators/legacy normalizers, not a second source of truth.\n\n## Runtime\n- MapleStory protocol/client: **v83**\n- Primary world: **20 channels**\n- Login: **8484**\n- Channels: **7575-7594**\n- Public channel handoff host: **132.145.141.79**\n- Level cap: **250**\n\n## Rates\n- EXP: **5x**\n- Meso: **3x**\n- Drop: **2x**\n- Boss drop: **2x**\n- Quest: **1x**\n- Fishing: **2x**\n- Travel: **2x**\n\n## Account / economy guardrails\n- Automatic in-game registration: **disabled**\n- Supply rate coupons: **disabled**\n- Website registration is authoritative\n- Non-P2W policy remains authoritative\n\n## Scope\nEmpress/Future Henesys and `Community-files` remain excluded. Protected WZ modernization branches remain separate.\n''')
 
           Path('tools/audit_production_contract.py').write_text('''#!/usr/bin/env python3\nfrom pathlib import Path\nimport re\nconfig=Path("config.yaml").read_text(encoding="utf-8-sig")\nworlds=config.split("worlds:",1)[1].split("\\nserver:",1)[0]\nfirst=worlds.split("\\n  - flag:",2)[1]\nrequired={"channels":"20","exp_rate":"5","meso_rate":"3","drop_rate":"2","boss_drop_rate":"2","quest_rate":"1","fishing_rate":"2","travel_rate":"2"}\nfor key,value in required.items():\n    if not re.search(rf"(?m)^\\s*{key}:\\s*{re.escape(value)}\\s*(?:#.*)?$", first):\n        raise SystemExit(f"production contract mismatch: {key} != {value}")\nfor pattern,label in ((r"(?m)^\\s*HOST:\\s*132\\.145\\.141\\.79\\s*(?:#.*)?$","HOST"),(r"(?m)^\\s*AUTOMATIC_REGISTER:\\s*false\\s*(?:#.*)?$","automatic registration"),(r"(?m)^\\s*USE_SUPPLY_RATE_COUPONS:\\s*false\\s*(?:#.*)?$","rate coupons")):\n    if not re.search(pattern,config): raise SystemExit(f"production contract mismatch: {label}")\nif "7575-7594:7575-7594" not in Path("docker-compose.yml").read_text(): raise SystemExit("production contract mismatch: Docker channel exposure")\ncontract=Path("docs/PRODUCTION_CONTRACT.md").read_text()\nfor marker in ("20 channels","5x","3x","2x","1x","132.145.141.79"):\n    if marker not in contract: raise SystemExit(f"production contract document missing {marker}")\nprint("EverLeaf production contract: PASS")\n''')
-
-          run=Path('.github/workflows/run-build.yml')
-          text=run.read_text()
-          marker='      - name: Audit economy and NX drops\n'
-          addition='      - name: Audit production contract\n        run: python3 tools/audit_production_contract.py\n'
-          if addition not in text:
-              if marker not in text: raise SystemExit('run-build insertion marker missing')
-              text=text.replace(marker,addition+marker,1)
-          run.write_text(text)
           PY
       - name: Verify contract and normalizer idempotency
         run: |
@@ -65,10 +56,10 @@ jobs:
           python3 tools/apply_everleaf_config.py
           after="$(sha256sum config.yaml | cut -d' ' -f1)"
           test "$before" = "$after"
-      - name: Commit canonical contract
+      - name: Commit canonical non-workflow contract files
         run: |
           git config user.name everleaf-release-bot
           git config user.email 173628847+iampolicy@users.noreply.github.com
-          git add config.yaml docker-compose.yml docs/DEPLOYMENT_CHECKLIST.md docs/EVERLEAF_MASTER_CHECKLIST.md docs/PRODUCTION_CONTRACT.md tools/audit_production_contract.py .github/workflows/run-build.yml
+          git add config.yaml docker-compose.yml docs/DEPLOYMENT_CHECKLIST.md docs/EVERLEAF_MASTER_CHECKLIST.md docs/PRODUCTION_CONTRACT.md tools/audit_production_contract.py
           git commit -m 'config: make production channel and rate contract authoritative' || exit 0
           git push origin HEAD:fix/production-contract-v2-20260904
