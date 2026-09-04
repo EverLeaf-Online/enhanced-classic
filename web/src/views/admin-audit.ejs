@@ -1,1 +1,16 @@
-<%- include("partials/header",{title:"CMS Audit Log"}) %><main class="lightPage"><section class="lightTitle"><div class="wrap"><div class="pageEyebrow">CMS Workspace</div><h1>Admin Activity</h1><p>Review website management actions and recent CMS changes.</p></div></section><%- include("partials/admin-manager-nav") %><div class="cmsWorkspaceSingle"><section class="cmsPanel"><div class="cmsManagerTitle"><h2>Audit Log</h2><p><%=total%> recorded action<%=total===1?'':'s'%>.</p></div><% rows.forEach(entry=>{ %><div class="cmsItem"><div><strong><%=entry.action%></strong><div class="cmsMeta"><%=entry.admin_name||'system/admin'%><%=entry.details?' · '+entry.details:''%></div></div><span class="cmsMeta"><%=entry.created_at%></span></div><% }) %><% if(!rows.length){ %><p class="muted">No recorded admin actions yet.</p><% } %><% if(totalPages>1){ %><div class="pagination"><% for(let p=Math.max(1,currentPage-2);p<=Math.min(totalPages,currentPage+2);p++){ %><a class="pageBtn <%=p===currentPage?'active':''%>" href="/admin/audit?page=<%=p%>"><%=p%></a><% } %></div><% } %></section></div></main><%- include("partials/footer") %>
+<%- include("partials/header",{title:"CMS Audit Log"}) %>
+<main class="lightPage">
+  <section class="lightTitle"><div class="wrap"><div class="pageEyebrow">CMS://AUDIT STREAM</div><h1>STAFF<br>ACTIVITY.</h1><p>Review website management actions and recent CMS changes.</p></div></section>
+  <%- include("partials/admin-manager-nav") %>
+  <div class="cmsWorkspaceSingle">
+    <section class="cmsPanel">
+      <div class="cmsManagerTitle"><h2>AUDIT LOG</h2><p><%=total%> recorded action<%=total===1?'':'s'%>.</p></div>
+      <div class="terminalLogRows">
+        <% rows.forEach(entry=>{ %><div class="terminalLogRow"><span class="terminalLogDate"><%=entry.created_at%></span><span class="terminalLogType"><%=entry.admin_name||'SYSTEM'%></span><strong class="terminalLogTitle"><%=entry.action%></strong><span class="terminalLogExcerpt"><%=entry.details||'No additional details'%></span><span>·</span></div><% }) %>
+        <% if(!rows.length){ %><div class="terminalLogRow"><span class="terminalLogDate">NO DATA</span><span class="terminalLogType">IDLE</span><strong class="terminalLogTitle">No recorded admin actions.</strong><span class="terminalLogExcerpt">New CMS activity will appear here.</span><span>—</span></div><% } %>
+      </div>
+      <% if(totalPages>1){ %><div class="pagination"><% for(let p=Math.max(1,currentPage-2);p<=Math.min(totalPages,currentPage+2);p++){ %><a class="pageBtn <%=p===currentPage?'active':''%>" href="/admin/audit?page=<%=p%>"><%=p%></a><% } %></div><% } %>
+    </section>
+  </div>
+</main>
+<%- include("partials/footer") %>
