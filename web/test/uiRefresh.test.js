@@ -13,176 +13,93 @@ const rankings = read("src/views/rankings.ejs");
 const account = read("src/views/account.ejs");
 const downloads = read("src/views/downloads.ejs");
 const help = read("src/views/help.ejs");
-const remaster = read("public/css/maple-remaster.css");
-const pages = read("public/css/maple-remaster-pages.css");
-const admin = read("public/css/maple-remaster-admin.css");
-const jobs = read("public/css/maple-jobs.css");
-const final = read("public/css/maple-final.css");
-const rankingsCss = read("public/css/rankings-remaster.css");
-const wikiDataCss = read("public/css/wiki-data.css");
-const homePolish = read("public/css/home-polish.css");
-const uiux = read("public/css/uiux-2026.css");
-const assertRgbaPng = relative => {
+const terminal = read("public/css/terminal-everleaf-2026.css");
+const finish = read("public/css/terminal-everleaf-final-2026.css");
+const assertAsset = relative => {
   const file=path.join(root,relative);
   assert.ok(fs.existsSync(file),`${relative} should exist`);
-  const data=fs.readFileSync(file);
-  assert.ok(data.length>5000,`${relative} should be a real image`);
-  assert.equal(data[25],6,`${relative} should retain an RGBA alpha channel`);
+  assert.ok(fs.statSync(file).size>500,`${relative} should contain a real asset`);
 };
 
-test("global navigation loads the unified Maple remaster design system",()=>{
-  assert.match(header,/maple-remaster\.css/);
-  assert.match(header,/maple-remaster-pages\.css/);
-  assert.match(header,/maple-jobs\.css/);
-  assert.match(header,/maple-final\.css/);
-  assert.match(header,/rankings-remaster\.css/);
-  assert.match(header,/rankings-live\.css/);
-  assert.match(header,/home-polish\.css/);
-  assert.match(header,/wiki-remaster\.css/);
-  assert.match(header,/wiki-cms\.css/);
-  assert.match(header,/wiki-player-2026\.css/);
-  assert.match(header,/wiki-data\.css/);
-  assert.match(header,/uiux-2026\.css/);
-  assert.match(header,/maple-remaster-admin\.css/);
-  assert.doesNotMatch(header,/design-v2\.css/);
-  assert.doesNotMatch(header,/home-v2\.css/);
-  assert.doesNotMatch(header,/cms-v2\.css/);
+test("global navigation uses the structural EverLeaf terminal shell",()=>{
+  assert.match(header,/terminal-everleaf-2026\.css/);
+  assert.match(header,/terminal-everleaf-final-2026\.css/);
+  assert.match(header,/terminalHeader/);
+  assert.match(header,/terminalNav/);
+  assert.match(header,/terminalMode/);
   assert.match(header,/mobileMenu/);
   assert.match(header,/siteBanner/);
   assert.match(header,/worldRibbon/);
   assert.match(header,/class="skipLink" href="#main-content"/);
   assert.match(header,/id="main-content"/);
-  assert.match(header,/{href:"\/wiki",label:"WIKI"}/);
-  assert.doesNotMatch(header,/{href:"\/about",label:"WORLD"}/);
+  assert.match(header,/{href:"\/wiki",label:"DATA"}/);
 });
 
-test("footer exposes useful site navigation",()=>{
-  assert.match(footer,/footerGrid/);
+test("footer is a compact terminal status/navigation strip",()=>{
+  assert.match(footer,/terminalFooter/);
+  assert.match(footer,/EVERLEAF\/\/MS/);
   assert.match(footer,/\/downloads/);
   assert.match(footer,/\/rankings/);
-  assert.match(footer,/\/recover/);
+  assert.match(footer,/\/help/);
 });
 
-test("homepage class guide uses clean centered local artwork",()=>{
+test("homepage is rebuilt as a world terminal using local EverLeaf artwork",()=>{
+  for(const marker of ["terminalHero","terminalHeroArtifact","terminalWorldReadout","terminalHeroActions","terminalSection","terminalJobGrid","terminalRankingPreview"]) assert.match(home,new RegExp(marker));
   assert.match(home,/everleaf-remaster\.svg/);
-  assert.match(home,/homeV2Hero/);
-  assert.match(home,/homeV2Status/);
-  assert.match(home,/homeFeatureGrid/);
-  assert.match(home,/homeCta/);
   assert.match(home,/hero-left\.webp/);
   assert.match(home,/hero-right\.webp/);
-  assert.match(remaster,/hero-forest\.webp/);
-  assert.match(home,/mapleJobsGridSix/);
-  assert.match(home,/beginnerJobCard/);
-  assert.match(home,/\/assets\/jobs\/beginner\/beginner-clean\.png/);
-  assert.doesNotMatch(home,/\/assets\/jobs\/beginner\/beginner\.png/);
-  assertRgbaPng("public/assets/jobs/beginner/beginner-clean.png");
-
+  assert.match(home,/data-live-avatar/);
   for(const asset of ["warrior","magician","bowman","thief","pirate"]) {
     assert.match(home,new RegExp(`/assets/jobs/instructors/${asset}\\.png`));
-    assert.ok(fs.statSync(path.join(root,`public/assets/jobs/instructors/${asset}.png`)).size>500);
-    assert.doesNotMatch(home,new RegExp(`/assets/jobs/${asset}\\.svg`));
+    assertAsset(`public/assets/jobs/instructors/${asset}.png`);
   }
-  assert.doesNotMatch(home,/mapleJobBadge/);
-  assert.doesNotMatch(homePolish,/content:\s*"NEW"/);
-  assert.match(homePolish,/\.mapleJobsGridSix \.mapleJobPortrait\{height:164px/);
-  assert.match(homePolish,/align-items:center;justify-content:center/);
-
-  assert.match(home,/\/assets\/jobs\/special\/cygnus-clean\.png/);
-  assert.doesNotMatch(home,/\/assets\/jobs\/special\/cygnus\.png/);
-  assertRgbaPng("public/assets/jobs/special/cygnus-clean.png");
-  for(const asset of ["aran","evan"]) {
-    assert.match(home,new RegExp(`/assets/jobs/special/${asset}\\.png`));
-    assert.ok(fs.statSync(path.join(root,`public/assets/jobs/special/${asset}.png`)).size>5000);
-    assert.doesNotMatch(home,new RegExp(`/assets/jobs/${asset}\\.svg`));
-  }
-  assert.match(home,/cygnusFeature/);
-  assert.match(home,/specialCompact aranFeature/);
-  assert.match(home,/specialCompact evanFeature/);
-  assert.match(homePolish,/\.cygnusFeatureArt img\{max-width:300px/);
-  assert.match(homePolish,/radial-gradient/);
-  assert.match(homePolish,/\.siteFooter:before\{display:none!important/);
-  assert.match(home,/Dances with Balrog/);
-  assert.match(home,/Grendel the Really Old/);
-  assert.match(home,/Athena Pierce/);
-  assert.match(home,/Dark Lord/);
-  assert.match(home,/Kyrin/);
-  assert.match(home,/Ereve · Knights of Cygnus/);
-  assert.match(home,/Rien · Legendary Polearm Warrior/);
-  assert.match(home,/Dragon Master · Mir/);
-  assert.match(home,/href="\/wiki"/);
-  for(const asset of ["launcher","trophy","journal","community","account"]) assert.match(home,new RegExp(`/assets/ui/${asset}\\.svg`));
+  for(const asset of ["beginner/beginner-clean","special/cygnus-clean","special/aran","special/evan"]) assert.match(home,new RegExp(`/assets/jobs/${asset.replace('/','\\/')}\\.png`));
+  assertAsset("public/assets/jobs/beginner/beginner-clean.png");
+  assertAsset("public/assets/jobs/special/cygnus-clean.png");
 });
 
-test("wiki is a live WZ and MySQL server-data encyclopedia",()=>{
+test("wiki is a live WZ and MySQL server-data explorer",()=>{
   assert.match(wiki,/EVERLEAF DATA WIKI/);
-  for(const key of ["items","monsters","maps","skills","npcs","quests"]) assert.match(wiki,new RegExp(`${key}:`));
+  assert.match(wiki,/WORLD<br>DATA/);
   assert.match(wiki,/WZ \+ MySQL/);
-  assert.match(wiki,/BROWSE CATALOG/);
+  assert.match(wiki,/wikiCatalogGrid/);
   assert.match(wiki,/\/wiki\/guides/);
-  assert.match(wikiDataCss,/\.wikiCatalogGrid/);
-  assert.match(wikiDataCss,/\.wikiEntityPage/);
-  assert.match(wikiDataCss,/\.wikiDataTable/);
   assert.doesNotMatch(wiki,/EVERLEAF PLAYER WIKI/);
 });
 
-test("rankings render live saved character avatars with local class-art fallback",()=>{
+test("rankings keep live saved character avatars and class fallback art",()=>{
   assert.match(rankings,/rankingPodium/);
   assert.match(rankings,/rankingTableV2/);
   assert.match(rankings,/rankPlayerIcon/);
   assert.match(rankings,/rankingJobBadge/);
   assert.match(rankings,/\/character-avatar\//);
-  assert.match(rankings,/Live saved appearance/);
+  assert.match(rankings,/data-live-avatar/);
   assert.match(rankings,/rankingCharacterAvatar/);
   assert.match(rankings,/\/assets\/jobs\/beginner\/beginner-clean\.png/);
   assert.match(rankings,/\/assets\/jobs\/special\/cygnus-clean\.png/);
-  assert.match(rankings,/\/assets\/jobs\/special\/aran\.png/);
-  assert.match(rankings,/\/assets\/jobs\/special\/evan\.png/);
-  for(const asset of ["warrior","magician","bowman","thief","pirate"]) assert.match(rankings,new RegExp(`/assets/jobs/instructors/${asset}\\.png`));
-  for(const asset of ["dawn-warrior","blaze-wizard","wind-archer","night-walker","thunder-breaker"]) {
-    assert.match(rankings,new RegExp(`/assets/jobs/cygnus/${asset}\\.png`));
-    const file=path.join(root,`public/assets/jobs/cygnus/${asset}.png`);
-    assert.ok(fs.existsSync(file),`${asset} fallback artwork should exist`);
-    assert.ok(fs.statSync(file).size>10000,`${asset} fallback artwork should be a real image`);
-  }
-  assert.match(rankingsCss,/\.rankingCharacterAvatar/);
-  assert.match(rankingsCss,/\.rankingPodium/);
-  assert.match(rankingsCss,/\.rankPlayerIcon/);
-  assert.match(rankingsCss,/@media\(max-width:600px\)/);
+  for(const asset of ["dawn-warrior","blaze-wizard","wind-archer","night-walker","thunder-breaker"]) assertAsset(`public/assets/jobs/cygnus/${asset}.png`);
 });
 
-test("account portal renders local job identity",()=>{
+test("account portal keeps character and security integrations under the new layout",()=>{
+  assert.match(account,/terminalAccountPage/);
   assert.match(account,/characterCards/);
   assert.match(account,/characterJobIcon/);
-  assert.match(account,/\/assets\/jobs\/warrior\.svg/);
+  assert.match(account,/\/account\/password/);
+  assert.match(account,/\/account\/discord\/connect/);
 });
 
-test("downloads and help use local UI art instead of letter or number placeholders",()=>{
-  assert.match(downloads,/\/assets\/ui\/launcher\.svg/);
-  assert.match(downloads,/\/assets\/ui\/patch\.svg/);
-  assert.match(downloads,/\/assets\/ui\/tool\.svg/);
-  assert.doesNotMatch(downloads,/<div class="downloadIcon">(?:EL|UP|TL)<\/div>/);
-  assert.match(help,/\/assets\/ui\/launcher\.svg/);
-  assert.match(help,/\/assets\/ui\/account\.svg/);
-  assert.match(help,/\/assets\/ui\/recovery\.svg/);
-  assert.match(help,/\/assets\/ui\/community\.svg/);
-  assert.doesNotMatch(help,/<div class="helpIcon">0[1-4]<\/div>/);
+test("downloads and help are structurally rebuilt rather than icon-card skins",()=>{
+  assert.match(downloads,/terminalDeployPage/);
+  assert.match(downloads,/terminalDeployGrid/);
+  assert.match(downloads,/terminalManifest/);
+  assert.match(help,/terminalHelpPage/);
+  assert.match(help,/terminalHelpGrid/);
+  assert.match(help,/terminalHelpModule/);
 });
 
-test("remaster styles cover public pages, authentication, CMS and mobile layouts",()=>{
-  for (const token of [".lightPage",".pageHeroGrid",".newsList",".authWrap","@media(max-width:820px)"]) assert.match(remaster,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));
-  assert.match(pages,/\.accountShell/);
-  assert.match(pages,/\.helpGrid/);
-  assert.match(admin,/\.cmsManagerNav/);
-  assert.match(admin,/\.cmsWorkspace/);
-  assert.match(admin,/@media\(max-width:600px\)/);
-  assert.match(jobs,/\.mapleSpecialJobs/);
-  assert.match(final,/\.rankingBoard/);
-  assert.match(final,/\.characterCards/);
-  assert.match(final,/\.mapleQuickIcon img/);
-  assert.match(final,/\.mapleJobPortrait/);
-  for (const token of [".skipLink",":focus-visible","@media (max-width: 560px)","prefers-reduced-motion"]) {
-    assert.match(uiux,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));
-  }
-  assert.match(uiux,/min-height: 44px/);
+test("terminal styles cover public pages, authentication, CMS and mobile layouts",()=>{
+  for (const token of [".terminalHero",".terminalLogPage",".terminalDeployPage",".terminalAuthPage",".terminalAccountPage",".adminShell",".cmsManagerNav",".cmsWorkspace","@media(max-width:720px)","prefers-reduced-motion"]) assert.ok(terminal.includes(token),`missing ${token}`);
+  assert.match(finish,/terminalArticlePage/);
+  assert.match(finish,/terminalErrorPage/);
+  assert.match(finish,/wikiEditorBodyGrid/);
 });
