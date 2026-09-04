@@ -217,7 +217,7 @@ public sealed class PatchService : IDisposable
     {
         var temporary = destination + ".everleaf-new";
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-        TryDelete(temporary);
+        RemoveStaleDownload(temporary);
 
         try
         {
@@ -392,13 +392,18 @@ public sealed class PatchService : IDisposable
             File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);
     }
 
+    internal static void RemoveStaleDownload(string path)
+    {
+        if (!File.Exists(path)) return;
+        MakeWritable(path);
+        File.Delete(path);
+    }
+
     private static void TryDelete(string path)
     {
         try
         {
-            if (!File.Exists(path)) return;
-            MakeWritable(path);
-            File.Delete(path);
+            RemoveStaleDownload(path);
         }
         catch { }
     }
