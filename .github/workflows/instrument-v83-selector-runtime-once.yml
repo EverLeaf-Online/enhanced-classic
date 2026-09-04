@@ -1,0 +1,50 @@
+name: Instrument unpacked v83 selector routing once
+
+on:
+  push:
+    branches: [feature/client-job-selector-modernization-20260904]
+    paths: ['.github/workflows/instrument-v83-selector-runtime-once.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/client-job-selector-modernization-20260904
+      - name: Add temporary runtime byte dump
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('client/ezorsia/ezorsia/Client.cpp')
+          b=p.read_bytes()
+          needle=b'void Client::UpdateGameStartup() {'
+          if b'EVERLEAF_SELECTOR_RUNTIME_DUMP' in b:
+              raise SystemExit('instrumentation already present')
+          insert=(b"void Client::UpdateGameStartup() {\r\n"
+                  b"\r\n\t// EVERLEAF_SELECTOR_RUNTIME_DUMP: temporary, removed after deriving the Evan selector hook.\r\n"
+                  b"\tFILE* selectorDump = fopen(\"everleaf-selector-runtime.txt\", \"w\");\r\n"
+                  b"\tif (selectorDump) {\r\n"
+                  b"\t\tconst unsigned char* selectorBytes = reinterpret_cast<const unsigned char*>(0x005F4F20);\r\n"
+                  b"\t\tfor (int i = 0; i < 0x1E0; ++i) {\r\n"
+                  b"\t\t\tif ((i % 16) == 0) fprintf(selectorDump, \"\\n%08X: \", 0x005F4F20 + i);\r\n"
+                  b"\t\t\tfprintf(selectorDump, \"%02X \", selectorBytes[i]);\r\n"
+                  b"\t\t}\r\n"
+                  b"\t\tfprintf(selectorDump, \"\\n\");\r\n"
+                  b"\t\tfclose(selectorDump);\r\n"
+                  b"\t}\r\n")
+          if needle not in b: raise SystemExit('UpdateGameStartup anchor missing')
+          b=b.replace(needle,insert,1)
+          p.write_bytes(b)
+          PY
+          git diff --check -- client/ezorsia/ezorsia/Client.cpp
+          git config user.name everleaf-client-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add client/ezorsia/ezorsia/Client.cpp
+          git commit -m 'client: dump unpacked selector routing once'
+          git pull --rebase origin feature/client-job-selector-modernization-20260904
+          git push origin HEAD:feature/client-job-selector-modernization-20260904
