@@ -13,7 +13,7 @@
     </aside>
   </header>
 
-  <section aria-label="EverLeaf news entries" class="terminalLogRows">
+  <section aria-label="EverLeaf news entries" class="terminalLogRows newsList">
     <% posts.forEach((p,i)=>{ %>
       <a class="terminalLogRow" href="/news/<%=p.slug%>">
         <span class="terminalLogDate"><%=String(p.created_at).slice(0,10)%></span>
