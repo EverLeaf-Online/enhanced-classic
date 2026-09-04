@@ -86,24 +86,24 @@ jobs:
             [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
             [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
             [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd,out RECT rect);
-            [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd,out uint pid);
+            [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd,out uint processId);
           }
           '@
           function Get-EverLeafWindows {
-            $pids=@(Get-Process -Name EverLeaf -ErrorAction SilentlyContinue | ForEach-Object {[uint32]$_.Id})
+            $processIds=@(Get-Process -Name EverLeaf -ErrorAction SilentlyContinue | ForEach-Object {[uint32]$_.Id})
             $found=New-Object System.Collections.Generic.List[object]
-            if($pids.Count -eq 0){ return @() }
+            if($processIds.Count -eq 0){ return @() }
             $callback=[EverLeafWin32+EnumWindowsProc]{
               param([IntPtr]$hWnd,[IntPtr]$lParam)
               if(-not [EverLeafWin32]::IsWindowVisible($hWnd)){ return $true }
-              [uint32]$pid=0
-              [void][EverLeafWin32]::GetWindowThreadProcessId($hWnd,[ref]$pid)
-              if($pids -notcontains $pid){ return $true }
+              [uint32]$windowProcessId=0
+              [void][EverLeafWin32]::GetWindowThreadProcessId($hWnd,[ref]$windowProcessId)
+              if($processIds -notcontains $windowProcessId){ return $true }
               $rect=New-Object EverLeafWin32+RECT
               if([EverLeafWin32]::GetWindowRect($hWnd,[ref]$rect)){
                 $w=$rect.Right-$rect.Left; $h=$rect.Bottom-$rect.Top
                 if($w -gt 0 -and $h -gt 0){
-                  $found.Add([pscustomobject]@{Handle=$hWnd;Pid=$pid;Rect=$rect;Width=$w;Height=$h;Area=([int64]$w*$h)})
+                  $found.Add([pscustomobject]@{Handle=$hWnd;ProcessId=$windowProcessId;Rect=$rect;Width=$w;Height=$h;Area=([int64]$w*$h)})
                 }
               }
               return $true
@@ -121,7 +121,7 @@ jobs:
             $windows=@(Get-EverLeafWindows | Sort-Object Area -Descending)
             if($windows.Count){
               $best=$windows[0]
-              $windowLog += "t=$i pid=$($best.Pid) size=$($best.Width)x$($best.Height) area=$($best.Area)"
+              $windowLog += "t=$i pid=$($best.ProcessId) size=$($best.Width)x$($best.Height) area=$($best.Area)"
               if($best.Width -ge 640 -and $best.Height -ge 480){ $target=$best }
             }
           }
@@ -129,7 +129,7 @@ jobs:
           if(-not $target){
             $launched.Refresh()
             $state=if($launched.HasExited){"exit=$($launched.ExitCode)"}else{'running-no-game-window'}
-            $seen=(Get-EverLeafWindows | Sort-Object Area -Descending | ForEach-Object {"$($_.Width)x$($_.Height) pid=$($_.Pid)"}) -join ', '
+            $seen=(Get-EverLeafWindows | Sort-Object Area -Descending | ForEach-Object {"$($_.Width)x$($_.Height) pid=$($_.ProcessId)"}) -join ', '
             throw "EverLeaf game window did not appear ($state). Visible EverLeaf windows: $seen"
           }
           Start-Sleep -Seconds 5
@@ -142,7 +142,7 @@ jobs:
           try{$gfx.CopyFromScreen($rect.Left,$rect.Top,0,0,$bmp.Size)}finally{$gfx.Dispose()}
           $shot=Join-Path $env:RUNNER_TEMP 'everleaf-modern-ui-login.png'
           $bmp.Save($shot,[Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
-          [ordered]@{schemaVersion=4;kind='everleaf-modern-ui-visual-smoke';commit=$env:GITHUB_SHA;width=$w;height=$h;runtimeDumpCaptured=$true;productionFilesModified=$false} | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $env:RUNNER_TEMP 'EVERLEAF_UI_SMOKE_REPORT.json')
+          [ordered]@{schemaVersion=5;kind='everleaf-modern-ui-visual-smoke';commit=$env:GITHUB_SHA;width=$w;height=$h;runtimeDumpCaptured=$true;productionFilesModified=$false} | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $env:RUNNER_TEMP 'EVERLEAF_UI_SMOKE_REPORT.json')
           Get-Content $runtime | Add-Content $env:GITHUB_STEP_SUMMARY
           Get-Process -Name EverLeaf -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
