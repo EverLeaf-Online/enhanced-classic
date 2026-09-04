@@ -146,6 +146,7 @@ jobs:
           $launched = $null
           $matching = @()
           $logPath = Join-Path $env:CLIENT_DIR 'EverLeafClient.log'
+          $savedLogPath = Join-Path $env:RUNNER_TEMP 'EverLeafClient.log'
           $eventPath = Join-Path $env:RUNNER_TEMP 'CLIENT_V2_WINDOWS_ERRORS.txt'
           $reportPath = Join-Path $env:RUNNER_TEMP 'CLIENT_V2_BOOT_SMOKE_REPORT.json'
 
@@ -174,7 +175,7 @@ jobs:
             if ($matching.Count -eq 0) {
               $launched.Refresh()
               $exit = if ($launched.HasExited) { $launched.ExitCode } else { '<still-running-unresolved>' }
-              $diag = if (Test-Path $logPath { Get-Content $logPath -Raw } else { '<no EverLeafClient.log>' }
+              $diag = if (Test-Path $logPath) { Get-Content $logPath -Raw } else { '<no EverLeafClient.log>' }
               $errorText = Get-Content $eventPath -Raw
               throw "No isolated EverLeaf.exe process survived the 15-second Client v2 boot smoke. Initial process exit=$exit.`nDiagnostics:`n$diag`nWindows errors:`n$errorText"
             }
@@ -217,6 +218,9 @@ jobs:
             Get-Content $reportPath | Add-Content $env:GITHUB_STEP_SUMMARY
           }
           finally {
+            if (Test-Path $logPath -PathType Leaf) {
+              Copy-Item $logPath $savedLogPath -Force -ErrorAction SilentlyContinue
+            }
             foreach ($proc in $matching) { Stop-Process -Id ([int]$proc.ProcessId) -Force -ErrorAction SilentlyContinue }
             if ($launched) {
               try { $launched.Refresh() } catch {}
@@ -235,6 +239,6 @@ jobs:
             ${{ runner.temp }}/CLIENT_V2_BOOT_SMOKE_REPORT.json
             ${{ runner.temp }}/CLIENT_V2_WINDOWS_ERRORS.txt
             ${{ runner.temp }}/CLIENT_V2_BASELINE_HASHES.txt
-            ${{ env.CLIENT_DIR }}/EverLeafClient.log
+            ${{ runner.temp }}/EverLeafClient.log
           retention-days: 14
           if-no-files-found: warn
