@@ -29,7 +29,8 @@ jobs:
           $replacement = Get-Content "client/ezorsia/ezorsia/ReplacementFuncs.h" -Raw
 
           foreach ($required in @(
-            '_sub_777326_t gRenderFrameOriginal = _sub_777326',
+            'constexpr DWORD kRenderFrameAddress = 0x00777326',
+            'RenderFrame_t gRenderFrameOriginal = reinterpret_cast<RenderFrame_t>(kRenderFrameAddress)',
             'RenderFrameHook',
             'QueryPerformanceCounter',
             'ForegroundFPSCap',
@@ -39,6 +40,10 @@ jobs:
             'frame limiter installed'
           )) {
             if (-not $frame.Contains($required)) { throw "Missing frame limiter invariant: $required" }
+          }
+
+          if ($frame.Contains('#include "AutoTypes.h"')) {
+            throw "Frame limiter must not include AutoTypes.h because it defines legacy globals in headers"
           }
 
           foreach ($required in @(
