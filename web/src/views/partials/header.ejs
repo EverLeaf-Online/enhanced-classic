@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <% 
+  <%
     const defaultDescription=(typeof siteDescription!=='undefined'&&siteDescription)?siteDescription:'EverLeaf Enhanced Classic MapleStory v83';
     const baseSiteUrl=(typeof siteUrl!=='undefined'&&siteUrl)?siteUrl:'https://everleafms.online';
     const pageTitle=title?title+' • '+brand.name:brand.name;
@@ -16,15 +16,15 @@
   %>
   <title><%=pageTitle%></title>
   <meta name="description" content="<%=pageDescription%>">
-  <meta name="theme-color" content="#173f38">
-  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#12130f">
+  <meta name="color-scheme" content="dark">
   <meta name="application-name" content="<%=brand.name%>">
   <meta name="robots" content="<%=isAdminPath?'noindex,nofollow':'index,follow'%>">
   <link rel="canonical" href="<%=canonicalUrl%>">
   <link rel="icon" href="/assets/everleaf-remaster.svg" type="image/svg+xml">
   <% if(isHome){ %>
-    <link rel="preload" as="image" href="/assets/hero-forest.webp" type="image/webp">
-    <link rel="preload" as="image" href="/assets/visuals/hero-magic-overlay.svg" type="image/svg+xml">
+    <link rel="preload" as="image" href="/assets/hero-right.webp" type="image/webp">
+    <link rel="preload" as="image" href="/assets/hero-left.webp" type="image/webp">
   <% } %>
 
   <meta property="og:type" content="website">
@@ -33,12 +33,11 @@
   <meta property="og:description" content="<%=pageDescription%>">
   <meta property="og:url" content="<%=canonicalUrl%>">
   <meta property="og:image" content="<%=baseSiteUrl%>/assets/hero-forest.webp">
-  <meta property="og:image:alt" content="EverLeaf Enhanced Classic Maple World forest">
+  <meta property="og:image:alt" content="EverLeaf Enhanced Classic Maple World">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="<%=pageTitle%>">
   <meta name="twitter:description" content="<%=pageDescription%>">
   <meta name="twitter:image" content="<%=baseSiteUrl%>/assets/hero-forest.webp">
-  <meta name="twitter:image:alt" content="EverLeaf Enhanced Classic Maple World forest">
 
   <link rel="stylesheet" href="/css/maple-remaster.css">
   <link rel="stylesheet" href="/css/maple-remaster-pages.css">
@@ -62,45 +61,47 @@
   <link rel="stylesheet" href="/css/visuals-2026.css?v=1">
   <link rel="stylesheet" href="/css/game-portal-2026.css?v=1">
   <link rel="stylesheet" href="/css/full-site-portal-2026.css?v=1">
-  <link rel="stylesheet" href="/css/refero-everleaf-2026.css?v=1">
-  <style id="everleaf-nav-cleanup">.nav::after{display:none!important;content:none!important;height:0!important;background:none!important}</style>
+  <link rel="stylesheet" href="/css/refero-everleaf-2026.css?v=2">
   <script src="/js/site.js?v=1" defer></script>
 </head>
-<body class="<%=isHome?'homeRoute':'innerRoute'%> route-<%=routeKey%>">
+<body class="<%=isHome?'homeRoute':'innerRoute'%> route-<%=routeKey%><%=isAdminPath?' route-admin':''%>">
 <a class="skipLink" href="#main-content">Skip to content</a>
 <%
   const navLinks=[
-    {href:"/",label:"HOME"},
-    {href:"/news",label:"NEWS"},
-    {href:"/downloads",label:"DOWNLOAD"},
-    {href:"/rankings",label:"RANKINGS"},
-    {href:"/wiki",label:"WIKI"},
-    {href:brand.discordUrl,label:"DISCORD",external:true},
-    {href:"/help",label:"HELP"}
+    {href:"/",label:"HOME",index:"01"},
+    {href:"/news",label:"JOURNAL",index:"02"},
+    {href:"/downloads",label:"DOWNLOAD",index:"03"},
+    {href:"/rankings",label:"RANKINGS",index:"04"},
+    {href:"/wiki",label:"WIKI",index:"05"},
+    {href:brand.discordUrl,label:"DISCORD",index:"06",external:true},
+    {href:"/help",label:"HELP",index:"07"}
   ];
+  const maintenance=(typeof settings!=='undefined'&&settings&&String(settings.maintenance_message||'').trim())||'';
+  const fallbackAnnouncement=(typeof settings!=='undefined'&&settings&&String(settings.announcement||'').trim())||'';
 %>
-<div class="worldRibbon">
-  <div class="wrap">
-    <span><strong>EVERLEAF WORLD</strong> · Enhanced Classic v83 · Community-first progression</span>
+<div class="worldRibbon terminalRibbon">
+  <div class="wrap terminalRibbonInner">
+    <span class="worldSignal"><i aria-hidden="true"></i><strong>EVERLEAF WORLD</strong><span>ENHANCED CLASSIC v83</span></span>
     <nav aria-label="Utility links">
-      <a href="/vote">Vote for NX</a>
-      <a href="/rules">Rules</a>
-      <a href="/terms">Terms</a>
-      <% if(typeof player!=='undefined'&&player&&player.isAdmin){ %><a href="/admin">Staff CMS</a><% } %>
+      <a href="/vote">VOTE / NX</a>
+      <a href="/rules">RULES</a>
+      <a href="/terms">TERMS</a>
+      <% if(typeof player!=='undefined'&&player&&player.isAdmin){ %><a href="/admin">STAFF CMS</a><% } %>
     </nav>
   </div>
 </div>
-<nav class="nav" aria-label="Primary navigation">
-  <div class="wrap navin">
-    <a class="brand brandImage" href="/" aria-label="EverLeaf home">
-      <img src="/assets/everleaf-remaster.svg" alt="EverLeaf Enhanced Classic">
+<nav class="nav terminalNav" aria-label="Primary navigation">
+  <div class="wrap navin terminalNavInner">
+    <a class="brand terminalBrand" href="/" aria-label="EverLeaf home">
+      <span class="terminalLeaf" aria-hidden="true"></span>
+      <span class="terminalBrandCopy"><strong>EVERLEAF</strong><small>MAPLE WORLD / 083</small></span>
     </a>
-    <div class="links desktopLinks">
-      <% navLinks.forEach(({href,label,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
-        <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><%=label%></a>
+    <div class="links desktopLinks terminalLinks">
+      <% navLinks.forEach(({href,label,index,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
+        <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><span><%=index%></span><%=label%></a>
       <% }) %>
     </div>
-    <div class="navActions">
+    <div class="navActions terminalNavActions">
       <% if(typeof player!=='undefined'&&player){ %>
         <a class="btn small ghost accountNav" href="/account">ACCOUNT</a>
       <% }else{ %>
@@ -108,11 +109,11 @@
         <a class="btn small primary" href="/register">PLAY FREE</a>
       <% } %>
     </div>
-    <details class="mobileMenu">
-      <summary aria-label="Open navigation" aria-controls="mobile-navigation" aria-expanded="false">MENU <span aria-hidden="true">☰</span></summary>
+    <details class="mobileMenu terminalMobileMenu">
+      <summary aria-label="Open navigation" aria-controls="mobile-navigation" aria-expanded="false">MENU <span aria-hidden="true">＋</span></summary>
       <div id="mobile-navigation" class="mobileMenuPanel">
-        <% navLinks.forEach(({href,label,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
-          <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><%=label%></a>
+        <% navLinks.forEach(({href,label,index,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
+          <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><span><%=index%></span><%=label%></a>
         <% }) %>
         <div class="mobileAuth">
           <% if(typeof player!=='undefined'&&player){ %>
@@ -126,12 +127,8 @@
     </details>
   </div>
 </nav>
-<%
-  const maintenance=(typeof settings!=='undefined'&&settings&&String(settings.maintenance_message||'').trim())||'';
-  const fallbackAnnouncement=(typeof settings!=='undefined'&&settings&&String(settings.announcement||'').trim())||'';
-%>
 <% if(maintenance){ %>
-  <div role="status" class="siteBanner maintenanceBanner"><div class="wrap"><strong>Maintenance</strong><span><%=maintenance%></span></div></div>
+  <div role="status" class="siteBanner maintenanceBanner"><div class="wrap"><strong>MAINTENANCE</strong><span><%=maintenance%></span></div></div>
 <% } else if(typeof activeAnnouncement!=='undefined'&&activeAnnouncement){ %>
   <div role="status" class="siteBanner announcementBanner"><div class="wrap"><strong><%=activeAnnouncement.title%></strong><% if(activeAnnouncement.body){ %><span><%=activeAnnouncement.body%></span><% } %></div></div>
 <% } else if(fallbackAnnouncement){ %>
