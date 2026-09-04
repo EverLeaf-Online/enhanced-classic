@@ -14,8 +14,13 @@ if 'RSASignaturePadding.Pkcs1' in text:
     changed=True
 
 # Make stale-download cleanup directly testable. A prior interrupted download must
-# never be mistaken for a verified managed client file on the next run.
-if 'TryDelete(' in text:
+# never be mistaken for a verified managed client file on the next run. Modern
+# source already contains the internal helper; in that case this transform must be
+# a true no-op rather than rewriting the compatibility TryDelete wrapper into a
+# duplicate method declaration.
+if 'internal static void RemoveStaleDownload(string path)' in text:
+    pass
+elif 'TryDelete(' in text:
     text=text.replace('TryDelete(', 'RemoveStaleDownload(')
     text=text.replace('private static void RemoveStaleDownload(string path)',
                       'internal static void RemoveStaleDownload(string path)')
@@ -31,5 +36,4 @@ out=path.read_text(encoding='utf-8')
 assert 'RSASignaturePadding.Pss' in out
 assert 'RSASignaturePadding.Pkcs1' not in out
 assert 'internal static void RemoveStaleDownload(string path)' in out
-assert 'TryDelete(' not in out
 print('EverLeaf launcher integrity transform: PASS' + (' (updated)' if changed else ' (already applied)'))
