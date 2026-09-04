@@ -1,0 +1,142 @@
+name: Audit live v95 jobs and classes once
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-live-job-classes-once.yml'
+
+permissions:
+  contents: write
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Audit live WZ job families and canonical server support
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' > /tmp/live-job-audit.txt <<'REMOTE'
+          set -euo pipefail
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          RELEASE="$(awk '{print $1}' /opt/everleaf/.deployed-release 2>/dev/null || true)"
+          export CURRENT RELEASE
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          current=Path(os.environ['CURRENT'])
+          skill=current/'wz'/'Skill.wz'
+          ids=set()
+          for p in skill.rglob('*.img.xml'):
+              m=re.fullmatch(r'(\d+)\.img\.xml',p.name)
+              if m:
+                  ids.add(int(m.group(1)))
+
+          source=(current/'src/main/java/client/Job.java').read_text(errors='ignore')
+          declared={int(v):n for n,v in re.findall(r'\b([A-Z][A-Z0-9_]*)\((\d+)\)',source)}
+
+          families={
+            'Explorer': [0,100,110,111,112,120,121,122,130,131,132,200,210,211,212,220,221,222,230,231,232,300,310,311,312,320,321,322,400,410,411,412,420,421,422,500,510,511,512,520,521,522],
+            'Cygnus Knights': [1000,1100,1110,1111,1112,1200,1210,1211,1212,1300,1310,1311,1312,1400,1410,1411,1412,1500,1510,1511,1512],
+            'Aran': [2000,2100,2110,2111,2112],
+            'Evan': [2001,2200,2210,2211,2212,2213,2214,2215,2216,2217,2218],
+            'Dual Blade': [430,431,432,433,434],
+            'Resistance': [3000,3200,3210,3211,3212,3300,3310,3311,3312,3500,3510,3511,3512],
+          }
+          print(f'LIVE_RELEASE={os.environ.get("RELEASE","")}')
+          print(f'CURRENT={current}')
+          print('SKILL_WZ_NUMERIC_IDS=' + ','.join(map(str,sorted(ids))))
+          print('SERVER_JOB_IDS=' + ','.join(f'{i}:{declared[i]}' for i in sorted(declared)))
+          for name,expected in families.items():
+              wz=[i for i in expected if i in ids]
+              server=[i for i in expected if i in declared]
+              print(f'FAMILY|{name}|WZ={len(wz)}/{len(expected)}|SERVER={len(server)}/{len(expected)}|WZ_IDS={",".join(map(str,wz))}|SERVER_IDS={",".join(map(str,server))}')
+          newer=sorted(i for i in ids if i>=2300 and i not in {3000,3200,3210,3211,3212,3300,3310,3311,3312,3500,3510,3511,3512})
+          print('OTHER_NEWER_SKILL_IDS=' + ','.join(map(str,newer)))
+
+          const_dir=current/'src/main/java/constants/skills'
+          if const_dir.is_dir():
+              print('SERVER_SKILL_CONSTANT_FILES=' + ','.join(sorted(p.stem for p in const_dir.glob('*.java'))))
+          else:
+              print('SERVER_SKILL_CONSTANT_FILES=')
+          PY
+          REMOTE
+          cat /tmp/live-job-audit.txt
+
+      - name: Check creation and advancement surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > /tmp/source-support.txt
+          from pathlib import Path
+          import re
+          root=Path('.')
+          create=(root/'src/main/java/net/server/handlers/login/CreateCharHandler.java').read_text(errors='ignore')
+          print('CREATE_SELECTOR_ADVENTURER=' + str('BeginnerCreator.createCharacter' in create).lower())
+          print('CREATE_SELECTOR_CYGNUS=' + str('NoblesseCreator.createCharacter' in create).lower())
+          print('CREATE_SELECTOR_ARAN=' + str('LegendCreator.createCharacter' in create).lower())
+          print('CREATE_SELECTOR_EVAN=' + str('EvanCreator.createCharacter' in create).lower())
+          print('CREATE_SELECTOR_DUAL_BLADE=' + str(bool(re.search(r'Dual|Blade',create,re.I))).lower())
+          print('CREATE_SELECTOR_RESISTANCE=' + str(bool(re.search(r'Resistance|Citizen|BattleMage|WildHunter|Mechanic',create,re.I))).lower())
+          for token in ['DUALBLADE','BLADE','RESISTANCE','BATTLEMAGE','WILDHUNTER','MECHANIC']:
+              hits=[]
+              for p in (root/'src/main/java').rglob('*.java'):
+                  try: t=p.read_text(errors='ignore')
+                  except: continue
+                  if token.lower() in t.lower(): hits.append(str(p))
+              print(f'SERVER_TOKEN_{token}=' + (','.join(hits[:20]) if hits else 'none'))
+          PY
+          cat /tmp/source-support.txt
+
+      - name: Publish audit report
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs
+          {
+            echo '# EverLeaf Live Job / Class Audit'
+            echo
+            echo "Verified UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo '## Live Oracle WZ and server job inventory'
+            echo '```text'
+            cat /tmp/live-job-audit.txt
+            echo '```'
+            echo
+            echo '## Character creation / source support'
+            echo '```text'
+            cat /tmp/source-support.txt
+            echo '```'
+          } > docs/LIVE_JOB_CLASS_AUDIT.md
+          git config user.name everleaf-release-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add docs/LIVE_JOB_CLASS_AUDIT.md
+          git commit -m 'ops: record live v95 job and class audit' || exit 0
+          git push origin HEAD:release-dev
