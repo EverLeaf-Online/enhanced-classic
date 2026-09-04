@@ -27,7 +27,17 @@ jobs:
             local html
             html="$(curl --fail --silent --show-error --location --max-time 30 "$BASE$path")"
             grep -Fqi "$marker" <<<"$html"
-            grep -Fq '/js/site.js?v=1' <<<"$html"
+            grep -Fq '/js/site.js?v=2' <<<"$html"
+            grep -Fq '/css/unified-terminal-2026.css?v=1' <<<"$html"
+            grep -Fq 'class="siteRoute route-' <<<"$html"
+            if grep -Fq 'full-site-portal-2026.css' <<<"$html"; then
+              echo "Legacy full-site portal stylesheet still loaded on $path" >&2
+              exit 1
+            fi
+            if grep -Fq 'game-portal-2026.css' <<<"$html"; then
+              echo "Legacy game portal stylesheet still loaded on $path" >&2
+              exit 1
+            fi
             printf 'verified %s (%s)\n' "$path" "$marker"
           }
 
@@ -43,8 +53,19 @@ jobs:
           check_page '/terms' 'Terms of Service'
           check_page '/rules' 'Rules'
 
-          PORTAL_CSS="$(curl --fail --silent --show-error --location --max-time 30 "$BASE/css/full-site-portal-2026.css?v=1")"
-          grep -Fq 'EverLeaf full-site portal pass' <<<"$PORTAL_CSS"
+          UNIFIED_CSS="$(curl --fail --silent --show-error --location --max-time 30 "$BASE/css/unified-terminal-2026.css?v=1")"
+          grep -Fq 'EverLeaf unified public shell' <<<"$UNIFIED_CSS"
+          grep -Fq 'legacy scallop/ribbon/cloud decoration' <<<"$UNIFIED_CSS"
+
+          HOME_HTML="$(curl --fail --silent --show-error --location --max-time 30 "$BASE/")"
+          if grep -Fqi 'CHOOSE YOUR SIGNAL' <<<"$HOME_HTML"; then
+            echo 'Removed class signal block is still present on homepage.' >&2
+            exit 1
+          fi
+          if grep -Fqi 'KNOW THE WORLD BEFORE IT KNOWS YOU' <<<"$HOME_HTML"; then
+            echo 'Removed handbook promo block is still present on homepage.' >&2
+            exit 1
+          fi
 
           ACCOUNT_CODE="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 30 "$BASE/account")"
           case "$ACCOUNT_CODE" in
@@ -55,4 +76,4 @@ jobs:
           NOT_FOUND="$(curl --silent --show-error --max-time 30 "$BASE/this-route-should-not-exist-everleaf-portal" || true)"
           grep -Fq 'Map not found.' <<<"$NOT_FOUND"
 
-          echo 'EverLeaf full public portal route verification passed.'
+          echo 'EverLeaf unified public portal route verification passed.'
