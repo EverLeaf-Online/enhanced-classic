@@ -1,0 +1,165 @@
+name: Analyze unpacked v83 login selector memory once
+
+on:
+  push:
+    branches: [feature/client-job-selector-modernization-20260904]
+    paths: ['.github/workflows/analyze-v83-live-login-memory-once.yml']
+
+permissions:
+  contents: write
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  prepare-ssh:
+    runs-on: ubuntu-24.04
+    outputs:
+      known_hosts_b64: ${{ steps.hostkeys.outputs.known_hosts_b64 }}
+    steps:
+      - id: hostkeys
+        run: |
+          set -euo pipefail
+          ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$RUNNER_TEMP/known_hosts"
+          test -s "$RUNNER_TEMP/known_hosts"
+          echo "known_hosts_b64=$(base64 -w0 "$RUNNER_TEMP/known_hosts")" >> "$GITHUB_OUTPUT"
+
+  analyze:
+    needs: prepare-ssh
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/client-job-selector-modernization-20260904
+          fetch-depth: 0
+      - name: Build candidate Ezorsia DLL
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python client/scripts/apply-ui-modernization.py
+          python client/scripts/apply-community-ui-preference.py
+          msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS_B64: ${{ needs.prepare-ssh.outputs.known_hosts_b64 }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          $keyPath=Join-Path $sshDir 'id_everleaf'
+          [IO.File]::WriteAllText($keyPath,($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          [IO.File]::WriteAllBytes((Join-Path $sshDir 'known_hosts'),[Convert]::FromBase64String($env:KNOWN_HOSTS_B64))
+      - name: Reconstruct exact managed live client
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $keyPath=Join-Path $HOME '.ssh/id_everleaf'
+          $sshExe='C:\Program Files\Git\usr\bin\ssh.exe'; $scpExe='C:\Program Files\Git\usr\bin\scp.exe'
+          $baseline=Get-Content client/managed-client-baseline.json -Raw | ConvertFrom-Json
+          $names=@($baseline.managedFiles | ForEach-Object { [string]$_.path })
+          $remoteArchive="/tmp/everleaf-selector-memory-$env:GITHUB_RUN_ID.tgz"
+          $quoted=($names | ForEach-Object { "'$_'" }) -join ' '
+          $cmd="set -euo pipefail; cd '/opt/everleaf/patches/files'; tar -czf '$remoteArchive' $quoted"
+          & $sshExe -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" $cmd
+          if($LASTEXITCODE -ne 0){ throw 'Unable to prepare client archive' }
+          $archive=Join-Path $env:RUNNER_TEMP 'client.tgz'
+          & $scpExe -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteArchive" $archive
+          if($LASTEXITCODE -ne 0){ throw 'Unable to fetch client archive' }
+          & $sshExe -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "rm -f '$remoteArchive'" | Out-Null
+          $client=Join-Path $env:RUNNER_TEMP 'client'; New-Item -ItemType Directory -Force -Path $client | Out-Null
+          tar -xzf $archive -C $client
+          Copy-Item client/ezorsia/out/Release/dinput8.dll (Join-Path $client 'dinput8.dll') -Force
+          Copy-Item client/ezorsia/ezorsia/config.ini (Join-Path $client 'config.ini') -Force
+          "CLIENT_DIR=$client" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Launch and dump unpacked login memory
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $src=@'
+          using System;
+          using System.Runtime.InteropServices;
+          public static class RPM {
+            [DllImport("kernel32.dll", SetLastError=true)] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+            [DllImport("kernel32.dll", SetLastError=true)] public static extern bool ReadProcessMemory(IntPtr h, IntPtr addr, byte[] buf, int size, out IntPtr read);
+            [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
+          }
+          '@
+          Add-Type $src
+          $exe=Join-Path $env:CLIENT_DIR 'EverLeaf.exe'
+          $p=Start-Process -FilePath $exe -WorkingDirectory $env:CLIENT_DIR -PassThru
+          Start-Sleep -Seconds 10
+          $p.Refresh(); if($p.HasExited){ throw "EverLeaf exited before memory capture: $($p.ExitCode)" }
+          $h=[RPM]::OpenProcess(0x0010 -bor 0x0400,$false,$p.Id); if($h -eq [IntPtr]::Zero){ throw 'OpenProcess failed' }
+          try {
+            $base=0x005E0000; $size=0x00050000; $buf=New-Object byte[] $size; $read=[IntPtr]::Zero
+            if(-not [RPM]::ReadProcessMemory($h,[IntPtr]$base,$buf,$size,[ref]$read)){ throw 'ReadProcessMemory failed' }
+            if($read.ToInt64() -lt 0x40000){ throw "Short process-memory read: $read" }
+            [IO.File]::WriteAllBytes((Join-Path $env:RUNNER_TEMP 'login-memory.bin'),$buf)
+          } finally { [RPM]::CloseHandle($h) | Out-Null; Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+      - name: Analyze selector dispatch and dialog signatures
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --disable-pip-version-check capstone
+          @'
+          from pathlib import Path
+          from capstone import Cs, CS_ARCH_X86, CS_MODE_32
+          from capstone.x86 import X86_OP_IMM
+
+          BASE=0x005E0000
+          data=Path(__import__('os').environ['RUNNER_TEMP'],'login-memory.bin').read_bytes()
+          md=Cs(CS_ARCH_X86,CS_MODE_32); md.detail=True
+          def chunk(va,n): return data[va-BASE:va-BASE+n]
+          lines=['# Unpacked v83 selector memory analysis','']
+          lines += ['## CLogin::Update race window','']
+          ins=list(md.disasm(chunk(0x005F4C16,0x520),0x005F4C16))
+          for i in ins:
+              if 0x005F4E80 <= i.address <= 0x005F5160:
+                  lines.append(f'`{i.address:08X}: {i.mnemonic:<7} {i.op_str}`')
+          lines += ['','## Direct call targets near known race arms']
+          for lo,hi,label in [(0x5F4F20,0x5F4F90,'Aran/race read'),(0x5F4FC0,0x5F5060,'Explorer'),(0x5F5050,0x5F50F0,'Cygnus/default')]:
+              calls=[]
+              for i in ins:
+                  if lo<=i.address<=hi and i.mnemonic=='call' and i.operands and i.operands[0].type==X86_OP_IMM:
+                      calls.append(f'0x{i.operands[0].imm & 0xffffffff:08X}')
+              lines.append(f'- {label}: {", ".join(calls) if calls else "none"}')
+          lines += ['','## Geometry-signature candidates']
+          patterns={
+              'Normal/Evan (z=109,y=201,w=224,h=10)': [b'\x6a\x6d',b'\x68\xc9\x00\x00\x00',b'\x68\xe0\x00\x00\x00',b'\x6a\x0a'],
+              'Resistance (z=98,y=212,w=245,h=10)': [b'\x6a\x62',b'\x68\xd4\x00\x00\x00',b'\x68\xf5\x00\x00\x00',b'\x6a\x0a'],
+              'Aran (z=104,y=207,w=276,h=10)': [b'\x6a\x68',b'\x68\xcf\x00\x00\x00',b'\x68\x14\x01\x00\x00',b'\x6a\x0a'],
+          }
+          for label,pats in patterns.items():
+              hits=[]
+              for off in range(0,len(data)-180):
+                  win=data[off:off+180]
+                  if all(p in win for p in pats): hits.append(BASE+off)
+              # collapse adjacent starting offsets into clusters
+              clusters=[]
+              for h in hits:
+                  if not clusters or h-clusters[-1][-1]>32: clusters.append([h])
+                  else: clusters[-1].append(h)
+              starts=[c[0] for c in clusters[:30]]
+              lines.append(f'- {label}: {", ".join(f"0x{x:08X}" for x in starts) if starts else "none"}')
+              for x in starts[:8]:
+                  lines.append(f'  - near `0x{x:08X}`:')
+                  for i in md.disasm(chunk(x,180),x):
+                      lines.append(f'    - `{i.address:08X}: {i.mnemonic} {i.op_str}`')
+                      if i.mnemonic=='ret': break
+          Path('docs/CLIENT_V83_UNPACKED_SELECTOR_ANALYSIS.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
+          print('\n'.join(lines[:220]))
+          '@ | Set-Content -Encoding utf8 "$env:RUNNER_TEMP/analyze.py"
+          python "$env:RUNNER_TEMP/analyze.py"
+      - name: Commit analysis report
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name everleaf-client-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add docs/CLIENT_V83_UNPACKED_SELECTOR_ANALYSIS.md
+          git commit -m 'docs: map unpacked v83 selector runtime'
+          git pull --rebase origin feature/client-job-selector-modernization-20260904
+          git push origin HEAD:feature/client-job-selector-modernization-20260904
