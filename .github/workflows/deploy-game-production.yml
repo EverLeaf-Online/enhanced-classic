@@ -1,4 +1,4 @@
-# Manual production deployment trigger: rc-20260904-db ef3603
+# Production deployment: preserve the validated full-v95 server XML baseline.
 name: Deploy EverLeaf Game Production
 
 on:
@@ -83,7 +83,7 @@ jobs:
           ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'echo EverLeaf production SSH OK'
 
-      - name: Preflight production runtime
+      - name: Preflight production runtime and canonical v95 WZ
         shell: bash
         run: |
           set -euo pipefail
@@ -97,10 +97,18 @@ jobs:
           command -v python3 >/dev/null
           command -v rsync >/dev/null
           test "$(df --output=avail -k /opt | tail -1 | tr -d ' ')" -gt 5242880
+          test -d /opt/everleaf/shared/wz-v95
+          test -s /opt/everleaf/shared/wz-v95/.everleaf-v95-baseline
+          XML_COUNT="$(find /opt/everleaf/shared/wz-v95 -type f -name '*.xml' | wc -l)"
+          test "$XML_COUNT" -ge 44000
+          test -n "$(find /opt/everleaf/shared/wz-v95/Map.wz -name '800040410.img.xml' -print -quit)"
+          test -n "$(find /opt/everleaf/shared/wz-v95/Mob.wz -name '9400409.img.xml' -print -quit)"
+          test -n "$(find /opt/everleaf/shared/wz-v95/Mob.wz -name '8850011.img.xml' -print -quit)"
           echo "Current release: $(readlink -f /opt/everleaf/current)"
+          echo "Canonical v95 XML: $XML_COUNT"
           REMOTE
 
-      - name: Stage release source
+      - name: Stage release source without repository WZ
         shell: bash
         run: |
           set -euo pipefail
@@ -114,10 +122,11 @@ jobs:
             --exclude='web/node_modules/' \
             --exclude='/client/' \
             --exclude='/launcher/' \
+            --exclude='/wz/' \
             -e 'ssh -i ~/.ssh/id_everleaf' \
             ./ "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$RELEASE_DIR/"
 
-      - name: Preserve production configuration and build release
+      - name: Preserve production configuration and inject canonical v95 WZ
         shell: bash
         run: |
           set -euo pipefail
@@ -133,6 +142,25 @@ jobs:
           else
             echo 'Candidate is already current; preserving configuration in place.'
           fi
+          test -d /opt/everleaf/shared/wz-v95
+          rm -rf "$RELEASE_DIR/wz"
+          cp -al /opt/everleaf/shared/wz-v95 "$RELEASE_DIR/wz"
+          test "$(find "$RELEASE_DIR/wz" -type f -name '*.xml' | wc -l)" -ge 44000
+          WZROOT="$RELEASE_DIR/wz" python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          root=Path(os.environ['WZROOT'])
+          maps={int(m.group(1)) for p in (root/'Map.wz').rglob('*.img.xml') if (m:=re.match(r'^(\d+)\.img\.xml$',p.name))}
+          future=[i for i in maps if 271000000<=i<=271040300]
+          assert len(future)==42,len(future)
+          for mid in (800040000,800040100,800040400,800040401,800040410): assert mid in maps,mid
+          for mob in (8850000,8850011,9400400,9400408,9400409): assert list((root/'Mob.wz').rglob(f'{mob}.img.xml')),mob
+          for npc in (9110100,9110106,9110114): assert list((root/'Npc.wz').rglob(f'{npc}.img.xml')),npc
+          quest='\n'.join(p.read_text(errors='ignore') for p in (root/'Quest.wz').rglob('*.xml'))
+          for qid in range(8163,8172):
+              assert f'name="{qid}"' in quest or f'value="{qid}"' in quest,qid
+          print('DEPLOY_V95_WZ_OK',len(future))
+          PY
           cd "$RELEASE_DIR"
           python3 tools/apply_everleaf_config.py
           python3 tools/apply_evan_skill_data.py
@@ -157,7 +185,7 @@ jobs:
           test -s target/everleaf-server-1.0-SNAPSHOT.jar
           python3 tools/verify_channel_runtime.py --help >/dev/null
           printf '%s\n' "$RELEASE_DIR" > /opt/everleaf/.candidate-release
-          echo "Built candidate $RELEASE_DIR"
+          echo "Built candidate $RELEASE_DIR with canonical full-v95 WZ"
           REMOTE
 
       - name: Back up production
@@ -213,11 +241,18 @@ jobs:
 
           if [ "$HEALTHY" -eq 0 ]; then
             cat /tmp/everleaf-channel-health.json
-            echo "EverLeaf production deployment healthy: $NEW_RELEASE"
-            exit 0
+            XML_COUNT="$(find "$NEW_RELEASE/wz" -type f -name '*.xml' | wc -l)"
+            test "$XML_COUNT" -ge 44000 || HEALTHY=1
+            test -n "$(find "$NEW_RELEASE/wz/Map.wz" -name '800040410.img.xml' -print -quit)" || HEALTHY=1
+            test -n "$(find "$NEW_RELEASE/wz/Mob.wz" -name '9400409.img.xml' -print -quit)" || HEALTHY=1
+            test -n "$(find "$NEW_RELEASE/wz/Mob.wz" -name '8850011.img.xml' -print -quit)" || HEALTHY=1
+            if [ "$HEALTHY" -eq 0 ]; then
+              echo "EverLeaf production deployment healthy with canonical v95 WZ: $NEW_RELEASE xml=$XML_COUNT"
+              exit 0
+            fi
           fi
 
-          echo 'New release failed health validation.' >&2
+          echo 'New release failed health or v95 content validation.' >&2
           cat /tmp/everleaf-channel-health.json >&2 2>/dev/null || true
           sudo journalctl -u everleaf.service -n 120 --no-pager >&2 || true
 
