@@ -38,8 +38,8 @@ public class QaBotOpsCommand extends Command {
             usage(c);
             return;
         }
-        if (!onQaChannel(c)) {
-            c.getPlayer().yellowMessage("SoloMapling advanced QA runs only on world 0, channel 1.");
+        if (!onQaChannel(c) && !isCleanup(params)) {
+            c.getPlayer().yellowMessage("SoloMapling advanced QA runs only on world 0, channel 1; cleanup commands remain available everywhere.");
             return;
         }
 
@@ -294,13 +294,13 @@ public class QaBotOpsCommand extends Command {
     }
 
     private static void soak(Client c, String[] p) {
-        if (p.length < 2 || p.length > 3) { usage(c); return; }
+        if (p.length < 2 || p.length > 4) { usage(c); return; }
         int owner = c.getPlayer().getId();
         BotQaSoakRunner.SoakResult r;
         switch (p[1].toLowerCase()) {
             case "start" -> {
-                if (p.length != 3) { usage(c); return; }
-                r = BotQaSoakRunner.start(owner, Integer.parseInt(p[2]));
+                if (p.length != 4) { usage(c); return; }
+                r = BotQaSoakRunner.start(owner, Integer.parseInt(p[2]), p[3]);
             }
             case "stop" -> r = BotQaSoakRunner.stop(owner);
             case "status" -> r = BotQaSoakRunner.status(owner);
@@ -355,7 +355,21 @@ public class QaBotOpsCommand extends Command {
                 && c.getChannelServer().getId() == QA_CHANNEL;
     }
 
+    private static boolean isCleanup(String[] p) {
+        if (p.length < 2) return false;
+        String action = p[0].toLowerCase();
+        String mode = p[1].toLowerCase();
+        return switch (action) {
+            case "fleet" -> mode.equals("remove") || mode.equals("clear");
+            case "huntall", "boss", "pq", "soak" -> mode.equals("stop");
+            case "trade" -> mode.equals("cancel");
+            case "storage" -> mode.equals("close");
+            case "party" -> mode.equals("leave");
+            default -> false;
+        };
+    }
+
     private static void usage(Client c) {
-        c.getPlayer().yellowMessage("Usage: !qabotops fleet spawn <1-12>|status|remove; travel <bot#> <mapId> [x y]; die <bot#>; huntall start|stop; party create|leave|status <bot#>|join|leader <bot#> <bot#>; trade open <bot#> <bot#>|mesos <bot#> <amount>|item <bot#> <invType> <slot> <qty>|confirm <bot#> <bot#>|cancel <bot#>; storage open <bot#> <npcId>|close|status <bot#>|deposit <bot#> <invType> <slot> <qty>|withdraw <bot#> <index>|depositmesos|withdrawmesos <bot#> <amount>; quest start|complete|status|forfeit <bot#> <questId> [npcId]; boss start|stop|status <bot#>; pq start <bot#> <entryNpcId>|stop|status <bot#>; soak start <minutes>|status|stop");
+        c.getPlayer().yellowMessage("Usage: !qabotops fleet spawn <1-12>|status|remove; travel <bot#> <mapId> [x y]; die <bot#>; huntall start|stop; party create|leave|status <bot#>|join|leader <bot#> <bot#>; trade open <bot#> <bot#>|mesos <bot#> <amount>|item <bot#> <invType> <slot> <qty>|confirm <bot#> <bot#>|cancel <bot#>; storage open <bot#> <npcId>|close|status <bot#>|deposit <bot#> <invType> <slot> <qty>|withdraw <bot#> <index>|depositmesos|withdrawmesos <bot#> <amount>; quest start|complete|status|forfeit <bot#> <questId> [npcId]; boss start|stop|status <bot#>; pq start <bot#> <entryNpcId>|stop|status <bot#>; soak start <minutes> ARM|status|stop");
     }
 }
