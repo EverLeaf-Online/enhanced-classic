@@ -1,4 +1,5 @@
 name: Publish EverLeaf login and UI WZ
+# Dedicated post-client publish trigger: 2026-09-04 UI modernization
 
 on:
   workflow_dispatch:
