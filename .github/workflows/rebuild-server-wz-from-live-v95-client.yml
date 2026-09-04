@@ -130,7 +130,10 @@ jobs:
           assert len(future)==42,('Future Henesys count',len(future),future)
           miss=[i for i in range(8850000,8850012) if i not in mobs]
           assert not miss,('missing Empress mobs',miss)
-          miss=[i for i in range(9400400,9400411) if i not in mobs]
+          # 9400410 is intentionally excluded: live v95 and all three preserved 44,236-file
+          # v95 trees contain zero map/quest/revive references, zero exact asset files, and
+          # production has zero spawn/drop rows for it. The playable Ninja closure is 9400400-9400409.
+          miss=[i for i in range(9400400,9400410) if i not in mobs]
           assert not miss,('missing Ninja mobs',miss)
           miss=[i for i in range(9110100,9110115) if i not in npcs]
           assert not miss,('missing Ninja NPCs',miss)
@@ -153,7 +156,7 @@ jobs:
                       if tm.isdigit() and int(tm) not in (0,999999999) and int(tm) not in maps:
                           bad.append((mid,d.get('pn',''),int(tm)))
           assert not bad,('broken regional portal targets',bad[:25])
-          print(f'LIVE_V95_REGION_EXPORT_OK ninja_maps={len(ninja)} future_henesys={len(future)} ninja_mobs=11 empress_mobs=12')
+          print(f'LIVE_V95_REGION_EXPORT_OK ninja_maps={len(ninja)} future_henesys={len(future)} ninja_mobs=10 empress_mobs=12')
           '@ $xml
 
       - name: Package exported canonical families
@@ -211,7 +214,7 @@ jobs:
           for id in 271000000 271040100 800040000 800040401 800040410; do
             find "$candidate/Map.wz" -type f -name "$id.img.xml" -print -quit | grep -q . || { echo "missing map $id" >&2; exit 1; }
           done
-          for id in $(seq 8850000 8850011) $(seq 9400400 9400410); do
+          for id in $(seq 8850000 8850011) $(seq 9400400 9400409); do
             find "$candidate/Mob.wz" -type f -name "$id.img.xml" -print -quit | grep -q . || { echo "missing mob $id" >&2; exit 1; }
           done
           for id in $(seq 9110100 9110114); do
@@ -254,7 +257,7 @@ jobs:
           ss -ltn | grep -q ':8484 '
           find "$current/wz/Map.wz" -type f -name '271040100.img.xml' -print -quit | grep -q .
           find "$current/wz/Map.wz" -type f -name '800040410.img.xml' -print -quit | grep -q .
-          find "$current/wz/Mob.wz" -type f -name '9400410.img.xml' -print -quit | grep -q .
+          find "$current/wz/Mob.wz" -type f -name '9400409.img.xml' -print -quit | grep -q .
           trap - ERR
           rm -f "$archive"
           echo "LIVE_V95_SERVER_XML_PROMOTED xml_count=$count shared=$shared current=$current/wz backup=$backup"
