@@ -92,6 +92,7 @@ app.locals.siteDescription="EverLeaf is an Enhanced Classic MapleStory v83 serve
 app.locals.year=new Date().getFullYear();
 app.use(require("./middleware/viewLocals"));
 
+app.use("/",require("./routes/avatar"));
 app.use("/",require("./routes/vote"));
 app.use("/",require("./routes/recovery"));
 app.use("/",require("./routes/wiki"));
