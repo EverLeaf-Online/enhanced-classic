@@ -40,7 +40,11 @@ jobs:
           $ErrorActionPreference='Stop'
           python client/scripts/apply-ui-modernization.py
           python client/scripts/apply-community-ui-preference.py
-          msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+          $vswhere="${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild=& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
+          if(-not $msbuild){ throw 'MSBuild not found through vswhere' }
+          & $msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+          if($LASTEXITCODE -ne 0){ throw 'Ezorsia build failed' }
       - name: Configure SSH
         shell: pwsh
         env:
@@ -108,9 +112,10 @@ jobs:
           from pathlib import Path
           from capstone import Cs, CS_ARCH_X86, CS_MODE_32
           from capstone.x86 import X86_OP_IMM
+          import os
 
           BASE=0x005E0000
-          data=Path(__import__('os').environ['RUNNER_TEMP'],'login-memory.bin').read_bytes()
+          data=Path(os.environ['RUNNER_TEMP'],'login-memory.bin').read_bytes()
           md=Cs(CS_ARCH_X86,CS_MODE_32); md.detail=True
           def chunk(va,n): return data[va-BASE:va-BASE+n]
           lines=['# Unpacked v83 selector memory analysis','']
@@ -137,7 +142,6 @@ jobs:
               for off in range(0,len(data)-180):
                   win=data[off:off+180]
                   if all(p in win for p in pats): hits.append(BASE+off)
-              # collapse adjacent starting offsets into clusters
               clusters=[]
               for h in hits:
                   if not clusters or h-clusters[-1][-1]>32: clusters.append([h])
