@@ -1,0 +1,64 @@
+name: Audit live EverLeaf character type selector once
+
+on:
+  push:
+    branches: [feature/client-job-selector-modernization-20260904]
+    paths:
+      - '.github/workflows/audit-live-client-job-selector-once.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+      - name: Inspect live client selector assets and strings
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          echo "CURRENT=$CURRENT"
+          echo '--- managed client selector-related files ---'
+          for f in EverLeaf.exe UI.wz EverLeaf_UI.wz String.wz Skill.wz Character.wz; do
+            p="/opt/everleaf/patches/files/$f"
+            if [ -f "$p" ]; then stat -c '%n bytes=%s' "$p"; else echo "MISSING $p"; fi
+          done
+          echo '--- server-exported UI availability ---'
+          for root in "$CURRENT/wz/UI.wz" /opt/everleaf/shared/wz-v95/UI.wz; do
+            if [ -d "$root" ]; then
+              echo "UI_ROOT=$root"
+              echo "UI_XML_COUNT=$(find "$root" -type f -name '*.xml' | wc -l)"
+              find "$root" -type f -name '*.xml' -print | grep -Ei 'login|char|create|select' | head -n 120 || true
+              echo '--- Evan/Aran/Cygnus markers in UI XML ---'
+              grep -RilE 'Evan|Aran|Cygnus|Noblesse|Legend|Choose Character Type|Create a character' "$root" 2>/dev/null | head -n 80 || true
+            else
+              echo "NO_UI_ROOT=$root"
+            fi
+          done
+          echo '--- executable ASCII/UTF16 selector markers ---'
+          EXE=/opt/everleaf/patches/files/EverLeaf.exe
+          if command -v strings >/dev/null 2>&1; then
+            strings -a "$EXE" | grep -Ei 'Evan|Aran|Cygnus|Noblesse|Legend|character type|create a character' | head -n 120 || true
+            strings -el "$EXE" | grep -Ei 'Evan|Aran|Cygnus|Noblesse|Legend|character type|create a character' | head -n 120 || true
+          fi
+          echo '--- canonical server create selector ---'
+          grep -n -A25 -B4 'switch (job)' "$CURRENT/src/main/java/net/server/handlers/login/CreateCharHandler.java" || true
+          REMOTE
