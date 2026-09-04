@@ -28,7 +28,7 @@ jobs:
           if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$HOST" > ~/.ssh/known_hosts; fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Inspect live runtime
+      - name: Inspect live runtime and character-login handoff
         shell: bash
         run: |
           set -euo pipefail
@@ -36,9 +36,16 @@ jobs:
           set +e
           echo '=== TIME ==='; date -Is
           echo '=== CURRENT RELEASE ==='; readlink -f /opt/everleaf/current
-          echo '=== SERVICE ==='; systemctl is-active everleaf.service; systemctl --no-pager --full status everleaf.service | head -80
-          echo '=== RECENT JOURNAL ==='; journalctl -u everleaf.service --since '-20 min' --no-pager -n 200
-          echo '=== LISTENERS ==='; ss -ltnp | egrep ':(8484|7575|7576|7577|3000|80|443)\b' || true
+          echo '=== RELEASE SOURCE SHA ==='; cat /opt/everleaf/current/.everleaf-source-sha 2>/dev/null || cat /opt/everleaf/.deployed-release 2>/dev/null || true
+          echo '=== SERVICE ==='; systemctl is-active everleaf.service; systemctl --no-pager --full status everleaf.service | head -100
+          echo '=== CHARACTER LOGIN JOURNAL (45 MIN) ==='
+          journalctl -u everleaf.service --since '-45 min' --no-pager -n 1200
+          echo '=== LOGIN/CHANNEL/SESSION SIGNALS ==='
+          journalctl -u everleaf.service --since '-45 min' --no-pager -n 2000 | grep -Ei 'exception|error|fail|login|character|session|channel|transition|disconnect|hwid|invalid|map|client' | tail -500 || true
+          echo '=== LISTENERS ==='; ss -ltnp | egrep ':(8484|7575|7576|7577|7578|7579|7580|7581|7582|7583|7584|7585|7586|7587|7588|7589|7590|7591|7592|7593|7594|3000|80|443)\b' || true
+          echo '=== ACTIVE GAME TCP CONNECTIONS ==='; ss -tnp | egrep ':(8484|7575|7576|7577|7578|7579|7580|7581|7582|7583|7584|7585|7586|7587|7588|7589|7590|7591|7592|7593|7594)\b' | tail -100 || true
+          echo '=== SAFE NETWORK CONFIG ==='; grep -E '^[[:space:]]*(HOST|PORT|CHANNELS|CHANNEL_COUNT|WORLDS):' /opt/everleaf/current/config.yaml 2>/dev/null || true
+          echo '=== LOCAL CHANNEL RUNTIME ==='; python3 /opt/everleaf/current/tools/verify_channel_runtime.py --config /opt/everleaf/current/config.yaml --host 127.0.0.1 2>&1 || true
           echo '=== LOCAL WEB HEALTH ==='; curl -sS -o /tmp/manifest -w 'manifest_http=%{http_code}\n' http://127.0.0.1:3000/v1/launcher/manifest; head -c 300 /tmp/manifest; echo
           echo '=== PATCH FILES ==='; sha256sum /opt/everleaf/patches/files/Item.wz /opt/everleaf/patches/files/String.wz; stat -c '%n %s %y' /opt/everleaf/patches/files/Item.wz /opt/everleaf/patches/files/String.wz
           echo '=== CHAIR XML ==='; XML="$(readlink -f /opt/everleaf/current)/wz/Item.wz/Install/0301.img.xml"; test -s "$XML" && { grep -n '3010020\|3010021\|3010027' "$XML" | head -20; } || echo 'chair xml missing'
