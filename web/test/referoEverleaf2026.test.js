@@ -12,43 +12,59 @@ const rankings = read('src/views/rankings.ejs');
 const wiki = read('src/views/wiki.ejs');
 const account = read('src/views/account.ejs');
 
-test('EverLeaf keeps a repo-resident design contract for the redesign', () => {
-  assert.match(design, /Storybook field journal meets classic MMORPG portal/);
-  assert.match(design, /Game world first/);
+test('EverLeaf design contract now targets the supplied Max Yinger Refero style', () => {
+  assert.match(design, /Max Yinger/);
+  assert.match(design, /#12130f/);
+  assert.match(design, /#e4dfda/);
+  assert.match(design, /No box shadows/);
+  assert.match(design, /Pill interactions/);
+  assert.match(design, /Edge-anchored composition/);
   assert.match(design, /Rankings/);
   assert.match(design, /Wiki/);
-  assert.match(design, /Account \/ Auth/);
-  assert.match(design, /Do not/);
-  assert.match(design, /proprietary fonts/);
+  assert.match(design, /Auth \/ Account/);
 });
 
-test('Refero-informed stylesheet is loaded last with server-rendered route classes', () => {
+test('Max Yinger-inspired stylesheet is loaded last with server-rendered route classes', () => {
   const oldPortal = header.indexOf('/css/full-site-portal-2026.css?v=1');
-  const refero = header.indexOf('/css/refero-everleaf-2026.css?v=1');
+  const refero = header.indexOf('/css/refero-everleaf-2026.css?v=2');
   assert.ok(oldPortal >= 0, 'existing portal layer should remain available');
-  assert.ok(refero > oldPortal, 'Refero-informed layer must load after the existing portal layer');
+  assert.ok(refero > oldPortal, 'final Refero layer must load after the existing portal layer');
   assert.match(header, /const routeKey=/);
   assert.match(header, /route-<%=routeKey%>/);
-  assert.match(header, /theme-color" content="#173f38"/);
+  assert.match(header, /theme-color" content="#12130f"/);
+  assert.match(header, /color-scheme" content="dark"/);
 });
 
-test('new system deliberately covers all major public surfaces', () => {
+test('new terminal system covers the full public website, not just home', () => {
   for (const selector of [
     'body.homeRoute:not(.route-admin) .mapleHero',
-    'body.route-news .newsList',
-    'body.route-downloads .contentGrid',
-    'body.route-rankings .rankingPodium',
-    'body.route-wiki .wikiDataHero',
-    'body.route-help .helpGrid',
-    'body.route-login .authWrap',
-    'body.route-register .authWrap',
-    'body.route-recover .authWrap',
-    'body.route-account .accountShell',
+    'body.innerRoute:not(.route-admin) .lightTitle',
+    'body:not(.route-admin) .newsList',
+    'body:not(.route-admin) .downloadGrid',
+    'body:not(.route-admin) .rankingPodium',
+    'body:not(.route-admin) .wikiDataSearch',
+    'body:not(.route-admin) .helpGrid',
+    'body:not(.route-admin) .authWrap',
+    'body:not(.route-admin) .accountPage',
     'body:not(.route-admin) .siteFooter'
-  ]) assert.ok(css.includes(selector), `missing Refero redesign coverage for ${selector}`);
+  ]) assert.ok(css.includes(selector), `missing full-site terminal coverage for ${selector}`);
 
-  assert.match(css, /@media \(max-width:820px\)/);
-  assert.match(css, /@media \(prefers-reduced-motion:reduce\)/);
+  assert.match(css, /@media\(max-width:960px\)/);
+  assert.match(css, /@media\(max-width:640px\)/);
+  assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
+});
+
+test('style tokens follow the supplied dark two-color system with rose reserved for art glow', () => {
+  assert.match(css, /--el-carbon:#12130f/);
+  assert.match(css, /--el-bone:#e4dfda/);
+  assert.match(css, /--el-vein:#3c3c38/);
+  assert.match(css, /--el-rose:#f5c2c8/);
+  assert.match(css, /border-radius:9999px/);
+  assert.match(css, /box-shadow:none!important/);
+  assert.match(css, /font:400 12px\/1\.25 var\(--el-mono\)/);
+  assert.doesNotMatch(css, /--el-paper:/);
+  assert.doesNotMatch(css, /--el-leaf:/);
+  assert.doesNotMatch(css, /#59ad62/i);
 });
 
 test('redesign preserves live product integrations', () => {
@@ -63,7 +79,5 @@ test('redesign does not import reference-site assets, fonts, or remote styles', 
   assert.doesNotMatch(css, /https?:\/\//i);
   assert.doesNotMatch(css, /@import/i);
   assert.doesNotMatch(css, /refero\.design|styles\.refero/i);
-  assert.doesNotMatch(css, /Recoleta|Suisse|Jersey 10|Manrope/i);
-  assert.match(css, /--el-paper:#fbf6e9/);
-  assert.match(css, /--el-leaf:#59ad62/);
+  assert.doesNotMatch(css, /Arbeit Technik|Inline VF|Arbeit Contrast/i);
 });
