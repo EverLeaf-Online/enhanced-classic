@@ -179,9 +179,17 @@ function initCms() {
     ["terms","Terms of Service","By creating an account or using EverLeaf, you agree to follow the server rules and community standards. Keep your credentials private, do not cheat or exploit the service, and understand that EverLeaf may be updated, restarted, changed, or discontinued. Donations support server operation and do not grant ownership of the service. EverLeaf is a fan-made private server and is not affiliated with or endorsed by Nexon."]
   ].forEach(row => pageStmt.run(...row));
 
-  // The code-owned catalog is only the initial seed. Once imported, staff can
-  // edit and publish Wiki articles from the CMS without losing their changes
-  // during deploys because the SQLite data directory is preserved.
+  // Code-owned entries are seed data only. Versioned migrations may refresh an
+  // untouched seed, but a staff-edited article (updated_at != created_at) wins.
+  const WIKI_SEED_VERSION = 2;
+  const RETIRED_DEVELOPER_SLUGS = [
+    "server-authority",
+    "reward-delivery-safety",
+    "custom-ui-layer",
+    "npc-map-integrity",
+    "custom-nx-pipeline",
+    "custom-item-id-discipline"
+  ];
   const { entries: wikiSeeds } = require("../services/wikiCatalog");
   const wikiStmt = db.prepare(`
     INSERT OR IGNORE INTO wiki_articles
@@ -189,12 +197,41 @@ function initCms() {
     VALUES
       (@slug,@category,@title,@eyebrow,@summary,@body,@status,@verification,@source,@sourceDoc,@tagsJson,@factsJson,1)
   `);
+  const updateUntouchedWikiStmt = db.prepare(`
+    UPDATE wiki_articles SET
+      category=@category,
+      title=@title,
+      eyebrow=@eyebrow,
+      summary=@summary,
+      body=@body,
+      status=@status,
+      verification=@verification,
+      source=@source,
+      source_doc=@sourceDoc,
+      tags_json=@tagsJson,
+      facts_json=@factsJson,
+      published=1,
+      updated_at=CURRENT_TIMESTAMP
+    WHERE slug=@slug AND updated_at=created_at
+  `);
+  const retireUntouchedWikiStmt = db.prepare(`
+    UPDATE wiki_articles
+       SET published=0, updated_at=CURRENT_TIMESTAMP
+     WHERE slug=? AND updated_at=created_at
+  `);
+  const seedVersionRow = db.prepare("SELECT value FROM settings WHERE key='wiki_player_seed_version' LIMIT 1").get();
+  const currentWikiSeedVersion = Number(seedVersionRow?.value || 0);
+  const setWikiSeedVersion = db.prepare(`
+    INSERT INTO settings(key,value) VALUES('wiki_player_seed_version',?)
+    ON CONFLICT(key) DO UPDATE SET value=excluded.value
+  `);
+
   const seedWiki = db.transaction(() => {
     for (const entry of wikiSeeds) {
       const body = (entry.sections || [])
         .map(([heading, text]) => `## ${heading}\n${text}`)
         .join("\n\n");
-      wikiStmt.run({
+      const values = {
         slug: entry.slug,
         category: entry.category,
         title: entry.title,
@@ -202,12 +239,18 @@ function initCms() {
         summary: entry.summary || "",
         body,
         status: entry.status || "EverLeaf Guide",
-        verification: entry.verification || "Library curated",
-        source: entry.source || "EverLeaf",
-        sourceDoc: entry.sourceDoc || entry.source || "EverLeaf",
+        verification: entry.verification || "Player-facing EverLeaf reference",
+        source: entry.source || "EverLeaf Player Wiki",
+        sourceDoc: entry.sourceDoc || entry.source || "EverLeaf live configuration",
         tagsJson: JSON.stringify(entry.tags || []),
         factsJson: JSON.stringify(entry.facts || [])
-      });
+      };
+      wikiStmt.run(values);
+      if (currentWikiSeedVersion < WIKI_SEED_VERSION) updateUntouchedWikiStmt.run(values);
+    }
+    if (currentWikiSeedVersion < WIKI_SEED_VERSION) {
+      for (const slug of RETIRED_DEVELOPER_SLUGS) retireUntouchedWikiStmt.run(slug);
+      setWikiSeedVersion.run(String(WIKI_SEED_VERSION));
     }
   });
   seedWiki();
