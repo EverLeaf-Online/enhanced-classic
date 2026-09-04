@@ -1,36 +1,3 @@
 </div>
-<%
-  const footerYear=(typeof year!=='undefined'&&year)?year:new Date().getFullYear();
-  const footerSettings=(typeof settings!=='undefined'&&settings)?settings:{};
-%>
-<footer class="siteFooter terminalFooter">
-  <div class="wrap terminalFooterGrid">
-    <div class="terminalFooterBrand">
-      <a class="terminalFooterWord" href="/" aria-label="EverLeaf home">EVERLEAF</a>
-      <p>Enhanced Classic v83. A community-first Maple world built around recognizable progression, fair systems, and a long road worth sharing.</p>
-    </div>
-    <div class="terminalFooterMeta">
-      <span>WORLD / 083</span>
-      <span>STATUS / LIVE</span>
-      <span>BUILD / COMMUNITY</span>
-    </div>
-    <nav class="terminalFooterLinks" aria-label="Footer navigation">
-      <a href="/news">JOURNAL</a>
-      <a href="/downloads">DOWNLOAD</a>
-      <a href="/rankings">RANKINGS</a>
-      <a href="/wiki">WIKI</a>
-      <a href="/help">HELP</a>
-      <a href="/about">About</a>
-      <a href="/rules">Rules</a>
-      <a href="/terms">Terms</a>
-      <a href="<%=brand.discordUrl%>" target="_blank" rel="noopener noreferrer">DISCORD ↗</a>
-      <% if(typeof player!=='undefined'&&player){ %><a href="/account">ACCOUNT</a><% }else{ %><a href="/login">LOGIN</a><% } %>
-    </nav>
-  </div>
-  <div class="wrap terminalFooterBottom">
-    <span>© <%=footerYear%> EVERLEAF / ENHANCED CLASSIC v83</span>
-    <span><%=footerSettings.footer_note||'EverLeaf is a fan-made private server and is not affiliated with Nexon.'%></span>
-  </div>
-</footer>
 </body>
 </html>
