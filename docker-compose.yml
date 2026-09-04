@@ -7,9 +7,9 @@ services:
     ports:
       # Login server
       - "8484:8484"
-      # EverLeaf primary world channels 1-8.
+      # EverLeaf primary world channels 1-20.
       # Format: WWCC, where WW is 75 plus the world number and CC is 75 plus the channel number (both zero indexed).
-      - "7575-7582:7575-7582"
+      - "7575-7594:7575-7594"
     volumes:
       # Config changes can be reloaded without rebuilding the image.
       # Still requires a redeployment as they're sourced on startup.

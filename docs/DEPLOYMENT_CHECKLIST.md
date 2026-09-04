@@ -21,11 +21,11 @@ This checklist separates development convenience from public-server requirements
 
 ## Post-start runtime verification
 
-- [ ] Treat the configured channel count as a runtime release gate, not just a config value. EverLeaf currently targets **8 channels**.
+- [ ] Treat the configured channel count as a runtime release gate, not just a config value. EverLeaf production targets **20 channels** on ports **7575-7594**.
 - [ ] After the login/world/channel processes are started, run `python3 tools/verify_channel_runtime.py --config config.yaml --host 127.0.0.1` from the deployed server tree.
 - [ ] Require exit code `0` before declaring the deployment healthy. Any missing login/channel port means the deployment failed even if some channels are reachable.
-- [ ] Confirm the verifier reports `configuredChannels: 8`, `liveChannels: 8`, and no `missingChannelPorts` for the current production target.
-- [ ] Confirm the website/status API reports the same configured total and live channel count; do not mask a partial runtime such as 3 live / 8 configured as a healthy eight-channel deployment.
+- [ ] Confirm the verifier reports `configuredChannels: 20`, `liveChannels: 20`, and no `missingChannelPorts` for the current production target.
+- [ ] Confirm the website/status API reports the same configured total and live channel count; do not mask a partial runtime such as 3 live / 8 configured as a healthy twenty-channel deployment.
 - [ ] Re-run the runtime verifier after server restarts, config changes, or channel-count changes.
 
 ## Database migrations
