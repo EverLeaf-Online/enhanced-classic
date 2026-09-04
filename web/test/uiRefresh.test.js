@@ -23,7 +23,7 @@ const uiux = read("public/css/uiux-2026.css");
 const refero = read("public/css/refero-everleaf-2026.css");
 const unified = read("public/css/unified-terminal-2026.css");
 
-test("global navigation uses one shared shell with no legacy portal layers",()=>{
+test("global shell has no top navigation or utility ribbon",()=>{
   for(const sheet of [
     "maple-remaster.css","maple-remaster-pages.css","maple-final.css",
     "rankings-remaster.css","rankings-live.css","wiki-remaster.css",
@@ -31,14 +31,12 @@ test("global navigation uses one shared shell with no legacy portal layers",()=>
     "refero-everleaf-2026.css?v=3","unified-terminal-2026.css?v=1"
   ]) assert.ok(header.includes(sheet),`header should load ${sheet}`);
   assert.match(header,/maple-remaster-admin\.css/);
-  assert.match(header,/mobileMenu/);
   assert.match(header,/siteBanner/);
-  assert.match(header,/terminalRibbon/);
-  assert.match(header,/terminalNav/);
+  assert.doesNotMatch(header,/mobileMenu|terminalRibbon|terminalNav|worldRibbon/);
   assert.match(header,/body class="siteRoute route-<%=routeKey%>/);
   assert.match(header,/class="skipLink" href="#main-content"/);
   assert.match(header,/id="main-content"/);
-  assert.match(header,/{href:"\/wiki",label:"WIKI",index:"05"}/);
+  assert.doesNotMatch(header,/{href:"\/wiki",label:"WIKI",index:"05"}/);
   assert.doesNotMatch(header,/game-portal-2026\.css|full-site-portal-2026\.css|visuals-2026\.css/);
 });
 
@@ -52,11 +50,13 @@ test("footer exposes the redesigned site navigation",()=>{
   assert.match(footer,/\/login/);
 });
 
-test("homepage keeps the compact terminal portal without removed promo sections",()=>{
-  for(const token of [
-    "terminalHero","everleafArtifact","heroTelemetry","signalStrip","dossierSection",
-    "entrySection","dataSection","finalTransmission"
-  ]) assert.ok(home.includes(token),`homepage should include ${token}`);
+test("homepage stops after the five-tile signal strip",()=>{
+  for(const token of ["terminalHero","everleafArtifact","heroTelemetry","signalStrip"]) {
+    assert.ok(home.includes(token),`homepage should include ${token}`);
+  }
+  for(const token of ["terminalHome","dossierSection","entrySection","dataSection","finalTransmission","topCharacters"]) {
+    assert.ok(!home.includes(token),`homepage should not include removed ${token}`);
+  }
 
   assert.doesNotMatch(home,/classSection|classMatrix|CHOOSE YOUR SIGNAL/i);
   assert.doesNotMatch(home,/wikiSignalSection|KNOW THE WORLD/i);
@@ -68,7 +68,6 @@ test("homepage keeps the compact terminal portal without removed promo sections"
   assert.match(home,/id="live-players"/);
   assert.match(home,/id="live-channels"/);
   assert.match(home,/id="live-refresh"/);
-  assert.match(home,/topCharacters/);
   assert.match(remaster,/hero-forest\.webp/);
   assert.match(home,/href="\/wiki"/);
   assert.match(home,/href="\/rankings"/);
