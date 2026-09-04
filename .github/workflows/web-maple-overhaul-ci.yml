@@ -26,7 +26,7 @@ jobs:
         run: npm install
       - name: Run existing web tests
         run: npm test
-      - name: Verify remaster assets
+      - name: Verify unified terminal assets
         run: |
           test -f public/css/maple-remaster.css
           test -f public/css/maple-remaster-pages.css
@@ -34,6 +34,7 @@ jobs:
           test -f public/css/maple-jobs.css
           test -f public/css/maple-final.css
           test -f public/css/refero-everleaf-2026.css
+          test -f public/css/unified-terminal-2026.css
           test -f public/assets/everleaf-remaster.svg
           test -f public/assets/hero-forest.webp
           test -f public/assets/hero-left.webp
@@ -47,12 +48,18 @@ jobs:
           grep -q 'maple-remaster.css' src/views/partials/header.ejs
           grep -q 'maple-jobs.css' src/views/partials/header.ejs
           grep -q 'maple-final.css' src/views/partials/header.ejs
-          grep -q 'refero-everleaf-2026.css?v=2' src/views/partials/header.ejs
+          grep -q 'refero-everleaf-2026.css?v=3' src/views/partials/header.ejs
+          grep -q 'unified-terminal-2026.css?v=1' src/views/partials/header.ejs
+          grep -q 'body class="siteRoute route-' src/views/partials/header.ejs
+          ! grep -q 'game-portal-2026.css' src/views/partials/header.ejs
+          ! grep -q 'full-site-portal-2026.css' src/views/partials/header.ejs
+          ! grep -q 'visuals-2026.css' src/views/partials/header.ejs
+          ! grep -q 'full-site-portal-2026.css' public/js/site.js
           grep -q 'terminalHero' src/views/home.ejs
           grep -q 'everleafArtifact' src/views/home.ejs
           grep -q 'heroTelemetry' src/views/home.ejs
-          grep -q 'classMatrix' src/views/home.ejs
-          grep -q '/assets/jobs/instructors/warrior.png' src/views/home.ejs
+          ! grep -qi 'CHOOSE YOUR SIGNAL' src/views/home.ejs
+          ! grep -qi 'KNOW THE WORLD' src/views/home.ejs
           grep -q '/assets/ui/recovery.svg' src/views/help.ejs
           grep -q 'rankingTable' src/views/rankings.ejs
           grep -q 'characterCards' src/views/account.ejs
