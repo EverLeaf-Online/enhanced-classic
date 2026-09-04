@@ -28,25 +28,30 @@ jobs:
           if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$HOST" > ~/.ssh/known_hosts; fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Compact character-login incident capture
+      - name: Missing-map login stack capture
         shell: bash
         run: |
           set -euo pipefail
           ssh -o BatchMode=yes -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_everleaf ubuntu@132.145.141.79 'bash -s' <<'REMOTE'
           set +e
-          echo '=== TIME / RELEASE ==='
+          echo '=== RELEASE ==='
           date -Is
           readlink -f /opt/everleaf/current
-          cat /opt/everleaf/current/.everleaf-source-sha 2>/dev/null || cat /opt/everleaf/.deployed-release 2>/dev/null || true
-          echo '=== SERVICE ==='
+          cat /opt/everleaf/current/.everleaf-source-sha 2>/dev/null || true
+          echo '=== MAP NPE STACKS ==='
+          journalctl -u everleaf.service --since '2026-09-04 03:28:30 UTC' --until '2026-09-04 03:31:15 UTC' --no-pager | grep -B 12 -A 45 -F 'because "mapData" is null' || true
+          echo '=== CHARACTER MAP IDS WITH NO LIVE WZ XML ==='
+          tmp=$(mktemp)
+          sudo mysql -N -B cosmic -e 'SELECT map, COUNT(*) FROM characters GROUP BY map ORDER BY map' > "$tmp" 2>/dev/null || true
+          while read -r map count; do
+            [ -n "$map" ] || continue
+            padded=$(printf '%09d' "$map" 2>/dev/null || echo "$map")
+            if ! find /opt/everleaf/current/wz/Map.wz -type f -name "${padded}.img.xml" -print -quit 2>/dev/null | grep -q .; then
+              echo "MISSING map=${map} characters=${count} expected=${padded}.img.xml"
+            fi
+          done < "$tmp"
+          rm -f "$tmp"
+          echo '=== SERVICE / CHANNELS ==='
           systemctl is-active everleaf.service
-          systemctl show everleaf.service -p ActiveEnterTimestamp -p ExecMainStartTimestamp -p MainPID --no-pager
-          echo '=== INCIDENT WINDOW 03:20-03:50 UTC ==='
-          journalctl -u everleaf.service --since '2026-09-04 03:20:00 UTC' --until '2026-09-04 03:50:00 UTC' --no-pager | grep -Ei 'exception|error|fail|login|character|session|channel|transition|disconnect|hwid|invalid|map|client|warn|socket|remote' | tail -180 || true
-          echo '=== RECENT ERRORS ==='
-          journalctl -u everleaf.service --since '-90 min' --no-pager | grep -Ei 'exception|error|fail|illegal|sql|timeout|disconnect|rejected|invalid' | tail -100 || true
-          echo '=== LISTENERS ==='
-          ss -ltnp | egrep ':(8484|7575|7576|7577|7578|7579|7580|7581|7582|7583|7584|7585|7586|7587|7588|7589|7590|7591|7592|7593|7594)\b' || true
-          echo '=== CHANNEL VERIFY ==='
-          python3 /opt/everleaf/current/tools/verify_channel_runtime.py --config /opt/everleaf/current/config.yaml --host 127.0.0.1 2>&1 | tail -80 || true
+          python3 /opt/everleaf/current/tools/verify_channel_runtime.py --config /opt/everleaf/current/config.yaml --host 127.0.0.1 2>&1 | tail -60 || true
           REMOTE
