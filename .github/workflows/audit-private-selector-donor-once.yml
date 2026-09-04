@@ -1,0 +1,65 @@
+name: Locate preserved selector donor once
+
+on:
+  push:
+    branches: [feature/client-job-selector-modernization-20260904]
+    paths: ['.github/workflows/audit-private-selector-donor-once.yml']
+
+permissions:
+  contents: write
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/client-job-selector-modernization-20260904
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+      - name: Locate donor archives and selector XML
+        run: |
+          set -euo pipefail
+          mkdir -p docs
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' > docs/CLIENT_SELECTOR_DONOR_INVENTORY.md <<'REMOTE'
+          set -u
+          echo '# Selector donor inventory'
+          echo
+          echo '## Candidate donor files'
+          for root in /opt/everleaf/private /opt/everleaf/shared /opt/everleaf/backups /opt/everleaf/releases; do
+            [ -e "$root" ] || continue
+            find "$root" -maxdepth 4 -type f \( -iname '*v95*.zip' -o -iname '*v84*.zip' -o -iname 'Login.img.xml' -o -iname 'UI.wz' \) -print 2>/dev/null | head -n 250
+          done
+          echo
+          echo '## Private donor directory'
+          ls -lah /opt/everleaf/private/wz-donors 2>&1 || true
+          echo
+          echo '## Login XML class markers in preserved trees'
+          find /opt/everleaf/shared /opt/everleaf/backups /opt/everleaf/releases -type f -path '*/UI.wz/Login.img.xml' -print 2>/dev/null | head -n 30 | while read -r f; do
+            printf '%s | ' "$f"
+            grep -Eio 'Evan|Dual|Resistance|Citizen|Mechanic|Wild.?Hunter|Battle.?Mage' "$f" 2>/dev/null | sort -fu | paste -sd, - || true
+            echo
+          done
+          REMOTE
+          cat docs/CLIENT_SELECTOR_DONOR_INVENTORY.md
+      - name: Commit inventory
+        run: |
+          set -euo pipefail
+          git config user.name everleaf-client-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add docs/CLIENT_SELECTOR_DONOR_INVENTORY.md
+          git commit -m 'docs: inventory selector donor sources'
+          git push origin HEAD:feature/client-job-selector-modernization-20260904
