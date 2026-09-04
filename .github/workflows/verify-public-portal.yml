@@ -43,7 +43,8 @@ jobs:
           check_page '/terms' 'Terms of Service'
           check_page '/rules' 'Rules'
 
-          curl --fail --silent --show-error --max-time 30 "$BASE/css/full-site-portal-2026.css?v=1" | grep -Fq 'EverLeaf full-site portal pass'
+          PORTAL_CSS="$(curl --fail --silent --show-error --location --max-time 30 "$BASE/css/full-site-portal-2026.css?v=1")"
+          grep -Fq 'EverLeaf full-site portal pass' <<<"$PORTAL_CSS"
 
           ACCOUNT_CODE="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 30 "$BASE/account")"
           case "$ACCOUNT_CODE" in
