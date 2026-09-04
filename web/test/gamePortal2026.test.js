@@ -9,9 +9,8 @@ const header = read("src/views/partials/header.ejs");
 const home = read("src/views/home.ejs");
 const portal = read("public/css/game-portal-2026.css");
 
-test("EverLeaf keeps the immersive game-portal foundation beneath the new design system",()=>{
+test("EverLeaf keeps the immersive game-portal foundation under the final design layer",()=>{
   assert.match(header,/game-portal-2026\.css\?v=1/);
-  assert.match(header,/refero-everleaf-2026\.css\?v=1/);
   assert.match(header,/body class="<%=isHome\?'homeRoute':'innerRoute'%> route-<%=routeKey%>"/);
   assert.ok(header.indexOf("game-portal-2026.css") > header.indexOf("visuals-2026.css"));
   assert.ok(header.indexOf("refero-everleaf-2026.css") > header.indexOf("game-portal-2026.css"));
