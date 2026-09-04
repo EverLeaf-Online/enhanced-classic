@@ -1,0 +1,224 @@
+/* EverLeaf live-site visual art pass — Sep 2026. */
+:root{
+  --visual-sky:#9fe0ef;
+  --visual-crystal:#62def0;
+  --visual-leaf:#6cad57;
+  --visual-gold:#e2b860;
+  --visual-wood:#7d572f;
+}
+
+/* Hero: retain the production forest art, then layer purpose-built EverLeaf magic. */
+.mapleHeroBg{
+  background-image:url('/assets/visuals/hero-magic-overlay.svg'),url('/assets/hero-forest.webp')!important;
+  background-position:center,center 45%!important;
+  background-size:cover,cover!important;
+  background-repeat:no-repeat!important;
+  filter:saturate(1.08) contrast(1.015)!important;
+  transform:scale(1.006);
+}
+.homeV2Hero:before{
+  content:"";
+  position:absolute;
+  z-index:1;
+  inset:0;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 72% 22%,rgba(238,255,196,.16),transparent 18rem),
+    radial-gradient(circle at 12% 76%,rgba(93,219,245,.14),transparent 15rem),
+    linear-gradient(180deg,rgba(255,255,255,.05),transparent 30%,rgba(14,48,43,.08));
+  mix-blend-mode:screen;
+}
+.homeV2Hero .mapleHeroShade{
+  z-index:1;
+  background:
+    linear-gradient(90deg,rgba(17,54,49,.93) 0%,rgba(22,61,55,.78) 32%,rgba(24,65,59,.22) 64%,rgba(18,52,48,.08) 100%),
+    linear-gradient(180deg,rgba(255,255,255,.03),rgba(16,47,44,.30))!important;
+}
+.homeV2Hero .mapleHeroCharacters{z-index:2}
+.homeV2Hero .mapleHeroInner{z-index:3}
+.homeV2Hero .mapleHeroCopy{
+  position:relative;
+}
+.homeV2Hero .mapleHeroCopy:after{
+  content:"";
+  position:absolute;
+  left:-34px;
+  top:36px;
+  bottom:30px;
+  width:3px;
+  border-radius:99px;
+  background:linear-gradient(180deg,transparent,#d6ef84 18%,#7bd8d2 75%,transparent);
+  box-shadow:0 0 18px rgba(161,239,196,.26);
+}
+.homeV2Hero .heroBrand{
+  filter:drop-shadow(0 4px 2px rgba(9,49,44,.32)) drop-shadow(0 0 18px rgba(212,244,151,.1))!important;
+}
+.homeV2Hero .mapleLive{
+  backdrop-filter:blur(10px);
+  box-shadow:0 8px 0 rgba(38,94,54,.22),0 24px 55px rgba(7,38,35,.28)!important;
+}
+
+/* Give the quick launcher row more game-portal personality. */
+.mapleQuick{
+  background:
+    linear-gradient(180deg,rgba(255,253,237,.98),rgba(248,245,218,.98)),
+    radial-gradient(circle at 10% 20%,rgba(108,173,87,.12),transparent 20rem)!important;
+}
+.mapleQuickIcon{
+  position:relative;
+  overflow:hidden;
+}
+.mapleQuickIcon:after{
+  content:"";
+  position:absolute;
+  inset:-50% -30%;
+  background:linear-gradient(115deg,transparent 38%,rgba(255,255,255,.34) 49%,transparent 61%);
+  transform:translateX(-80%);
+  transition:transform .45s ease;
+}
+.mapleQuick a:hover .mapleQuickIcon:after{transform:translateX(80%)}
+
+/* Inner-page illustrated mastheads. */
+.lightTitle.visualPageTitle{
+  padding:34px 0 32px;
+  background:
+    radial-gradient(circle at 85% 0,rgba(118,218,222,.14),transparent 22rem),
+    linear-gradient(135deg,#315f58,#204a46)!important;
+}
+.visualPageTitle .pageHeroGrid{
+  grid-template-columns:minmax(0,1fr) minmax(320px,420px);
+  gap:34px;
+}
+.pageHeroVisual{
+  position:relative;
+  min-height:230px;
+  overflow:hidden;
+  border:1px solid rgba(235,242,197,.34);
+  border-radius:18px;
+  background:rgba(17,53,48,.34);
+  box-shadow:0 16px 36px rgba(11,39,36,.24),inset 0 1px rgba(255,255,255,.16);
+}
+.pageHeroVisual img{
+  display:block;
+  width:100%;
+  height:230px;
+  object-fit:cover;
+}
+.pageHeroVisualCopy{
+  position:absolute;
+  left:12px;
+  right:12px;
+  bottom:12px;
+  padding:11px 12px;
+  border:1px solid rgba(233,241,196,.24);
+  border-radius:11px;
+  background:linear-gradient(180deg,rgba(17,53,48,.60),rgba(17,53,48,.82));
+  backdrop-filter:blur(7px);
+  box-shadow:0 8px 22px rgba(9,34,31,.18);
+}
+.pageHeroVisualCopy strong,.pageHeroVisualCopy span{display:block}
+.pageHeroVisualCopy strong{
+  color:#f3df86;
+  font-size:10px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.pageHeroVisualCopy span{
+  margin-top:3px;
+  color:#eff5e9;
+  font-size:10px;
+  line-height:1.45;
+}
+
+/* Graphic cards and panels gain depth without sacrificing the classic UI. */
+.featurePanel,.paperCard,.downloadCard,.helpCard,.promiseCard,.journeyStep,.libraryFeatureCard{
+  position:relative;
+  overflow:hidden;
+}
+.featurePanel:before,.paperCard:before,.helpCard:before,.promiseCard:before,.journeyStep:before{
+  pointer-events:none;
+}
+.downloadCard,.helpCard,.paperCard,.featurePanel{
+  box-shadow:0 11px 26px rgba(37,73,57,.08),0 3px 0 rgba(72,113,72,.08)!important;
+}
+.helpCard .helpIcon,.downloadIcon,.journeyStepIcon{
+  box-shadow:inset 0 1px rgba(255,255,255,.75),0 5px 12px rgba(51,100,66,.10);
+}
+.helpCard:hover,.downloadCard:hover{
+  border-color:rgba(62,132,76,.34)!important;
+  box-shadow:0 17px 36px rgba(37,73,57,.13),0 3px 0 rgba(72,113,72,.08)!important;
+}
+
+/* Richer homepage section rhythm. */
+.mapleHomeBody{
+  position:relative;
+  background:
+    radial-gradient(circle at 92% 7%,rgba(111,174,93,.09),transparent 26rem),
+    radial-gradient(circle at 5% 45%,rgba(86,188,199,.07),transparent 22rem),
+    linear-gradient(#f3f1db,#e9eed9)!important;
+}
+.homeJourney{
+  background:
+    linear-gradient(135deg,rgba(255,255,255,.93),rgba(246,248,231,.92)),
+    radial-gradient(circle at 90% 10%,rgba(83,186,199,.12),transparent 20rem)!important;
+}
+.everleafPromises{
+  position:relative;
+  padding:30px;
+  border-radius:20px;
+  background:
+    radial-gradient(circle at 95% 0,rgba(89,171,83,.14),transparent 20rem),
+    linear-gradient(145deg,rgba(255,253,239,.92),rgba(236,242,221,.84));
+  border:1px solid rgba(64,112,75,.13);
+  box-shadow:0 15px 38px rgba(31,72,55,.08);
+}
+.promiseCard{
+  background:rgba(255,255,255,.72)!important;
+  transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;
+}
+.promiseCard:hover{
+  transform:translateY(-3px);
+  border-color:rgba(62,132,76,.32);
+  box-shadow:0 13px 24px rgba(35,76,57,.10);
+}
+.promiseCard b{
+  background:linear-gradient(145deg,#eff7e7,#dceccc)!important;
+  border:1px solid rgba(82,139,74,.15);
+}
+
+/* Subtle crystal dividers between major homepage regions. */
+.sectionHead:after{
+  content:"";
+  width:9px;
+  height:9px;
+  margin-left:8px;
+  flex:0 0 auto;
+  transform:rotate(45deg);
+  border:1px solid rgba(54,135,147,.28);
+  background:linear-gradient(135deg,#bff8ef,#65c7ce);
+  box-shadow:0 0 12px rgba(73,181,191,.18);
+}
+
+@media (prefers-reduced-motion:no-preference){
+  .homeV2Hero .mapleHeroBg{animation:everleaf-hero-breathe 14s ease-in-out infinite alternate}
+  @keyframes everleaf-hero-breathe{from{transform:scale(1.006)}to{transform:scale(1.025)}}
+}
+
+@media (max-width:980px){
+  .visualPageTitle .pageHeroGrid{grid-template-columns:1fr 320px;gap:22px}
+  .homeV2Hero .mapleHeroCopy:after{display:none}
+}
+@media (max-width:760px){
+  .visualPageTitle .pageHeroGrid{grid-template-columns:1fr}
+  .pageHeroVisual{min-height:190px}
+  .pageHeroVisual img{height:190px}
+  .pageHeroVisualCopy{position:static;border:0;border-top:1px solid rgba(233,241,196,.22);border-radius:0;background:rgba(17,53,48,.82)}
+  .everleafPromises{padding:20px 16px}
+}
+@media (max-width:560px){
+  .mapleHeroBg{background-position:62% center,58% 45%!important}
+  .homeV2Hero:before{background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(13,46,41,.15))}
+  .lightTitle.visualPageTitle{padding-top:28px}
+  .pageHeroVisual,.pageHeroVisual img{height:175px;min-height:175px}
+  .sectionHead:after{display:none}
+}
