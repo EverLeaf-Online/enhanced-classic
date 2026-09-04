@@ -96,14 +96,29 @@ function resolveWzRoot() {
   return null;
 }
 
+const PARSED_FILE_CACHE_MAX = Math.max(8, Math.min(128, Number(process.env.WIKI_PARSED_FILE_CACHE_MAX || 24)));
+
+function touchParsedFileCache(full, entry) {
+  if (state.parsedFiles.has(full)) state.parsedFiles.delete(full);
+  state.parsedFiles.set(full, entry);
+  while (state.parsedFiles.size > PARSED_FILE_CACHE_MAX) {
+    const oldest = state.parsedFiles.keys().next().value;
+    if (oldest == null) break;
+    state.parsedFiles.delete(oldest);
+  }
+}
+
 function readXml(file) {
   const full = path.resolve(file);
   let stat;
   try { stat = fs.statSync(full); } catch { return null; }
   const cached = state.parsedFiles.get(full);
-  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) return cached.document;
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+    touchParsedFileCache(full, cached);
+    return cached.document;
+  }
   const document = parseWzXmlText(fs.readFileSync(full, "utf8"));
-  state.parsedFiles.set(full, { mtimeMs: stat.mtimeMs, size: stat.size, document });
+  touchParsedFileCache(full, { mtimeMs: stat.mtimeMs, size: stat.size, document });
   return document;
 }
 
