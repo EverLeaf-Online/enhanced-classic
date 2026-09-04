@@ -1,33 +1,43 @@
 <%- include("partials/header",{title:isNew?"New Wiki Article":"Edit Wiki Article"}) %>
 <main class="lightPage adminKnowledgePage">
-<section class="lightTitle"><div class="wrap"><div class="pageEyebrow">CMS Workspace</div><h1><%=isNew?'Create Wiki Article':'Edit Wiki Article'%></h1><p>Publish player-facing EverLeaf knowledge without editing source code. Articles are stored in the preserved CMS database and survive normal website deployments.</p></div></section>
-<%- include("partials/admin-manager-nav") %>
-<div class="wrap wikiEditorWrap">
-  <div class="wikiEditorTop"><a class="btn small" href="/admin/knowledge">← Back to Knowledge</a><% if(!isNew&&fields.slug){ %><a class="btn small" href="/wiki/<%=fields.slug%>" target="_blank" rel="noopener">Open public article ↗</a><% } %></div>
-  <% if(error){ %><div class="error wikiEditorError"><%=error%></div><% } %>
-  <form class="cmsPanel wikiEditor" method="post" action="/admin/knowledge/save">
-    <input type="hidden" name="id" value="<%=fields.id%>">
-    <div class="wikiEditorGrid">
-      <label><span>Title</span><input name="title" required maxlength="140" value="<%=fields.title%>" placeholder="Level 250 Progression"></label>
-      <label><span>Slug</span><input name="slug" required maxlength="100" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value="<%=fields.slug%>" placeholder="level-250-progression"><small>Lowercase letters, numbers, and hyphens.</small></label>
-      <label><span>Category</span><select name="category"><% categories.forEach(cat=>{ %><option value="<%=cat.key%>" <%=fields.category===cat.key?'selected':''%>><%=cat.label%></option><% }) %></select></label>
-      <label><span>Status label</span><input name="status" maxlength="80" value="<%=fields.status%>" placeholder="EverLeaf Guide"></label>
-      <label><span>Eyebrow</span><input name="eyebrow" maxlength="80" value="<%=fields.eyebrow%>" placeholder="PROGRESSION"></label>
-      <label><span>Verification</span><input name="verification" maxlength="180" value="<%=fields.verification%>" placeholder="Verified by EverLeaf staff"></label>
-      <label><span>Source</span><input name="source" maxlength="180" value="<%=fields.source%>" placeholder="EverLeaf server data"></label>
-      <label><span>Source document</span><input name="sourceDoc" maxlength="180" value="<%=fields.sourceDoc%>" placeholder="SERVER-SYSTEMS.md"></label>
-    </div>
-    <label class="wikiEditorWide"><span>Summary</span><textarea name="summary" required maxlength="700" rows="4" placeholder="Short player-facing overview shown in search results."><%=fields.summary%></textarea></label>
-    <div class="wikiEditorBodyGrid">
-      <label class="wikiEditorWide"><span>Article body</span><textarea name="body" required maxlength="30000" rows="22" placeholder="## Overview&#10;Write the article here.&#10;&#10;## Requirements&#10;Add another section here."><%=fields.body%></textarea><small>Start sections with <code>## Heading</code>. Everything else is rendered as safe text, so staff content cannot inject HTML into the public Wiki.</small></label>
-      <aside class="wikiEditorHelp"><div class="pageEyebrow">AUTHORING FORMAT</div><h3>Simple Wiki syntax</h3><p><code>## Heading</code> starts a new article section and automatically becomes part of the table of contents.</p><p>Use normal lines and paragraphs beneath each heading. No HTML is required.</p><hr><h3>Facts</h3><p>Add one fact per line using <code>Label: Value</code>. These become the quick-reference cards near the top of the article.</p></aside>
-    </div>
-    <div class="wikiEditorGrid wikiEditorMetaGrid">
-      <label><span>Tags</span><textarea name="tags" rows="5" placeholder="boss, progression, zakum"><%=fields.tags%></textarea><small>Comma-separated. Search includes tags.</small></label>
-      <label><span>Quick facts</span><textarea name="facts" rows="5" placeholder="Level cap: 250&#10;World: EverLeaf"><%=fields.facts%></textarea><small>One <code>Label: Value</code> pair per line.</small></label>
-    </div>
-    <div class="wikiEditorPublish"><label class="wikiPublishToggle"><input type="checkbox" name="published" value="1" <%=fields.published?'checked':''%>><span><strong>Published</strong><small>Uncheck to keep this article as a staff-only draft.</small></span></label><button class="btn primary" type="submit"><%=isNew?'CREATE ARTICLE':'SAVE CHANGES'%></button></div>
-  </form>
-</div>
+  <section class="lightTitle"><div class="wrap"><div class="pageEyebrow">CMS://KNOWLEDGE EDITOR</div><h1><%=isNew?'NEW ARTICLE.':'EDIT ARTICLE.'%></h1><p>Player-facing EverLeaf knowledge stored in the preserved CMS database and published without a code deployment.</p></div></section>
+  <%- include("partials/admin-manager-nav") %>
+
+  <div class="wrap wikiEditorWrap">
+    <div class="wikiEditorTop"><a class="btn small" href="/admin/knowledge">← ARTICLE LEDGER</a><% if(!isNew&&fields.slug){ %><a class="btn small" href="/wiki/<%=fields.slug%>" target="_blank" rel="noopener">PUBLIC VIEW ↗</a><% } %></div>
+    <% if(error){ %><div class="error wikiEditorError"><%=error%></div><% } %>
+
+    <form class="cmsPanel wikiEditor" method="post" action="/admin/knowledge/save">
+      <input type="hidden" name="id" value="<%=fields.id%>">
+      <div class="wikiEditorBodyGrid">
+        <section>
+          <div class="pageEyebrow">CONTENT://PRIMARY</div>
+          <label>Title<input name="title" required maxlength="140" value="<%=fields.title%>" placeholder="Level 250 Progression"></label>
+          <label>Summary<textarea name="summary" required maxlength="700" rows="4" placeholder="Short player-facing overview shown in search results."><%=fields.summary%></textarea></label>
+          <label class="wikiEditorWide">Article body<textarea name="body" required maxlength="30000" rows="24" placeholder="## Overview&#10;Write the article here.&#10;&#10;## Requirements&#10;Add another section here."><%=fields.body%></textarea><small>Start sections with <code>## Heading</code>. Text is rendered safely; raw HTML is not required.</small></label>
+        </section>
+
+        <aside class="wikiEditorHelp">
+          <div class="pageEyebrow">META://PUBLICATION</div>
+          <label>Slug<input name="slug" required maxlength="100" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value="<%=fields.slug%>" placeholder="level-250-progression"><small>Lowercase letters, numbers, hyphens.</small></label>
+          <label>Category<select name="category"><% categories.forEach(cat=>{ %><option value="<%=cat.key%>" <%=fields.category===cat.key?'selected':''%>><%=cat.label%></option><% }) %></select></label>
+          <label>Status label<input name="status" maxlength="80" value="<%=fields.status%>" placeholder="EverLeaf Guide"></label>
+          <label>Eyebrow<input name="eyebrow" maxlength="80" value="<%=fields.eyebrow%>" placeholder="PROGRESSION"></label>
+          <label>Verification<input name="verification" maxlength="180" value="<%=fields.verification%>" placeholder="Verified by EverLeaf staff"></label>
+          <label>Source<input name="source" maxlength="180" value="<%=fields.source%>" placeholder="EverLeaf server data"></label>
+          <label>Source document<input name="sourceDoc" maxlength="180" value="<%=fields.sourceDoc%>" placeholder="SERVER-SYSTEMS.md"></label>
+          <hr>
+          <div class="pageEyebrow">FORMAT://REFERENCE</div><p><code>## Heading</code> starts a section and table-of-contents entry.</p><p>Add quick facts using one <code>Label: Value</code> pair per line.</p>
+        </aside>
+      </div>
+
+      <div class="wikiEditorGrid wikiEditorMetaGrid">
+        <label>Tags<textarea name="tags" rows="5" placeholder="boss, progression, zakum"><%=fields.tags%></textarea><small>Comma-separated. Search includes tags.</small></label>
+        <label>Quick facts<textarea name="facts" rows="5" placeholder="Level cap: 250&#10;World: EverLeaf"><%=fields.facts%></textarea><small>One <code>Label: Value</code> pair per line.</small></label>
+      </div>
+
+      <div class="wikiEditorPublish"><label class="wikiPublishToggle"><input type="checkbox" name="published" value="1" <%=fields.published?'checked':''%>><span><strong>PUBLISHED</strong><small>Uncheck to keep this article staff-only.</small></span></label><button class="btn primary" type="submit"><%=isNew?'CREATE ARTICLE':'SAVE CHANGES'%></button></div>
+    </form>
+  </div>
 </main>
 <%- include("partials/footer") %>
