@@ -47,7 +47,20 @@ jobs:
           if [ -n "$SSH_KNOWN_HOSTS" ]; then
             printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           else
-            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+            rm -f ~/.ssh/known_hosts ~/.ssh/known_hosts.tmp
+            for attempt in 1 2 3 4 5 6; do
+              echo "Discovering SSH host key (attempt $attempt/6)..."
+              if ssh-keyscan -T 15 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts.tmp 2>/dev/null && [ -s ~/.ssh/known_hosts.tmp ]; then
+                mv ~/.ssh/known_hosts.tmp ~/.ssh/known_hosts
+                break
+              fi
+              rm -f ~/.ssh/known_hosts.tmp
+              if [ "$attempt" -lt 6 ]; then sleep 5; fi
+            done
+            if [ ! -s ~/.ssh/known_hosts ]; then
+              echo "Unable to discover SSH host key for $EVERLEAF_DEPLOY_HOST after 6 attempts." >&2
+              exit 1
+            fi
           fi
           chmod 600 ~/.ssh/known_hosts
           cat > ~/.ssh/config <<EOF
@@ -104,19 +117,12 @@ jobs:
             set_env_var COOKIE_SECURE "true"
             set_env_var CHANNEL_PORTS "7575,7576,7577,7578,7579,7580,7581,7582,7583,7584,7585,7586,7587,7588,7589,7590,7591,7592,7593,7594"
             set_env_var CHARACTER_WZ_RENDERER_URL "http://127.0.0.1:3011"
-            # EverLeaf renders production portraits from its own v83 Character.wz.
-            # Keep the public renderer disabled unless deliberately configured
-            # later as an emergency operator override.
             set_env_var MAPLESTORY_IO_BASE_URL ""
             set_env_var MAPLESTORY_IO_VERSION "83"
 
             if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
             npm run init-db
 
-            # The public site account is intentionally read-only, but rankings
-            # must be able to read equipped item IDs/positions. Apply the grant
-            # to every existing everleaf_web host entry so MySQL host resolution
-            # (localhost vs 127.0.0.1) cannot silently remove the outfit.
             WEB_DB_ACCOUNT_COUNT=0
             while IFS=$'\t' read -r db_user db_host; do
               [ -n "$db_user" ] || continue
@@ -175,8 +181,6 @@ jobs:
             STATUS_JSON="$(curl -fsS http://127.0.0.1:3000/api/status)"
             node -e 'const s=JSON.parse(process.argv[1]); if(s.totalChannels!==20) process.exit(1);' "$STATUS_JSON"
 
-            # Prove the rankings page is rendering a real equipped MySQL
-            # character from local Character.wz, not the naked/base fallback.
             RANKINGS_HTML="$(curl -fsS http://127.0.0.1:3000/rankings)"
             AVATAR_PATH="$(grep -oE 'data-live-avatar="/character-avatar/[0-9]+\.png\?job=[0-9]+"' <<<"$RANKINGS_HTML" | head -n1 | cut -d'"' -f2)"
             test -n "$AVATAR_PATH"
@@ -190,7 +194,6 @@ jobs:
             python3 -c 'import pathlib,sys; d=pathlib.Path(sys.argv[1]).read_bytes(); raise SystemExit(0 if len(d)>=100 and d[:8]==b"\x89PNG\r\n\x1a\n" else 1)' "$AVATAR_IMAGE"
             rm -f "$AVATAR_HEADERS" "$AVATAR_IMAGE"
 
-            # The bot token is deliberately kept out of the website .env.
             sudo test -s /etc/everleaf/discord-bot.env
             sudo node scripts/sync-discord-status.js /etc/everleaf/discord-bot.env http://127.0.0.1:3000/api/status
             sudo bash /opt/everleaf/web/scripts/backup-production.sh
