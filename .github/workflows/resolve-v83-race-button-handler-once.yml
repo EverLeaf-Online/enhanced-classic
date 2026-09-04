@@ -37,7 +37,19 @@ jobs:
           foreach($entry in @($baseline.managedFiles)){
             $name=[string]$entry.path
             if($name -notmatch '^[A-Za-z0-9_.-]+$'){ throw "Unsafe path $name" }
-            Invoke-WebRequest -Uri "$env:EVERLEAF_PUBLIC_BASE/patches/$name" -OutFile (Join-Path $client $name) -MaximumRedirection 5 -TimeoutSec 180 -UseBasicParsing
+            $dest=Join-Path $client $name
+            $ok=$false
+            for($attempt=1;$attempt -le 5 -and -not $ok;$attempt++){
+              try {
+                Invoke-WebRequest -Uri "$env:EVERLEAF_PUBLIC_BASE/patches/$name" -OutFile $dest -MaximumRedirection 5 -TimeoutSec 180 -UseBasicParsing
+                if((Test-Path $dest) -and (Get-Item $dest).Length -gt 0){$ok=$true}
+              } catch {
+                Remove-Item $dest -Force -ErrorAction SilentlyContinue
+                if($attempt -eq 5){throw}
+                Start-Sleep -Seconds (3*$attempt)
+              }
+            }
+            if(-not $ok){throw "Unable to download $name"}
           }
           Copy-Item client/ezorsia/out/Release/dinput8.dll (Join-Path $client 'dinput8.dll') -Force
           Copy-Item client/ezorsia/ezorsia/config.ini (Join-Path $client 'config.ini') -Force
@@ -80,27 +92,20 @@ jobs:
           ins=list(md.disasm(data,BASE))
           hits=[]
           for idx,i in enumerate(ins):
-              mem214=False
-              for op in i.operands:
-                  if op.type==X86_OP_MEM and op.mem.disp==0x214:
-                      mem214=True
-              if mem214:
-                  lo=max(0,idx-12); hi=min(len(ins),idx+18)
-                  hits.append((i.address,ins[lo:hi]))
+              if any(op.type==X86_OP_MEM and op.mem.disp==0x214 for op in i.operands):
+                  hits.append((i.address,ins[max(0,idx-12):min(len(ins),idx+18)]))
           lines=['# v83 race selector field-writer analysis','',f'- scanned: `0x{BASE:08X}`..`0x{BASE+len(data):08X}`',f'- instructions touching displacement `+0x214`: {len(hits)}','']
           for addr,window in hits:
               lines += [f'## Candidate near `0x{addr:08X}`','```asm']
               lines += [f'{x.address:08X}: {x.mnemonic:<7} {x.op_str}' for x in window]
               lines += ['```','']
-          # Also record compact immediate-0/1/2/3 writes in the login/race-select neighborhood.
           lines += ['## Immediate writes 0..3 near 0x005E0000..0x00620000','']
           for i in ins:
               if not (0x005E0000 <= i.address < 0x00620000): continue
-              if i.mnemonic not in ('mov','and','or'): continue
-              if len(i.operands)<2 or i.operands[0].type!=X86_OP_MEM or i.operands[1].type!=X86_OP_IMM: continue
+              if i.mnemonic not in ('mov','and','or') or len(i.operands)<2: continue
+              if i.operands[0].type!=X86_OP_MEM or i.operands[1].type!=X86_OP_IMM: continue
               v=i.operands[1].imm & 0xffffffff
-              if v<=3:
-                  lines.append(f'- `{i.address:08X}: {i.mnemonic} {i.op_str}`')
+              if v<=3: lines.append(f'- `{i.address:08X}: {i.mnemonic} {i.op_str}`')
           Path('docs/CLIENT_V83_RACE_BUTTON_HANDLER.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
           print('\n'.join(lines[:500]))
           '@ | Set-Content -Encoding utf8 "$env:RUNNER_TEMP/analyze.py"
