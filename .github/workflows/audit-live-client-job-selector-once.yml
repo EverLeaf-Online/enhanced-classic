@@ -49,10 +49,8 @@ jobs:
           login, current = sys.argv[1:]
           root = ET.parse(login).getroot()
           family_rx = re.compile(r'(evan|aran|cygn|noblesse|legend|dual|resistance|citizen|battle.?mage|wild.?hunter|mechanic|explor|advent|knight)', re.I)
-          selector_rx = re.compile(r'(char|create|select|job|type|new)', re.I)
-          indexed=[]
-          family=[]
-          selector=[]
+          selector_rx = re.compile(r'(char|create|select|job|type|new|race)', re.I)
+          indexed=[]; family=[]; selector=[]
           def walk(node, path):
               name=node.attrib.get('name','')
               here=f'{path}/{name}' if name else path
@@ -63,56 +61,91 @@ jobs:
                   score=(2 if selector_rx.search(here) else 0)+(1 if family_rx.search(here) else 0)
                   indexed.append((score, here, names))
               attrs=' '.join(f'{k}={v}' for k,v in node.attrib.items())
-              if family_rx.search(here) or family_rx.search(attrs):
-                  family.append((node.tag, here, dict(node.attrib)))
-              if node.tag=='imgdir' and selector_rx.search(here):
-                  selector.append((here, names))
-              for c in node:
-                  walk(c, here)
+              if family_rx.search(here) or family_rx.search(attrs): family.append((node.tag,here,dict(node.attrib)))
+              if node.tag=='imgdir' and selector_rx.search(here): selector.append((here,names))
+              for c in node: walk(c, here)
           walk(root, '')
-          print('# EverLeaf live character-selector structure')
-          print()
+          print('# EverLeaf live character-selector structure\n')
           print(f'- Active release: `{current}`')
-          print(f'- Source: `{login}`')
-          print()
+          print(f'- Source: `{login}`\n')
           print('## Indexed node candidates')
-          for _,p,n in sorted(indexed, key=lambda r:(-r[0],r[1]))[:80]:
-              print(f'- `{p}` -> `{", ".join(n)}`')
-          print()
-          print('## Selector/create paths')
-          seen=set()
-          for p,n in selector:
-              if p in seen: continue
-              seen.add(p)
-              print(f'- `{p}` -> `{", ".join(n)}`')
-          print()
-          print('## Class-family markers')
+          for _,p,n in sorted(indexed,key=lambda r:(-r[0],r[1]))[:40]: print(f'- `{p}` -> `{", ".join(n)}`')
+          print('\n## RaceSelect direct structure')
+          race=root.find("./imgdir[@name='RaceSelect']")
+          if race is None: print('- MISSING')
+          else:
+              for c in race:
+                  if c.tag=='imgdir': print(f'- `{c.attrib.get("name","")}` -> `{", ".join(x.attrib.get("name","") for x in c if x.tag=="imgdir")}`')
+          print('\n## Class-family marker summary')
+          xml=open(login,encoding='utf-8',errors='ignore').read()
+          for label,rx in [('Explorer',r'explor|advent'),('Cygnus',r'cygn|noblesse|knight'),('Aran',r'aran|legend'),('Evan',r'evan'),('Dual Blade',r'dual'),('Resistance',r'resistance|citizen'),('Battle Mage',r'battle.?mage'),('Wild Hunter',r'wild.?hunter'),('Mechanic',r'mechanic')]:
+              print(f'- {label}: {len(re.findall(rx,xml,re.I))} matches')
+          print('\n## Relevant class-family paths')
           seen=set()
           for tag,p,a in family:
-              key=(tag,p,tuple(sorted(a.items())))
-              if key in seen: continue
-              seen.add(key)
+              if p in seen: continue
+              seen.add(p)
+              if len(seen)>120: break
               print(f'- `{tag}` `{p}` `{a}`')
-          print()
-          print('## Marker summary')
-          xml=open(login,encoding='utf-8',errors='ignore').read()
-          for label,rx in [
-              ('Explorer',r'explor|advent'),('Cygnus',r'cygn|noblesse|knight'),('Aran',r'aran|legend'),
-              ('Evan',r'evan'),('Dual Blade',r'dual'),('Resistance',r'resistance|citizen'),
-              ('Battle Mage',r'battle.?mage'),('Wild Hunter',r'wild.?hunter'),('Mechanic',r'mechanic')]:
-              print(f'- {label}: {len(re.findall(rx,xml,re.I))} textual/path matches')
           PY
           REMOTE
-          sed -n '1,240p' docs/CLIENT_SELECTOR_LIVE_STRUCTURE.md
-      - name: Commit report
+          cat docs/CLIENT_SELECTOR_LIVE_STRUCTURE.md
+      - name: Record private GMS v95 selector structure
         run: |
           set -euo pipefail
-          if git diff --quiet -- docs/CLIENT_SELECTOR_LIVE_STRUCTURE.md && git ls-files --error-unmatch docs/CLIENT_SELECTOR_LIVE_STRUCTURE.md >/dev/null 2>&1; then
-            echo 'selector report unchanged'
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' > docs/CLIENT_SELECTOR_GMS_V95_STRUCTURE.md <<'REMOTE'
+          set -euo pipefail
+          ZIP=/opt/everleaf/private/wz-donors/gms-v95.zip
+          test -s "$ZIP"
+          ENTRY="$(unzip -Z1 "$ZIP" | grep -E '(^|/)UI\.wz/Login\.img\.xml$' | head -n1 || true)"
+          echo '# GMS v95 donor character-selector structure'
+          echo
+          echo "- Donor: \`$ZIP\`"
+          if [ -z "$ENTRY" ]; then
+            echo '- `UI.wz/Login.img.xml` is not present in this donor export.'
+            echo '- Available UI/Login-like entries:'
+            unzip -Z1 "$ZIP" | grep -Ei 'UI\.wz|Login\.img' | head -n80 | sed 's/^/- `&`/' || true
             exit 0
           fi
+          echo "- Entry: \`$ENTRY\`"
+          TMP="$(mktemp)"
+          trap 'rm -f "$TMP"' EXIT
+          unzip -p "$ZIP" "$ENTRY" > "$TMP"
+          python3 - "$TMP" <<'PY'
+          import re,sys,xml.etree.ElementTree as ET
+          p=sys.argv[1]; root=ET.parse(p).getroot()
+          race=root.find("./imgdir[@name='RaceSelect']")
+          print('\n## RaceSelect direct structure')
+          if race is None: print('- MISSING')
+          else:
+              for c in race:
+                  if c.tag=='imgdir': print(f'- `{c.attrib.get("name","")}` -> `{", ".join(x.attrib.get("name","") for x in c if x.tag=="imgdir")}`')
+          print('\n## Class-family marker summary')
+          xml=open(p,encoding='utf-8',errors='ignore').read()
+          tests=[('Explorer',r'explor|advent'),('Cygnus',r'cygn|noblesse|knight'),('Aran',r'aran|legend'),('Evan',r'evan'),('Dual Blade',r'dual'),('Resistance',r'resistance|citizen'),('Battle Mage',r'battle.?mage'),('Wild Hunter',r'wild.?hunter'),('Mechanic',r'mechanic')]
+          for label,rx in tests: print(f'- {label}: {len(re.findall(rx,xml,re.I))} matches')
+          print('\n## Relevant selector paths')
+          rx=re.compile(r'(race|char|create|select|job|evan|aran|dual|resistance|citizen|mechanic|wild|battle|knight|advent)',re.I)
+          rows=[]
+          def walk(n,path):
+              name=n.attrib.get('name',''); here=f'{path}/{name}' if name else path
+              if n.tag=='imgdir' and rx.search(here):
+                  rows.append((here,[c.attrib.get('name','') for c in n if c.tag=='imgdir']))
+              for c in n: walk(c,here)
+          walk(root,'')
+          for path,kids in rows[:180]: print(f'- `{path}` -> `{", ".join(kids)}`')
+          PY
+          REMOTE
+          cat docs/CLIENT_SELECTOR_GMS_V95_STRUCTURE.md
+      - name: Commit reports
+        run: |
+          set -euo pipefail
           git config user.name everleaf-client-bot
           git config user.email 173628847+iampolicy@users.noreply.github.com
-          git add docs/CLIENT_SELECTOR_LIVE_STRUCTURE.md
-          git commit -m 'docs: record live client selector structure'
+          git add docs/CLIENT_SELECTOR_LIVE_STRUCTURE.md docs/CLIENT_SELECTOR_GMS_V95_STRUCTURE.md
+          if git diff --cached --quiet; then
+            echo 'selector reports unchanged'
+            exit 0
+          fi
+          git commit -m 'docs: compare live and v95 client selectors'
           git push origin HEAD:feature/client-job-selector-modernization-20260904
