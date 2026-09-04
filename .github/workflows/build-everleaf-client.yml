@@ -15,6 +15,7 @@ on:
       - "web/scripts/build-patch-manifest.js"
       - "web/scripts/test-patch-manifest.js"
       - ".github/workflows/build-everleaf-client.yml"
+      - ".github/workflows/smoke-client-v2-boot.yml"
   workflow_dispatch:
 
 permissions:
@@ -190,3 +191,8 @@ jobs:
           path: EverleafClient-source-built.zip
           if-no-files-found: error
           retention-days: 7
+
+  client-v2-isolated-boot:
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'integration/client-v2-candidate-')
+    uses: ./.github/workflows/smoke-client-v2-boot.yml
+    secrets: inherit
