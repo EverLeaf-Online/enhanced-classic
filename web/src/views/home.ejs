@@ -21,7 +21,6 @@
       <div class="artifactCrosshair" aria-hidden="true"><span></span><span></span></div>
       <img class="artifactCharacter artifactCharacterBack" src="/assets/hero-left.webp" alt="" decoding="async">
       <img class="artifactCharacter artifactCharacterFront" src="/assets/hero-right.webp" alt="Maple World adventurers" decoding="async">
-      <div class="artifactStamp" aria-hidden="true"><span>EL</span><small>WORLD<br>083</small></div>
       <div class="artifactTelemetry" aria-hidden="true"><span>MAPLE WORLD / ONLINE</span><span>LOCAL ASSET / 02</span></div>
     </div>
 
@@ -42,7 +41,6 @@
 
   <div class="wrap heroEdgeRail">
     <div><span class="terminalLabel">CORE PRINCIPLES</span><p>NO PAY-TO-WIN / NO MANDATORY HP WASHING / COMMUNITY-FIRST</p></div>
-    <div class="heroEdgeLinks"><a href="/wiki">WIKI ↗</a><a href="/rankings">RANKINGS ↗</a><a href="<%=brand.discordUrl%>" target="_blank" rel="noopener noreferrer">DISCORD ↗</a></div>
   </div>
 </section>
 
@@ -52,8 +50,6 @@
     <a href="<%=sessionPlayer?'/account':'/login'%>"><span>02</span><strong><%=sessionPlayer?'ACCOUNT':'LOGIN'%></strong><small>Characters + security</small></a>
     <a href="/rankings"><span>03</span><strong>RANKINGS</strong><small>Live character data</small></a>
     <a href="/wiki"><span>04</span><strong>WIKI</strong><small>Systems + knowledge</small></a>
-    <a href="/news"><span>05</span><strong>JOURNAL</strong><small>Updates + events</small></a>
+    <a href="<%=brand.discordUrl%>" target="_blank" rel="noopener noreferrer"><span>05</span><strong>DISCORD</strong><small>Community + support</small></a>
   </div>
 </nav>
-
-<%- include("partials/footer",{player:sessionPlayer}) %>
