@@ -1,3 +1,6 @@
 <%- include("partials/header",{title:page.title}) %>
-<main class="lightPage"><section class="lightTitle"><div class="wrap pageHeroGrid"><div><div class="pageEyebrow">EverLeaf</div><h1><%=page.title%></h1><p>Official EverLeaf information maintained through the website CMS.</p></div><div class="pageHeroAside"><strong>Official page</strong><span>This content is managed by the EverLeaf team and can be updated without a site deployment.</span></div></div></section><div class="wrap" style="max-width:980px"><article class="featurePanel termsCard"><% String(page.body||"").split(/\r?\n\r?\n/).filter(Boolean).forEach(paragraph=>{ %><p><%=paragraph%></p><% }) %><% if(!String(page.body||"").trim()){ %><p class="muted">This page is being prepared.</p><% } %></article></div></main>
+<main class="lightPage terminalArticlePage">
+  <header class="terminalPageLead"><div><div class="pageEyebrow">DOCUMENT://EVERLEAF</div><h1><%=page.title%>.</h1></div><aside class="terminalPageLeadAside"><span>CMS-MANAGED PUBLIC ROUTE</span><b>OFFICIAL EVERLEAF INFORMATION</b><span>Content may be updated by staff without a code deployment.</span></aside></header>
+  <article class="featurePanel termsCard terminalArticle"><% String(page.body||"").split(/\r?\n\r?\n/).filter(Boolean).forEach(paragraph=>{ %><p><%=paragraph%></p><% }) %><% if(!String(page.body||"").trim()){ %><p class="muted">THIS DOCUMENT IS BEING PREPARED.</p><% } %></article>
+</main>
 <%- include("partials/footer") %>
