@@ -19,6 +19,7 @@ const admin = read("public/css/maple-remaster-admin.css");
 const jobs = read("public/css/maple-jobs.css");
 const final = read("public/css/maple-final.css");
 const rankingsCss = read("public/css/rankings-remaster.css");
+const wikiPlayerCss = read("public/css/wiki-player-2026.css");
 const homePolish = read("public/css/home-polish.css");
 const uiux = read("public/css/uiux-2026.css");
 const assertRgbaPng = relative => {
@@ -39,6 +40,7 @@ test("global navigation loads the unified Maple remaster design system",()=>{
   assert.match(header,/home-polish\.css/);
   assert.match(header,/wiki-remaster\.css/);
   assert.match(header,/wiki-cms\.css/);
+  assert.match(header,/wiki-player-2026\.css/);
   assert.match(header,/uiux-2026\.css/);
   assert.match(header,/maple-remaster-admin\.css/);
   assert.doesNotMatch(header,/design-v2\.css/);
@@ -111,21 +113,28 @@ test("homepage class guide uses clean centered local artwork",()=>{
   for(const asset of ["launcher","trophy","journal","community","account"]) assert.match(home,new RegExp(`/assets/ui/${asset}\\.svg`));
 });
 
-test("wiki is a searchable CMS-backed knowledge database",()=>{
-  assert.match(wiki,/EVERLEAF WIKI/);
+test("wiki is a visibly player-facing CMS knowledge base",()=>{
+  assert.match(wiki,/EVERLEAF PLAYER WIKI/);
   assert.match(wiki,/wikiSearch/);
-  assert.match(wiki,/Browse the Wiki/);
-  assert.match(wiki,/CMS-backed/);
-  assert.match(wiki,/entry\.sourceDoc\|\|entry\.source/);
+  assert.match(wiki,/Browse Player Guides/);
+  assert.match(wiki,/Staff maintained/);
+  assert.match(wiki,/QUICK START/);
+  assert.match(wiki,/getting-started/);
   assert.match(wiki,/entry\.updatedAt/);
+  assert.doesNotMatch(wiki,/entry\.sourceDoc\|\|entry\.source/);
+  assert.match(wikiPlayerCss,/\.wikiQuickGrid/);
+  assert.match(wikiPlayerCss,/\.wikiPlayerCard/);
   assert.doesNotMatch(wiki,/Wiki is being built/);
 });
 
-test("rankings render a Maple-style leaderboard with individual local Cygnus and clean Beginner artwork",()=>{
+test("rankings render live saved character avatars with local class-art fallback",()=>{
   assert.match(rankings,/rankingPodium/);
   assert.match(rankings,/rankingTableV2/);
   assert.match(rankings,/rankPlayerIcon/);
   assert.match(rankings,/rankingJobBadge/);
+  assert.match(rankings,/\/character-avatar\//);
+  assert.match(rankings,/Live saved appearance/);
+  assert.match(rankings,/rankingCharacterAvatar/);
   assert.match(rankings,/\/assets\/jobs\/beginner\/beginner-clean\.png/);
   assert.match(rankings,/\/assets\/jobs\/special\/cygnus-clean\.png/);
   assert.match(rankings,/\/assets\/jobs\/special\/aran\.png/);
@@ -134,10 +143,10 @@ test("rankings render a Maple-style leaderboard with individual local Cygnus and
   for(const asset of ["dawn-warrior","blaze-wizard","wind-archer","night-walker","thunder-breaker"]) {
     assert.match(rankings,new RegExp(`/assets/jobs/cygnus/${asset}\\.png`));
     const file=path.join(root,`public/assets/jobs/cygnus/${asset}.png`);
-    assert.ok(fs.existsSync(file),`${asset} ranking artwork should exist`);
-    assert.ok(fs.statSync(file).size>10000,`${asset} ranking artwork should be a real image`);
+    assert.ok(fs.existsSync(file),`${asset} fallback artwork should exist`);
+    assert.ok(fs.statSync(file).size>10000,`${asset} fallback artwork should be a real image`);
   }
-  for(const asset of ["cygnus","aran","evan"]) assert.doesNotMatch(rankings,new RegExp(`/assets/jobs/${asset}\\.svg`));
+  assert.match(rankingsCss,/\.rankingCharacterAvatar/);
   assert.match(rankingsCss,/\.rankingPodium/);
   assert.match(rankingsCss,/\.rankPlayerIcon/);
   assert.match(rankingsCss,/@media\(max-width:600px\)/);
