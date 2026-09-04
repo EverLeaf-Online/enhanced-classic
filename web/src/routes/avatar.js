@@ -9,6 +9,9 @@ const router = express.Router();
 const cache = new Map();
 const MAX_CACHE_ENTRIES = 500;
 const PUBLIC_ROOT = path.resolve(__dirname,"../../public");
+const LOCAL_RENDERER_EQUIP_PREFIXES = new Set([
+  100,101,102,103,104,105,106,107,108,109,110,170
+]);
 
 function fallbackAsset(job=0) {
   const n = String(jobName(Number(job) || 0) || "").toLowerCase();
@@ -35,6 +38,19 @@ function wzId(value) {
   return String(n).padStart(8,"0");
 }
 
+function localRenderableEquipmentId(value) {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n <= 0) return false;
+  const prefix = Math.trunc(n / 10000);
+  return LOCAL_RENDERER_EQUIP_PREFIXES.has(prefix) || (prefix >= 121 && prefix <= 160);
+}
+
+function localRendererEquipmentIds(appearance) {
+  return [...new Set((appearance.equipment || [])
+    .map(Number)
+    .filter(localRenderableEquipmentId))];
+}
+
 function localRendererIds(appearance, includeEquipment=true) {
   const skin = Math.max(0, Number(appearance.skincolor || 0));
   const ids = [
@@ -43,7 +59,7 @@ function localRendererIds(appearance, includeEquipment=true) {
     Number(appearance.hair || 0),
     Number(appearance.face || 0)
   ];
-  if (includeEquipment) ids.push(...(appearance.equipment || []).map(Number));
+  if (includeEquipment) ids.push(...localRendererEquipmentIds(appearance));
   return [...new Set(ids.map(wzId).filter(Boolean))];
 }
 
@@ -90,8 +106,14 @@ async function fetchAvatar(url, source, timeoutMs=8000) {
 
 async function renderAppearance(appearance, includeEquipment) {
   let localError = null;
+  const localSource = includeEquipment ? "local-wz" : "local-wz-base";
   try {
-    return await fetchAvatar(localRendererUrl(appearance,includeEquipment),"local-wz",20_000);
+    const image = await fetchAvatar(localRendererUrl(appearance,includeEquipment),localSource,20_000);
+    return {
+      ...image,
+      mode:includeEquipment ? "full" : "base-fallback",
+      equipmentCount:includeEquipment ? localRendererEquipmentIds(appearance).length : 0
+    };
   } catch (error) {
     localError = error;
   }
@@ -102,7 +124,12 @@ async function renderAppearance(appearance, includeEquipment) {
     let remoteError = null;
     for (const version of remoteRendererVersions()) {
       try {
-        return await fetchAvatar(remoteRendererUrl(appearance,includeEquipment,version),"external-renderer",8_000);
+        const image = await fetchAvatar(remoteRendererUrl(appearance,includeEquipment,version),"external-renderer",8_000);
+        return {
+          ...image,
+          mode:includeEquipment ? "full" : "base-fallback",
+          equipmentCount:includeEquipment ? (appearance.equipment || []).length : 0
+        };
       } catch (error) {
         remoteError = error;
       }
@@ -121,6 +148,13 @@ function cacheSet(id, value) {
   cache.set(id, { ...value, expiresAt: Date.now() + env.avatar.cacheMs });
 }
 
+function setAvatarHeaders(res,image) {
+  res.set("Content-Type",image.type);
+  res.set("X-EverLeaf-Avatar-Source",image.source);
+  res.set("X-EverLeaf-Avatar-Mode",image.mode || "unknown");
+  res.set("X-EverLeaf-Avatar-Equipment-Count",String(Number(image.equipmentCount || 0)));
+}
+
 function sendFallback(res,job=0) {
   const asset = fallbackAsset(job);
   const file = path.resolve(PUBLIC_ROOT,asset.replace(/^\/+/,""));
@@ -129,6 +163,8 @@ function sendFallback(res,job=0) {
   }
   res.set("Cache-Control","public, max-age=60, stale-while-revalidate=300");
   res.set("X-EverLeaf-Avatar-Source","fallback");
+  res.set("X-EverLeaf-Avatar-Mode","class-fallback");
+  res.set("X-EverLeaf-Avatar-Equipment-Count","0");
   return res.sendFile(file);
 }
 
@@ -138,9 +174,8 @@ router.get("/character-avatar/:id.png", async (req,res) => {
 
   const cached = cache.get(id);
   if (cached && cached.expiresAt > Date.now()) {
-    res.set("Content-Type",cached.type);
+    setAvatarHeaders(res,{ ...cached, source:`${cached.source}-cache` });
     res.set("Cache-Control","public, max-age=300, stale-while-revalidate=3600");
-    res.set("X-EverLeaf-Avatar-Source",`${cached.source}-cache`);
     return res.send(cached.bytes);
   }
   if (cached) cache.delete(id);
@@ -167,9 +202,8 @@ router.get("/character-avatar/:id.png", async (req,res) => {
 
   if (!image) return sendFallback(res,appearance.job);
   cacheSet(id,image);
-  res.set("Content-Type",image.type);
+  setAvatarHeaders(res,image);
   res.set("Cache-Control","public, max-age=300, stale-while-revalidate=3600");
-  res.set("X-EverLeaf-Avatar-Source",image.source);
   return res.send(image.bytes);
 });
 
@@ -177,6 +211,8 @@ module.exports = router;
 module.exports._test = {
   fallbackAsset,
   wzId,
+  localRenderableEquipmentId,
+  localRendererEquipmentIds,
   localRendererIds,
   localRendererUrl,
   remoteRendererUrl,

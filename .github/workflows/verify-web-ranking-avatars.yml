@@ -41,6 +41,8 @@ jobs:
           curl --fail --silent --show-error --max-time 40 -D "$HEADERS" -o "$IMAGE" "$BASE$AVATAR_PATH"
           grep -Eqi '^content-type:[[:space:]]*image/' "$HEADERS"
           grep -Eqi '^x-everleaf-avatar-source:[[:space:]]*local-wz(-cache)?[[:space:]]*$' "$HEADERS"
+          grep -Eqi '^x-everleaf-avatar-mode:[[:space:]]*full[[:space:]]*$' "$HEADERS"
+          grep -Eqi '^x-everleaf-avatar-equipment-count:[[:space:]]*[0-9]+[[:space:]]*$' "$HEADERS"
           test -s "$IMAGE"
 
           BYTES="$(wc -c < "$IMAGE")"
@@ -51,4 +53,6 @@ jobs:
           python3 -c 'import pathlib,sys; d=pathlib.Path(sys.argv[1]).read_bytes(); raise SystemExit(0 if d[:8]==b"\x89PNG\r\n\x1a\n" else 1)' "$IMAGE"
 
           SOURCE="$(grep -Ei '^x-everleaf-avatar-source:' "$HEADERS" | tail -n1 | tr -d '\r')"
-          echo "EverLeaf ranking avatar is rendered from local Character.wz: $AVATAR_PATH (${BYTES} bytes; ${SOURCE})."
+          MODE="$(grep -Ei '^x-everleaf-avatar-mode:' "$HEADERS" | tail -n1 | tr -d '\r')"
+          EQUIPMENT="$(grep -Ei '^x-everleaf-avatar-equipment-count:' "$HEADERS" | tail -n1 | tr -d '\r')"
+          echo "EverLeaf ranking avatar is a full local Character.wz render: $AVATAR_PATH (${BYTES} bytes; ${SOURCE}; ${MODE}; ${EQUIPMENT})."
