@@ -7,6 +7,8 @@ int Client::m_nGameWidth = 1280;
 int Client::MsgAmount = 26;
 bool Client::WindowedMode = true;
 bool Client::RemoveLogos = true;
+bool Client::ModernLoginUI = true;
+bool Client::ShowFutureClassCards = true;
 double Client::setDamageCap = 199999.0;
 bool Client::useTubi = false;
 int Client::speedMovementCap = 140;
@@ -631,17 +633,15 @@ void Client::EnableNewIGCipher() {//??not called //no idea what cipher is
 	Memory::WriteInt(dwIGCipherDecryptStr + 3, nCipherHash);
 }
 
-void Client::UpdateLogin() {	//un-used //may still contain some useful addresses for custom login
+void Client::UpdateLogin() {
+	// EverLeaf modern-classic login pass. Keep MapleStory's native controls and
+	// event flow; only reposition the stable login dialog/input controls and
+	// restyle their text fields. This makes the change reversible and keeps
+	// world/character-select protocol behavior untouched while the broader UI
+	// backport is screenshot-tested.
 	Memory::CodeCave(PositionLoginDlg, dwLoginCreateDlg, 14);
 	Memory::CodeCave(PositionLoginUsername, dwLoginUsername, 11);
 	Memory::CodeCave(PositionLoginPassword, dwLoginPassword, 8);
-	Memory::WriteInt(dwLoginInputBackgroundColor + 3, 0xFFF8FAFF); // ARGB value
-	Memory::WriteByte(dwLoginInputFontColor + 3, 1); // bool: true=black, false=white
-	Memory::WriteInt(dwLoginLoginBtn + 1, -127); // x-pos
-	Memory::WriteInt(dwLoginFindPasswordBtn + 1, -127); // x-pos
-	Memory::WriteInt(dwLoginQuitBtn + 1, -127); // x-pos
-	Memory::WriteInt(dwLoginFindIDBtn + 1, -127); // x-pos
-	Memory::WriteByte(dwLoginFindIDBtn + 1, -127); // x-pos
-	Memory::WriteByte(dwLoginWebHomeBtn + 1, -127); // x-pos
-	Memory::WriteByte(dwLoginWebRegisterBtn + 1, -127); // x-pos
+	Memory::WriteInt(dwLoginInputBackgroundColor + 3, 0xFFF4F8F1);
+	Memory::WriteByte(dwLoginInputFontColor + 3, 1);
 }

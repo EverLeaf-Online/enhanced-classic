@@ -72,6 +72,11 @@ void MainFunc() {
 	std::cout << "Applying resolution " << Client::m_nGameWidth << "x" << Client::m_nGameHeight << std::endl;
 	Client::UpdateResolution();
 
+	if (Client::ModernLoginUI) {
+		std::cout << "Applying EverLeaf modern login UI" << std::endl;
+		Client::UpdateLogin();
+	}
+
 	dinput8::CreateHook();	std::cout << "dinput8 hook initialized" << std::endl;
 }
 
