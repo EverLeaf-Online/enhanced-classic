@@ -3,6 +3,7 @@
 #include "ReplacementFuncs.h"
 #include "dinput8.h"
 #include "CrashDiagnostics.h"
+#include "FrameLimiter.h"
 
 #include <atomic>
 
@@ -174,6 +175,12 @@ void MainFunc() {
     CrashDiagnostics::SetPhase("initializing-dinput-proxy");
     dinput8::CreateHook();
     std::cout << "EverLeaf Client v2: dinput8 proxy hook initialized" << std::endl;
+
+    CrashDiagnostics::SetPhase("installing-frame-limiter");
+    if (!FrameLimiter::Install()) {
+        CrashDiagnostics::LogEvent("frame limiter unavailable; continuing with stock presentation timing");
+    }
+
     CrashDiagnostics::SetPhase("client-hooks-ready");
 }
 
