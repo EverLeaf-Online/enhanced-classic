@@ -1,0 +1,164 @@
+name: Audit live v83 race routing once
+
+on:
+  push:
+    branches: [feature/client-job-selector-modernization-20260904]
+    paths: ['.github/workflows/audit-live-v83-race-routing-once.yml']
+
+permissions:
+  contents: write
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  prepare-ssh:
+    runs-on: ubuntu-24.04
+    outputs:
+      known_hosts_b64: ${{ steps.hostkeys.outputs.known_hosts_b64 }}
+    steps:
+      - name: Capture Oracle SSH host keys
+        id: hostkeys
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$RUNNER_TEMP/known_hosts"
+          test -s "$RUNNER_TEMP/known_hosts"
+          echo "known_hosts_b64=$(base64 -w0 "$RUNNER_TEMP/known_hosts")" >> "$GITHUB_OUTPUT"
+
+  audit:
+    needs: prepare-ssh
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/client-job-selector-modernization-20260904
+          fetch-depth: 0
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS_B64: ${{ needs.prepare-ssh.outputs.known_hosts_b64 }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          $keyPath=Join-Path $sshDir 'id_everleaf'
+          [IO.File]::WriteAllText($keyPath,($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          [IO.File]::WriteAllBytes((Join-Path $sshDir 'known_hosts'),[Convert]::FromBase64String($env:KNOWN_HOSTS_B64))
+
+      - name: Fetch exact live EverLeaf executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $scp='C:\Program Files\Git\usr\bin\scp.exe'
+          $key=Join-Path $HOME '.ssh/id_everleaf'
+          $dst=Join-Path $env:RUNNER_TEMP 'EverLeaf.exe'
+          & $scp -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/patches/files/EverLeaf.exe" $dst
+          if($LASTEXITCODE -ne 0 -or -not (Test-Path $dst)){ throw 'Unable to fetch live EverLeaf.exe' }
+          Get-FileHash $dst -Algorithm SHA256
+          "LIVE_EXE=$dst" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install disassembly helpers
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check pefile capstone
+
+      - name: Disassemble v83 login race routing
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          import hashlib
+          import os
+          from pathlib import Path
+          import pefile
+          from capstone import Cs, CS_ARCH_X86, CS_MODE_32
+          from capstone.x86 import X86_OP_IMM, X86_OP_MEM, X86_REG_ESI
+
+          exe = Path(os.environ['LIVE_EXE'])
+          data = exe.read_bytes()
+          pe = pefile.PE(str(exe), fast_load=False)
+          base = pe.OPTIONAL_HEADER.ImageBase
+          md = Cs(CS_ARCH_X86, CS_MODE_32)
+          md.detail = True
+
+          def bytes_for_va(start, end):
+              rva = start - base
+              off = pe.get_offset_from_rva(rva)
+              return data[off:off + (end-start)]
+
+          lines = [
+              '# Live v83 race-routing disassembly', '',
+              f'- SHA-256: `{hashlib.sha256(data).hexdigest()}`',
+              f'- Image base: `0x{base:08X}`',
+              '- Known v83 anchor: `CLogin::Update` race load at `0x005F4F26` (`CLogin+0x214`).',
+              '- Goal: identify every live branch that routes race 0/1/2 and the safest insertion point for race 3 (Evan).', '',
+          ]
+
+          start, end = 0x005F4800, 0x005F5200
+          ins = list(md.disasm(bytes_for_va(start,end), start))
+          lines += ['## Login update window', '', '```asm']
+          for i in ins:
+              mark = ''
+              if 0x005F4C00 <= i.address <= 0x005F5120:
+                  for op in i.operands:
+                      if op.type == X86_OP_MEM and op.mem.base == X86_REG_ESI and op.mem.disp == 0x214:
+                          mark = '    ; <<< CLogin+0x214 race field'
+              if 0x005F4E80 <= i.address <= 0x005F5120 or mark:
+                  lines.append(f'{i.address:08X}: {i.bytes.hex(" "):<28} {i.mnemonic:<8} {i.op_str}{mark}')
+          lines += ['```', '']
+
+          # Candidate constructors: v83/v84 Explorer/Evan dialog fingerprint uses
+          # z=109 (0x6d), y=201 (0xc9), width=224 (0xe0). Report dense windows
+          # containing all three immediates so we can distinguish dormant dialog code.
+          text_sec = next(s for s in pe.sections if s.Name.rstrip(b'\0') == b'.text')
+          text_va = base + text_sec.VirtualAddress
+          text = data[text_sec.PointerToRawData:text_sec.PointerToRawData+text_sec.SizeOfRawData]
+          all_ins = list(md.disasm(text, text_va))
+          vals = {0x6D, 0xC9, 0xE0}
+          candidates = []
+          for idx, inst in enumerate(all_ins):
+              imm = [op.imm for op in inst.operands if op.type == X86_OP_IMM]
+              if not any(v in vals for v in imm):
+                  continue
+              lo=max(0,idx-16); hi=min(len(all_ins),idx+17)
+              seen=set()
+              for j in all_ins[lo:hi]:
+                  for op in j.operands:
+                      if op.type == X86_OP_IMM and op.imm in vals: seen.add(op.imm)
+              if seen == vals:
+                  a=all_ins[lo].address; b=all_ins[hi-1].address
+                  if not candidates or a > candidates[-1][1] + 16:
+                      candidates.append([a,b,lo,hi])
+                  else:
+                      candidates[-1][1]=b; candidates[-1][3]=hi
+
+          lines += ['## Explorer/Evan-shaped constructor candidates', '']
+          if not candidates:
+              lines.append('- No dense `.text` window contained immediates 109/201/224 together.')
+          else:
+              for n,(a,b,lo,hi) in enumerate(candidates[:24],1):
+                  lines += [f'### Candidate {n}: `0x{a:08X}`–`0x{b:08X}`', '', '```asm']
+                  for i in all_ins[lo:hi]:
+                      lines.append(f'{i.address:08X}: {i.bytes.hex(" "):<28} {i.mnemonic:<8} {i.op_str}')
+                  lines += ['```','']
+
+          out=Path('docs/CLIENT_V83_RACE_ROUTING_DISASM.md')
+          out.write_text('\n'.join(lines)+'\n', encoding='utf-8')
+          print(out.read_text(encoding='utf-8')[:30000])
+          '@ | Set-Content -Encoding utf8 "$env:RUNNER_TEMP/audit_race.py"
+          python "$env:RUNNER_TEMP/audit_race.py"
+
+      - name: Commit race-routing report
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name everleaf-client-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add docs/CLIENT_V83_RACE_ROUTING_DISASM.md
+          if(git diff --cached --quiet){ Write-Host 'No report change.'; exit 0 }
+          git commit -m 'docs: record live v83 race-routing disassembly'
+          git pull --rebase origin feature/client-job-selector-modernization-20260904
+          git push origin HEAD:feature/client-job-selector-modernization-20260904
