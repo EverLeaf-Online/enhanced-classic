@@ -29,36 +29,51 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
           chmod 600 ~/.ssh/id_everleaf
           if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
-      - name: Inspect live client selector assets and strings
+      - name: Inspect live selector XML structure
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
           CURRENT="$(readlink -f /opt/everleaf/current)"
+          LOGIN="$CURRENT/wz/UI.wz/Login.img.xml"
           echo "CURRENT=$CURRENT"
-          echo '--- managed client selector-related files ---'
-          for f in EverLeaf.exe UI.wz EverLeaf_UI.wz String.wz Skill.wz Character.wz; do
-            p="/opt/everleaf/patches/files/$f"
-            if [ -f "$p" ]; then stat -c '%n bytes=%s' "$p"; else echo "MISSING $p"; fi
-          done
-          echo '--- server-exported UI availability ---'
-          for root in "$CURRENT/wz/UI.wz" /opt/everleaf/shared/wz-v95/UI.wz; do
-            if [ -d "$root" ]; then
-              echo "UI_ROOT=$root"
-              echo "UI_XML_COUNT=$(find "$root" -type f -name '*.xml' | wc -l)"
-              find "$root" -type f -name '*.xml' -print | grep -Ei 'login|char|create|select' | head -n 120 || true
-              echo '--- Evan/Aran/Cygnus markers in UI XML ---'
-              grep -RilE 'Evan|Aran|Cygnus|Noblesse|Legend|Choose Character Type|Create a character' "$root" 2>/dev/null | head -n 80 || true
-            else
-              echo "NO_UI_ROOT=$root"
-            fi
-          done
-          echo '--- executable ASCII/UTF16 selector markers ---'
-          EXE=/opt/everleaf/patches/files/EverLeaf.exe
-          if command -v strings >/dev/null 2>&1; then
-            strings -a "$EXE" | grep -Ei 'Evan|Aran|Cygnus|Noblesse|Legend|character type|create a character' | head -n 120 || true
-            strings -el "$EXE" | grep -Ei 'Evan|Aran|Cygnus|Noblesse|Legend|character type|create a character' | head -n 120 || true
-          fi
-          echo '--- canonical server create selector ---'
-          grep -n -A25 -B4 'switch (job)' "$CURRENT/src/main/java/net/server/handlers/login/CreateCharHandler.java" || true
+          test -s "$LOGIN"
+          echo '--- literal class-family matches ---'
+          grep -nEi 'Evan|Aran|Cygnus|Noblesse|Legend|character|newchar|create|select' "$LOGIN" | head -n 240 || true
+          echo '--- login imgdir paths (depth <= 5) ---'
+          python3 - "$LOGIN" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          root=ET.parse(sys.argv[1]).getroot()
+          rows=[]
+          numeric=[]
+          def walk(node,path):
+              kids=[c for c in node if c.tag=='imgdir']
+              names=[c.attrib.get('name','') for c in kids]
+              if path.count('/')<=5:
+                  rows.append((path,names))
+              nums=[n for n in names if n.isdigit()]
+              if len(nums)>=3:
+                  numeric.append((path,names))
+              for c in kids:
+                  walk(c,path+'/'+c.attrib.get('name',''))
+          walk(root,root.attrib.get('name','Login.img'))
+          for p,n in rows:
+              print(f'PATH|{p}|CHILDREN={",".join(n)}')
+          print('--- candidate indexed selector nodes ---')
+          for p,n in numeric:
+              print(f'INDEXED|{p}|CHILDREN={",".join(n)}')
+          PY
+          echo '--- relevant leaf/resource names ---'
+          python3 - "$LOGIN" <<'PY'
+          import sys, xml.etree.ElementTree as ET, re
+          root=ET.parse(sys.argv[1]).getroot()
+          rx=re.compile(r'(char|create|select|job|aran|cygn|legend|evan|knight|advent|explor)',re.I)
+          def walk(node,path):
+              name=node.attrib.get('name','')
+              p=path+'/'+name if name else path
+              if rx.search(p) or any(rx.search(str(v)) for v in node.attrib.values()):
+                  print(f'{node.tag}|{p}|{node.attrib}')
+              for c in node: walk(c,p)
+          walk(root,'')
+          PY
           REMOTE
