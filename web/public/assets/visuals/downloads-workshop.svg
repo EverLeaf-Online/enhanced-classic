@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 460" role="img" aria-labelledby="title desc">
+  <title id="title">EverLeaf launcher workshop</title>
+  <desc id="desc">A carved wooden fantasy workbench with a glowing crystal, maps, a launcher case, and a leaf mascot.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#9fe1ee"/><stop offset="1" stop-color="#eef5d9"/></linearGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#9b6a35"/><stop offset="1" stop-color="#5d3b22"/></linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#6cac58"/><stop offset="1" stop-color="#2f7145"/></linearGradient>
+    <linearGradient id="gem" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#eaffff"/><stop offset=".32" stop-color="#6ee6f2"/><stop offset=".72" stop-color="#2aa6da"/><stop offset="1" stop-color="#1868a7"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#eaffff" stop-opacity=".92"/><stop offset=".35" stop-color="#70e7ff" stop-opacity=".45"/><stop offset="1" stop-color="#51b9e8" stop-opacity="0"/></radialGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="9"/></filter>
+    <filter id="shadow"><feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#264638" flood-opacity=".22"/></filter>
+  </defs>
+  <rect width="760" height="460" rx="28" fill="url(#sky)"/>
+  <path d="M0 330C110 285 176 304 250 276c90-34 146-111 256-130 102-18 171 18 254 64v250H0Z" fill="#6fae66" opacity=".44"/>
+  <path d="M0 366c109-22 176 1 258-24 114-35 155-96 265-104 80-6 153 15 237 59v163H0Z" fill="#376e4c" opacity=".34"/>
+  <g opacity=".45" fill="#285a4a"><path d="M93 184h34v110H93z"/><path d="m74 184 36-53 36 53z"/><path d="M160 151h24v129h-24z"/><path d="m146 151 26-40 26 40z"/></g>
+  <path d="M486 0h274v350c-57-6-107 5-153 34-21 13-45 22-72 27l-49-44Z" fill="#6e4b2a" opacity=".95"/>
+  <path d="M530 0c-6 72 19 126 75 159 42 25 65 63 65 114 0 46-15 91-46 135h136V0Z" fill="#4d321e" opacity=".5"/>
+  <path d="M500 47c42-23 78-26 109-10-27 8-49 28-67 60-22 37-48 57-79 59 19-31 31-67 37-109Z" fill="#75ad52" opacity=".7"/>
+  <path d="M555 78c32-19 64-18 96 4-29 2-52 17-68 44-17 28-39 43-67 45 17-29 30-60 39-93Z" fill="#8fc45d" opacity=".7"/>
+  <g transform="translate(70 238)" filter="url(#shadow)">
+    <path d="M0 38c98-25 210-28 355-8l66 37-28 117H29Z" fill="url(#wood)"/>
+    <path d="M23 54c117-22 225-18 350 1l23 17-7 27c-125-22-251-24-368-3Z" fill="#b47a3b" opacity=".78"/>
+    <path d="M52 86h78v51H52z" fill="#dfca98" transform="rotate(-5 91 112)"/>
+    <path d="M64 94c18 4 34 3 48-3M65 105c24 5 38 4 52-2M64 117c17 4 33 4 47 1" stroke="#8f734e" stroke-width="3" fill="none" opacity=".7"/>
+    <g transform="translate(170 -24)">
+      <ellipse cx="64" cy="64" rx="84" ry="73" fill="url(#glow)"/>
+      <ellipse cx="64" cy="104" rx="55" ry="15" fill="#315848" opacity=".25"/>
+      <path d="M64 0 103 50 85 112 43 112 24 50Z" fill="url(#gem)" stroke="#dcffff" stroke-width="3"/>
+      <path d="M64 2 65 110 24 50Z" fill="#e9ffff" opacity=".18"/>
+      <path d="M18 102h94l17 22H1Z" fill="#7c5a2c" stroke="#d8ad5d" stroke-width="4"/>
+      <ellipse cx="65" cy="73" rx="92" ry="26" fill="none" stroke="#7ee7ff" stroke-width="3" opacity=".52"/>
+    </g>
+    <g transform="translate(300 35)">
+      <rect width="91" height="108" rx="11" fill="url(#green)" stroke="#e6c978" stroke-width="4"/>
+      <path d="M46 19c18 18 19 39 0 63-18-24-18-45 0-63Z" fill="#d8ef8d"/>
+      <path d="M46 30v41" stroke="#4d824d" stroke-width="4"/>
+      <path d="M46 48c-13-11-24-12-32-2M47 59c13-10 24-11 31-1" fill="none" stroke="#4d824d" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="46" cy="88" r="8" fill="#61dff3" stroke="#e5ffff" stroke-width="2"/>
+    </g>
+  </g>
+  <g transform="translate(610 266)" filter="url(#shadow)">
+    <ellipse cx="48" cy="107" rx="43" ry="12" fill="#22483a" opacity=".24"/>
+    <circle cx="48" cy="58" r="39" fill="#f4ead0" stroke="#6f9149" stroke-width="4"/>
+    <path d="M24 28C20 4 43-3 51 19c10-25 34-17 29 9-18 7-37 8-56 0Z" fill="#76b351"/>
+    <circle cx="35" cy="55" r="4" fill="#304c43"/><circle cx="61" cy="55" r="4" fill="#304c43"/>
+    <path d="M39 68c7 6 13 6 20 0" fill="none" stroke="#a36c55" stroke-width="3" stroke-linecap="round"/>
+    <path d="M27 86c14 11 29 12 44 0l5 27H20Z" fill="#4f8b49"/>
+    <path d="M83 36l30-28 5 5-25 33" stroke="#7b5d31" stroke-width="6" stroke-linecap="round"/>
+    <path d="m115 5 11 20-19-4Z" fill="url(#gem)" stroke="#d8ffff" stroke-width="2"/>
+  </g>
+  <g fill="#efffc8" opacity=".75"><circle cx="455" cy="88" r="3"/><circle cx="397" cy="132" r="2"/><circle cx="602" cy="191" r="2.5"/><circle cx="170" cy="83" r="2"/><circle cx="214" cy="154" r="3"/></g>
+</svg>

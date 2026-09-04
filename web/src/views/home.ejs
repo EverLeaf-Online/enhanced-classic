@@ -1,31 +1,174 @@
 <%- include("partials/header",{title:"Home",player:sessionPlayer}) %>
-<section class="hero assetHero">
-  <div class="assetHeroBg" aria-hidden="true"></div>
-  <div class="assetHeroShade" aria-hidden="true"></div>
-  <img class="heroCharacter heroCharacterLeft" src="/assets/hero-left.webp" alt="" aria-hidden="true">
-  <img class="heroCharacter heroCharacterRight" src="/assets/hero-right.webp" alt="" aria-hidden="true">
-  <div class="wrap heroInner assetHeroInner">
-    <div class="welcome">WELCOME TO</div>
-    <img class="heroLogoImage" src="/assets/everleaf-logo.webp" alt="EverLeaf">
-    <div class="subhead">v83 MAPLESTORY PRIVATE SERVER</div>
-    <div class="heroText">The adventure begins again.<br>Relive the nostalgia. Build your legacy.</div>
-    <div class="heroActions"><a class="btn primary" href="/register">PLAY NOW</a><a class="btn" href="/downloads">DOWNLOAD</a></div>
-    <div class="statusStrip">
-      <div class="statusCell"><div class="statusIcon statusDot">●</div><div><div class="statusLabel">Server Status</div><div id="live-status" class="statusValue <%=status.online?'online':''%>"><%=status.online?'ONLINE':'OFFLINE'%></div></div></div>
-      <div class="statusCell"><div class="statusIcon">👥</div><div><div class="statusLabel">Players Online</div><div id="live-players" class="statusValue"><%=players%></div></div></div>
-      <div class="statusCell"><div class="statusIcon">★</div><div><div class="statusLabel">Channels</div><div id="live-channels" class="statusValue gold"><%=status.channels%>/<%=status.totalChannels%></div></div></div>
-      <div class="statusCell"><div class="statusIcon">🍃</div><div><div class="statusLabel">Version</div><div class="statusValue"><%=brand.version%></div></div></div>
+
+<section class="mapleHero homeV2Hero">
+  <div class="mapleHeroBg" aria-hidden="true"></div>
+  <div class="mapleHeroShade" aria-hidden="true"></div>
+  <div class="mapleHeroCharacters" aria-hidden="true">
+    <img class="left" src="/assets/hero-left.webp" alt="" decoding="async">
+    <img class="right" src="/assets/hero-right.webp" alt="" decoding="async">
+  </div>
+  <div class="wrap mapleHeroInner">
+    <div class="mapleHeroCopy">
+      <div class="mapleHeroTag">WELCOME BACK TO MAPLE WORLD</div>
+      <img class="heroBrand" src="/assets/everleaf-remaster.svg" alt="EverLeaf Enhanced Classic">
+      <h1>Classic Maple,<em>grown with care.</em></h1>
+      <p>EverLeaf keeps the familiar v83 adventure at its core, then improves the road around it: thoughtful quality-of-life, fair progression, launcher-managed updates, community development, and a world designed to last.</p>
+      <div class="mapleHeroActions">
+        <a class="btn primary" href="<%=sessionPlayer?'/downloads':'/register'%>"><%=sessionPlayer?'PLAY EVERLEAF':'START YOUR JOURNEY'%></a>
+        <a class="btn" href="/downloads">GET THE LAUNCHER</a>
+        <a class="btn ghost" href="/wiki">OPEN WIKI</a>
+      </div>
+      <div class="mapleHeroFacts" aria-label="EverLeaf highlights">
+        <span>Enhanced Classic v83</span>
+        <span>No mandatory HP washing</span>
+        <span>No pay-to-win advantage</span>
+        <span>20 channels</span>
+      </div>
+    </div>
+
+    <aside id="server-status" class="mapleLive homeV2Status" aria-label="EverLeaf live server status">
+      <div class="mapleLiveHead">
+        <strong>EverLeaf World</strong>
+        <span class="liveState"><i id="live-dot" class="liveDot <%=status.online?'online':''%>" aria-hidden="true"></i><span id="live-state-label"><%=status.online?'Open for adventure':'Currently unavailable'%></span></span>
+      </div>
+      <div class="mapleLiveGrid" aria-live="polite">
+        <div class="mapleLiveMetric"><small>Server</small><strong id="live-status" class="<%=status.online?'online':''%>"><%=status.online?'ONLINE':'OFFLINE'%></strong></div>
+        <div class="mapleLiveMetric"><small>Players</small><strong id="live-players"><%=players===null?'—':players%></strong></div>
+        <div class="mapleLiveMetric"><small>Channels</small><strong id="live-channels" class="gold"><%=status.channels%>/<%=status.totalChannels%></strong></div>
+        <div class="mapleLiveMetric"><small>Client</small><strong><%=brand.version%></strong></div>
+      </div>
+      <div class="mapleLiveFoot">Live status is read from the existing EverLeaf server integration.</div>
+      <div class="liveRefresh"><span id="live-refresh">Refreshing live status…</span><a href="/help">Need help?</a></div>
+    </aside>
+  </div>
+</section>
+
+<nav class="mapleQuick" aria-label="EverLeaf quick links">
+  <div class="wrap">
+    <a href="/downloads"><b class="mapleQuickIcon"><img src="/assets/ui/launcher.svg" alt=""></b><span><strong>Download</strong><small>Launcher & client</small></span></a>
+    <a href="/rankings"><b class="mapleQuickIcon"><img src="/assets/ui/trophy.svg" alt=""></b><span><strong>Rankings</strong><small>Top adventurers</small></span></a>
+    <a href="/wiki"><b class="mapleQuickIcon"><img src="/assets/ui/journal.svg" alt=""></b><span><strong>Wiki</strong><small>Game knowledge</small></span></a>
+    <a href="<%=brand.discordUrl%>" target="_blank" rel="noopener noreferrer"><b class="mapleQuickIcon"><img src="/assets/ui/community.svg" alt=""></b><span><strong>Community</strong><small>Guilds & Discord</small></span></a>
+    <a href="<%=sessionPlayer?'/account':'/login'%>"><b class="mapleQuickIcon"><img src="/assets/ui/account.svg" alt=""></b><span><strong><%=sessionPlayer?'My Account':'Account'%></strong><small><%=sessionPlayer?'Characters & settings':'Login or register'%></small></span></a>
+  </div>
+</nav>
+
+<section class="mapleHomeBody">
+  <div class="wrap">
+    <section class="homeJourney" aria-labelledby="journey-title">
+      <div class="homeJourneyHead">
+        <div>
+          <div class="pageEyebrow">NEW TO EVERLEAF?</div>
+          <h2 id="journey-title">From zero to Maple World in three steps.</h2>
+        </div>
+        <p>The launcher handles the client and future updates, while your EverLeaf account connects the website, character tools, and game login.</p>
+      </div>
+      <div class="journeySteps">
+        <a class="journeyStep" data-step="1" href="<%=sessionPlayer?'/account':'/register'%>">
+          <b class="journeyStepIcon"><img src="/assets/ui/account.svg" alt=""></b>
+          <span><strong><%=sessionPlayer?'Check your account':'Create your account'%></strong><p><%=sessionPlayer?'Review your characters and account settings before you jump back in.':'Make one EverLeaf account for the website and the v83 game client.'%></p><small><%=sessionPlayer?'OPEN ACCOUNT →':'REGISTER FREE →'%></small></span>
+        </a>
+        <a class="journeyStep" data-step="2" href="/downloads">
+          <b class="journeyStepIcon"><img src="/assets/ui/launcher.svg" alt=""></b>
+          <span><strong>Install the launcher</strong><p>Download the supported EverLeaf launcher and let it manage the current client and patches.</p><small>DOWNLOAD →</small></span>
+        </a>
+        <a class="journeyStep" data-step="3" href="/help">
+          <b class="journeyStepIcon"><img src="/assets/ui/tool.svg" alt=""></b>
+          <span><strong>Enter Maple World</strong><p>Launch, sign in, choose a channel, and use Player Help if Windows or the client needs attention.</p><small>PLAYER HELP →</small></span>
+        </a>
+      </div>
+    </section>
+
+    <div class="sectionHead">
+      <div>
+        <div class="pageEyebrow">EVERLEAF HANDBOOK</div>
+        <h2>Old-school foundations. Better long-term play.</h2>
+      </div>
+      <a href="/wiki">OPEN THE WIKI →</a>
+    </div>
+    <div class="mapleIntro homeFeatureGrid libraryFeatureGrid">
+      <% (featuredWiki||[]).forEach((entry,i)=>{ %>
+        <a class="mapleIntroCard libraryFeatureCard" href="/wiki/<%=entry.slug%>">
+          <b><%=i===0?'v83':i===1?'PATCH':'NX'%></b>
+          <span class="libraryFeatureStatus"><%=entry.status%></span>
+          <h3><%=entry.title%></h3>
+          <p><%=entry.summary%></p>
+          <small><%=entry.sourceDoc||entry.source%></small>
+        </a>
+      <% }) %>
+    </div>
+
+    <section class="everleafPromises" aria-labelledby="everleaf-values">
+      <div class="sectionHead">
+        <div>
+          <div class="pageEyebrow">WHY EVERLEAF</div>
+          <h2 id="everleaf-values">Familiar where it matters. Better where it counts.</h2>
+        </div>
+      </div>
+      <div class="promiseGrid">
+        <article class="promiseCard"><b aria-hidden="true">01</b><h3>Classic-first progression</h3><p>v83 remains the foundation, with changes focused on removing friction rather than replacing the game you remember.</p></article>
+        <article class="promiseCard"><b aria-hidden="true">02</b><h3>Fair supporter model</h3><p>EverLeaf is built around progression and community—not selling competitive power or mandatory advantages.</p></article>
+        <article class="promiseCard"><b aria-hidden="true">03</b><h3>Managed client updates</h3><p>The launcher is the supported path for installs, repair, and future patches so players spend less time fixing files by hand.</p></article>
+        <article class="promiseCard"><b aria-hidden="true">04</b><h3>Knowledge that grows</h3><p>The Wiki, patch notes, rankings, and account portal live together so the website stays useful after your first download.</p></article>
+      </div>
+    </section>
+
+    <section class="mapleJobs mapleJobsPolished" aria-labelledby="adventurer-jobs">
+      <div class="mapleJobsHead">
+        <div>
+          <div class="pageEyebrow">ADVENTURER JOBS</div>
+          <h2 id="adventurer-jobs">Choose your road through Maple World.</h2>
+          <p>Begin as a fresh adventurer, then meet the classic instructors behind EverLeaf's five Adventurer families and follow the familiar v83 advancement paths.</p>
+        </div>
+        <a href="/wiki">SEE EVERY CLASS →</a>
+      </div>
+      <div class="mapleJobsGrid mapleJobsGridSix">
+        <article class="mapleJobCard beginnerJobCard"><div class="mapleJobPortrait beginnerPortrait"><img src="/assets/jobs/beginner/beginner-clean.png" alt="Beginner adventurer artwork" loading="lazy" decoding="async"></div><div class="mapleJobTitle"><div><h3>Beginner</h3><small>Your adventure starts here</small></div></div><div class="mapleJobMeta"><span>START</span><span>Explorer</span></div><p class="mapleJobPath"><strong>Learn the basics</strong><br>Reach your first advancement and choose the class family that fits you.</p><span class="mapleJobFoot">Every legend starts somewhere</span></article>
+        <article class="mapleJobCard"><div class="mapleJobPortrait"><img src="/assets/jobs/instructors/warrior.png" alt="Dances with Balrog, Warrior instructor" loading="lazy" decoding="async"></div><div class="mapleJobTitle"><div><h3>Warrior</h3><small>Dances with Balrog · Perion</small></div></div><div class="mapleJobMeta"><span>STR</span><span>Frontline</span></div><p class="mapleJobPath"><strong>Fighter · Page · Spearman</strong><br>Hero, Paladin, and Dark Knight paths.</p><span class="mapleJobFoot">Heavy weapons · durable melee</span></article>
+        <article class="mapleJobCard"><div class="mapleJobPortrait"><img src="/assets/jobs/instructors/magician.png" alt="Grendel the Really Old, Magician instructor" loading="lazy" decoding="async"></div><div class="mapleJobTitle"><div><h3>Magician</h3><small>Grendel the Really Old · Ellinia</small></div></div><div class="mapleJobMeta"><span>INT</span><span>Magic</span></div><p class="mapleJobPath"><strong>Fire/Poison · Ice/Lightning · Cleric</strong><br>Arch Mage and Bishop paths.</p><span class="mapleJobFoot">Spells · support · elemental damage</span></article>
+        <article class="mapleJobCard"><div class="mapleJobPortrait"><img src="/assets/jobs/instructors/bowman.png" alt="Athena Pierce, Bowman instructor" loading="lazy" decoding="async"></div><div class="mapleJobTitle"><div><h3>Bowman</h3><small>Athena Pierce · Henesys</small></div></div><div class="mapleJobMeta"><span>DEX</span><span>Ranged</span></div><p class="mapleJobPath"><strong>Hunter · Crossbowman</strong><br>Bow Master and Marksman paths.</p><span class="mapleJobFoot">Range · precision · sustained damage</span></article>
+        <article class="mapleJobCard"><div class="mapleJobPortrait"><img src="/assets/jobs/instructors/thief.png" alt="Dark Lord, Thief instructor" loading="lazy" decoding="async"></div><div class="mapleJobTitle"><div><h3>Thief</h3><small>Dark Lord · Kerning City</small></div></div><div class="mapleJobMeta"><span>LUK</span><span>Mobility</span></div><p class="mapleJobPath"><strong>Assassin · Bandit</strong><br>Night Lord and Shadower paths.</p><span class="mapleJobFoot">Speed · burst · evasive play</span></article>
+        <article class="mapleJobCard"><div class="mapleJobPortrait piratePortrait"><img src="/assets/jobs/instructors/pirate.png" alt="Kyrin, Pirate instructor" loading="lazy" decoding="async"></div><div class="mapleJobTitle"><div><h3>Pirate</h3><small>Kyrin · Nautilus</small></div></div><div class="mapleJobMeta"><span>STR / DEX</span><span>Hybrid</span></div><p class="mapleJobPath"><strong>Brawler · Gunslinger</strong><br>Buccaneer and Corsair paths.</p><span class="mapleJobFoot">Knuckles · firearms · mobility</span></article>
+      </div>
+      <div class="mapleSpecialJobs mapleSpecialJobsPolished">
+        <article class="mapleSpecialJob cygnusFeature"><div class="mapleSpecialJobArt cygnusFeatureArt"><img src="/assets/jobs/special/cygnus-clean.png" alt="Cygnus Knights artwork" loading="lazy" decoding="async"></div><div class="mapleSpecialJobCopy"><span class="specialKicker">CYGNUS KNIGHTS</span><strong>Heroes of Ereve</strong><small>Ereve · Knights of Cygnus</small><span>Dawn Warrior · Blaze Wizard · Wind Archer · Night Walker · Thunder Breaker</span><a href="/rankings?class=overall">VIEW CYGNUS RANKINGS →</a></div></article>
+        <article class="mapleSpecialJob specialCompact aranFeature"><div class="mapleSpecialJobArt"><img src="/assets/jobs/special/aran.png" alt="Aran artwork" loading="lazy" decoding="async"></div><div class="mapleSpecialJobCopy"><strong>Aran</strong><small>Rien · Legendary Polearm Warrior</small><span>Combo-driven polearm progression with its own advancement path.</span></div></article>
+        <article class="mapleSpecialJob specialCompact evanFeature"><div class="mapleSpecialJobArt"><img src="/assets/jobs/special/evan.png" alt="Evan artwork" loading="lazy" decoding="async"></div><div class="mapleSpecialJobCopy"><strong>Evan</strong><small>Dragon Master · Mir</small><span>Dragon-partner mage progression supported by EverLeaf rankings and data.</span></div></article>
+      </div>
+    </section>
+
+    <div class="mapleHomeColumns">
+      <section>
+        <div class="sectionHead">
+          <div><div class="pageEyebrow">WORLD JOURNAL</div><h2>Latest from EverLeaf</h2></div>
+          <a href="/news">ALL NEWS →</a>
+        </div>
+        <div class="mapleNewsGrid">
+          <% const newsImages=['/assets/news-welcome.webp','/assets/news-event.webp','/assets/news-patch.webp']; %>
+          <% posts.slice(0,3).forEach((p,i)=>{ %>
+            <a class="newsStory" href="/news/<%=p.slug%>"><img src="<%=newsImages[i%newsImages.length]%>" alt="" loading="lazy" decoding="async"><div class="newsStoryBody"><div class="newsStoryMeta"><span class="kicker"><%=p.type%></span><span><%=String(p.created_at).slice(0,10)%></span></div><h3><%=p.title%></h3><p><%=p.excerpt%></p><strong>Read journal entry →</strong></div></a>
+          <% }) %>
+          <% if(!posts.length){ %>
+            <div class="newsStory"><img src="/assets/news-welcome.webp" alt="" loading="lazy" decoding="async"><div class="newsStoryBody"><span class="kicker">WORLD NEWS</span><h3>Welcome to EverLeaf</h3><p>Server news, patch notes, events, and maintenance notices will appear here.</p></div></div>
+          <% } %>
+        </div>
+      </section>
+      <aside>
+        <div class="mapleRank">
+          <div class="mapleRankHead"><div class="pageEyebrow">HALL OF LEGENDS</div><h2>Top Adventurers</h2></div>
+          <% (topCharacters||[]).slice(0,7).forEach((r,i)=>{ %><div class="mapleRankRow"><span class="mapleRankNo"><%=i+1%></span><span><strong><%=r.name%></strong><% if(r.jobName){ %><small><%=r.jobName%></small><% } %></span><strong class="rankLv">Lv. <%=r.level%></strong></div><% }) %>
+          <% if(!(topCharacters||[]).length){ %><div class="mapleRankRow"><span class="mapleRankNo">1</span><span><strong>Rankings coming soon</strong></span><strong class="rankLv">—</strong></div><% } %>
+          <div style="padding:14px"><a class="btn" href="/rankings" style="width:100%;display:flex;justify-content:center">VIEW FULL RANKINGS</a></div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="mapleCta homeCta">
+      <div><span class="kicker">BEGINNER'S PATH</span><h2>Your next adventure starts here.</h2><p>Create your account, install through the launcher, and enter Maple World with the community.</p></div>
+      <div class="mapleCtaActions"><a class="btn primary" href="<%=sessionPlayer?'/downloads':'/register'%>"><%=sessionPlayer?'DOWNLOAD LAUNCHER':'CREATE ACCOUNT'%></a><a class="btn" href="/help">PLAYER HELP</a></div>
     </div>
   </div>
 </section>
-<section class="homeBody"><div class="wrap"><div class="homeGrid"><div>
-  <div class="sectionHead"><h2>Latest News</h2><a href="/news">VIEW ALL</a></div><div class="newsGrid">
-  <% const newsImages=['/assets/news-welcome.webp','/assets/news-event.webp','/assets/news-patch.webp']; %>
-  <% posts.slice(0,3).forEach((p,i)=>{ %><a class="newsCard" href="/news/<%=p.slug%>"><div class="newsArtImage"><img src="<%=newsImages[i%newsImages.length]%>" alt=""><span class="badge"><%=p.type.toUpperCase()%></span></div><div class="newsBody"><div class="newsTitle"><%=p.title%></div><div class="newsExcerpt"><%=p.excerpt%></div><div class="date"><%=String(p.created_at).slice(0,10)%></div></div></a><% }) %>
-  <% if(!posts.length){ %><div class="newsCard"><div class="newsArtImage"><img src="/assets/news-welcome.webp" alt=""><span class="badge">UPDATE</span></div><div class="newsBody"><div class="newsTitle">Welcome to EverLeaf!</div><div class="newsExcerpt">EverLeaf news and patch notes will appear here.</div></div></div><% } %>
-  </div></div><div><div class="sectionHead"><h2>Top Characters</h2><a href="/rankings">VIEW ALL</a></div><div class="rankPanel"><div class="rankHeader"><span>Rank</span><span>Level</span></div>
-  <% (topCharacters||[]).slice(0,5).forEach((r,i)=>{ %><div class="rankRow"><span class="rankNo"><%=i+1%></span><span><%=r.name%></span><span class="rankLv"><%=r.level%></span></div><% }) %>
-  <% if(!(topCharacters||[]).length){ %><div class="rankRow"><span class="rankNo">1</span><span>Rankings coming soon</span><span class="rankLv">—</span></div><% } %>
-  </div></div></div></div></section>
+
 <script src="/js/home-status.js" defer></script>
 <%- include("partials/footer") %>
