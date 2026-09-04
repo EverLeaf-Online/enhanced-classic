@@ -1,4 +1,4 @@
-# Manual production deployment trigger: quest-complete-20260902
+# Manual production deployment trigger: rc-20260904-db ef3603
 name: Deploy EverLeaf Game Production
 
 on:
