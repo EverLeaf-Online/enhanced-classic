@@ -101,7 +101,15 @@ jobs:
             if (-not $diagnostics.Contains($required)) { throw "Missing diagnostics contract: $required" }
           }
 
-          foreach ($required in @('FlushInstructionCache', 'WritePatchedValue', 'kScreenMessageMalformedResetY', 'kScreenMessageResetX')) {
+          foreach ($required in @(
+            'FlushInstructionCache',
+            'WritePatchedValue',
+            'kMalformedScreenMsgResetYWrite = 0x0089B797',
+            'kScreenMsgResetYOperand = 0x0089B798',
+            'kScreenMsgResetXOperand = 0x0089BA04',
+            'kScreenMsgLayoutXOperand = 0x0089B6F8',
+            'HandleScreenMessageWrite'
+          )) {
             if (-not $memory.Contains($required)) { throw "Missing memory/screen-message contract: $required" }
           }
 
