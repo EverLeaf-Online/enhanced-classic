@@ -1,1 +1,6 @@
-<%- include("partials/header",{title:post.title}) %><main class="lightPage"><section class="lightTitle"><div class="wrap pageHeroGrid"><div><div class="pageEyebrow"><%=String(post.type||'news').toUpperCase()%> · World Journal</div><h1><%=post.title%></h1><p><%=post.excerpt%></p></div><div class="pageHeroAside"><strong>Official EverLeaf update</strong><span>Published through the EverLeaf CMS for players, launcher users, and the community.</span></div></div></section><div class="wrap" style="max-width:920px;padding-top:36px;padding-bottom:65px"><article class="article"><div style="white-space:pre-wrap"><%=post.body%></div><div style="margin-top:28px;padding-top:18px;border-top:1px solid #d8e2c6"><a class="btn" href="/news">← BACK TO WORLD JOURNAL</a></div></article></div></main><%- include("partials/footer") %>
+<%- include("partials/header",{title:post.title}) %>
+<main class="lightPage terminalArticlePage">
+  <header class="terminalPageLead"><div><div class="pageEyebrow"><%=String(post.type||'news').toUpperCase()%> // WORLD LOG ENTRY</div><h1><%=post.title%>.</h1><p class="muted"><%=post.excerpt%></p></div><aside class="terminalPageLeadAside"><span>OFFICIAL EVERLEAF UPDATE</span><b><%=String(post.created_at||'').slice(0,10)%></b><span>Published through the EverLeaf CMS.</span></aside></header>
+  <article class="article terminalArticle"><div style="white-space:pre-wrap"><%=post.body%></div><div class="terminalArticleBack"><a class="btn" href="/news">← WORLD LOG</a></div></article>
+</main>
+<%- include("partials/footer") %>
