@@ -1,37 +1,29 @@
 package client.command;
 
-import client.command.commands.gm4.QaBotCommand;
-import client.command.commands.gm4.QaBotOpsCommand;
 import org.junit.jupiter.api.Test;
 import soloMapling.ArtificialPlayer.BotQaSoakRunner;
 
-import java.lang.reflect.Field;
-import java.util.Map;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CommandsExecutorSoloMaplingTest {
     @Test
-    void registersBothSoloMaplingGm4ControlSurfaces() throws Exception {
-        CommandsExecutor executor = CommandsExecutor.getInstance();
-        Field registeredCommands = CommandsExecutor.class.getDeclaredField("registeredCommands");
-        registeredCommands.setAccessible(true);
+    void explicitlyRegistersBothSoloMaplingGm4ControlSurfaces() throws IOException {
+        // CommandsExecutor eagerly constructs every registered command. Bootstrapping that global singleton
+        // inside the shared Maven test JVM can initialize WZ-backed factories before their isolated tests set
+        // a temporary wz-path. This source-level regression guard checks the exact failure mode we care about
+        // (forgetting the manual registration) without contaminating unrelated static WZ state.
+        String source = Files.readString(Path.of("src/main/java/client/command/CommandsExecutor.java"));
 
-        @SuppressWarnings("unchecked")
-        Map<String, Command> commands = (Map<String, Command>) registeredCommands.get(executor);
-
-        Command qaBot = commands.get("qabot");
-        assertNotNull(qaBot, "!qabot must be explicitly registered");
-        assertInstanceOf(QaBotCommand.class, qaBot);
-        assertEquals(4, qaBot.getRank());
-
-        Command qaBotOps = commands.get("qabotops");
-        assertNotNull(qaBotOps, "!qabotops must be explicitly registered");
-        assertInstanceOf(QaBotOpsCommand.class, qaBotOps);
-        assertEquals(4, qaBotOps.getRank());
+        assertTrue(source.contains("addCommand(\"qabot\", 4, QaBotCommand.class);"),
+                "!qabot must be explicitly registered as GM4");
+        assertTrue(source.contains("addCommand(\"qabotops\", 4, QaBotOpsCommand.class);"),
+                "!qabotops must be explicitly registered as GM4");
     }
 
     @Test
