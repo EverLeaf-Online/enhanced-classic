@@ -9,10 +9,12 @@ const header = read("src/views/partials/header.ejs");
 const home = read("src/views/home.ejs");
 const portal = read("public/css/game-portal-2026.css");
 
-test("EverLeaf loads the immersive game-portal layer last",()=>{
+test("EverLeaf keeps the immersive game-portal foundation beneath the new design system",()=>{
   assert.match(header,/game-portal-2026\.css\?v=1/);
-  assert.match(header,/body class="<%=isHome\?'homeRoute':'innerRoute'%>"/);
+  assert.match(header,/refero-everleaf-2026\.css\?v=1/);
+  assert.match(header,/body class="<%=isHome\?'homeRoute':'innerRoute'%> route-<%=routeKey%>"/);
   assert.ok(header.indexOf("game-portal-2026.css") > header.indexOf("visuals-2026.css"));
+  assert.ok(header.indexOf("refero-everleaf-2026.css") > header.indexOf("game-portal-2026.css"));
 });
 
 test("home portal uses EverLeaf local artwork and an immersive floating navigation",()=>{
