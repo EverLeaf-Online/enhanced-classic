@@ -1,15 +1,55 @@
-<%- include("partials/header",{title:"CMS"}) %><main class="adminShell">
-<aside class="sidebar"><div class="sideLogo">EverLeaf Staff Console</div><a class="sideLink active" href="/admin"><span class="sideIcon">OV</span>Overview</a><a class="sideLink" href="/admin/news"><span class="sideIcon">NW</span>News</a><a class="sideLink" href="/admin/announcements"><span class="sideIcon">AN</span>Announcements</a><a class="sideLink" href="/admin/downloads"><span class="sideIcon">DL</span>Downloads</a><a class="sideLink" href="/admin/pages"><span class="sideIcon">PG</span>Pages</a><a class="sideLink" href="/admin/recoveries"><span class="sideIcon">RC</span>Recovery</a><a class="sideLink" href="/admin/supporters"><span class="sideIcon">SP</span>Supporters</a><a class="sideLink" href="/admin/settings-view"><span class="sideIcon">ST</span>Settings</a><a class="sideLink" href="/admin/audit"><span class="sideIcon">AU</span>Audit Log</a><a class="sideLink" href="/" target="_blank" rel="noopener"><span class="sideIcon">↗</span>View Site</a><form method="post" action="/admin/logout"><button class="btn small sideLogout"><span class="sideIcon">←</span>Logout</button></form></aside>
-<section class="adminMain"><div class="adminTop"><div><div class="pageEyebrow">Staff Operations</div><h1 style="margin:0">EverLeaf CMS</h1><div class="muted">Publishing, player support, community operations, and live world visibility.</div></div><span class="kicker"><%=status.online?'World Online':'World Offline'%></span></div>
-<div class="adminQuickActions"><a class="btn small primary" href="/admin/news">+ New Journal Post</a><a class="btn small" href="/admin/announcements">Announcement</a><a class="btn small" href="/admin/downloads">Launcher Files</a><a class="btn small" href="/admin/pages">Site Pages</a><a class="btn small" href="/admin/recoveries">Recovery Queue</a><a class="btn small" href="/admin/settings-view">Site Settings</a></div>
-<div class="stats"><div class="stat"><div class="statNum"><%=players%></div><div>Players Online</div></div><div class="stat"><div class="statNum"><%=accounts%></div><div>Total Accounts</div></div><div class="stat"><div class="statNum"><%=posts.filter(p=>p.published).length%></div><div>Published Posts</div></div><div class="stat"><div class="statNum">$<%=(donationTotal/100).toFixed(2)%></div><div>Confirmed Support</div></div></div>
-<div class="adminGrid">
-<section class="adminCard"><div class="pageEyebrow">Publishing</div><h3>Content Library</h3><div class="adminRow">World Journal <strong style="float:right"><%=posts.filter(p=>p.published).length%>/<%=posts.length%> live</strong></div><div class="adminRow">Downloads <strong style="float:right"><%=downloads.filter(d=>d.published).length%>/<%=downloads.length%> live</strong></div><div class="adminRow">Custom Pages <strong style="float:right"><%=pages.filter(p=>p.published).length%>/<%=pages.length%> live</strong></div><div class="adminRow">Announcements <strong style="float:right"><%=announcements.filter(a=>a.active).length%> active</strong></div><div class="adminQuickActions"><a class="btn small" href="/admin/news">Manage Journal</a><a class="btn small" href="/admin/pages">Manage Pages</a></div></section>
-<section class="adminCard"><div class="pageEyebrow">World Runtime</div><h3>Server Health</h3><div class="adminRow">Login Server <strong style="float:right"><%=status.online?'Online':'Offline'%></strong></div><div class="adminRow">Channels <strong style="float:right"><%=status.channels%>/<%=status.totalChannels%></strong></div><div class="adminRow">Players Online <strong style="float:right"><%=players%></strong></div><div class="adminRow">Launcher Manifest <strong style="float:right">Ready</strong></div><div class="adminRow">Website <strong style="float:right">Online</strong></div></section>
-<section class="adminCard"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><div class="pageEyebrow">Editorial Queue</div><h3>Recent News</h3></div><a class="btn small" href="/admin/news">All Posts</a></div><% posts.slice(0,6).forEach(p=>{ %><div class="adminRow" style="display:flex;justify-content:space-between;gap:10px"><div><strong><%=p.title%></strong><div class="muted"><%=p.type%> · <%=p.published?'Published':'Draft'%></div></div><a class="btn small" href="/admin/posts/<%=p.id%>/edit">Edit</a></div><% }) %><% if(!posts.length){%><p class="muted">No posts yet.</p><%}%></section>
-<section class="adminCard"><div class="pageEyebrow">Players</div><h3>Newest Accounts</h3><% recentAccounts.slice(0,6).forEach(a=>{ %><div class="adminRow"><strong><%=a.name%></strong><span class="muted" style="float:right"><%=a.banned?'Banned':'Active'%></span><div class="muted"><%=a.createdat||''%></div></div><% }) %><% if(!recentAccounts.length){%><p class="muted">Game database unavailable or no accounts yet.</p><%}%></section>
-<section class="adminCard"><div class="pageEyebrow">Community Support</div><h3>Supporter Operations</h3><div class="miniGrid"><div class="miniCard"><strong><%=supporterSummary.paidCount%></strong><span>Paid</span></div><div class="miniCard"><strong><%=supporterSummary.pendingCount%></strong><span>Pending</span></div><div class="miniCard"><strong><%=supporterSummary.failedCount%></strong><span>Failed</span></div></div><p class="muted">Review provider-confirmed payments, refunds, and Discord role synchronization.</p><a class="btn small" href="/admin/supporters">Manage Supporters</a></section>
-<section class="adminCard"><div class="pageEyebrow">Player Help</div><h3>Recovery Queue</h3><p class="muted">Review privacy-safe requests from players who cannot sign in.</p><a class="btn small" href="/admin/recoveries">Open Recovery Queue</a></section>
-<section class="adminCard"><div class="pageEyebrow">Site Operations</div><h3>Announcements & Settings</h3><% announcements.slice(0,3).forEach(a=>{ %><div class="adminRow"><strong><%=a.title%></strong><span class="muted" style="float:right"><%=a.active?'Active':'Inactive'%></span></div><% }) %><div class="adminQuickActions"><a class="btn small" href="/admin/announcements">Announcements</a><a class="btn small" href="/admin/settings-view">Settings</a></div></section>
-<section class="adminCard"><div class="pageEyebrow">Audit Trail</div><h3>Recent Staff Activity</h3><% auditLog.slice(0,6).forEach(entry=>{ %><div class="adminRow"><strong><%=entry.action%></strong><div class="muted"><%=entry.details||''%><%=entry.details?' · ':''%><%=entry.created_at%></div></div><%})%><% if(!auditLog.length){%><p class="muted">No recorded admin actions yet.</p><%}%><a class="btn small" href="/admin/audit">View Full Audit Log</a></section>
-</div></section></main><%- include("partials/footer") %>
+<%- include("partials/header",{title:"CMS"}) %>
+<main class="adminShell">
+  <aside class="sidebar" aria-label="Staff CMS navigation">
+    <div class="sideLogo">STAFF://CMS<br>EVERLEAF OPERATIONS</div>
+    <a class="sideLink active" href="/admin"><span class="sideIcon">00</span>Overview</a>
+    <a class="sideLink" href="/admin/knowledge"><span class="sideIcon">01</span>Game Database</a>
+    <a class="sideLink" href="/admin/news"><span class="sideIcon">02</span>World Log</a>
+    <a class="sideLink" href="/admin/announcements"><span class="sideIcon">03</span>Announcements</a>
+    <a class="sideLink" href="/admin/downloads"><span class="sideIcon">04</span>Client Files</a>
+    <a class="sideLink" href="/admin/pages"><span class="sideIcon">05</span>Site Pages</a>
+    <a class="sideLink" href="/admin/recoveries"><span class="sideIcon">06</span>Recovery Queue</a>
+    <a class="sideLink" href="/admin/supporters"><span class="sideIcon">07</span>Supporters</a>
+    <a class="sideLink" href="/admin/settings-view"><span class="sideIcon">08</span>Settings</a>
+    <a class="sideLink" href="/admin/audit"><span class="sideIcon">09</span>Audit Log</a>
+    <a class="sideLink" href="/" target="_blank" rel="noopener"><span class="sideIcon">↗</span>Public World</a>
+    <form method="post" action="/admin/logout"><button class="btn small sideLogout"><span class="sideIcon">×</span>End Staff Session</button></form>
+  </aside>
+
+  <section class="adminMain">
+    <header class="adminTop">
+      <div><div class="pageEyebrow">STAFF://OPERATIONS OVERVIEW</div><h1>EVERLEAF<br>CMS.</h1><div class="muted">Publishing, player support, world runtime visibility, and community operations.</div></div>
+      <span class="kicker"><%=status.online?'WORLD ONLINE':'WORLD OFFLINE'%> // <%=status.channels%>/<%=status.totalChannels%> CHANNELS</span>
+    </header>
+
+    <nav class="adminQuickActions" aria-label="CMS quick actions">
+      <a class="btn small primary" href="/admin/news">NEW WORLD LOG</a><a class="btn small" href="/admin/announcements">ANNOUNCEMENT</a><a class="btn small" href="/admin/downloads">CLIENT FILES</a><a class="btn small" href="/admin/pages">SITE PAGES</a><a class="btn small" href="/admin/recoveries">RECOVERY QUEUE</a><a class="btn small" href="/admin/settings-view">SETTINGS</a>
+    </nav>
+
+    <section class="stats" aria-label="Live CMS metrics">
+      <div class="stat"><div class="statNum"><%=players%></div><div>PLAYERS ONLINE</div></div>
+      <div class="stat"><div class="statNum"><%=accounts%></div><div>TOTAL ACCOUNTS</div></div>
+      <div class="stat"><div class="statNum"><%=posts.filter(p=>p.published).length%></div><div>PUBLISHED POSTS</div></div>
+      <div class="stat"><div class="statNum">$<%=(donationTotal/100).toFixed(2)%></div><div>CONFIRMED SUPPORT</div></div>
+    </section>
+
+    <div class="adminGrid">
+      <section class="adminCard"><div class="pageEyebrow">PUBLISH://CONTENT STATE</div><h3>CONTENT LIBRARY.</h3><div class="adminRow">WORLD LOG <strong style="float:right"><%=posts.filter(p=>p.published).length%>/<%=posts.length%> LIVE</strong></div><div class="adminRow">DOWNLOADS <strong style="float:right"><%=downloads.filter(d=>d.published).length%>/<%=downloads.length%> LIVE</strong></div><div class="adminRow">CUSTOM PAGES <strong style="float:right"><%=pages.filter(p=>p.published).length%>/<%=pages.length%> LIVE</strong></div><div class="adminRow">ANNOUNCEMENTS <strong style="float:right"><%=announcements.filter(a=>a.active).length%> ACTIVE</strong></div><div class="adminQuickActions"><a class="btn small" href="/admin/news">MANAGE LOG</a><a class="btn small" href="/admin/pages">MANAGE PAGES</a></div></section>
+
+      <section class="adminCard"><div class="pageEyebrow">WORLD://RUNTIME</div><h3>SERVER HEALTH.</h3><div class="adminRow">LOGIN SERVER <strong style="float:right"><%=status.online?'ONLINE':'OFFLINE'%></strong></div><div class="adminRow">CHANNELS <strong style="float:right"><%=status.channels%>/<%=status.totalChannels%></strong></div><div class="adminRow">PLAYERS <strong style="float:right"><%=players%></strong></div><div class="adminRow">LAUNCHER MANIFEST <strong style="float:right">READY</strong></div><div class="adminRow">WEBSITE <strong style="float:right">ONLINE</strong></div></section>
+
+      <section class="adminCard"><div class="pageEyebrow">EDITORIAL://RECENT</div><h3>WORLD LOG QUEUE.</h3><% posts.slice(0,6).forEach(p=>{ %><div class="adminRow" style="display:grid;grid-template-columns:1fr auto;gap:10px"><div><strong><%=p.title%></strong><div class="muted"><%=String(p.type||'news').toUpperCase()%> // <%=p.published?'PUBLISHED':'DRAFT'%></div></div><a class="btn small" href="/admin/posts/<%=p.id%>/edit">EDIT</a></div><% }) %><% if(!posts.length){ %><p class="muted">NO POSTS IN QUEUE.</p><% } %></section>
+
+      <section class="adminCard"><div class="pageEyebrow">ACCOUNTS://RECENT</div><h3>NEWEST ACCOUNTS.</h3><% recentAccounts.slice(0,6).forEach(a=>{ %><div class="adminRow"><strong><%=a.name%></strong><span class="muted" style="float:right"><%=a.banned?'BANNED':'ACTIVE'%></span><div class="muted"><%=a.createdat||''%></div></div><% }) %><% if(!recentAccounts.length){ %><p class="muted">GAME DATABASE UNAVAILABLE OR EMPTY.</p><% } %></section>
+
+      <section class="adminCard"><div class="pageEyebrow">SUPPORT://PAYMENTS</div><h3>SUPPORTER OPS.</h3><div class="miniGrid"><div class="miniCard"><strong><%=supporterSummary.paidCount%></strong><span>PAID</span></div><div class="miniCard"><strong><%=supporterSummary.pendingCount%></strong><span>PENDING</span></div><div class="miniCard"><strong><%=supporterSummary.failedCount%></strong><span>FAILED</span></div></div><p class="muted">Provider-confirmed payments, refunds, and Discord role synchronization.</p><a class="btn small" href="/admin/supporters">OPEN SUPPORTERS</a></section>
+
+      <section class="adminCard"><div class="pageEyebrow">SUPPORT://RECOVERY</div><h3>RECOVERY QUEUE.</h3><p class="muted">Review privacy-safe requests from players who cannot sign in.</p><a class="btn small" href="/admin/recoveries">OPEN QUEUE</a></section>
+
+      <section class="adminCard"><div class="pageEyebrow">SITE://STATE</div><h3>ANNOUNCEMENTS.</h3><% announcements.slice(0,4).forEach(a=>{ %><div class="adminRow"><strong><%=a.title%></strong><span class="muted" style="float:right"><%=a.active?'ACTIVE':'INACTIVE'%></span></div><% }) %><div class="adminQuickActions"><a class="btn small" href="/admin/announcements">MANAGE</a><a class="btn small" href="/admin/settings-view">SETTINGS</a></div></section>
+
+      <section class="adminCard"><div class="pageEyebrow">AUDIT://LATEST</div><h3>STAFF ACTIVITY.</h3><% auditLog.slice(0,7).forEach(entry=>{ %><div class="adminRow"><strong><%=entry.action%></strong><div class="muted"><%=entry.details||''%><%=entry.details?' // ':''%><%=entry.created_at%></div></div><% }) %><% if(!auditLog.length){ %><p class="muted">NO RECORDED ADMIN ACTIONS.</p><% } %><a class="btn small" href="/admin/audit">FULL AUDIT LOG</a></section>
+    </div>
+  </section>
+</main>
+<%- include("partials/footer") %>
