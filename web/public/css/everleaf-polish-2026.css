@@ -1,0 +1,812 @@
+/* EverLeaf public polish layer — Sep 2026
+   Final visual pass for the production (non-Vercel) website.
+   This file intentionally loads last so it can normalize the older remaster/app-frame layers
+   without deleting the functionality and regression coverage they provide. */
+
+:root{
+  --el-ink:#17233f;
+  --el-ink-soft:#506789;
+  --el-muted:#7184a2;
+  --el-blue:#58a9f7;
+  --el-blue-deep:#308fe9;
+  --el-blue-soft:#eaf5ff;
+  --el-violet:#8c7cf5;
+  --el-green:#66b887;
+  --el-bg:#f5f9ff;
+  --el-bg-warm:#fbfcff;
+  --el-surface:#ffffff;
+  --el-surface-soft:#f8fbff;
+  --el-line:#dbe6f4;
+  --el-line-strong:#c9d8eb;
+  --el-shadow:0 18px 55px rgba(58,87,126,.11);
+  --el-shadow-soft:0 8px 24px rgba(58,87,126,.08);
+  --el-radius:22px;
+  --el-radius-sm:14px;
+  --el-font:Inter,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+
+/* -------------------------------------------------------------------------
+   Public inner-page shell
+   ------------------------------------------------------------------------- */
+html{background:#f4f8ff}
+body.siteRoute:not(.route-home):not(.route-admin){
+  background:
+    radial-gradient(circle at 88% 5%,rgba(143,126,255,.18),transparent 31%),
+    radial-gradient(circle at 4% 18%,rgba(83,174,255,.15),transparent 29%),
+    linear-gradient(180deg,#f8fbff 0%,#f1f7ff 100%)!important;
+  color:var(--el-ink)!important;
+  font-family:var(--el-font)!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin)::before{
+  opacity:.28!important;
+  background-image:radial-gradient(rgba(78,115,164,.12) .7px,transparent .7px)!important;
+  background-size:22px 22px!important;
+  mask-image:linear-gradient(to bottom,#000,transparent 78%)!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .siteContent{
+  background:transparent!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .siteContent>main{
+  background:transparent!important;
+  scrollbar-color:#b6c9df transparent!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .siteContent>main::-webkit-scrollbar-track{background:transparent!important}
+body.siteRoute:not(.route-home):not(.route-admin) .siteContent>main::-webkit-scrollbar-thumb{background:#b6c9df!important;border-radius:999px}
+body.siteRoute:not(.route-home):not(.route-admin) .wrap{
+  width:min(1180px,calc(100% - 40px))!important;
+  max-width:1180px!important;
+  margin-left:auto!important;
+  margin-right:auto!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) h1,
+body.siteRoute:not(.route-home):not(.route-admin) h2,
+body.siteRoute:not(.route-home):not(.route-admin) h3,
+body.siteRoute:not(.route-home):not(.route-admin) h4{color:var(--el-ink)!important;font-family:var(--el-font)!important;letter-spacing:-.035em!important}
+body.siteRoute:not(.route-home):not(.route-admin) p,
+body.siteRoute:not(.route-home):not(.route-admin) .muted{color:var(--el-ink-soft)!important}
+body.siteRoute:not(.route-home):not(.route-admin) a{transition:color .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+body.siteRoute:not(.route-home):not(.route-admin) .pageEyebrow,
+body.siteRoute:not(.route-home):not(.route-admin) .kicker,
+body.siteRoute:not(.route-home):not(.route-admin) .eyebrow{
+  color:#5880ad!important;
+  font:700 11px/1.2 var(--el-font)!important;
+  letter-spacing:.09em!important;
+  text-transform:uppercase!important;
+}
+
+/* Persistent navigation for all real website pages except the homepage/admin. */
+.siteTopbar{
+  flex:0 0 auto;
+  position:relative;
+  z-index:1200;
+  min-height:72px;
+  border-bottom:1px solid rgba(195,211,232,.85);
+  background:rgba(255,255,255,.84);
+  backdrop-filter:blur(18px) saturate(145%);
+  box-shadow:0 4px 22px rgba(46,78,120,.055);
+}
+.siteTopbarInner{min-height:72px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:24px}
+.siteTopbarBrand{display:inline-flex;align-items:center;gap:11px;min-width:max-content;color:var(--el-ink)!important}
+.siteTopbarBrand img{width:37px;height:37px;object-fit:contain;filter:drop-shadow(0 5px 10px rgba(50,98,145,.14))}
+.siteTopbarBrandCopy{display:flex;flex-direction:column;gap:1px}
+.siteTopbarBrandCopy strong{font-size:19px;line-height:1;font-weight:850;letter-spacing:-.04em}
+.siteTopbarBrandCopy small{color:var(--el-muted);font-size:9px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.siteTopbarLinks{display:flex;justify-content:center;align-items:center;gap:4px;min-width:0}
+.siteTopbarLinks a{min-height:38px;padding:0 13px;display:inline-flex;align-items:center;border-radius:11px;color:#607694!important;font-size:12px;font-weight:750;white-space:nowrap}
+.siteTopbarLinks a:hover{background:#eef6ff;color:#276ea9!important}
+.siteTopbarLinks a.active{background:#e8f4ff;color:#187ad1!important}
+.siteTopbarAction{min-height:40px;padding:0 16px;border:1px solid #cfe0f2;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:#fff;color:#2779bc!important;font-size:12px;font-weight:800;box-shadow:0 6px 18px rgba(46,114,175,.08)}
+.siteTopbarAction:hover{border-color:#9ac7ec;background:#f4faff;transform:translateY(-1px)}
+.siteTopbarMenu{display:none;position:relative}
+.siteTopbarMenu summary{list-style:none;cursor:pointer;width:42px;height:42px;border:1px solid var(--el-line);border-radius:12px;background:#fff;display:grid;place-items:center;color:var(--el-ink);font-size:20px}
+.siteTopbarMenu summary::-webkit-details-marker{display:none}
+.siteTopbarMenuPanel{position:absolute;right:0;top:50px;width:min(280px,calc(100vw - 32px));padding:10px;border:1px solid var(--el-line);border-radius:17px;background:#fff;box-shadow:var(--el-shadow);display:grid;gap:3px}
+.siteTopbarMenuPanel a{padding:11px 12px;border-radius:10px;color:var(--el-ink-soft)!important;font-size:13px;font-weight:750}
+.siteTopbarMenuPanel a:hover,.siteTopbarMenuPanel a.active{background:#eef6ff;color:#187ad1!important}
+
+/* Shared headers and content surfaces. */
+body.siteRoute:not(.route-home):not(.route-admin) .lightTitle,
+body.siteRoute:not(.route-home):not(.route-admin) .rankingsHero,
+body.siteRoute:not(.route-home):not(.route-admin) .wikiDataHero,
+body.siteRoute:not(.route-home):not(.route-admin) .accountHero{
+  padding:40px 0 30px!important;
+  border:0!important;
+  background:transparent!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .lightTitle h1,
+body.siteRoute:not(.route-home):not(.route-admin) .rankingsHero h1,
+body.siteRoute:not(.route-home):not(.route-admin) .wikiDataHero h1,
+body.siteRoute:not(.route-home):not(.route-admin) .accountHero h1{
+  margin:7px 0 0!important;
+  font-size:clamp(38px,5vw,62px)!important;
+  line-height:.96!important;
+  font-weight:850!important;
+  letter-spacing:-.055em!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .lightTitle p,
+body.siteRoute:not(.route-home):not(.route-admin) .rankingsHero p,
+body.siteRoute:not(.route-home):not(.route-admin) .wikiDataHero p,
+body.siteRoute:not(.route-home):not(.route-admin) .accountHero p{
+  max-width:70ch!important;
+  margin:13px 0 0!important;
+  font-size:14px!important;
+  line-height:1.65!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .pageHeroGrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,390px);gap:28px;align-items:center}
+body.siteRoute:not(.route-home):not(.route-admin) .pageHeroAside,
+body.siteRoute:not(.route-home):not(.route-admin) .pageHeroVisual{
+  border:1px solid rgba(207,222,240,.92)!important;
+  border-radius:20px!important;
+  background:rgba(255,255,255,.82)!important;
+  box-shadow:var(--el-shadow-soft)!important;
+  overflow:hidden;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .pageHeroAside{padding:18px 20px!important;display:grid!important;gap:6px!important}
+body.siteRoute:not(.route-home):not(.route-admin) .pageHeroAside strong{color:var(--el-ink)!important;font-size:14px!important}
+body.siteRoute:not(.route-home):not(.route-admin) .pageHeroAside span{color:var(--el-ink-soft)!important;font-size:12px!important;line-height:1.5!important}
+body.siteRoute:not(.route-home):not(.route-admin) .pageHeroVisual img{max-height:175px;width:100%;object-fit:contain;padding:14px}
+body.siteRoute:not(.route-home):not(.route-admin) .pageHeroVisualCopy{padding:14px 16px;border-top:1px solid var(--el-line);display:grid;gap:4px}
+body.siteRoute:not(.route-home):not(.route-admin) .pageHeroVisualCopy strong{font-size:13px;color:var(--el-ink)}
+body.siteRoute:not(.route-home):not(.route-admin) .pageHeroVisualCopy span{font-size:11px;line-height:1.45;color:var(--el-muted)}
+
+body.siteRoute:not(.route-home):not(.route-admin) .contentGrid{grid-template-columns:minmax(0,1.65fr) minmax(270px,.72fr)!important;gap:22px!important;padding-top:4px!important;padding-bottom:42px!important}
+body.siteRoute:not(.route-home):not(.route-admin) .contentStack{gap:16px!important;padding-top:0!important;padding-bottom:0!important}
+body.siteRoute:not(.route-home):not(.route-admin) .featurePanel,
+body.siteRoute:not(.route-home):not(.route-admin) .paperCard,
+body.siteRoute:not(.route-home):not(.route-admin) .downloadCard,
+body.siteRoute:not(.route-home):not(.route-admin) .newsCard,
+body.siteRoute:not(.route-home):not(.route-admin) .postCard,
+body.siteRoute:not(.route-home):not(.route-admin) .supportCard{
+  border:1px solid var(--el-line)!important;
+  border-radius:var(--el-radius)!important;
+  background:rgba(255,255,255,.94)!important;
+  color:var(--el-ink)!important;
+  box-shadow:var(--el-shadow-soft)!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .featurePanel,
+body.siteRoute:not(.route-home):not(.route-admin) .paperCard{padding:22px!important}
+body.siteRoute:not(.route-home):not(.route-admin) .downloadCard{padding:17px 18px!important}
+body.siteRoute:not(.route-home):not(.route-admin) hr{border-color:var(--el-line)!important}
+
+/* Controls */
+body.siteRoute:not(.route-home):not(.route-admin) .btn,
+body.siteRoute:not(.route-home):not(.route-admin) button.btn{
+  min-height:44px!important;
+  padding:0 18px!important;
+  border:1px solid #cdddef!important;
+  border-radius:13px!important;
+  background:#fff!important;
+  color:#3e648b!important;
+  box-shadow:none!important;
+  font:800 11px/1 var(--el-font)!important;
+  letter-spacing:.035em!important;
+  text-transform:uppercase!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .btn:hover{background:#f2f8ff!important;border-color:#a8c8e7!important;color:#2279be!important;transform:translateY(-1px)!important;box-shadow:0 8px 18px rgba(49,113,169,.09)!important}
+body.siteRoute:not(.route-home):not(.route-admin) .btn.primary,
+body.siteRoute:not(.route-home):not(.route-admin) button.btn.primary{
+  border-color:#6eaff0!important;
+  background:linear-gradient(180deg,#79baf8 0%,#62aaf1 100%)!important;
+  color:#fff!important;
+  box-shadow:0 10px 24px rgba(62,146,224,.20)!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .btn.primary:hover{background:linear-gradient(180deg,#65b1f7,#4b9eea)!important;border-color:#58a3ea!important;color:#fff!important;box-shadow:0 12px 28px rgba(62,146,224,.27)!important}
+body.siteRoute:not(.route-home):not(.route-admin) .btn:focus-visible,
+body.siteRoute:not(.route-home):not(.route-admin) input:focus-visible,
+body.siteRoute:not(.route-home):not(.route-admin) select:focus-visible,
+body.siteRoute:not(.route-home):not(.route-admin) textarea:focus-visible,
+.siteTopbar a:focus-visible,.siteTopbar summary:focus-visible{outline:3px solid rgba(84,166,241,.26)!important;outline-offset:2px!important}
+body.siteRoute:not(.route-home):not(.route-admin) label{color:#263957!important;font-size:12px!important;font-weight:750!important;letter-spacing:0!important;text-transform:none!important}
+body.siteRoute:not(.route-home):not(.route-admin) input:not([type="checkbox"]):not([type="radio"]),
+body.siteRoute:not(.route-home):not(.route-admin) select,
+body.siteRoute:not(.route-home):not(.route-admin) textarea{
+  min-height:46px!important;
+  border:1px solid #ccdbec!important;
+  border-radius:13px!important;
+  background:#fff!important;
+  color:var(--el-ink)!important;
+  box-shadow:inset 0 1px 0 rgba(31,65,104,.02)!important;
+  font:500 13px/1.2 var(--el-font)!important;
+  transition:border-color .18s ease,box-shadow .18s ease!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) input::placeholder,
+body.siteRoute:not(.route-home):not(.route-admin) textarea::placeholder{color:#94a6bd!important}
+body.siteRoute:not(.route-home):not(.route-admin) input:focus,
+body.siteRoute:not(.route-home):not(.route-admin) select:focus,
+body.siteRoute:not(.route-home):not(.route-admin) textarea:focus{border-color:#79b5eb!important;box-shadow:0 0 0 4px rgba(85,163,235,.12)!important;outline:none!important}
+body.siteRoute:not(.route-home):not(.route-admin) .error,
+body.siteRoute:not(.route-home):not(.route-admin) .notice{
+  border-radius:13px!important;
+  padding:12px 14px!important;
+  font-size:12px!important;
+  line-height:1.5!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .error{border:1px solid #f0c5c9!important;background:#fff3f4!important;color:#a2444b!important}
+body.siteRoute:not(.route-home):not(.route-admin) .notice{border:1px solid #bfe2cd!important;background:#effaf4!important;color:#347553!important}
+
+/* -------------------------------------------------------------------------
+   Login / auth suite
+   ------------------------------------------------------------------------- */
+body.route-login .siteTopbar,
+body.route-register .siteTopbar,
+body.route-recover .siteTopbar{background:rgba(255,255,255,.68)}
+body.siteRoute.route-login .siteContent>main.authWrap,
+body.siteRoute.route-register .siteContent>main.authWrap,
+body.siteRoute.route-recover .siteContent>main.authWrap{
+  min-height:100%!important;
+  height:100%!important;
+  padding:34px 20px 44px!important;
+  display:grid!important;
+  place-items:center!important;
+  overflow:auto!important;
+  background:
+    radial-gradient(circle at 84% 8%,rgba(148,129,255,.22),transparent 35%),
+    radial-gradient(circle at 8% 14%,rgba(83,174,255,.17),transparent 34%),
+    linear-gradient(180deg,#f8fbff,#f1f7ff)!important;
+}
+body.route-login .authStandalone{width:min(448px,100%);margin:auto}
+body.route-login .authCard,
+body.route-register .authCard,
+body.route-recover .authCard{
+  border:1px solid rgba(213,226,242,.95)!important;
+  border-radius:25px!important;
+  background:rgba(255,255,255,.96)!important;
+  color:var(--el-ink)!important;
+  box-shadow:0 22px 70px rgba(56,92,137,.14)!important;
+}
+body.route-login .authCard{padding:34px 32px 30px!important}
+body.route-login .authBrandMark{display:flex;align-items:center;gap:9px;margin-bottom:24px;color:var(--el-ink)}
+body.route-login .authBrandMark img{width:30px;height:30px;object-fit:contain}
+body.route-login .authBrandMark span{font-size:12px;font-weight:850;letter-spacing:.02em}
+body.route-login .authCard h1{
+  margin:0!important;
+  color:var(--el-ink)!important;
+  font-size:31px!important;
+  line-height:1!important;
+  font-weight:900!important;
+  letter-spacing:-.05em!important;
+  text-transform:uppercase;
+}
+body.route-login .authCard h1 span{color:#45a5f4!important}
+body.route-login .authLead{margin:10px 0 25px!important;color:#5e7698!important;font-size:14px!important;line-height:1.5!important}
+body.route-login .authCard form{display:grid;gap:9px}
+body.route-login .authCard form label{margin-top:6px!important}
+body.route-login .authCard input{width:100%!important;min-height:48px!important;padding:0 14px!important}
+body.route-login .passwordField{position:relative}
+body.route-login .passwordField input{padding-right:50px!important}
+body.route-login .passwordToggle{position:absolute;right:6px;top:50%;width:38px;height:38px;transform:translateY(-50%);border:0;background:transparent;color:#6781a3;display:grid;place-items:center;cursor:pointer;border-radius:10px}
+body.route-login .passwordToggle:hover{background:#eef6ff;color:#2b83c9}
+body.route-login .passwordToggle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8}
+body.route-login .authForgot{display:flex;justify-content:flex-end;margin:1px 0 6px}
+body.route-login .authForgot a{color:#1682df!important;font-size:12px;font-weight:750}
+body.route-login .authSubmit{width:100%!important;margin-top:2px!important}
+body.route-login .authSecondary{margin:24px 0 0!important;text-align:center!important;font-size:12px!important;color:#627997!important}
+body.route-login .authSecondary a{color:#0f82df!important;font-weight:850!important}
+body.route-login .authBack{margin-top:18px;text-align:center}
+body.route-login .authBack a{display:inline-flex;align-items:center;gap:7px;color:#5f7899!important;font-size:12px;font-weight:650}
+body.route-login .authBack a:hover{color:#1f81ce!important}
+body.route-login .authTrust{margin-top:20px;padding-top:16px;border-top:1px solid #e5edf7;display:flex;justify-content:center;gap:18px;color:#91a0b4;font-size:10px}
+
+body.route-register .authGrid,
+body.route-recover .authGrid{width:min(980px,100%)!important;max-width:980px!important;grid-template-columns:minmax(0,.86fr) minmax(390px,1.04fr)!important;gap:22px!important}
+body.route-register .authIntro,
+body.route-recover .authIntro{padding:28px!important;border-radius:25px!important;background:rgba(35,76,114,.87)!important;box-shadow:var(--el-shadow)!important;color:#fff!important;overflow:hidden;position:relative}
+body.route-register .authIntro::after,
+body.route-recover .authIntro::after{content:"";position:absolute;inset:auto -60px -80px auto;width:230px;height:230px;border-radius:50%;background:rgba(120,183,241,.18)}
+body.route-register .authIntro h1,
+body.route-recover .authIntro h1{color:#fff!important;font-size:38px!important;line-height:1!important}
+body.route-register .authIntro p,
+body.route-recover .authIntro p{color:#d8e7f5!important;line-height:1.6!important}
+body.route-register .authIntro img,
+body.route-recover .authIntro img{width:150px;margin-bottom:28px;filter:brightness(0) invert(1);opacity:.96}
+body.route-register .authCard,
+body.route-recover .authCard{padding:28px!important}
+body.route-register .authCard h2,
+body.route-recover .authCard h2{font-size:27px!important;margin:4px 0 16px!important}
+body.route-register .authCard form,
+body.route-recover .authCard form{display:grid;gap:9px}
+
+/* -------------------------------------------------------------------------
+   Rankings — readable game leaderboard rather than dense terminal table
+   ------------------------------------------------------------------------- */
+body.route-rankings .siteContent>main{
+  display:block!important;
+  overflow:auto!important;
+  background:transparent!important;
+}
+body.route-rankings .rankingsHero{padding:34px 0 20px!important}
+body.route-rankings .rankingsHero .pageHeroGrid{
+  padding:28px 30px;
+  border:1px solid rgba(208,223,241,.92);
+  border-radius:26px;
+  background:
+    radial-gradient(circle at 88% 8%,rgba(105,168,241,.15),transparent 30%),
+    linear-gradient(135deg,rgba(255,255,255,.96),rgba(248,252,255,.92));
+  box-shadow:var(--el-shadow-soft);
+}
+body.route-rankings .rankingsHero h1{font-size:clamp(40px,5vw,64px)!important;line-height:.96!important}
+body.route-rankings .rankingsHero p{font-size:14px!important;line-height:1.6!important;max-width:67ch!important}
+body.route-rankings .rankingLiveAside{border-radius:17px!important;background:#f7fbff!important;box-shadow:none!important}
+body.route-rankings .rankingDbDot{background:#61bd82!important;box-shadow:0 0 0 4px rgba(97,189,130,.12)!important}
+body.route-rankings .rankingsPageV2{
+  height:auto!important;
+  min-height:0!important;
+  overflow:visible!important;
+  padding:0 0 46px!important;
+}
+body.route-rankings .rankingStats{
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:10px!important;
+  margin:0 0 18px!important;
+  border:0!important;
+  background:transparent!important;
+}
+body.route-rankings .rankingStats>div{
+  min-height:96px!important;
+  padding:17px 18px!important;
+  border:1px solid var(--el-line)!important;
+  border-radius:17px!important;
+  background:rgba(255,255,255,.94)!important;
+  box-shadow:0 7px 20px rgba(55,89,130,.065)!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  justify-content:center!important;
+  gap:3px!important;
+}
+body.route-rankings .rankingStats small{font-size:9px!important;font-weight:800!important;letter-spacing:.07em!important;text-transform:uppercase!important;color:#7590ae!important}
+body.route-rankings .rankingStats strong{font:850 25px/1 var(--el-font)!important;color:var(--el-ink)!important;letter-spacing:-.04em!important}
+body.route-rankings .rankingStats span{font-size:10px!important;color:#8a9bb0!important}
+body.route-rankings .rankingsIntro{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(250px,330px)!important;gap:16px!important;align-items:end!important;margin:0 0 14px!important;padding:0!important}
+body.route-rankings .rankingsIntro h2{font-size:30px!important;line-height:1!important;margin:4px 0 7px!important}
+body.route-rankings .rankingsIntro .muted{display:block!important;font-size:12px!important;line-height:1.55!important;margin:0!important}
+body.route-rankings .rankingSeasonCard{min-width:0!important;padding:15px 17px!important;border:1px solid var(--el-line)!important;border-radius:16px!important;background:rgba(255,255,255,.92)!important;box-shadow:var(--el-shadow-soft)!important}
+body.route-rankings .rankingSeasonCard small{font-size:9px!important;color:#7890aa!important}
+body.route-rankings .rankingSeasonCard strong{font-size:16px!important;color:var(--el-ink)!important}
+body.route-rankings .rankingSeasonCard span{font-size:10px!important;line-height:1.45!important;color:#71839a!important}
+body.route-rankings .rankingSearch{
+  display:grid!important;
+  grid-template-columns:minmax(220px,1fr) auto auto!important;
+  gap:8px!important;
+  align-items:end!important;
+  margin:0!important;
+  padding:13px!important;
+  border:1px solid var(--el-line)!important;
+  border-radius:17px 17px 0 0!important;
+  background:#fff!important;
+  box-shadow:0 8px 24px rgba(55,89,130,.055)!important;
+}
+body.route-rankings .rankingSearch>div{display:grid;gap:5px}
+body.route-rankings .rankingSearch input[type="search"]{min-height:42px!important;height:42px!important}
+body.route-rankings .rankingSearch .btn{min-height:42px!important}
+body.route-rankings .rankingTabs{
+  display:flex!important;
+  gap:5px!important;
+  overflow-x:auto!important;
+  white-space:nowrap!important;
+  margin:0 0 18px!important;
+  padding:8px 10px!important;
+  border:1px solid var(--el-line)!important;
+  border-top:0!important;
+  border-radius:0 0 17px 17px!important;
+  background:rgba(255,255,255,.78)!important;
+  scrollbar-width:none;
+}
+body.route-rankings .rankingTabs .tab{min-height:33px!important;padding:0 12px!important;border:1px solid transparent!important;border-radius:10px!important;display:flex!important;align-items:center!important;color:#66809f!important;font:750 10px/1 var(--el-font)!important;letter-spacing:.01em!important}
+body.route-rankings .rankingTabs .tab:hover{background:#f0f7ff!important;color:#317fbe!important}
+body.route-rankings .rankingTabs .tab.active{background:#e6f3ff!important;border-color:#c2def5!important;color:#177dcc!important;box-shadow:none!important}
+body.route-rankings .rankingPodium{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:12px!important;
+  margin:0 0 18px!important;
+  border:0!important;
+  background:transparent!important;
+}
+body.route-rankings .rankingPodiumCard{
+  min-height:128px!important;
+  padding:17px!important;
+  display:grid!important;
+  grid-template-columns:42px 72px minmax(0,1fr)!important;
+  gap:11px!important;
+  align-items:center!important;
+  border:1px solid var(--el-line)!important;
+  border-radius:20px!important;
+  background:linear-gradient(145deg,#fff,#f8fbff)!important;
+  box-shadow:var(--el-shadow-soft)!important;
+  position:relative!important;
+  overflow:hidden!important;
+}
+body.route-rankings .rankingPodiumCard::after{content:"";position:absolute;right:-32px;bottom:-42px;width:125px;height:125px;border-radius:50%;background:rgba(92,167,239,.08);pointer-events:none}
+body.route-rankings .rankingPodiumCard.first{border-color:#ead8a3!important;background:linear-gradient(145deg,#fffdf8,#fff9e9)!important}
+body.route-rankings .rankingPodiumCard.second{border-color:#d4dfeb!important}
+body.route-rankings .rankingPodiumCard.third{border-color:#e4cfc0!important;background:linear-gradient(145deg,#fff,#fff9f6)!important}
+body.route-rankings .rankingPodiumRank{position:static!important;width:36px;height:36px;border-radius:50%;display:grid!important;place-items:center!important;background:#edf5fd!important;color:#4c769d!important;font:850 12px/1 var(--el-font)!important}
+body.route-rankings .rankingPodiumCard.first .rankingPodiumRank{background:#fff0bd!important;color:#9a771f!important}
+body.route-rankings .rankingPodiumArt{width:72px!important;height:72px!important;min-height:0!important;border-radius:16px!important;background:#eef6fe!important;padding:5px!important;overflow:hidden!important}
+body.route-rankings .rankingPodiumArt img{width:100%!important;height:100%!important;object-fit:contain!important}
+body.route-rankings .rankingPodiumName{font-size:16px!important;line-height:1.1!important;color:var(--el-ink)!important}
+body.route-rankings .rankingPodiumJob{font-size:10px!important;color:#728aa6!important;margin-top:4px!important}
+body.route-rankings .rankingPodiumLevel{font-size:11px!important;color:#3686c6!important;font-weight:800!important;margin-top:2px!important}
+body.route-rankings .rankingLiveLook{display:none!important}
+body.route-rankings .rankingBoardV2{border:1px solid var(--el-line)!important;border-radius:20px!important;background:#fff!important;box-shadow:var(--el-shadow-soft)!important;overflow:hidden!important}
+body.route-rankings .rankingBoardHead{min-height:70px!important;padding:15px 18px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:14px!important;border-bottom:1px solid #e3ebf5!important}
+body.route-rankings .rankingBoardHead h2{font-size:22px!important;margin:3px 0 0!important}
+body.route-rankings .rankingLegend{display:flex!important;gap:7px!important;flex-wrap:wrap!important;font-size:9px!important;color:#7d8fa6!important}
+body.route-rankings .rankingLegend span{padding:5px 8px;border:1px solid #e1eaf4;border-radius:999px;background:#f7fbff}
+body.route-rankings .tableWrap{overflow:auto!important;max-height:none!important;background:#fff!important}
+body.route-rankings .rankingTableV2{min-width:760px!important;width:100%!important;border-collapse:separate!important;border-spacing:0!important}
+body.route-rankings .rankingTableV2 thead{position:sticky!important;top:0!important;z-index:3!important;background:#f7faff!important}
+body.route-rankings .rankingTableV2 th{height:39px!important;padding:7px 13px!important;border-bottom:1px solid #dce7f3!important;color:#7589a4!important;font:800 9px/1 var(--el-font)!important;letter-spacing:.07em!important;text-transform:uppercase!important}
+body.route-rankings .rankingTableV2 td{height:60px!important;padding:7px 13px!important;border-bottom:1px solid #edf2f8!important;color:#415978!important;background:#fff!important}
+body.route-rankings .rankingTableV2 tbody tr:last-child td{border-bottom:0!important}
+body.route-rankings .rankingTableV2 tbody tr:hover td{background:#f8fbff!important}
+body.route-rankings .rankPositionBadge{min-width:38px!important;height:30px!important;border-radius:10px!important;background:#edf4fb!important;color:#57738f!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;font-weight:850!important}
+body.route-rankings .rankPositionBadge.top1{background:#fff0bd!important;color:#936f14!important}
+body.route-rankings .rankPositionBadge.top2{background:#edf1f6!important;color:#63758b!important}
+body.route-rankings .rankPositionBadge.top3{background:#f5e8df!important;color:#8a6047!important}
+body.route-rankings .rankPlayer{gap:10px!important}
+body.route-rankings .rankPlayerIcon{width:42px!important;height:42px!important;min-width:42px!important;border-radius:11px!important;background:#eff6fd!important;padding:3px!important}
+body.route-rankings .rankPlayerText strong{font-size:13px!important;color:var(--el-ink)!important}
+body.route-rankings .rankPlayerText small{display:block!important;color:#95a4b6!important;font-size:8px!important}
+body.route-rankings .rankingJobBadge{border:1px solid #dbe7f2!important;border-radius:999px!important;background:#f8fbff!important;color:#587797!important;padding:6px 9px!important;font-size:9px!important;font-weight:750!important}
+body.route-rankings .rankLevelBlock strong,
+body.route-rankings .rankingFame strong,
+body.route-rankings .rankingExp strong{color:#2e4968!important;font-size:12px!important}
+body.route-rankings .rankLevelBlock small,
+body.route-rankings .rankingFame small,
+body.route-rankings .rankingExp small{display:none!important}
+body.route-rankings .rankingFooter{padding:12px 15px!important;min-height:54px!important;border-top:1px solid #e5edf6!important;background:#fbfdff!important}
+body.route-rankings .pageBtn{min-width:34px;height:34px;border:1px solid #dce7f2!important;border-radius:10px!important;background:#fff!important;color:#68809c!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;font-size:10px!important;font-weight:800!important}
+body.route-rankings .pageBtn.active{background:#e5f3ff!important;border-color:#b9daf5!important;color:#167dce!important}
+body.route-rankings .rankingRefresh{display:block!important;font-size:9px!important}
+body.route-rankings .rankingEmpty{padding:52px 24px!important;text-align:center!important}
+body.route-rankings .rankingEmpty img{width:58px;margin:0 auto 13px;opacity:.66}
+body.route-rankings .rankingEmpty h3{font-size:21px!important}
+
+/* -------------------------------------------------------------------------
+   Wiki — clean encyclopedia / knowledge center
+   ------------------------------------------------------------------------- */
+body.route-wiki .siteContent>main.wikiDataPage{
+  display:block!important;
+  overflow:auto!important;
+  background:transparent!important;
+}
+body.route-wiki .wikiDataHero{padding:34px 0 24px!important}
+body.route-wiki .wikiDataHeroInner{
+  display:grid!important;
+  grid-template-columns:minmax(0,1.55fr) minmax(250px,.55fr)!important;
+  gap:18px!important;
+  align-items:stretch!important;
+  padding:28px 30px!important;
+  border:1px solid var(--el-line)!important;
+  border-radius:26px!important;
+  background:
+    radial-gradient(circle at 90% 8%,rgba(112,169,237,.15),transparent 34%),
+    linear-gradient(145deg,rgba(255,255,255,.98),rgba(247,251,255,.95))!important;
+  box-shadow:var(--el-shadow-soft)!important;
+}
+body.route-wiki .wikiDataHeroCopy{max-width:none!important}
+body.route-wiki .wikiDataHero h1{margin:7px 0 0!important;font-size:clamp(38px,4.5vw,58px)!important;line-height:.98!important;max-width:760px!important}
+body.route-wiki .wikiDataHero h1 br{display:none!important}
+body.route-wiki .wikiDataHero h1 em{font-style:normal!important;color:#4fa1e8!important}
+body.route-wiki .wikiDataHero p{max-width:76ch!important;margin:12px 0 16px!important;font-size:13px!important;line-height:1.6!important}
+body.route-wiki .wikiDataHeroPanel{
+  display:grid!important;
+  align-content:start!important;
+  gap:6px!important;
+  padding:18px!important;
+  border:1px solid #d9e6f2!important;
+  border-radius:18px!important;
+  background:rgba(249,252,255,.88)!important;
+  box-shadow:none!important;
+}
+body.route-wiki .wikiDataHeroRune{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:#e7f4ff;color:#3389cb!important;font-weight:900!important;font-size:13px!important}
+body.route-wiki .wikiDataHeroPanel>strong{color:var(--el-ink)!important;font-size:15px!important}
+body.route-wiki .wikiDataHeroPanel>small{color:#8091a6!important;font-size:9px!important;text-transform:uppercase!important;letter-spacing:.07em!important;margin-bottom:8px!important}
+body.route-wiki .wikiDataHeroPanel>div{display:flex!important;justify-content:space-between!important;gap:10px!important;padding:8px 0!important;border-top:1px solid #e3ebf4!important;color:#6a809a!important;font-size:10px!important}
+body.route-wiki .wikiDataHeroPanel>div b{color:#315b82!important;font-size:11px!important}
+body.route-wiki .wikiDataSearch{display:grid!important;grid-template-columns:150px minmax(0,1fr) auto!important;gap:7px!important;max-width:800px!important;margin:0!important;padding:0!important}
+body.route-wiki .wikiDataSearch select,
+body.route-wiki .wikiDataSearch input,
+body.route-wiki .wikiDataSearch .btn{min-height:45px!important;height:45px!important}
+body.route-wiki .wikiDataTrust{display:flex!important;gap:8px 16px!important;flex-wrap:wrap!important;margin-top:12px!important;color:#7d90a6!important;font-size:9px!important}
+body.route-wiki .wikiDataTrust span{display:inline-flex!important;align-items:center!important;gap:6px!important}
+body.route-wiki .wikiDataDot{width:7px!important;height:7px!important;border-radius:50%!important}
+body.route-wiki .wikiDataWarning{margin-top:0!important;margin-bottom:15px!important;padding:13px 15px!important;border:1px solid #f0d9a4!important;border-radius:15px!important;background:#fff9eb!important;color:#846a2b!important;display:flex!important;gap:9px 14px!important;align-items:center!important;flex-wrap:wrap!important}
+body.route-wiki .wikiCatalogSection,
+body.route-wiki .wikiSearchResults{height:auto!important;min-height:0!important;overflow:visible!important;padding-top:0!important;padding-bottom:44px!important}
+body.route-wiki .wikiCatalogHeading,
+body.route-wiki .wikiSearchResultsHead{min-height:0!important;margin:0 0 14px!important;padding:0 2px!important;display:flex!important;align-items:end!important;justify-content:space-between!important;gap:14px!important}
+body.route-wiki .wikiCatalogHeading h2,
+body.route-wiki .wikiSearchResultsHead h2{font-size:29px!important;line-height:1!important;margin:4px 0 7px!important}
+body.route-wiki .wikiCatalogHeading p,
+body.route-wiki .wikiSearchResultsHead p{display:block!important;max-width:680px!important;margin:0!important;font-size:12px!important;line-height:1.55!important}
+body.route-wiki .wikiCatalogHeading>a{padding:9px 11px;border:1px solid var(--el-line);border-radius:11px;background:#fff;color:#4c7399!important;font-size:9px!important;font-weight:800!important}
+body.route-wiki .wikiCatalogGrid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important;border:0!important;background:transparent!important}
+body.route-wiki .wikiCatalogCard{
+  min-height:168px!important;
+  padding:18px!important;
+  display:grid!important;
+  grid-template-columns:68px minmax(0,1fr)!important;
+  grid-template-rows:auto 1fr auto!important;
+  gap:7px 13px!important;
+  align-items:start!important;
+  border:1px solid var(--el-line)!important;
+  border-radius:20px!important;
+  background:#fff!important;
+  box-shadow:0 8px 24px rgba(58,87,126,.065)!important;
+  position:relative!important;
+  overflow:hidden!important;
+}
+body.route-wiki .wikiCatalogCard:hover{border-color:#b7d8f3!important;box-shadow:0 15px 35px rgba(59,105,147,.11)!important;transform:translateY(-2px)!important}
+body.route-wiki .wikiCatalogIcon{grid-row:1/4!important;width:68px!important;height:68px!important;border-radius:17px!important;background:#eff7ff!important;padding:7px!important;display:grid!important;place-items:center!important;color:#4a8bc3!important;font-size:16px!important;overflow:hidden!important}
+body.route-wiki .wikiCatalogIcon img{width:100%!important;height:100%!important;object-fit:contain!important}
+body.route-wiki .wikiCatalogCopy small{color:#8da0b5!important;font-size:8px!important;font-weight:800!important;letter-spacing:.08em!important}
+body.route-wiki .wikiCatalogCard h3{font-size:22px!important;line-height:1!important;margin:3px 0 5px!important}
+body.route-wiki .wikiCatalogCard p{font-size:10px!important;line-height:1.5!important;margin:0!important;color:#7589a2!important;max-width:40ch!important}
+body.route-wiki .wikiCatalogCard>strong{grid-column:2!important;grid-row:3!important;align-self:end!important;color:#326f9e!important;font-size:14px!important}
+body.route-wiki .wikiCatalogCard>strong small{font-size:8px!important;color:#90a0b3!important;font-weight:600!important}
+body.route-wiki .wikiCatalogCard>b{position:absolute!important;right:17px!important;bottom:17px!important;color:#3183c7!important;font-size:9px!important}
+body.route-wiki .wikiDataResultGrid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important;border:0!important}
+body.route-wiki .wikiDataResult{min-height:92px!important;padding:13px 14px!important;display:grid!important;grid-template-columns:58px minmax(0,1fr) 18px!important;gap:11px!important;align-items:center!important;border:1px solid var(--el-line)!important;border-radius:17px!important;background:#fff!important;box-shadow:0 7px 18px rgba(58,87,126,.055)!important;color:var(--el-ink)!important}
+body.route-wiki .wikiDataResult:hover{border-color:#b8d8f2!important;background:#fbfdff!important;transform:translateY(-1px)!important}
+body.route-wiki .wikiDataResultIcon{width:58px!important;height:58px!important;border-radius:14px!important;background:#eef6fe!important;padding:6px!important;overflow:hidden!important}
+body.route-wiki .wikiDataResultIcon img{width:100%!important;height:100%!important;object-fit:contain!important}
+body.route-wiki .wikiDataResult small{color:#8799ae!important;font-size:8px!important}
+body.route-wiki .wikiDataResult strong{display:block!important;margin:3px 0!important;color:var(--el-ink)!important;font-size:13px!important}
+body.route-wiki .wikiDataResult p{margin:0!important;font-size:9px!important;line-height:1.4!important;color:#8090a3!important;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+body.route-wiki .wikiDataEmpty{padding:50px 24px!important;border:1px dashed #cbdced!important;border-radius:19px!important;background:rgba(255,255,255,.76)!important;text-align:center!important}
+
+/* Wiki category lists */
+body.route-wiki .wikiListHero{padding:28px 0 14px!important;background:transparent!important;border:0!important}
+body.route-wiki .wikiBreadcrumb{display:flex!important;align-items:center!important;gap:7px!important;padding-top:16px!important;padding-bottom:8px!important;color:#8193a9!important;font-size:10px!important}
+body.route-wiki .wikiBreadcrumb a{color:#4d86b7!important;font-weight:700!important}
+body.route-wiki .wikiBreadcrumb strong{color:#425c77!important}
+body.route-wiki .wikiListHero>.wrap{padding:24px 26px!important;border:1px solid var(--el-line)!important;border-radius:22px!important;background:rgba(255,255,255,.94)!important;box-shadow:var(--el-shadow-soft)!important}
+body.route-wiki .wikiListHero .wikiBreadcrumb{padding:0 0 15px!important}
+body.route-wiki .wikiListHeroGrid{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:24px!important;align-items:end!important}
+body.route-wiki .wikiListHero h1{font-size:42px!important;line-height:.98!important;margin:4px 0 7px!important}
+body.route-wiki .wikiListHero p{font-size:12px!important;line-height:1.55!important;margin:0!important;max-width:680px!important}
+body.route-wiki .wikiListCount{min-width:160px!important;padding:12px 14px!important;border:1px solid #dce8f3!important;border-radius:15px!important;background:#f7fbff!important;text-align:right!important}
+body.route-wiki .wikiListCount strong{display:block!important;color:#2f6f9f!important;font-size:22px!important}
+body.route-wiki .wikiListCount span,body.route-wiki .wikiListCount small{display:block!important;color:#8193a6!important;font-size:8px!important}
+body.route-wiki .wikiListSearch{max-width:none!important;margin-top:15px!important;grid-template-columns:minmax(0,1fr) auto auto!important}
+body.route-wiki .wikiTypeTabs{display:flex!important;gap:5px!important;overflow-x:auto!important;margin-top:10px!important;padding-top:10px!important;border-top:1px solid #e6edf5!important;scrollbar-width:none}
+body.route-wiki .wikiTypeTabs a{padding:8px 10px!important;border-radius:9px!important;color:#6d839c!important;font-size:9px!important;font-weight:800!important;white-space:nowrap!important}
+body.route-wiki .wikiTypeTabs a:hover{background:#eff7ff!important;color:#267ebd!important}
+body.route-wiki .wikiTypeTabs a.active{background:#e6f3ff!important;color:#117bd0!important}
+body.route-wiki .wikiListBody{padding-bottom:45px!important}
+body.route-wiki .wikiDataTableWrap{border:1px solid var(--el-line)!important;border-radius:20px!important;background:#fff!important;box-shadow:var(--el-shadow-soft)!important;overflow:auto!important}
+body.route-wiki .wikiDataTable{width:100%!important;background:#fff!important}
+body.route-wiki .wikiDataTable th{padding:10px 13px!important;background:#f7faff!important;color:#7489a3!important;border-bottom:1px solid #dfe9f4!important;font-size:8px!important;font-weight:850!important;letter-spacing:.07em!important;text-transform:uppercase!important}
+body.route-wiki .wikiDataTable td{padding:10px 13px!important;background:#fff!important;color:#4c627d!important;border-bottom:1px solid #edf2f7!important;vertical-align:middle!important}
+body.route-wiki .wikiDataTable tbody tr:last-child td{border-bottom:0!important}
+body.route-wiki .wikiDataTable tbody tr:hover td{background:#f9fcff!important}
+body.route-wiki .wikiListAsset{width:54px!important;height:54px!important;border-radius:13px!important;background:#eef6fe!important;padding:5px!important;overflow:hidden!important;display:grid!important;place-items:center!important}
+body.route-wiki .wikiListAsset img{width:100%!important;height:100%!important;object-fit:contain!important}
+body.route-wiki .wikiDataTable code{padding:4px 6px;border-radius:7px;background:#eef4fa;color:#477092;font-size:9px}
+body.route-wiki .wikiEntityPrimaryLink strong{color:var(--el-ink)!important;font-size:12px!important}
+body.route-wiki .wikiEntityPrimaryLink small{color:#8b9caf!important;font-size:8px!important}
+body.route-wiki .wikiEntityPrimaryLink span{color:#3c8ac7!important;font-size:8px!important}
+body.route-wiki .wikiEntityDescription{color:#657c96!important;font-size:10px!important;line-height:1.45!important}
+body.route-wiki .wikiPagination{display:flex!important;align-items:center!important;justify-content:center!important;gap:12px!important;padding:16px!important;color:#70849d!important;font-size:10px!important}
+body.route-wiki .wikiPagination a{padding:8px 10px;border:1px solid var(--el-line);border-radius:9px;background:#fff;color:#397eaf!important;font-weight:750!important}
+
+/* Wiki entry pages */
+body.route-wiki .wikiEntityHero{display:grid!important;grid-template-columns:minmax(0,1fr) 250px!important;gap:18px!important;padding:22px!important;border:1px solid var(--el-line)!important;border-radius:22px!important;background:#fff!important;box-shadow:var(--el-shadow-soft)!important}
+body.route-wiki .wikiEntityIdentity{display:grid!important;grid-template-columns:108px minmax(0,1fr)!important;gap:19px!important;align-items:center!important}
+body.route-wiki .wikiEntityGlyph{width:108px!important;height:108px!important;border-radius:20px!important;background:#eef7ff!important;padding:11px!important;display:grid!important;place-items:center!important;overflow:hidden!important}
+body.route-wiki .wikiEntityGlyph img{width:100%!important;height:100%!important;object-fit:contain!important}
+body.route-wiki .wikiEntityCopy h1{margin:5px 0 7px!important;font-size:36px!important;line-height:1!important}
+body.route-wiki .wikiEntityCopy p{margin:0!important;font-size:11px!important;line-height:1.55!important;max-width:680px!important}
+body.route-wiki .wikiEntityBadges{display:flex!important;gap:5px!important;flex-wrap:wrap!important;margin-top:10px!important}
+body.route-wiki .wikiEntityBadges span{padding:5px 8px!important;border:1px solid #dce8f3!important;border-radius:999px!important;background:#f7fbff!important;color:#64809b!important;font-size:8px!important}
+body.route-wiki .wikiEntityHero>aside{padding:15px!important;border:1px solid #e0e9f3!important;border-radius:15px!important;background:#f9fcff!important;display:grid!important;align-content:start!important;gap:5px!important}
+body.route-wiki .wikiEntityHero>aside small{color:#8a9db2!important;font-size:8px!important}
+body.route-wiki .wikiEntityHero>aside strong{color:#365d80!important;font-size:13px!important}
+body.route-wiki .wikiEntityHero>aside span{color:#7c8ea2!important;font-size:9px!important;line-height:1.45!important}
+body.route-wiki .wikiEntityHero>aside a{margin-top:7px!important;color:#2580c4!important;font-size:9px!important;font-weight:800!important}
+body.route-wiki .wikiEntityLayout{display:grid!important;grid-template-columns:minmax(0,1fr) 280px!important;gap:18px!important;padding-top:18px!important;padding-bottom:46px!important;align-items:start!important}
+body.route-wiki .wikiEntityContent{display:grid!important;gap:14px!important}
+body.route-wiki .wikiEntitySection,
+body.route-wiki .wikiRawSection{padding:20px!important;border:1px solid var(--el-line)!important;border-radius:18px!important;background:#fff!important;box-shadow:0 7px 18px rgba(58,87,126,.05)!important}
+body.route-wiki .wikiEntitySectionHead{display:flex!important;justify-content:space-between!important;gap:14px!important;align-items:end!important;margin-bottom:13px!important;padding-bottom:11px!important;border-bottom:1px solid #e8eef5!important}
+body.route-wiki .wikiEntitySectionHead h2{margin:3px 0 0!important;font-size:22px!important}
+body.route-wiki .wikiEntitySectionHead>span{color:#8295aa!important;font-size:9px!important}
+body.route-wiki .wikiStatGrid,
+body.route-wiki .wikiRawGrid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:7px!important}
+body.route-wiki .wikiStatGrid>div,
+body.route-wiki .wikiRawGrid>div{padding:10px 11px!important;border:1px solid #e2ebf4!important;border-radius:11px!important;background:#f9fcff!important}
+body.route-wiki .wikiStatGrid small,
+body.route-wiki .wikiRawGrid small{display:block!important;color:#8a9db1!important;font-size:8px!important;margin-bottom:4px!important}
+body.route-wiki .wikiStatGrid strong,
+body.route-wiki .wikiRawGrid strong{color:#3a5b7a!important;font-size:11px!important;word-break:break-word!important}
+body.route-wiki .wikiRelationTable{border:1px solid #e0e9f3!important;border-radius:13px!important;overflow:hidden!important}
+body.route-wiki .wikiRelationHeader,
+body.route-wiki .wikiRelationTable>a{display:grid!important;grid-template-columns:minmax(0,1fr) 120px 130px!important;gap:10px!important;align-items:center!important;padding:9px 11px!important}
+body.route-wiki .wikiRelationHeader{background:#f5f9fd!important;color:#7d90a7!important;font-size:8px!important;font-weight:800!important;text-transform:uppercase!important}
+body.route-wiki .wikiRelationTable>a{border-top:1px solid #e8eef5!important;color:#526b86!important;font-size:10px!important;background:#fff!important}
+body.route-wiki .wikiRelationTable>a:hover{background:#f8fbff!important}
+body.route-wiki .wikiRelationTable strong{color:#284967!important;font-size:11px!important}
+body.route-wiki .wikiRelationTable small{display:block!important;color:#92a0b2!important;font-size:8px!important;margin-top:2px!important}
+body.route-wiki .wikiRelationCards{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important}
+body.route-wiki .wikiRelationCards>a{padding:11px 12px!important;border:1px solid #e0e9f3!important;border-radius:12px!important;background:#f9fcff!important;display:grid!important;gap:3px!important}
+body.route-wiki .wikiRelationCards>a:hover{border-color:#b9d8f1!important;background:#f3f9ff!important}
+body.route-wiki .wikiRelationCards strong{color:#315779!important;font-size:11px!important}
+body.route-wiki .wikiRelationCards small,body.route-wiki .wikiRelationCards span{color:#8395aa!important;font-size:8px!important}
+body.route-wiki .wikiEntitySidebar{display:grid!important;gap:12px!important;position:sticky!important;top:16px!important}
+body.route-wiki .wikiEntitySideBox,
+body.route-wiki .wikiSideSearch{padding:15px!important;border:1px solid var(--el-line)!important;border-radius:16px!important;background:#fff!important;box-shadow:0 6px 16px rgba(58,87,126,.045)!important}
+body.route-wiki .wikiEntitySideBox>strong{display:block!important;margin:5px 0 10px!important;color:var(--el-ink)!important;font-size:13px!important}
+body.route-wiki .wikiEntitySideBox dl{margin:0!important;display:grid!important;gap:7px!important}
+body.route-wiki .wikiEntitySideBox dl>div{display:flex!important;justify-content:space-between!important;gap:10px!important;padding-top:7px!important;border-top:1px solid #e8eef5!important;font-size:9px!important}
+body.route-wiki .wikiEntitySideBox dt{color:#8c9db0!important}
+body.route-wiki .wikiEntitySideBox dd{margin:0!important;color:#45627e!important;text-align:right!important}
+body.route-wiki .wikiSideSearch{display:grid!important;gap:8px!important}
+body.route-wiki .wikiSideSearch strong{font-size:12px!important;color:#2e4c69!important}
+body.route-wiki .wikiSideSearch input{min-height:40px!important}
+body.route-wiki .wikiSideSearch .btn{min-height:40px!important}
+
+/* -------------------------------------------------------------------------
+   Account, news, downloads, help, CMS content, errors
+   ------------------------------------------------------------------------- */
+body.route-account .accountPage{padding-top:0!important;padding-bottom:45px!important}
+body.route-account .accountQuick{display:flex!important;gap:7px!important;flex-wrap:wrap!important;margin-bottom:14px!important}
+body.route-account .accountStats{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:9px!important;margin-bottom:16px!important}
+body.route-account .accountStats .stat{padding:15px!important;border:1px solid var(--el-line)!important;border-radius:16px!important;background:#fff!important;box-shadow:0 6px 16px rgba(58,87,126,.05)!important;color:#74879d!important;font-size:9px!important}
+body.route-account .accountStats .statNum{color:#2f587d!important;font-size:23px!important;font-weight:850!important;letter-spacing:-.04em!important}
+body.route-account .accountShell{display:grid!important;grid-template-columns:minmax(0,1.55fr) minmax(280px,.72fr)!important;gap:17px!important}
+body.route-account .accountSidebar{display:grid!important;gap:13px!important}
+body.route-account .characterCards{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}
+body.route-account .characterCard{padding:13px!important;border:1px solid #e0e9f3!important;border-radius:14px!important;background:#f9fcff!important;display:grid!important;grid-template-columns:50px minmax(0,1fr) auto!important;gap:10px!important;align-items:center!important}
+body.route-account .characterJobIcon{width:50px!important;height:50px!important;object-fit:contain!important;border-radius:12px!important;background:#edf6ff!important;padding:5px!important}
+body.route-account .characterCardMain strong{display:block!important;color:var(--el-ink)!important;font-size:13px!important}
+body.route-account .characterCardMain span{color:#8194a9!important;font-size:9px!important}
+body.route-account .characterLevel{color:#2d82c4!important;font-size:11px!important;font-weight:800!important}
+body.route-account .characterFame{grid-column:2/4!important;color:#8c9bad!important;font-size:8px!important}
+body.route-account .rosterHead{display:flex!important;justify-content:space-between!important;align-items:end!important;gap:12px!important;margin-bottom:13px!important}
+body.route-account .rosterHead h2{margin:3px 0 0!important;font-size:24px!important}
+
+body.route-news .newsGrid,
+body.route-news .postGrid{gap:14px!important}
+body.route-news .newsCard{overflow:hidden!important}
+body.route-news .newsCard:hover{border-color:#bcd9f0!important;transform:translateY(-2px)!important;box-shadow:0 14px 34px rgba(58,87,126,.11)!important}
+body.route-news .newsCard img{border-radius:16px!important}
+body.route-downloads .downloadIcon{border-radius:13px!important;background:#eef6fe!important}
+body.route-downloads .downloadGroupTitle{margin:14px 2px 4px!important;color:#5a708b!important;font-size:12px!important;letter-spacing:.05em!important;text-transform:uppercase!important}
+body.route-help .helpGrid a,
+body.route-help .helpCard{border-radius:17px!important}
+body.route-page .wysiwyg,
+body.route-terms .wysiwyg,
+body.route-news .postBody,
+body.route-page .pageBody{color:#425b77!important;font-size:13px!important;line-height:1.75!important}
+body.route-page .wysiwyg a,
+body.route-terms .wysiwyg a,
+body.route-news .postBody a{color:#267fc3!important;text-decoration:underline;text-underline-offset:3px}
+body.route-page .wysiwyg code,
+body.route-terms .wysiwyg code,
+body.route-news .postBody code{padding:2px 5px;border-radius:6px;background:#eef4fa;color:#3c6486}
+body.route-page .wysiwyg table,
+body.route-terms .wysiwyg table,
+body.route-news .postBody table{border-collapse:separate;border-spacing:0;width:100%;overflow:hidden;border:1px solid var(--el-line);border-radius:13px;background:#fff}
+body.route-page .wysiwyg th,
+body.route-terms .wysiwyg th,
+body.route-news .postBody th{background:#f5f9fd;color:#617993}
+body.route-page .wysiwyg td,body.route-page .wysiwyg th,
+body.route-terms .wysiwyg td,body.route-terms .wysiwyg th,
+body.route-news .postBody td,body.route-news .postBody th{padding:9px 10px;border-bottom:1px solid #e7eef6;text-align:left}
+body.route-page .wysiwyg blockquote,
+body.route-terms .wysiwyg blockquote,
+body.route-news .postBody blockquote{margin:16px 0;padding:12px 14px;border-left:3px solid #69aef0;border-radius:0 12px 12px 0;background:#f2f8ff;color:#52708f}
+body.route-404 .authWrap>div,
+body.route-500 .authWrap>div{padding:30px!important;border:1px solid var(--el-line)!important;border-radius:24px!important;background:#fff!important;box-shadow:var(--el-shadow)!important}
+
+/* Homepage is already the visual anchor; polish interactions without changing its structure. */
+.route-home .btn,.route-home .signalStripGrid a,.route-home .heroTelemetry{transition:transform .18s ease,background-color .18s ease,border-color .18s ease,box-shadow .18s ease!important}
+.route-home .signalStripGrid a:hover{background:rgba(255,255,255,.035)!important;transform:translateY(-2px)!important}
+.route-home .heroTelemetry{box-shadow:0 18px 48px rgba(0,0,0,.16)!important}
+.route-home .artifactCharacterFront{filter:grayscale(.35) sepia(.04) saturate(.88) contrast(1.04) brightness(.97)!important}
+
+/* -------------------------------------------------------------------------
+   Responsive
+   ------------------------------------------------------------------------- */
+@media (max-width:980px){
+  .siteTopbarInner{grid-template-columns:auto 1fr auto;gap:12px}
+  .siteTopbarLinks{display:none}
+  .siteTopbarAction{display:none}
+  .siteTopbarMenu{display:block;justify-self:end}
+  body.siteRoute:not(.route-home):not(.route-admin) .pageHeroGrid{grid-template-columns:1fr!important}
+  body.siteRoute:not(.route-home):not(.route-admin) .pageHeroAside{display:none!important}
+  body.siteRoute:not(.route-home):not(.route-admin) .contentGrid{grid-template-columns:1fr!important}
+  body.route-rankings .rankingsIntro{grid-template-columns:1fr!important}
+  body.route-rankings .rankingStats{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  body.route-rankings .rankingPodium{grid-template-columns:1fr!important}
+  body.route-rankings .rankingPodiumCard{min-height:102px!important}
+  body.route-wiki .wikiDataHeroInner{grid-template-columns:1fr!important}
+  body.route-wiki .wikiDataHeroPanel{display:none!important}
+  body.route-wiki .wikiCatalogGrid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  body.route-wiki .wikiDataResultGrid{grid-template-columns:1fr!important}
+  body.route-wiki .wikiEntityHero{grid-template-columns:1fr!important}
+  body.route-wiki .wikiEntityHero>aside{display:none!important}
+  body.route-wiki .wikiEntityLayout{grid-template-columns:1fr!important}
+  body.route-wiki .wikiEntitySidebar{position:static!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  body.route-account .accountShell{grid-template-columns:1fr!important}
+  body.route-register .authGrid,body.route-recover .authGrid{grid-template-columns:1fr!important;max-width:620px!important}
+  body.route-register .authIntro,body.route-recover .authIntro{display:none!important}
+}
+
+@media (max-width:700px){
+  body.siteRoute:not(.route-home):not(.route-admin) .wrap{width:min(100% - 24px,1180px)!important}
+  .siteTopbar{min-height:64px}
+  .siteTopbarInner{min-height:64px!important}
+  .siteTopbarBrand img{width:32px;height:32px}
+  .siteTopbarBrandCopy strong{font-size:17px}
+  .siteTopbarBrandCopy small{font-size:8px}
+  body.siteRoute:not(.route-home):not(.route-admin) .lightTitle,
+  body.siteRoute:not(.route-home):not(.route-admin) .rankingsHero,
+  body.siteRoute:not(.route-home):not(.route-admin) .wikiDataHero{padding:22px 0 16px!important}
+  body.siteRoute:not(.route-home):not(.route-admin) .lightTitle h1,
+  body.siteRoute:not(.route-home):not(.route-admin) .rankingsHero h1,
+  body.siteRoute:not(.route-home):not(.route-admin) .wikiDataHero h1{font-size:36px!important}
+  body.siteRoute:not(.route-home):not(.route-admin) .lightTitle p,
+  body.siteRoute:not(.route-home):not(.route-admin) .rankingsHero p,
+  body.siteRoute:not(.route-home):not(.route-admin) .wikiDataHero p{font-size:12px!important}
+  body.siteRoute:not(.route-home):not(.route-admin) .featurePanel,
+  body.siteRoute:not(.route-home):not(.route-admin) .paperCard{padding:17px!important;border-radius:17px!important}
+  body.route-login .siteContent>main.authWrap{padding:20px 12px 30px!important}
+  body.route-login .authCard{padding:27px 20px 24px!important;border-radius:22px!important}
+  body.route-login .authCard h1{font-size:28px!important}
+  body.route-rankings .rankingsHero .pageHeroGrid{padding:20px!important;border-radius:20px!important}
+  body.route-rankings .rankingStats{grid-template-columns:1fr 1fr!important;gap:7px!important}
+  body.route-rankings .rankingStats>div{min-height:84px!important;padding:13px!important}
+  body.route-rankings .rankingStats strong{font-size:21px!important}
+  body.route-rankings .rankingSearch{grid-template-columns:1fr auto!important}
+  body.route-rankings .rankingSearch>div{grid-column:1/3!important}
+  body.route-rankings .rankingSearch .btn{width:100%!important}
+  body.route-rankings .rankingBoardHead{align-items:flex-start!important;flex-direction:column!important}
+  body.route-rankings .rankingLegend{display:none!important}
+  body.route-rankings .rankingTableV2{min-width:590px!important}
+  body.route-rankings .rankingTableV2 th:nth-child(5),body.route-rankings .rankingTableV2 td:nth-child(5),
+  body.route-rankings .rankingTableV2 th:nth-child(6),body.route-rankings .rankingTableV2 td:nth-child(6){display:none!important}
+  body.route-wiki .wikiDataHeroInner{padding:20px!important;border-radius:20px!important}
+  body.route-wiki .wikiDataSearch{grid-template-columns:1fr auto!important;max-width:none!important}
+  body.route-wiki .wikiDataSearch select{grid-column:1/3!important}
+  body.route-wiki .wikiDataTrust{gap:6px 10px!important}
+  body.route-wiki .wikiCatalogGrid{grid-template-columns:1fr!important}
+  body.route-wiki .wikiCatalogCard{min-height:142px!important}
+  body.route-wiki .wikiCatalogHeading,.route-wiki .wikiSearchResultsHead{align-items:flex-start!important;flex-direction:column!important}
+  body.route-wiki .wikiListHero>.wrap{padding:18px!important}
+  body.route-wiki .wikiListHeroGrid{grid-template-columns:1fr!important}
+  body.route-wiki .wikiListCount{text-align:left!important;min-width:0!important}
+  body.route-wiki .wikiListSearch{grid-template-columns:1fr auto!important}
+  body.route-wiki .wikiListSearch input{grid-column:1/3!important}
+  body.route-wiki .wikiDataTableClean{min-width:560px!important}
+  body.route-wiki .wikiEntityIdentity{grid-template-columns:78px minmax(0,1fr)!important;gap:13px!important}
+  body.route-wiki .wikiEntityGlyph{width:78px!important;height:78px!important;border-radius:16px!important}
+  body.route-wiki .wikiEntityCopy h1{font-size:27px!important}
+  body.route-wiki .wikiEntityLayout{padding-top:12px!important;gap:12px!important}
+  body.route-wiki .wikiEntitySection,body.route-wiki .wikiRawSection{padding:15px!important}
+  body.route-wiki .wikiStatGrid,body.route-wiki .wikiRawGrid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  body.route-wiki .wikiRelationCards{grid-template-columns:1fr!important}
+  body.route-wiki .wikiRelationHeader,body.route-wiki .wikiRelationTable>a{grid-template-columns:minmax(0,1fr) 88px!important}
+  body.route-wiki .wikiRelationHeader span:nth-child(3),body.route-wiki .wikiRelationTable>a>span:nth-child(3){display:none!important}
+  body.route-wiki .wikiEntitySidebar{grid-template-columns:1fr!important}
+  body.route-account .accountStats{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  body.route-account .characterCards{grid-template-columns:1fr!important}
+}
+
+@media (max-width:430px){
+  .siteTopbarBrandCopy small{display:none}
+  body.route-rankings .rankingStats>div{min-height:78px!important}
+  body.route-rankings .rankingPodiumCard{grid-template-columns:36px 60px minmax(0,1fr)!important;padding:13px!important}
+  body.route-rankings .rankingPodiumArt{width:60px!important;height:60px!important}
+  body.route-wiki .wikiCatalogCard{grid-template-columns:58px minmax(0,1fr)!important;padding:15px!important}
+  body.route-wiki .wikiCatalogIcon{width:58px!important;height:58px!important}
+  body.route-wiki .wikiStatGrid,body.route-wiki .wikiRawGrid{grid-template-columns:1fr 1fr!important}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
+}
