@@ -1,0 +1,42 @@
+name: Vercel Web Check
+
+on:
+  repository_dispatch:
+    types:
+      - vercel.deployment.success
+
+permissions:
+  actions: read
+  contents: read
+  statuses: write
+
+jobs:
+  web-check:
+    name: EverLeaf web/CMS tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Report deployment check to Vercel
+        uses: vercel/repository-dispatch/actions/status@v1
+        with:
+          name: 'Vercel - everleaf-web: web-cms-tests'
+
+      - name: Checkout deployed commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.client_payload.git.sha }}
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Test EverLeaf website and CMS
+        working-directory: web
+        run: npm test

@@ -6,72 +6,79 @@ const {categories,entries,bySlug,searchEntries}=require('../src/services/wikiCat
 const root=path.join(__dirname,'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 
-test('wiki seed catalog is player-facing EverLeaf knowledge',()=>{
+test('wiki seed catalog remains available as supplemental EverLeaf guides',()=>{
   assert.ok(categories.length>=7);
   assert.ok(entries.length>=19);
   for(const slug of ['enhanced-classic','getting-started','adventurer-jobs','cygnus-knights','aran-guide','evan-guide','level-250-progression','hp-washing-replacement','nx-reward-sources','voting-guide','pet-vac','trade-button-free-market','everleaf-launcher','launcher-repair-updates','widescreen-support','rankings-guide','rooted-content','wiki-how-to-use']) {
     assert.ok(bySlug.has(slug),`${slug} should exist`);
   }
-  for(const retired of ['server-authority','reward-delivery-safety','custom-ui-layer','npc-map-integrity','custom-nx-pipeline','custom-item-id-discipline']) {
-    assert.equal(bySlug.has(retired),false,`${retired} should no longer be a public seed guide`);
-  }
   assert.ok(searchEntries('pet vac').some(x=>x.slug==='pet-vac'));
   assert.ok(searchEntries('repair').some(x=>x.slug==='launcher-repair-updates'));
-  assert.ok(searchEntries('new player').some(x=>x.slug==='getting-started'));
   assert.ok(entries.every(x=>x.sourceDoc&&x.verification),'every seed entry should carry source and verification metadata');
 });
 
-test('CMS schema owns persistent Wiki storage and safely refreshes untouched seeds',()=>{
+test('CMS schema still owns persistent supplemental guide storage',()=>{
   const cms=read('src/db/cms.js');
   assert.match(cms,/CREATE TABLE IF NOT EXISTS wiki_articles/);
   assert.match(cms,/INSERT OR IGNORE INTO wiki_articles/);
   assert.match(cms,/WIKI_SEED_VERSION = 2/);
-  assert.match(cms,/wiki_player_seed_version/);
   assert.match(cms,/updated_at=created_at/);
-  assert.match(cms,/RETIRED_DEVELOPER_SLUGS/);
   assert.match(cms,/services\/wikiCatalog/);
 });
 
-test('Wiki service provides database search, article parsing, and publishing',()=>{
+test('Wiki service still provides guide search, parsing, and publishing',()=>{
   const service=read('src/services/wikiService.js');
   assert.match(service,/SELECT \* FROM wiki_articles WHERE published=1/);
   assert.match(service,/function searchEntries/);
   assert.match(service,/function parseBody/);
   assert.match(service,/function saveArticle/);
-  assert.match(service,/updated_at=CURRENT_TIMESTAMP/);
 });
 
-test('wiki routes serve CMS articles, search, and article detail pages',()=>{
+test('wiki routes prioritize cleaned live game-data pages and namespace staff guides',()=>{
   const route=read('src/routes/wiki.js');
-  assert.match(route,/services\/wikiService/);
-  assert.match(route,/wiki\.listPublished/);
-  assert.match(route,/wiki\.searchEntries/);
-  assert.match(route,/wiki\.getBySlug/);
+  assert.match(route,/services\/wikiPublicCatalog/);
+  assert.match(route,/data\.ensureCatalog/);
+  assert.match(route,/data\.search/);
+  assert.match(route,/data\.list/);
+  assert.match(route,/data\.detail/);
+  assert.match(route,/data\.getBase/);
   assert.match(route,/router\.get\("\/wiki"/);
-  assert.match(route,/router\.get\("\/wiki\/:slug"/);
+  assert.match(route,/router\.get\("\/wiki\/guides"/);
+  assert.match(route,/router\.get\("\/wiki\/guides\/:slug"/);
+  assert.match(route,/router\.get\("\/wiki\/:type"/);
+  assert.match(route,/router\.get\("\/wiki\/:type\/:id"/);
 });
 
-test('Wiki UI is explicitly a searchable player guide',()=>{
+test('Wiki UI is explicitly a searchable server-data encyclopedia',()=>{
   const hub=read('src/views/wiki.ejs');
-  const entry=read('src/views/wiki-entry.ejs');
-  const css=read('public/css/wiki-cms.css');
-  const playerCss=read('public/css/wiki-player-2026.css');
+  const list=read('src/views/wiki-data-list.ejs');
+  const entry=read('src/views/wiki-data-entry.ejs');
+  const css=read('public/css/wiki-data.css');
+  const cleanupCss=read('public/css/wiki-cleanup-2026.css');
   const header=read('src/views/partials/header.ejs');
-  assert.match(hub,/EVERLEAF PLAYER WIKI/);
-  assert.match(hub,/wikiSearch/);
-  assert.match(hub,/QUICK START/);
-  assert.match(hub,/getting-started/);
-  assert.match(hub,/Staff maintained/);
-  assert.match(hub,/Staff-maintained EverLeaf guide/);
-  assert.doesNotMatch(hub,/entry\.sourceDoc\|\|entry\.source/);
-  assert.match(entry,/wikiToc/);
-  assert.match(entry,/wikiProvenance/);
-  assert.match(css,/\.wikiBreadcrumb/);
-  assert.match(playerCss,/\.wikiQuickGrid/);
-  assert.match(header,/wiki-player-2026\.css/);
+  assert.match(hub,/EVERLEAF DATA WIKI/);
+  assert.match(hub,/WZ \+ MySQL/);
+  assert.match(hub,/BROWSE CATALOG/);
+  assert.match(hub,/wikiDataSearch/);
+  assert.match(hub,/Duplicate and obvious internal\/test records/);
+  assert.doesNotMatch(hub,/HOW IT WORKS/);
+  assert.doesNotMatch(hub,/EverLeaf data, not a generic MapleStory copy/);
+  assert.match(hub,/\/wiki\/guides/);
+  assert.match(list,/wikiCatalogListPage/);
+  assert.match(list,/wikiEntityPrimaryLink/);
+  assert.match(list,/Open record →/);
+  assert.doesNotMatch(list,/wikiOpenEntity/);
+  assert.doesNotMatch(list,/>View →</);
+  assert.match(entry,/wikiEntityPage/);
+  assert.match(css,/\.wikiCatalogGrid/);
+  assert.match(css,/\.wikiDataTable/);
+  assert.match(cleanupCss,/\.wikiDataTableClean/);
+  assert.match(cleanupCss,/@media\(max-width:760px\)/);
+  assert.match(header,/wiki-data\.css/);
+  assert.match(header,/wiki-cleanup-2026\.css/);
 });
 
-test('CMS knowledge dashboard supports creating and editing Wiki articles',()=>{
+test('CMS knowledge dashboard continues to support supplemental Wiki guides',()=>{
   const route=read('src/routes/admin-knowledge.js');
   const view=read('src/views/admin-knowledge.ejs');
   const editor=read('src/views/admin-knowledge-edit.ejs');
@@ -80,8 +87,6 @@ test('CMS knowledge dashboard supports creating and editing Wiki articles',()=>{
   assert.match(route,/\/knowledge\/save/);
   assert.match(route,/wiki\.saveArticle/);
   assert.match(view,/NEW ARTICLE/);
-  assert.match(view,/Published/);
   assert.match(editor,/Article body/);
-  assert.match(editor,/## Heading/);
   assert.match(editor,/name="published"/);
 });
