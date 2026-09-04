@@ -7,11 +7,44 @@ const detailHref=e=>`/wiki/${e.type}/${e.id}`;
 const builtTime=status.builtAt?new Date(status.builtAt).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}):'—';
 %>
 <main class="lightPage wikiDataPage">
-<section class="wikiDataHero"><div class="wrap wikiDataHeroInner"><div class="wikiDataHeroCopy"><div class="pageEyebrow">EVERLEAF DATA WIKI</div><h1>Everything in Maple World,<br><em>from the server itself.</em></h1><p>Search the actual EverLeaf game data: equipment, consumables, chairs, monsters, maps, skills, NPCs, quests, drop sources, shops and world connections. The catalog reads the same WZ and MySQL data used by the live server.</p><form class="wikiDataSearch" action="/wiki" method="get"><select name="type" aria-label="Wiki category"><option value="all" <%=activeType==='all'?'selected':''%>>Everything</option><% Object.entries(types).forEach(([key,meta])=>{ %><option value="<%=key%>" <%=activeType===key?'selected':''%>><%=meta.label%></option><% }) %></select><input type="search" name="q" value="<%=q%>" placeholder="Search item name, monster, map, skill, NPC, quest or ID…" aria-label="Search server data"><button class="btn primary" type="submit">SEARCH</button></form><div class="wikiDataTrust"><span><b class="wikiDataDot <%=status.available?'online':'offline'%>"></b><%=status.available?'Server data loaded':'Server data unavailable'%></span><span>WZ + MySQL</span><span>Catalog refreshed <%=builtTime%></span></div></div><aside class="wikiDataHeroPanel"><span class="wikiDataHeroRune">EL</span><strong>EverLeaf Encyclopedia</strong><small>v83 Enhanced Classic</small><div><span>Items</span><b><%=fmt(status.counts.items)%></b></div><div><span>Monsters</span><b><%=fmt(status.counts.monsters)%></b></div><div><span>Maps</span><b><%=fmt(status.counts.maps)%></b></div></aside></div></section>
+  <section class="wikiDataHero">
+    <div class="wikiDataHeroInner">
+      <div class="wikiDataHeroCopy">
+        <div class="pageEyebrow">EVERLEAF DATA WIKI // QUERY TERMINAL</div>
+        <h1>WORLD<br>DATA.</h1>
+        <p>Search the actual EverLeaf game data: equipment, consumables, chairs, monsters, maps, skills, NPCs, quests, drop sources, shops, and world connections.</p>
+        <form class="wikiDataSearch" action="/wiki" method="get">
+          <select name="type" aria-label="Wiki category"><option value="all" <%=activeType==='all'?'selected':''%>>ALL NAMESPACES</option><% Object.entries(types).forEach(([key,meta])=>{ %><option value="<%=key%>" <%=activeType===key?'selected':''%>><%=meta.label.toUpperCase()%></option><% }) %></select>
+          <input type="search" name="q" value="<%=q%>" placeholder="Name or MapleStory ID…" aria-label="Search server data">
+          <button class="btn primary" type="submit">EXECUTE</button>
+        </form>
+        <div class="wikiDataTrust"><span><b class="wikiDataDot <%=status.available?'online':'offline'%>"></b><%=status.available?'SERVER DATA LOADED':'SERVER DATA UNAVAILABLE'%></span><span>WZ + MySQL</span><span>REFRESHED <%=builtTime%></span></div>
+      </div>
+      <aside class="wikiDataHeroPanel">
+        <span class="wikiDataHeroRune">EL</span><strong>DATA INDEX</strong><small>ENHANCED CLASSIC V83</small>
+        <div><span>ITEMS</span><b><%=fmt(status.counts.items)%></b></div>
+        <div><span>MONSTERS</span><b><%=fmt(status.counts.monsters)%></b></div>
+        <div><span>MAPS</span><b><%=fmt(status.counts.maps)%></b></div>
+      </aside>
+    </div>
+  </section>
 
-<% if(!status.available){ %><section class="wrap wikiDataWarning"><strong>Wiki data index is not available on this web host yet.</strong><span><%=status.errors&&status.errors[0]?status.errors[0]:'The server WZ directory could not be read.'%></span><a href="/wiki/guides">Open staff guides →</a></section><% } %>
+  <% if(!status.available){ %><section class="wrap wikiDataWarning"><strong>SERVER DATA UNAVAILABLE</strong><span><%=status.errors&&status.errors[0]?status.errors[0]:'The server WZ directory could not be read.'%></span><a href="/wiki/guides">OPEN STAFF GUIDES →</a></section><% } %>
 
-<% if(!q){ %><section class="wrap wikiCatalogSection"><div class="wikiCatalogHeading"><div><div class="pageEyebrow">BROWSE CATALOG</div><h2>Items, monsters, maps and more.</h2><p>Browse the player-useful EverLeaf catalog. Duplicate and obvious internal/test records are consolidated or hidden automatically.</p></div><a href="/wiki/guides">STAFF GUIDES →</a></div><div class="wikiCatalogGrid"><% Object.entries(types).forEach(([key,meta])=>{ %><a class="wikiCatalogCard wikiCatalog-<%=key%>" href="<%=typeHref(key)%>"><span class="wikiCatalogIcon"><%=typeIcon[key]%></span><div><small><%=meta.singular.toUpperCase()%> DATABASE</small><h3><%=meta.label%></h3><p><%=meta.description%></p></div><strong><%=fmt(status.counts[key])%><small> indexed</small></strong><b>Browse →</b></a><% }) %></div></section><% } %>
+  <% if(!q){ %>
+    <section class="wikiCatalogSection">
+      <div class="wikiCatalogHeading"><div><div class="pageEyebrow">NAMESPACE://INDEX</div><h2>BROWSE THE DATABASE.</h2><p class="muted">Player-useful records only. Obvious internal/test records and duplicate listings are consolidated.</p></div><a class="btn" href="/wiki/guides">STAFF GUIDES</a></div>
+      <div class="wikiCatalogGrid">
+        <% Object.entries(types).forEach(([key,meta])=>{ %><a class="wikiCatalogCard wikiCatalog-<%=key%>" href="<%=typeHref(key)%>"><span class="wikiCatalogIcon"><%=typeIcon[key]%></span><div><small><%=meta.singular.toUpperCase()%> DATABASE</small><h3><%=meta.label%></h3><p><%=meta.description%></p></div><strong><%=fmt(status.counts[key])%><small> RECORDS</small></strong><b>QUERY →</b></a><% }) %>
+      </div>
+    </section>
+  <% } %>
 
-<% if(q){ %><section class="wrap wikiSearchResults"><div class="wikiSearchResultsHead"><div><div class="pageEyebrow">SEARCH RESULTS</div><h2>Results for “<%=q%>”</h2><p><%=activeType==='all'?'Searching the cleaned EverLeaf catalog.':`Filtered to ${types[activeType]?.label||activeType}.`%></p></div><span><%=results.length%> result<%=results.length===1?'':'s'%></span></div><% if(results.length){ %><div class="wikiDataResultGrid"><% results.forEach(entity=>{ %><a class="wikiDataResult" href="<%=detailHref(entity)%>"><span class="wikiDataResultIcon"><%=typeIcon[entity.type]%></span><div><small><%=types[entity.type].singular%> · ID <%=entity.id%></small><strong><%=entity.name%></strong><p><%=entity.description||entity.subtype||types[entity.type].description%></p></div><b>→</b></a><% }) %></div><% } else { %><div class="wikiDataEmpty"><span>?</span><h3>No server-data match found.</h3><p>Try a shorter name, an exact MapleStory ID, or search all categories.</p><a class="btn" href="/wiki">CLEAR SEARCH</a></div><% } %></section><% } %>
-</main><%- include("partials/footer") %>
+  <% if(q){ %>
+    <section class="wikiSearchResults">
+      <div class="wikiSearchResultsHead"><div><div class="pageEyebrow">QUERY://RESULT</div><h2>“<%=q%>”</h2><p><%=activeType==='all'?'Searching all cleaned namespaces.':`Namespace: ${types[activeType]?.label||activeType}.`%></p></div><span><%=results.length%> RESULT<%=results.length===1?'':'S'%></span></div>
+      <% if(results.length){ %><div class="wikiDataResultGrid"><% results.forEach(entity=>{ %><a class="wikiDataResult" href="<%=detailHref(entity)%>"><span class="wikiDataResultIcon"><%=typeIcon[entity.type]%></span><div><small><%=types[entity.type].singular.toUpperCase()%> // ID <%=entity.id%></small><strong><%=entity.name%></strong><p><%=entity.description||entity.subtype||types[entity.type].description%></p></div><b>→</b></a><% }) %></div><% } else { %><div class="wikiDataEmpty"><h3>NO MATCH.</h3><p>Try a shorter name, exact MapleStory ID, or query all namespaces.</p><a class="btn" href="/wiki">CLEAR QUERY</a></div><% } %>
+    </section>
+  <% } %>
+</main>
+<%- include("partials/footer") %>
