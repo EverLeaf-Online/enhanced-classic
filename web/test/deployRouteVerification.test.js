@@ -14,6 +14,6 @@ test('public route templates carry production-verifiable markers',()=>{
   assert.match(wiki,/EVERLEAF DATA WIKI/);
   assert.match(wiki,/WZ \+ MySQL/);
   assert.match(wiki,/BROWSE CATALOG/);
-  assert.match(wikiRoute,/services\/wikiDataService/);
+  assert.match(wikiRoute,/services\/wikiPublicCatalog/);
   assert.match(wikiRoute,/\/wiki\/guides/);
 });

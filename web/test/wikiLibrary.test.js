@@ -34,13 +34,14 @@ test('Wiki service still provides guide search, parsing, and publishing',()=>{
   assert.match(service,/function saveArticle/);
 });
 
-test('wiki routes prioritize live game-data pages and namespace staff guides',()=>{
+test('wiki routes prioritize cleaned live game-data pages and namespace staff guides',()=>{
   const route=read('src/routes/wiki.js');
-  assert.match(route,/services\/wikiDataService/);
+  assert.match(route,/services\/wikiPublicCatalog/);
   assert.match(route,/data\.ensureCatalog/);
   assert.match(route,/data\.search/);
   assert.match(route,/data\.list/);
   assert.match(route,/data\.detail/);
+  assert.match(route,/data\.getBase/);
   assert.match(route,/router\.get\("\/wiki"/);
   assert.match(route,/router\.get\("\/wiki\/guides"/);
   assert.match(route,/router\.get\("\/wiki\/guides\/:slug"/);
@@ -53,17 +54,28 @@ test('Wiki UI is explicitly a searchable server-data encyclopedia',()=>{
   const list=read('src/views/wiki-data-list.ejs');
   const entry=read('src/views/wiki-data-entry.ejs');
   const css=read('public/css/wiki-data.css');
+  const cleanupCss=read('public/css/wiki-cleanup-2026.css');
   const header=read('src/views/partials/header.ejs');
   assert.match(hub,/EVERLEAF DATA WIKI/);
   assert.match(hub,/WZ \+ MySQL/);
   assert.match(hub,/BROWSE CATALOG/);
   assert.match(hub,/wikiDataSearch/);
+  assert.match(hub,/Duplicate and obvious internal\/test records/);
+  assert.doesNotMatch(hub,/HOW IT WORKS/);
+  assert.doesNotMatch(hub,/EverLeaf data, not a generic MapleStory copy/);
   assert.match(hub,/\/wiki\/guides/);
   assert.match(list,/wikiCatalogListPage/);
+  assert.match(list,/wikiEntityPrimaryLink/);
+  assert.match(list,/Open record →/);
+  assert.doesNotMatch(list,/wikiOpenEntity/);
+  assert.doesNotMatch(list,/>View →</);
   assert.match(entry,/wikiEntityPage/);
   assert.match(css,/\.wikiCatalogGrid/);
   assert.match(css,/\.wikiDataTable/);
+  assert.match(cleanupCss,/\.wikiDataTableClean/);
+  assert.match(cleanupCss,/@media\(max-width:760px\)/);
   assert.match(header,/wiki-data\.css/);
+  assert.match(header,/wiki-cleanup-2026\.css/);
 });
 
 test('CMS knowledge dashboard continues to support supplemental Wiki guides',()=>{

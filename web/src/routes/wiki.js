@@ -1,7 +1,7 @@
 const express=require("express");
 const {settings}=require("../db/cms");
 const guides=require("../services/wikiService");
-const data=require("../services/wikiDataService");
+const data=require("../services/wikiPublicCatalog");
 const router=express.Router();
 
 const dataTypes=new Set(Object.keys(data.TYPE_META));
@@ -88,11 +88,20 @@ router.get("/wiki/:type/:id",async(req,res,next)=>{
       settings:settings(),
       types:data.TYPE_META,
       meta:data.typeMeta(type),
-      entry
+      entry,
+      detailWarning:""
     });
   } catch(error) {
     console.warn(`Wiki ${type} detail failed for ${id}:`,error.message);
-    return res.status(503).render("500",{settings:settings(),error:"This Wiki record is temporarily unavailable."});
+    const base=data.getBase(type,id);
+    if(!base)return next();
+    return res.status(200).render("wiki-data-entry",{
+      settings:settings(),
+      types:data.TYPE_META,
+      meta:data.typeMeta(type),
+      entry:{...base,sections:{},partial:true},
+      detailWarning:"Some linked server details are temporarily unavailable, but this record is still valid and searchable."
+    });
   }
 });
 
