@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "dinput8.h"
+#include "WidescreenCorrections.h"
 
 // System dinput8 forwarding targets. The exported naked stubs below can be
 // reached before the rest of the Maple client has finished unpacking, so these
@@ -107,6 +108,12 @@ void dinput8::CreateHook() {
 	// Eagerly resolve during the normal bootstrap path, while the exported stubs
 	// also call the same thread-safe resolver in case Maple reaches them first.
 	EnsureSystemDinput8();
+
+	// MainFunc invokes this after Client::UpdateResolution(), making this a stable
+	// post-HD-patch point for narrowly scoped, preflighted geometry corrections.
+	// The standalone exported DirectInput8Create/GetdfDIJoystick paths do not call
+	// this function, so early proxy forwarding cannot apply client-memory patches.
+	WidescreenCorrections::Apply();
 }
 
 extern "C" __declspec(dllexport) __declspec(naked) void DirectInput8Create()
