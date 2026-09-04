@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Audit script -> event-manager linkage used by bosses, PQs and transports.
 
-The scripting API resolves getEventManager("Name") to scripts/event/Name.js.  A
+The scripting API resolves getEventManager("Name") to scripts/event/Name.js. A
 missing or case-mismatched file is a runtime failure that static Java tests do
-not catch, so keep this as a release gate.
-
-Empress-development paths are intentionally excluded from EverLeaf release QA.
+not catch, so keep this as a release gate. Empress is canonical EverLeaf
+content and is audited exactly like every other boss/event manager.
 """
 
 from __future__ import annotations
@@ -22,7 +21,7 @@ REF_RE = re.compile(r"\bgetEventManager\s*\(\s*['\"]([^'\"]+)['\"]\s*\)")
 
 # Useful operational labels only; linkage validation itself is generic and does
 # not depend on exact upstream file names.
-BOSS_WORDS = ("zak", "horntail", "hontale", "pink", "pap", "krexel", "scar", "targa", "cwk", "boss")
+BOSS_WORDS = ("zak", "horntail", "hontale", "pink", "pap", "krexel", "scar", "targa", "cwk", "boss", "empress")
 PQ_WORDS = ("pq", "kerning", "ludi", "orbis", "ellin", "pirate", "romeo", "juliet", "guild")
 
 
@@ -30,23 +29,19 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
-def release_script(path: Path) -> bool:
-    return "empress" not in str(path).lower()
-
-
 def main() -> int:
     if not EVENTS.is_dir():
         print("ERROR scripts/event directory is missing")
         return 1
 
-    event_files = {p.name: p for p in EVENTS.glob("*.js") if release_script(p)}
+    event_files = {p.name: p for p in EVENTS.glob("*.js")}
     lower_to_names: dict[str, list[str]] = defaultdict(list)
     for name in event_files:
         lower_to_names[name.lower()].append(name)
 
     references: list[tuple[Path, str]] = []
     for path in SCRIPTS.rglob("*.js"):
-        if path.parent == EVENTS or not release_script(path):
+        if path.parent == EVENTS:
             continue
         for name in REF_RE.findall(read(path)):
             references.append((path, name))
