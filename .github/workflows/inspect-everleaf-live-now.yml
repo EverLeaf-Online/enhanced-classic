@@ -55,3 +55,5 @@ jobs:
           systemctl is-active everleaf.service
           python3 /opt/everleaf/current/tools/verify_channel_runtime.py --config /opt/everleaf/current/config.yaml --host 127.0.0.1 2>&1 | tail -60 || true
           REMOTE
+
+# diagnostic trigger: 2026-09-04T13:56Z
