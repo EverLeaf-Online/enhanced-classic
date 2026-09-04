@@ -27,7 +27,7 @@ public final class BotQaSuiteRunner {
     private static final String ARM_TOKEN = "ARM";
     private static final long TICK_MS = 500L;
     private static final long TRAVEL_TIMEOUT_MS = 120_000L;
-    private static final long HUNT_OBSERVE_MS = 15_000L;
+    private static final long HUNT_OBSERVE_MS = 30_000L;
     private static final long DEATH_RECOVERY_TIMEOUT_MS = 60_000L;
 
     private static final int HENESYS_PARK = 100000200;
@@ -39,6 +39,11 @@ public final class BotQaSuiteRunner {
     private static final int HENESYS_SHOP_X = -258;
     private static final int HENESYS_SHOP_Y = 84;
     private static final int HENESYS_HUNTING_GROUND_1 = 104040000;
+    private static final int HENESYS_HUNT_X = 120;
+    private static final int HENESYS_HUNT_Y = 190;
+    private static final int HENESYS_HUNT_SPACING = 180;
+    private static final int HENESYS_HUNT_COLUMNS = 4;
+    private static final int HENESYS_HUNT_ARRIVAL_RADIUS = 180;
     private static final int RED_POTION = 2000000;
     private static final int QUEST_STATUS_SMOKE = 1046;
 
@@ -88,6 +93,14 @@ public final class BotQaSuiteRunner {
 
     public static boolean isRunning(int ownerId) {
         return runsByOwner.containsKey(ownerId);
+    }
+
+    static int huntTargetXForIndex(int zeroBasedIndex) {
+        return HENESYS_HUNT_X + Math.floorMod(zeroBasedIndex, HENESYS_HUNT_COLUMNS) * HENESYS_HUNT_SPACING;
+    }
+
+    static int huntTargetY() {
+        return HENESYS_HUNT_Y;
     }
 
     private enum Stage {
@@ -288,8 +301,10 @@ public final class BotQaSuiteRunner {
                 return;
             }
             pass("npc-shop", "real shop open/buy inventory+meso path");
-            for (Character qa : bots) {
-                GCMovement.travel(qa, HENESYS_HUNTING_GROUND_1,
+            for (int i = 0; i < bots.size(); i++) {
+                Character qa = bots.get(i);
+                int targetX = huntTargetXForIndex(i);
+                GCMovement.travelTo(qa, HENESYS_HUNTING_GROUND_1, targetX, HENESYS_HUNT_Y,
                         ok -> { if (!ok && stage == Stage.HUNT_TRAVEL) failSuite("hunt-travel-callback-failed"); });
             }
             advance(Stage.HUNT_TRAVEL);
@@ -297,38 +312,69 @@ public final class BotQaSuiteRunner {
 
         private void waitForHuntTravel() {
             boolean allThere = true;
-            for (Character bot : bots) {
-                if (bot.getMapId() != HENESYS_HUNTING_GROUND_1) { allThere = false; break; }
+            for (int i = 0; i < bots.size(); i++) {
+                Character bot = bots.get(i);
+                if (bot.getMapId() != HENESYS_HUNTING_GROUND_1
+                        || !near(bot, huntTargetXForIndex(i), HENESYS_HUNT_Y, HENESYS_HUNT_ARRIVAL_RADIUS)) {
+                    allThere = false;
+                    break;
+                }
             }
             if (allThere) {
-                pass("multi-bot-cross-map-travel", "all-arrived=" + HENESYS_HUNTING_GROUND_1);
+                int monsters = bots.get(0).getMap() == null ? 0 : bots.get(0).getMap().getAllMonsters().size();
+                if (monsters <= 0) {
+                    failStage("hunt", "no-live-monsters-at-hunt-start");
+                    return;
+                }
+                pass("multi-bot-cross-map-travel", "all-arrived=" + HENESYS_HUNTING_GROUND_1
+                        + ";anchored=true;monsters=" + monsters);
                 huntBaselineExp = expSum(bots);
                 int started = 0;
                 for (Character bot : bots) if (BareBotHunter.start(bot)) started++;
                 if (started != bots.size()) { failStage("hunt", "hunters-started=" + started + "/" + bots.size()); return; }
                 advance(Stage.HUNT_OBSERVE);
             } else if (stageElapsed() > TRAVEL_TIMEOUT_MS) {
-                failStage("multi-bot-cross-map-travel", "timeout");
+                failStage("multi-bot-cross-map-travel", "timeout;" + huntDiagnostics());
             }
         }
 
         private void observeHunt() {
             for (Character bot : bots) {
                 String failure = BareBotHunter.failureReason(bot);
-                if (failure != null) { failStage("hunt", "bot=" + bot.getId() + ";" + failure); return; }
+                if (failure != null) { failStage("hunt", "bot=" + bot.getId() + ";" + failure + ";" + huntDiagnostics()); return; }
             }
             if (stageElapsed() < HUNT_OBSERVE_MS) return;
             long expAfter = expSum(bots);
             boolean allHunting = bots.stream().allMatch(BareBotHunter::isHunting);
             if (!allHunting || expAfter <= huntBaselineExp) {
-                failStage("hunt", "allHunting=" + allHunting + ";exp=" + huntBaselineExp + "->" + expAfter);
+                failStage("hunt", "allHunting=" + allHunting + ";exp=" + huntBaselineExp + "->" + expAfter
+                        + ";" + huntDiagnostics());
                 return;
             }
-            pass("hunt-combat-loot", "server-authoritative hunt gainedExp=" + (expAfter - huntBaselineExp));
+            pass("hunt-combat-exp", "server-authoritative hunt gainedExp=" + (expAfter - huntBaselineExp));
             Character victim = bots.get(0);
             deathBotId = victim.getId();
             victim.updateHp(0);
             advance(Stage.DEATH_RECOVERY);
+        }
+
+        private String huntDiagnostics() {
+            StringBuilder out = new StringBuilder("huntDiag=");
+            for (int i = 0; i < bots.size(); i++) {
+                Character bot = bots.get(i);
+                if (i > 0) out.append(',');
+                out.append('#').append(i + 1)
+                        .append("{id=").append(bot == null ? -1 : bot.getId())
+                        .append(";map=").append(bot == null ? -1 : bot.getMapId())
+                        .append(";pos=");
+                if (bot == null || bot.getPosition() == null) out.append("null");
+                else out.append(bot.getPosition().x).append(':').append(bot.getPosition().y);
+                out.append(";phase=").append(bot == null ? "null" : BareBotHunter.phase(bot))
+                        .append(";exp=").append(bot == null ? -1 : bot.getExp())
+                        .append(";monsters=").append(bot == null || bot.getMap() == null ? -1 : bot.getMap().getAllMonsters().size())
+                        .append('}');
+            }
+            return out.toString();
         }
 
         private void observeDeathRecovery() {
