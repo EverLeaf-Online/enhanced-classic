@@ -1,0 +1,84 @@
+name: Normalize EverLeaf production contract
+
+on:
+  push:
+    branches: [fix/production-contract-20260904]
+    paths:
+      - '.github/workflows/normalize-production-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/production-contract-20260904
+          fetch-depth: 0
+
+      - name: Materialize canonical EverLeaf config
+        run: python3 tools/apply_everleaf_config.py
+
+      - name: Normalize channel and rate documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              Path('docker-compose.yml'): [
+                  ('# EverLeaf primary world channels 1-8.', '# EverLeaf primary world channels 1-20.'),
+                  ('"7575-7582:7575-7582"', '"7575-7594:7575-7594"'),
+              ],
+              Path('docs/DEPLOYMENT_CHECKLIST.md'): [
+                  ('EverLeaf currently targets **8 channels**.', 'EverLeaf production targets **20 channels** on ports **7575-7594**.'),
+                  ('`configuredChannels: 8`', '`configuredChannels: 20`'),
+                  ('`liveChannels: 8`', '`liveChannels: 20`'),
+                  ('healthy eight-channel deployment', 'healthy twenty-channel deployment'),
+              ],
+              Path('docs/EVERLEAF_MASTER_CHECKLIST.md'): [
+                  ('current project direction is approximately **8 channels** rather than assuming the website\'s previous value of 3.', 'the authoritative production target is **20 channels** on ports **7575-7594**.'),
+                  ('target configuration around 8 channels and make website reflect the live server rather than a stale/hardcoded count.', 'keep the authoritative 20-channel production contract consistent across server, website, launcher status, and deployment checks.'),
+              ],
+              Path('tools/apply_everleaf_config.py'): [
+                  ('This transform keeps the upstream Cosmic configuration easy to compare while\nensuring builds/tests use EverLeaf\'s intended defaults. It intentionally fails\nwhen expected upstream values change so configuration drift is visible in CI.',
+                   'This idempotent normalizer enforces EverLeaf\'s checked-in production defaults.\nIt also accepts known upstream/legacy values as an upgrade path so older release\nconfigurations can be normalized without making stale values authoritative.'),
+              ],
+          }
+
+          for path, pairs in replacements.items():
+              text = path.read_text(encoding='utf-8')
+              for old, new in pairs:
+                  if old in text:
+                      text = text.replace(old, new)
+              path.write_text(text, encoding='utf-8')
+
+          Path('docs/PRODUCTION_CONTRACT.md').write_text('''# EverLeaf Production Contract\n\nThis file is the authoritative checked-in production baseline for the non-Empress EverLeaf release line.\n\n## Game runtime\n\n- Protocol/client baseline: **v83**\n- Primary world channels: **20**\n- Login port: **8484**\n- Channel ports: **7575-7594**\n- Public channel handoff host: **132.145.141.79**\n- Level cap: **250**\n\n## Rates\n\n- EXP: **5x**\n- Meso: **3x**\n- Drop: **2x**\n- Boss drop: **2x**\n- Quest: **1x**\n- Fishing: **2x**\n- Travel: **2x**\n\n## Account / monetization safeguards\n\n- Automatic in-game registration: **disabled**\n- Website/account flow is the intended registration path\n- Cash Shop rate coupons: **disabled**\n- Donation policy remains non-P2W\n\n## Configuration precedence\n\n1. The checked-in `config.yaml` must already reflect this contract.\n2. `tools/apply_everleaf_config.py` is an idempotent validator/normalizer and legacy-upgrade path; applying it to a clean release must not change the production contract.\n3. Production deployment may preserve secret/environment-specific values, but it must not reduce the primary world below 20 channels or change the documented rates without an explicit reviewed contract update.\n4. `tools/verify_channel_runtime.py`, the public status API, deployment health checks, and the live-release verifier must all agree on the 20-channel topology.\n\n## Scope\n\nEmpress and `Community-files` remain outside this production contract until explicitly reopened. Protected v95/WZ modernization branches are preserved separately.\n''', encoding='utf-8')
+          PY
+
+      - name: Verify canonical values are materialized
+        run: |
+          set -euo pipefail
+          grep -q '^    channels: 20$' config.yaml
+          grep -q '^    exp_rate: 5$' config.yaml
+          grep -q '^    meso_rate: 3$' config.yaml
+          grep -q '^    drop_rate: 2$' config.yaml
+          grep -q '^    boss_drop_rate: 2' config.yaml
+          grep -q '^    quest_rate: 1' config.yaml
+          grep -q '^    HOST: 132.145.141.79$' config.yaml
+          grep -q '7575-7594:7575-7594' docker-compose.yml
+          python3 tools/apply_everleaf_config.py
+          git diff --exit-code config.yaml
+
+      - name: Commit normalized contract
+        run: |
+          set -euo pipefail
+          git config user.name everleaf-release-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add config.yaml docker-compose.yml docs/DEPLOYMENT_CHECKLIST.md docs/EVERLEAF_MASTER_CHECKLIST.md docs/PRODUCTION_CONTRACT.md tools/apply_everleaf_config.py
+          git commit -m 'config: make 20-channel production contract canonical' || exit 0
+          git push origin HEAD:fix/production-contract-20260904
