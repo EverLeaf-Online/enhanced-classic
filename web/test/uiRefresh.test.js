@@ -116,12 +116,7 @@ test("homepage class guide uses clean centered local artwork",()=>{
 
 test("wiki is a live WZ and MySQL server-data encyclopedia",()=>{
   assert.match(wiki,/EVERLEAF DATA WIKI/);
-  assert.match(wiki,/Items/);
-  assert.match(wiki,/Monsters/);
-  assert.match(wiki,/Maps/);
-  assert.match(wiki,/Skills/);
-  assert.match(wiki,/NPCs/);
-  assert.match(wiki,/Quests/);
+  for(const key of ["items","monsters","maps","skills","npcs","quests"]) assert.match(wiki,new RegExp(`${key}:`));
   assert.match(wiki,/WZ \+ MySQL/);
   assert.match(wiki,/BROWSE CATALOG/);
   assert.match(wiki,/\/wiki\/guides/);
