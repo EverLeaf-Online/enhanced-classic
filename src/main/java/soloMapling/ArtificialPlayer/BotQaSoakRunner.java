@@ -35,7 +35,7 @@ public final class BotQaSoakRunner {
     }
 
     public static synchronized SoakResult start(int ownerId, int durationMinutes, String armToken) {
-        if (!ARM_TOKEN.equals(armToken)) return SoakResult.fail("explicit-arm-token-required");
+        if (armToken == null || !ARM_TOKEN.equalsIgnoreCase(armToken)) return SoakResult.fail("explicit-arm-token-required");
         if (ownerId <= 0) return SoakResult.fail("invalid-owner");
         if (durationMinutes < 1 || durationMinutes > MAX_DURATION_MINUTES) {
             return SoakResult.fail("duration-must-be-1-to-" + MAX_DURATION_MINUTES + "-minutes");
