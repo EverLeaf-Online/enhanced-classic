@@ -61,6 +61,24 @@ replace_once(
     "\tdinput8::CreateHook();",
 )
 
+# v83's login state stores the race at CLogin+0x214 and already sends that value
+# to the server, but its Update switch exposes only races 0..2. At 0x005F4F3C
+# the original `jne 0x005F50E7` rejects every race >=3. Route that branch to the
+# existing Explorer-compatible name/appearance arm at 0x005F4FD0 instead. The
+# race member itself is not changed, so race 3 still reaches EverLeaf as Evan.
+# The server capability allowlist independently rejects values >3.
+replace_once(
+    "client/ezorsia/ezorsia/Client.cpp",
+    "\tMemory::FillBytes(0x00761714, 0x90, 21);\n",
+    "\tMemory::FillBytes(0x00761714, 0x90, 21);\n"
+    "\t// Expose the v84-compatible Evan race value on v83 without changing the wire format.\n"
+    "\t// Original bytes at 0x005F4F3C: 0F 85 A5 01 00 00 (race >=3 -> default).\n"
+    "\t// New target 0x005F4FD0 reuses the stable Explorer appearance/name dialog while\n"
+    "\t// preserving CLogin+0x214, so SendNewCharPacket still transmits race 3.\n"
+    "\tunsigned char EvanRace3CreationRoute[] = { 0x0F, 0x85, 0x8E, 0x00, 0x00, 0x00 };\n"
+    "\tMemory::WriteByteArray(0x005F4F3C, EvanRace3CreationRoute, sizeof(EvanRace3CreationRoute));\n",
+)
+
 # Replace the old experimental login routine with a bounded, reversible first pass.
 target, text = read("client/ezorsia/ezorsia/Client.cpp")
 start_marker = "void Client::UpdateLogin() {"
@@ -125,6 +143,10 @@ EverLeaf keeps the v83 network/client contract and backports later classic UI be
 | Resistance | visible/locked | disabled | not sent; requires later runtime/protocol support |
 
 The server capability gate remains authoritative even if a modified client bypasses a visual lock.
+
+## Evan compatibility
+
+The v83 packet already transports a single race integer. EverLeaf routes race 3 through the stable Explorer appearance/name dialog while preserving the race field, allowing the existing server Evan creator to receive type 3 without changing the v83 wire format. Types above 3 remain server-rejected.
 
 ## UI surfaces
 
