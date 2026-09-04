@@ -133,25 +133,12 @@ using (var dq = OpenDonor(donorQuest))
     tq.SaveToDisk(Path.Combine(outputDir, "Quest.wz"));
 }
 
-using (var ts = OpenTarget(targetString))
-using (var ds = OpenDonor(donorString))
-{
-    var ti = RequireImage(ts, "Quest.img");
-    var di = RequireImage(ds, "Quest.img");
-    foreach (var id in questIds)
-    {
-        var donorHit = FindProp(di, id);
-        if (donorHit == null) continue; // Quest.wz is authoritative; strings are optional but copied when available.
-        var action = MergeQuestNode(ti, di, id, "String.wz/Quest.img");
-        changes.Add(new { family = "String.wz", image = "Quest.img", questId = id, action });
-    }
-    ts.SaveToDisk(Path.Combine(outputDir, "String.wz"));
-}
+// The live/raw v95 String.wz has no Quest.img in this lineage. Keep it byte-identical.
+File.Copy(targetString, Path.Combine(outputDir, "String.wz"), overwrite: true);
 
 if (Sha(targetQuest) != beforeQuest || Sha(targetString) != beforeString)
     throw new InvalidOperationException("Source client WZ changed while building quest baseline candidate");
 
-// Reparse and require all nine quest nodes from all three Quest.wz components.
 using (var q = OpenTarget(Path.Combine(outputDir, "Quest.wz")))
 {
     foreach (var imageName in new[] { "Check.img", "Act.img", "QuestInfo.img" })
@@ -162,6 +149,8 @@ using (var q = OpenTarget(Path.Combine(outputDir, "Quest.wz")))
     }
 }
 using (OpenTarget(Path.Combine(outputDir, "String.wz"))) { }
+if (Sha(Path.Combine(outputDir, "String.wz")) != beforeString)
+    throw new InvalidDataException("String.wz changed even though this normalization is Quest.wz-only");
 
 var manifest = new
 {
@@ -176,8 +165,8 @@ var manifest = new
         StringWzSha256 = Sha(Path.Combine(outputDir, "String.wz"))
     },
     changes,
-    validation = new { sourceUnchanged = true, outputReparsed = true, allQuestComponentsPresent = true }
+    validation = new { sourceUnchanged = true, outputReparsed = true, allQuestComponentsPresent = true, stringWzUnchanged = true }
 };
 File.WriteAllText(Path.Combine(outputDir, "QUEST_BASELINE_MANIFEST.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
-Console.WriteLine($"Canonical v95 quest baseline candidate built for quests {string.Join(',', questIds)}");
+Console.WriteLine($"Canonical v95 Quest.wz baseline built for quests {string.Join(',', questIds)}; String.wz unchanged");
 return 0;
