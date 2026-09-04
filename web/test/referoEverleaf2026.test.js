@@ -9,6 +9,7 @@ const header = read('src/views/partials/header.ejs');
 const footer = read('src/views/partials/footer.ejs');
 const design = read('DESIGN.md');
 const css = read('public/css/terminal-everleaf-2026.css');
+const finish = read('public/css/terminal-everleaf-final-2026.css');
 const home = read('src/views/home.ejs');
 const rankings = read('src/views/rankings.ejs');
 const wiki = read('src/views/wiki.ejs');
@@ -27,11 +28,13 @@ test('EverLeaf design contract now defines the full-bleed world terminal', () =>
   assert.match(design, /proprietary fonts/i);
 });
 
-test('terminal stylesheet is the final visual layer and the shell is structurally replaced', () => {
+test('terminal styles load after every legacy compatibility layer and the shell is structurally replaced', () => {
   const oldRefero = header.indexOf('/css/refero-everleaf-2026.css?v=1');
   const terminal = header.indexOf('/css/terminal-everleaf-2026.css?v=1');
+  const finalLayer = header.indexOf('/css/terminal-everleaf-final-2026.css?v=1');
   assert.ok(oldRefero >= 0, 'legacy compatibility layer remains beneath the new system');
-  assert.ok(terminal > oldRefero, 'terminal system must load last');
+  assert.ok(terminal > oldRefero, 'terminal system must load after the old Refero pass');
+  assert.ok(finalLayer > terminal, 'terminal finishing layer must be last');
   assert.match(header, /terminalMode/);
   assert.match(header, /terminalHeader/);
   assert.match(header, /terminalNav/);
@@ -40,9 +43,7 @@ test('terminal stylesheet is the final visual layer and the shell is structurall
 });
 
 test('the homepage is a new terminal composition rather than the old card portal', () => {
-  for (const marker of ['terminalHero','terminalHeroArtifact','terminalWorldReadout','terminalSection','terminalJobGrid','terminalRankingPreview']) {
-    assert.match(home, new RegExp(marker));
-  }
+  for (const marker of ['terminalHero','terminalHeroArtifact','terminalWorldReadout','terminalSection','terminalJobGrid','terminalRankingPreview']) assert.match(home, new RegExp(marker));
   assert.match(home, /MAPLE\s*<br>WORLD\s*<br>RUNNING/);
   assert.match(home, /\/assets\/hero-left\.webp/);
   assert.match(home, /\/assets\/hero-right\.webp/);
@@ -50,12 +51,10 @@ test('the homepage is a new terminal composition rather than the old card portal
 });
 
 test('terminal system covers public product surfaces and CMS operations', () => {
-  for (const selector of [
-    '.terminalHero', '.terminalLogPage', '.terminalDeployPage', '.terminalHelpPage',
-    '.terminalAuthPage', '.terminalAccountPage', 'body.terminalMode .rankingPodium',
-    'body.terminalMode .wikiDataHero', 'body.terminalMode .adminShell',
-    'body.terminalMode .cmsManagerNav', 'body.terminalMode .cmsWorkspace'
-  ]) assert.ok(css.includes(selector), `missing terminal coverage for ${selector}`);
+  for (const selector of ['.terminalHero','.terminalLogPage','.terminalDeployPage','.terminalHelpPage','.terminalAuthPage','.terminalAccountPage','body.terminalMode .rankingPodium','body.terminalMode .wikiDataHero','body.terminalMode .adminShell','body.terminalMode .cmsManagerNav','body.terminalMode .cmsWorkspace']) assert.ok(css.includes(selector), `missing terminal coverage for ${selector}`);
+  assert.match(finish, /terminalArticlePage/);
+  assert.match(finish, /terminalErrorPage/);
+  assert.match(finish, /wikiEditorBodyGrid/);
   assert.match(css, /@media\(max-width:720px\)/);
   assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
 });
@@ -79,10 +78,12 @@ test('CMS is restructured, not just recolored', () => {
 });
 
 test('terminal design does not import reference assets or remote styles', () => {
-  assert.doesNotMatch(css, /https?:\/\//i);
-  assert.doesNotMatch(css, /@import/i);
-  assert.doesNotMatch(css, /refero\.design|styles\.refero/i);
-  assert.doesNotMatch(css, /Max Yinger/i);
+  for (const source of [css, finish]) {
+    assert.doesNotMatch(source, /https?:\/\//i);
+    assert.doesNotMatch(source, /@import/i);
+    assert.doesNotMatch(source, /refero\.design|styles\.refero/i);
+    assert.doesNotMatch(source, /Max Yinger/i);
+  }
   assert.match(css, /--terminal-bg:#12130f/);
   assert.match(css, /--terminal-ink:#e4dfda/);
 });
