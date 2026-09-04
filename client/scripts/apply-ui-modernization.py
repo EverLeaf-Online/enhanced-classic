@@ -13,10 +13,13 @@ def write(target: Path, text: str) -> None:
 
 def replace_once(path: str, old: str, new: str) -> None:
     target, text = read(path)
+    # The modernization transform is intentionally safe to run repeatedly in
+    # CI and packaging. Most replacements retain the old marker as a prefix,
+    # so check the complete replacement before counting the old marker.
+    if new in text:
+        return
     count = text.count(old)
     if count == 0:
-        if new in text:
-            return
         raise SystemExit(f"{path}: missing expected marker:\n{old}")
     if count != 1:
         raise SystemExit(f"{path}: expected one marker, found {count}:\n{old}")
