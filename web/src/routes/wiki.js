@@ -7,6 +7,63 @@ const router=express.Router();
 const dataTypes=new Set(Object.keys(data.TYPE_META));
 const cleanQuery=value=>String(value||"").trim().slice(0,120);
 const cleanPage=value=>Math.max(1,Math.min(100000,Number(value)||1));
+const MAPLE_ART_MAX_BYTES=2*1024*1024;
+const MAPLE_ART_TIMEOUT_MS=7000;
+
+const mapleArtUrl=(type,id)=>{
+  const value=Number(id);
+  if(!Number.isInteger(value)||value<=0)return "";
+  const root="https://maplestory.io/api/GMS/83";
+  if(type==="items")return `${root}/item/${value}/icon`;
+  if(type==="monsters")return `${root}/mob/${value}/icon`;
+  if(type==="maps")return `${root}/map/${value}/icon`;
+  if(type==="npcs")return `${root}/npc/${value}/icon`;
+  if(type==="quests")return `${root}/quest/${value}/icon`;
+  if(type==="skills"){
+    const book=String(Math.floor(value/10000)).padStart(3,"0");
+    return `https://maplestory.io/api/wz/img/GMS/83/Skill.wz/${book}.img/skill/${value}/icon`;
+  }
+  return "";
+};
+
+router.get("/wiki/art/:type/:id",async(req,res)=>{
+  const type=String(req.params.type||"");
+  const id=Number(req.params.id);
+  const target=mapleArtUrl(type,id);
+  if(!target)return res.status(404).end();
+
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),MAPLE_ART_TIMEOUT_MS);
+  try {
+    const upstream=await fetch(target,{
+      redirect:"follow",
+      signal:controller.signal,
+      headers:{
+        Accept:"image/avif,image/webp,image/png,image/*,*/*;q=0.8",
+        "User-Agent":"EverLeafWiki/1.0 (+https://everleafms.online)"
+      }
+    });
+    if(!upstream.ok)return res.status(404).end();
+
+    const contentType=String(upstream.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();
+    if(!contentType.startsWith("image/"))return res.status(404).end();
+    const advertisedLength=Number(upstream.headers.get("content-length")||0);
+    if(advertisedLength>MAPLE_ART_MAX_BYTES)return res.status(413).end();
+
+    const body=Buffer.from(await upstream.arrayBuffer());
+    if(!body.length||body.length>MAPLE_ART_MAX_BYTES)return res.status(body.length?413:404).end();
+
+    res.set("Content-Type",contentType);
+    res.set("Cache-Control","public, max-age=86400, stale-if-error=604800");
+    res.set("X-Content-Type-Options","nosniff");
+    return res.send(body);
+  } catch(error) {
+    if(error&&error.name!=="AbortError")console.warn(`Wiki artwork proxy failed for ${type}/${id}:`,error.message);
+    return res.status(404).end();
+  } finally {
+    clearTimeout(timer);
+  }
+});
 
 router.get("/wiki",(req,res)=>{
   const q=cleanQuery(req.query.q);
