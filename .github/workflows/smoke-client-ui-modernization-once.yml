@@ -77,40 +77,73 @@ jobs:
           $ErrorActionPreference='Stop'
           Add-Type -AssemblyName System.Drawing
           Add-Type @'
-          using System; using System.Runtime.InteropServices;
+          using System;
+          using System.Collections.Generic;
+          using System.Runtime.InteropServices;
           public class EverLeafWin32 {
+            public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
             [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left,Top,Right,Bottom; }
+            [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+            [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
             [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd,out RECT rect);
+            [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd,out uint pid);
           }
           '@
+          function Get-EverLeafWindows {
+            $pids=@(Get-Process -Name EverLeaf -ErrorAction SilentlyContinue | ForEach-Object {[uint32]$_.Id})
+            $found=New-Object System.Collections.Generic.List[object]
+            if($pids.Count -eq 0){ return @() }
+            $callback=[EverLeafWin32+EnumWindowsProc]{
+              param([IntPtr]$hWnd,[IntPtr]$lParam)
+              if(-not [EverLeafWin32]::IsWindowVisible($hWnd)){ return $true }
+              [uint32]$pid=0
+              [void][EverLeafWin32]::GetWindowThreadProcessId($hWnd,[ref]$pid)
+              if($pids -notcontains $pid){ return $true }
+              $rect=New-Object EverLeafWin32+RECT
+              if([EverLeafWin32]::GetWindowRect($hWnd,[ref]$rect)){
+                $w=$rect.Right-$rect.Left; $h=$rect.Bottom-$rect.Top
+                if($w -gt 0 -and $h -gt 0){
+                  $found.Add([pscustomobject]@{Handle=$hWnd;Pid=$pid;Rect=$rect;Width=$w;Height=$h;Area=([int64]$w*$h)})
+                }
+              }
+              return $true
+            }
+            [void][EverLeafWin32]::EnumWindows($callback,[IntPtr]::Zero)
+            return @($found)
+          }
+
           $exe=[IO.Path]::GetFullPath((Join-Path $env:CLIENT_DIR 'EverLeaf.exe'))
           $launched=Start-Process -FilePath $exe -WorkingDirectory $env:CLIENT_DIR -PassThru
           $target=$null
-          for($i=0;$i -lt 35 -and -not $target;$i++){
+          $windowLog=@()
+          for($i=0;$i -lt 75 -and -not $target;$i++){
             Start-Sleep -Seconds 1
-            $target=Get-Process -Name EverLeaf -ErrorAction SilentlyContinue | Where-Object {$_.MainWindowHandle -ne 0} | Select-Object -First 1
+            $windows=@(Get-EverLeafWindows | Sort-Object Area -Descending)
+            if($windows.Count){
+              $best=$windows[0]
+              $windowLog += "t=$i pid=$($best.Pid) size=$($best.Width)x$($best.Height) area=$($best.Area)"
+              if($best.Width -ge 640 -and $best.Height -ge 480){ $target=$best }
+            }
           }
+          $windowLog | Set-Content -Encoding utf8 (Join-Path $env:RUNNER_TEMP 'everleaf-window-discovery.txt')
           if(-not $target){
             $launched.Refresh()
-            $state=if($launched.HasExited){"exit=$($launched.ExitCode)"}else{'running-no-window'}
-            throw "EverLeaf window did not appear ($state)"
+            $state=if($launched.HasExited){"exit=$($launched.ExitCode)"}else{'running-no-game-window'}
+            $seen=(Get-EverLeafWindows | Sort-Object Area -Descending | ForEach-Object {"$($_.Width)x$($_.Height) pid=$($_.Pid)"}) -join ', '
+            throw "EverLeaf game window did not appear ($state). Visible EverLeaf windows: $seen"
           }
-          Start-Sleep -Seconds 8
+          Start-Sleep -Seconds 5
           $runtime=Join-Path $env:CLIENT_DIR 'everleaf-selector-runtime.txt'
           if(-not(Test-Path $runtime)){ throw 'Unpacked selector runtime dump was not emitted' }
           Copy-Item $runtime (Join-Path $env:RUNNER_TEMP 'everleaf-selector-runtime.txt') -Force
-          $target.Refresh(); $rect=New-Object EverLeafWin32+RECT
-          if(-not [EverLeafWin32]::GetWindowRect($target.MainWindowHandle,[ref]$rect)){throw 'GetWindowRect failed'}
-          $w=$rect.Right-$rect.Left; $h=$rect.Bottom-$rect.Top
-          if($w -lt 640 -or $h -lt 480){throw "Unexpected EverLeaf window size ${w}x${h}"}
+          $rect=$target.Rect; $w=$target.Width; $h=$target.Height
           $bmp=New-Object Drawing.Bitmap $w,$h
           $gfx=[Drawing.Graphics]::FromImage($bmp)
           try{$gfx.CopyFromScreen($rect.Left,$rect.Top,0,0,$bmp.Size)}finally{$gfx.Dispose()}
           $shot=Join-Path $env:RUNNER_TEMP 'everleaf-modern-ui-login.png'
           $bmp.Save($shot,[Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
-          [ordered]@{schemaVersion=3;kind='everleaf-modern-ui-visual-smoke';commit=$env:GITHUB_SHA;width=$w;height=$h;runtimeDumpCaptured=$true;productionFilesModified=$false} | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $env:RUNNER_TEMP 'EVERLEAF_UI_SMOKE_REPORT.json')
+          [ordered]@{schemaVersion=4;kind='everleaf-modern-ui-visual-smoke';commit=$env:GITHUB_SHA;width=$w;height=$h;runtimeDumpCaptured=$true;productionFilesModified=$false} | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $env:RUNNER_TEMP 'EVERLEAF_UI_SMOKE_REPORT.json')
           Get-Content $runtime | Add-Content $env:GITHUB_STEP_SUMMARY
-          Stop-Process -Id $target.Id -Force -ErrorAction SilentlyContinue
           Get-Process -Name EverLeaf -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
       - name: Upload visual smoke evidence
@@ -123,5 +156,6 @@ jobs:
             ${{ runner.temp }}/EVERLEAF_UI_SMOKE_REPORT.json
             ${{ runner.temp }}/EVERLEAF_UI_CLIENT_INVENTORY.json
             ${{ runner.temp }}/everleaf-selector-runtime.txt
+            ${{ runner.temp }}/everleaf-window-discovery.txt
           retention-days: 14
           if-no-files-found: warn
