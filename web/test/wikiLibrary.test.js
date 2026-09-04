@@ -34,7 +34,7 @@ test('Wiki service still provides guide search, parsing, and publishing',()=>{
   assert.match(service,/function saveArticle/);
 });
 
-test('wiki routes prioritize cleaned live game-data pages and namespace staff guides',()=>{
+test('wiki routes prioritize cleaned live game-data pages and proxy visual artwork safely',()=>{
   const route=read('src/routes/wiki.js');
   assert.match(route,/services\/wikiPublicCatalog/);
   assert.match(route,/data\.ensureCatalog/);
@@ -42,6 +42,12 @@ test('wiki routes prioritize cleaned live game-data pages and namespace staff gu
   assert.match(route,/data\.list/);
   assert.match(route,/data\.detail/);
   assert.match(route,/data\.getBase/);
+  assert.match(route,/router\.get\("\/wiki\/art\/:type\/:id"/);
+  assert.match(route,/https:\/\/maplestory\.io\/api\/GMS\/83/);
+  assert.match(route,/MAPLE_ART_TIMEOUT_MS/);
+  assert.match(route,/MAPLE_ART_MAX_BYTES/);
+  assert.match(route,/contentType\.startsWith\("image\/"\)/);
+  assert.match(route,/Cache-Control/);
   assert.match(route,/router\.get\("\/wiki"/);
   assert.match(route,/router\.get\("\/wiki\/guides"/);
   assert.match(route,/router\.get\("\/wiki\/guides\/:slug"/);
@@ -56,14 +62,19 @@ test('Wiki UI is explicitly a searchable server-data encyclopedia',()=>{
   const css=read('public/css/wiki-data.css');
   const cleanupCss=read('public/css/wiki-cleanup-2026.css');
   const appCss=read('public/css/wiki-app-assets-2026.css');
+  const artFixCss=read('public/css/wiki-art-fix-2026.css');
+  const artJs=read('public/js/wiki-art.js');
   const header=read('src/views/partials/header.ejs');
   assert.match(hub,/EVERLEAF DATA WIKI/);
   assert.match(hub,/WZ \+ MySQL/);
   assert.match(hub,/BROWSE CATALOG/);
   assert.match(hub,/wikiDataSearch/);
   assert.match(hub,/Duplicate and obvious internal\/test records/);
-  assert.match(hub,/maplestory\.io\/api\/GMS\/83/);
+  assert.match(hub,/\/wiki\/art\//);
   assert.match(hub,/wikiMapleAsset/);
+  assert.match(hub,/wikiCatalogCopy/);
+  assert.doesNotMatch(hub,/https:\/\/maplestory\.io/);
+  assert.doesNotMatch(hub,/onerror=/);
   assert.doesNotMatch(hub,/const typeIcon=/);
   assert.doesNotMatch(hub,/◆|♜|◇|✦|♟|☷/);
   assert.doesNotMatch(hub,/HOW IT WORKS/);
@@ -73,12 +84,17 @@ test('Wiki UI is explicitly a searchable server-data encyclopedia',()=>{
   assert.match(list,/wikiEntityPrimaryLink/);
   assert.match(list,/Open record →/);
   assert.match(list,/wikiListAsset/);
-  assert.match(list,/maplestory\.io\/api\/GMS\/83/);
+  assert.match(list,/\/wiki\/art\//);
+  assert.doesNotMatch(list,/https:\/\/maplestory\.io/);
+  assert.doesNotMatch(list,/onerror=/);
   assert.doesNotMatch(list,/wikiOpenEntity/);
   assert.doesNotMatch(list,/>View →</);
   assert.match(entry,/wikiEntityPage/);
   assert.match(entry,/wikiEntityGlyph wikiMapleAsset/);
-  assert.match(entry,/maplestory\.io\/api\/GMS\/83/);
+  assert.match(entry,/wikiEntityCopy/);
+  assert.match(entry,/\/wiki\/art\//);
+  assert.doesNotMatch(entry,/https:\/\/maplestory\.io/);
+  assert.doesNotMatch(entry,/onerror=/);
   assert.match(css,/\.wikiCatalogGrid/);
   assert.match(css,/\.wikiDataTable/);
   assert.match(cleanupCss,/\.wikiDataTableClean/);
@@ -86,9 +102,16 @@ test('Wiki UI is explicitly a searchable server-data encyclopedia',()=>{
   assert.match(appCss,/\.route-wiki \.wikiAppPage/);
   assert.match(appCss,/\.wikiMapleAsset/);
   assert.match(appCss,/\.wikiListAsset/);
+  assert.match(artFixCss,/\.wikiCatalogCard>\.wikiCatalogCopy/);
+  assert.match(artFixCss,/\.wikiMapleAsset\.is-missing img/);
+  assert.match(artFixCss,/\.wikiEntityIdentity>\.wikiEntityCopy/);
+  assert.match(artJs,/img\[data-wiki-art\]/);
+  assert.match(artJs,/naturalWidth===0/);
   assert.match(header,/wiki-data\.css/);
   assert.match(header,/wiki-cleanup-2026\.css/);
   assert.match(header,/wiki-app-assets-2026\.css/);
+  assert.match(header,/wiki-art-fix-2026\.css/);
+  assert.match(header,/wiki-art\.js/);
 });
 
 test('CMS knowledge dashboard continues to support supplemental Wiki guides',()=>{
