@@ -1,1 +1,10 @@
-<nav class="cmsManagerNav" aria-label="CMS sections"><a href="/admin">Overview</a><a href="/admin/knowledge">Game Database</a><a href="/admin/news">News</a><a href="/admin/announcements">Announcements</a><a href="/admin/downloads">Downloads</a><a href="/admin/pages">Pages</a><a href="/admin/recoveries">Recovery</a><a href="/admin/supporters">Supporters</a><a href="/admin/settings-view">Settings</a><a href="/admin/audit">Audit</a><a href="/" target="_blank" rel="noopener">View Site ↗</a></nav>
+<%
+  const adminPath=(typeof currentPath!=="undefined"&&currentPath)?currentPath:"/admin";
+  const cmsLinks=[
+    ["/admin","OVERVIEW"],["/admin/knowledge","GAME DATABASE"],["/admin/news","WORLD LOG"],["/admin/announcements","ANNOUNCEMENTS"],["/admin/downloads","CLIENT FILES"],["/admin/pages","SITE PAGES"],["/admin/recoveries","RECOVERY QUEUE"],["/admin/supporters","SUPPORTERS"],["/admin/settings-view","SETTINGS"],["/admin/audit","AUDIT LOG"]
+  ];
+%>
+<nav class="cmsManagerNav" aria-label="CMS sections">
+  <% cmsLinks.forEach(([href,label])=>{ const active=href==="/admin"?adminPath==="/admin":adminPath.startsWith(href); %><a class="<%=active?'active':''%>" href="<%=href%>"<% if(active){ %> aria-current="page"<% } %>><%=label%></a><% }) %>
+  <a href="/" target="_blank" rel="noopener">VIEW PUBLIC WORLD ↗</a>
+</nav>
