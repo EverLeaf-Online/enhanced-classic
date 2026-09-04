@@ -1,0 +1,986 @@
+# EverLeaf live character-selector structure
+
+- Active release: `/opt/everleaf/releases/b639d7ee796da8c7b305f002ebaaf9320d8ba13a-33856964070-1`
+- Source: `/opt/everleaf/releases/b639d7ee796da8c7b305f002ebaaf9320d8ba13a-33856964070-1/wz/UI.wz/Login.img.xml`
+
+## Indexed node candidates
+- `/Login.img/NewCharAran/avatarSel` -> `0, 1, 2, 3, 4, 5, 6, 7, 8`
+- `/Login.img/NewCharKnight/avatarSel` -> `0, 1, 2, 3, 4, 5, 6, 7, 8`
+- `/Login.img/CharSelect/scroll` -> `0, 1, 2, 3`
+- `/Login.img/NewChar/avatarSel` -> `0, 1, 2, 3, 4, 5, 6, 7, 8`
+- `/Login.img/WorldSelect/BtWorld` -> `0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, e, t0, t1, 20, t20`
+- `/Login.img/WorldSelect/channel` -> `0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, chSelect, chEvent`
+- `/Login.img/Common/SoftKey/BtHighCase` -> `0, 1, 2, 3, 4, 5, 6, 7, 8, 9`
+- `/Login.img/Common/SoftKey/BtLowCase` -> `0, 1, 2, 3, 4, 5, 6, 7, 8, 9`
+- `/Login.img/Common/SoftKey/BtNum` -> `0, 1, 2, 3, 4, 5, 6, 7, 8, 9`
+- `/Login.img/Title/effect` -> `0, 1, 2, 3, 4, 5`
+
+## Selector/create paths
+- `/Login.img/Common/BtWselect` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/Common/BtWselect/normal` -> ``
+- `/Login.img/Common/BtWselect/mouseOver` -> ``
+- `/Login.img/Common/BtWselect/pressed` -> ``
+- `/Login.img/Common/BtWselect/disabled` -> ``
+- `/Login.img/Common/BtWselect/keyFocused` -> ``
+- `/Login.img/Common/SoftKey/Tab/selected` -> ``
+- `/Login.img/Title/BtNew` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/Title/BtNew/normal` -> ``
+- `/Login.img/Title/BtNew/mouseOver` -> ``
+- `/Login.img/Title/BtNew/pressed` -> ``
+- `/Login.img/Title/BtNew/disabled` -> ``
+- `/Login.img/WorldSelect` -> `scroll, BtWorld, BtGoworld, world, channel, alert, BtViewAll, BtViewChoice`
+- `/Login.img/WorldSelect/scroll` -> `0, 1`
+- `/Login.img/WorldSelect/scroll/0` -> ``
+- `/Login.img/WorldSelect/scroll/1` -> ``
+- `/Login.img/WorldSelect/BtWorld` -> `0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, e, t0, t1, 20, t20`
+- `/Login.img/WorldSelect/BtWorld/0` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/0/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/0/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/0/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/0/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/0/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/1` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/1/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/1/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/1/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/1/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/1/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/2` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/2/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/2/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/2/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/2/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/2/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/3` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/3/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/3/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/3/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/3/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/3/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/4` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/4/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/4/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/4/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/4/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/4/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/5` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/5/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/5/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/5/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/5/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/5/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/6` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/6/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/6/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/6/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/6/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/6/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/7` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/7/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/7/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/7/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/7/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/7/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/8` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/8/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/8/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/8/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/8/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/8/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/9` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/9/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/9/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/9/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/9/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/9/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/10` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/10/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/10/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/10/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/10/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/10/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/11` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/11/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/11/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/11/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/11/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/11/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/12` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/12/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/12/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/12/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/12/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/12/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/13` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/13/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/13/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/13/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/13/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/13/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/14` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/14/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/14/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/14/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/14/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/14/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/15` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/15/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/15/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/15/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/15/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/15/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/16` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/16/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/16/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/16/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/16/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/16/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/17` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/17/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/17/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/17/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/17/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/17/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/18` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/18/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/18/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/18/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/18/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/18/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/19` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/19/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/19/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/19/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/19/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/19/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/e` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/e/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/e/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/e/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/e/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/e/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/t0` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/t0/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/t0/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/t0/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/t0/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/t0/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/t1` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/t1/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/t1/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/t1/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/t1/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/t1/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/20` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/20/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/20/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/20/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/20/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/20/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtWorld/t20` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/WorldSelect/BtWorld/t20/normal` -> ``
+- `/Login.img/WorldSelect/BtWorld/t20/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtWorld/t20/pressed` -> ``
+- `/Login.img/WorldSelect/BtWorld/t20/disabled` -> ``
+- `/Login.img/WorldSelect/BtWorld/t20/keyFocused` -> ``
+- `/Login.img/WorldSelect/BtGoworld` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/WorldSelect/BtGoworld/normal` -> ``
+- `/Login.img/WorldSelect/BtGoworld/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtGoworld/pressed` -> ``
+- `/Login.img/WorldSelect/BtGoworld/disabled` -> ``
+- `/Login.img/WorldSelect/world` -> ``
+- `/Login.img/WorldSelect/channel` -> `0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, chSelect, chEvent`
+- `/Login.img/WorldSelect/channel/0` -> ``
+- `/Login.img/WorldSelect/channel/1` -> ``
+- `/Login.img/WorldSelect/channel/2` -> ``
+- `/Login.img/WorldSelect/channel/3` -> ``
+- `/Login.img/WorldSelect/channel/4` -> ``
+- `/Login.img/WorldSelect/channel/5` -> ``
+- `/Login.img/WorldSelect/channel/6` -> ``
+- `/Login.img/WorldSelect/channel/7` -> ``
+- `/Login.img/WorldSelect/channel/8` -> ``
+- `/Login.img/WorldSelect/channel/9` -> ``
+- `/Login.img/WorldSelect/channel/10` -> ``
+- `/Login.img/WorldSelect/channel/11` -> ``
+- `/Login.img/WorldSelect/channel/12` -> ``
+- `/Login.img/WorldSelect/channel/13` -> ``
+- `/Login.img/WorldSelect/channel/14` -> ``
+- `/Login.img/WorldSelect/channel/15` -> ``
+- `/Login.img/WorldSelect/channel/16` -> ``
+- `/Login.img/WorldSelect/channel/17` -> ``
+- `/Login.img/WorldSelect/channel/18` -> ``
+- `/Login.img/WorldSelect/channel/19` -> ``
+- `/Login.img/WorldSelect/channel/chSelect` -> ``
+- `/Login.img/WorldSelect/channel/chEvent` -> ``
+- `/Login.img/WorldSelect/alert` -> `BtArrowL, BtArrowR, BtClose, BtChoice`
+- `/Login.img/WorldSelect/alert/BtArrowL` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/WorldSelect/alert/BtArrowL/normal` -> ``
+- `/Login.img/WorldSelect/alert/BtArrowL/mouseOver` -> ``
+- `/Login.img/WorldSelect/alert/BtArrowL/pressed` -> ``
+- `/Login.img/WorldSelect/alert/BtArrowL/disabled` -> ``
+- `/Login.img/WorldSelect/alert/BtArrowR` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/WorldSelect/alert/BtArrowR/normal` -> ``
+- `/Login.img/WorldSelect/alert/BtArrowR/mouseOver` -> ``
+- `/Login.img/WorldSelect/alert/BtArrowR/pressed` -> ``
+- `/Login.img/WorldSelect/alert/BtArrowR/disabled` -> ``
+- `/Login.img/WorldSelect/alert/BtClose` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/WorldSelect/alert/BtClose/normal` -> ``
+- `/Login.img/WorldSelect/alert/BtClose/mouseOver` -> ``
+- `/Login.img/WorldSelect/alert/BtClose/pressed` -> ``
+- `/Login.img/WorldSelect/alert/BtClose/disabled` -> ``
+- `/Login.img/WorldSelect/alert/BtChoice` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/WorldSelect/alert/BtChoice/normal` -> ``
+- `/Login.img/WorldSelect/alert/BtChoice/mouseOver` -> ``
+- `/Login.img/WorldSelect/alert/BtChoice/pressed` -> ``
+- `/Login.img/WorldSelect/alert/BtChoice/disabled` -> ``
+- `/Login.img/WorldSelect/BtViewAll` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/WorldSelect/BtViewAll/normal` -> ``
+- `/Login.img/WorldSelect/BtViewAll/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtViewAll/pressed` -> ``
+- `/Login.img/WorldSelect/BtViewAll/disabled` -> ``
+- `/Login.img/WorldSelect/BtViewChoice` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/WorldSelect/BtViewChoice/normal` -> ``
+- `/Login.img/WorldSelect/BtViewChoice/mouseOver` -> ``
+- `/Login.img/WorldSelect/BtViewChoice/pressed` -> ``
+- `/Login.img/WorldSelect/BtViewChoice/disabled` -> ``
+- `/Login.img/CharSelect` -> `effect, scroll, nameTag, BtSelect, BtNew, BtDelete, icon, character, pageR, pageL, knight, aran, adventure`
+- `/Login.img/CharSelect/effect` -> `0, 1`
+- `/Login.img/CharSelect/effect/0` -> ``
+- `/Login.img/CharSelect/effect/1` -> ``
+- `/Login.img/CharSelect/scroll` -> `0, 1, 2, 3`
+- `/Login.img/CharSelect/scroll/0` -> ``
+- `/Login.img/CharSelect/scroll/1` -> ``
+- `/Login.img/CharSelect/scroll/2` -> ``
+- `/Login.img/CharSelect/scroll/3` -> ``
+- `/Login.img/CharSelect/nameTag` -> `0, 1`
+- `/Login.img/CharSelect/nameTag/0` -> ``
+- `/Login.img/CharSelect/nameTag/1` -> ``
+- `/Login.img/CharSelect/BtSelect` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/CharSelect/BtSelect/normal` -> ``
+- `/Login.img/CharSelect/BtSelect/mouseOver` -> ``
+- `/Login.img/CharSelect/BtSelect/pressed` -> ``
+- `/Login.img/CharSelect/BtSelect/disabled` -> ``
+- `/Login.img/CharSelect/BtSelect/keyFocused` -> ``
+- `/Login.img/CharSelect/BtNew` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/CharSelect/BtNew/normal` -> ``
+- `/Login.img/CharSelect/BtNew/mouseOver` -> ``
+- `/Login.img/CharSelect/BtNew/pressed` -> ``
+- `/Login.img/CharSelect/BtNew/disabled` -> ``
+- `/Login.img/CharSelect/BtNew/keyFocused` -> ``
+- `/Login.img/CharSelect/BtDelete` -> `normal, mouseOver, pressed, disabled, keyFocused`
+- `/Login.img/CharSelect/BtDelete/normal` -> ``
+- `/Login.img/CharSelect/BtDelete/mouseOver` -> ``
+- `/Login.img/CharSelect/BtDelete/pressed` -> ``
+- `/Login.img/CharSelect/BtDelete/disabled` -> ``
+- `/Login.img/CharSelect/BtDelete/keyFocused` -> ``
+- `/Login.img/CharSelect/icon` -> `job`
+- `/Login.img/CharSelect/icon/job` -> ``
+- `/Login.img/CharSelect/character` -> `0, 1`
+- `/Login.img/CharSelect/character/0` -> ``
+- `/Login.img/CharSelect/character/1` -> ``
+- `/Login.img/CharSelect/pageR` -> `0, 1`
+- `/Login.img/CharSelect/pageR/0` -> ``
+- `/Login.img/CharSelect/pageR/1` -> ``
+- `/Login.img/CharSelect/pageL` -> `0, 1`
+- `/Login.img/CharSelect/pageL/0` -> ``
+- `/Login.img/CharSelect/pageL/1` -> ``
+- `/Login.img/CharSelect/knight` -> ``
+- `/Login.img/CharSelect/aran` -> ``
+- `/Login.img/CharSelect/adventure` -> ``
+- `/Login.img/NewChar` -> `scroll, dice, avatarSel, BtCheck, BtYes, BtNo, BtLeft, BtRight`
+- `/Login.img/NewChar/scroll` -> `0, 1`
+- `/Login.img/NewChar/scroll/0` -> ``
+- `/Login.img/NewChar/scroll/1` -> ``
+- `/Login.img/NewChar/dice` -> ``
+- `/Login.img/NewChar/avatarSel` -> `0, 1, 2, 3, 4, 5, 6, 7, 8`
+- `/Login.img/NewChar/avatarSel/0` -> ``
+- `/Login.img/NewChar/avatarSel/1` -> ``
+- `/Login.img/NewChar/avatarSel/2` -> ``
+- `/Login.img/NewChar/avatarSel/3` -> ``
+- `/Login.img/NewChar/avatarSel/4` -> ``
+- `/Login.img/NewChar/avatarSel/5` -> ``
+- `/Login.img/NewChar/avatarSel/6` -> ``
+- `/Login.img/NewChar/avatarSel/7` -> ``
+- `/Login.img/NewChar/avatarSel/8` -> ``
+- `/Login.img/NewChar/BtCheck` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewChar/BtCheck/normal` -> ``
+- `/Login.img/NewChar/BtCheck/mouseOver` -> ``
+- `/Login.img/NewChar/BtCheck/pressed` -> ``
+- `/Login.img/NewChar/BtCheck/disabled` -> ``
+- `/Login.img/NewChar/BtYes` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewChar/BtYes/normal` -> ``
+- `/Login.img/NewChar/BtYes/mouseOver` -> ``
+- `/Login.img/NewChar/BtYes/pressed` -> ``
+- `/Login.img/NewChar/BtYes/disabled` -> ``
+- `/Login.img/NewChar/BtNo` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewChar/BtNo/normal` -> ``
+- `/Login.img/NewChar/BtNo/mouseOver` -> ``
+- `/Login.img/NewChar/BtNo/pressed` -> ``
+- `/Login.img/NewChar/BtNo/disabled` -> ``
+- `/Login.img/NewChar/BtLeft` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewChar/BtLeft/normal` -> ``
+- `/Login.img/NewChar/BtLeft/mouseOver` -> ``
+- `/Login.img/NewChar/BtLeft/pressed` -> ``
+- `/Login.img/NewChar/BtLeft/disabled` -> ``
+- `/Login.img/NewChar/BtRight` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewChar/BtRight/normal` -> ``
+- `/Login.img/NewChar/BtRight/mouseOver` -> ``
+- `/Login.img/NewChar/BtRight/pressed` -> ``
+- `/Login.img/NewChar/BtRight/disabled` -> ``
+- `/Login.img/ViewAllChar` -> `BtEnter, Job, Select, WorldIcons, BtVAC, backgrnd`
+- `/Login.img/ViewAllChar/BtEnter` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/ViewAllChar/BtEnter/normal` -> ``
+- `/Login.img/ViewAllChar/BtEnter/mouseOver` -> ``
+- `/Login.img/ViewAllChar/BtEnter/pressed` -> ``
+- `/Login.img/ViewAllChar/BtEnter/disabled` -> ``
+- `/Login.img/ViewAllChar/Job` -> ``
+- `/Login.img/ViewAllChar/Select` -> ``
+- `/Login.img/ViewAllChar/WorldIcons` -> ``
+- `/Login.img/ViewAllChar/BtVAC` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/ViewAllChar/BtVAC/normal` -> ``
+- `/Login.img/ViewAllChar/BtVAC/mouseOver` -> ``
+- `/Login.img/ViewAllChar/BtVAC/pressed` -> ``
+- `/Login.img/ViewAllChar/BtVAC/disabled` -> ``
+- `/Login.img/ViewAllChar/backgrnd` -> ``
+- `/Login.img/RaceSelect` -> `BtSelect, knight, normal, aran, aran1, textGL`
+- `/Login.img/RaceSelect/BtSelect` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/RaceSelect/BtSelect/normal` -> ``
+- `/Login.img/RaceSelect/BtSelect/mouseOver` -> ``
+- `/Login.img/RaceSelect/BtSelect/pressed` -> ``
+- `/Login.img/RaceSelect/BtSelect/disabled` -> ``
+- `/Login.img/RaceSelect/knight` -> `text, BtKnight, OnAnimation, OffAnimation`
+- `/Login.img/RaceSelect/knight/text` -> ``
+- `/Login.img/RaceSelect/knight/BtKnight` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/RaceSelect/knight/BtKnight/normal` -> ``
+- `/Login.img/RaceSelect/knight/BtKnight/mouseOver` -> ``
+- `/Login.img/RaceSelect/knight/BtKnight/pressed` -> ``
+- `/Login.img/RaceSelect/knight/BtKnight/disabled` -> ``
+- `/Login.img/RaceSelect/knight/OnAnimation` -> ``
+- `/Login.img/RaceSelect/knight/OffAnimation` -> ``
+- `/Login.img/RaceSelect/normal` -> `text, BtNormal, OnAnimation, OffAnimation`
+- `/Login.img/RaceSelect/normal/text` -> ``
+- `/Login.img/RaceSelect/normal/BtNormal` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/RaceSelect/normal/BtNormal/normal` -> ``
+- `/Login.img/RaceSelect/normal/BtNormal/mouseOver` -> ``
+- `/Login.img/RaceSelect/normal/BtNormal/pressed` -> ``
+- `/Login.img/RaceSelect/normal/BtNormal/disabled` -> ``
+- `/Login.img/RaceSelect/normal/OnAnimation` -> ``
+- `/Login.img/RaceSelect/normal/OffAnimation` -> ``
+- `/Login.img/RaceSelect/aran` -> `text, BtAran, OnAnimation, OffAnimation`
+- `/Login.img/RaceSelect/aran/text` -> ``
+- `/Login.img/RaceSelect/aran/BtAran` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/RaceSelect/aran/BtAran/normal` -> ``
+- `/Login.img/RaceSelect/aran/BtAran/mouseOver` -> ``
+- `/Login.img/RaceSelect/aran/BtAran/pressed` -> ``
+- `/Login.img/RaceSelect/aran/BtAran/disabled` -> ``
+- `/Login.img/RaceSelect/aran/OnAnimation` -> ``
+- `/Login.img/RaceSelect/aran/OffAnimation` -> ``
+- `/Login.img/RaceSelect/aran1` -> `text, BtAran, OnAnimation, OffAnimation`
+- `/Login.img/RaceSelect/aran1/text` -> ``
+- `/Login.img/RaceSelect/aran1/BtAran` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/RaceSelect/aran1/BtAran/normal` -> ``
+- `/Login.img/RaceSelect/aran1/BtAran/mouseOver` -> ``
+- `/Login.img/RaceSelect/aran1/BtAran/pressed` -> ``
+- `/Login.img/RaceSelect/aran1/BtAran/disabled` -> ``
+- `/Login.img/RaceSelect/aran1/OnAnimation` -> ``
+- `/Login.img/RaceSelect/aran1/OffAnimation` -> ``
+- `/Login.img/RaceSelect/textGL` -> ``
+- `/Login.img/NewCharKnight` -> `scroll, dice, avatarSel, BtCheck, BtYes, BtNo, BtLeft, BtRight`
+- `/Login.img/NewCharKnight/scroll` -> `0, 1`
+- `/Login.img/NewCharKnight/scroll/0` -> ``
+- `/Login.img/NewCharKnight/scroll/1` -> ``
+- `/Login.img/NewCharKnight/dice` -> ``
+- `/Login.img/NewCharKnight/avatarSel` -> `0, 1, 2, 3, 4, 5, 6, 7, 8`
+- `/Login.img/NewCharKnight/avatarSel/0` -> ``
+- `/Login.img/NewCharKnight/avatarSel/1` -> ``
+- `/Login.img/NewCharKnight/avatarSel/2` -> ``
+- `/Login.img/NewCharKnight/avatarSel/3` -> ``
+- `/Login.img/NewCharKnight/avatarSel/4` -> ``
+- `/Login.img/NewCharKnight/avatarSel/5` -> ``
+- `/Login.img/NewCharKnight/avatarSel/6` -> ``
+- `/Login.img/NewCharKnight/avatarSel/7` -> ``
+- `/Login.img/NewCharKnight/avatarSel/8` -> ``
+- `/Login.img/NewCharKnight/BtCheck` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewCharKnight/BtCheck/normal` -> ``
+- `/Login.img/NewCharKnight/BtCheck/mouseOver` -> ``
+- `/Login.img/NewCharKnight/BtCheck/pressed` -> ``
+- `/Login.img/NewCharKnight/BtCheck/disabled` -> ``
+- `/Login.img/NewCharKnight/BtYes` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewCharKnight/BtYes/normal` -> ``
+- `/Login.img/NewCharKnight/BtYes/mouseOver` -> ``
+- `/Login.img/NewCharKnight/BtYes/pressed` -> ``
+- `/Login.img/NewCharKnight/BtYes/disabled` -> ``
+- `/Login.img/NewCharKnight/BtNo` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewCharKnight/BtNo/normal` -> ``
+- `/Login.img/NewCharKnight/BtNo/mouseOver` -> ``
+- `/Login.img/NewCharKnight/BtNo/pressed` -> ``
+- `/Login.img/NewCharKnight/BtNo/disabled` -> ``
+- `/Login.img/NewCharKnight/BtLeft` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewCharKnight/BtLeft/normal` -> ``
+- `/Login.img/NewCharKnight/BtLeft/mouseOver` -> ``
+- `/Login.img/NewCharKnight/BtLeft/pressed` -> ``
+- `/Login.img/NewCharKnight/BtLeft/disabled` -> ``
+- `/Login.img/NewCharKnight/BtRight` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewCharKnight/BtRight/normal` -> ``
+- `/Login.img/NewCharKnight/BtRight/mouseOver` -> ``
+- `/Login.img/NewCharKnight/BtRight/pressed` -> ``
+- `/Login.img/NewCharKnight/BtRight/disabled` -> ``
+- `/Login.img/NewCharAran` -> `scroll, dice, avatarSel, BtCheck, BtYes, BtNo, BtLeft, BtRight`
+- `/Login.img/NewCharAran/scroll` -> `0, 1`
+- `/Login.img/NewCharAran/scroll/0` -> ``
+- `/Login.img/NewCharAran/scroll/1` -> ``
+- `/Login.img/NewCharAran/dice` -> ``
+- `/Login.img/NewCharAran/avatarSel` -> `0, 1, 2, 3, 4, 5, 6, 7, 8`
+- `/Login.img/NewCharAran/avatarSel/0` -> ``
+- `/Login.img/NewCharAran/avatarSel/1` -> ``
+- `/Login.img/NewCharAran/avatarSel/2` -> ``
+- `/Login.img/NewCharAran/avatarSel/3` -> ``
+- `/Login.img/NewCharAran/avatarSel/4` -> ``
+- `/Login.img/NewCharAran/avatarSel/5` -> ``
+- `/Login.img/NewCharAran/avatarSel/6` -> ``
+- `/Login.img/NewCharAran/avatarSel/7` -> ``
+- `/Login.img/NewCharAran/avatarSel/8` -> ``
+- `/Login.img/NewCharAran/BtCheck` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewCharAran/BtCheck/normal` -> ``
+- `/Login.img/NewCharAran/BtCheck/mouseOver` -> ``
+- `/Login.img/NewCharAran/BtCheck/pressed` -> ``
+- `/Login.img/NewCharAran/BtCheck/disabled` -> ``
+- `/Login.img/NewCharAran/BtYes` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewCharAran/BtYes/normal` -> ``
+- `/Login.img/NewCharAran/BtYes/mouseOver` -> ``
+- `/Login.img/NewCharAran/BtYes/pressed` -> ``
+- `/Login.img/NewCharAran/BtYes/disabled` -> ``
+- `/Login.img/NewCharAran/BtNo` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewCharAran/BtNo/normal` -> ``
+- `/Login.img/NewCharAran/BtNo/mouseOver` -> ``
+- `/Login.img/NewCharAran/BtNo/pressed` -> ``
+- `/Login.img/NewCharAran/BtNo/disabled` -> ``
+- `/Login.img/NewCharAran/BtLeft` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewCharAran/BtLeft/normal` -> ``
+- `/Login.img/NewCharAran/BtLeft/mouseOver` -> ``
+- `/Login.img/NewCharAran/BtLeft/pressed` -> ``
+- `/Login.img/NewCharAran/BtLeft/disabled` -> ``
+- `/Login.img/NewCharAran/BtRight` -> `normal, mouseOver, pressed, disabled`
+- `/Login.img/NewCharAran/BtRight/normal` -> ``
+- `/Login.img/NewCharAran/BtRight/mouseOver` -> ``
+- `/Login.img/NewCharAran/BtRight/pressed` -> ``
+- `/Login.img/NewCharAran/BtRight/disabled` -> ``
+
+## Class-family markers
+- `imgdir` `/Login.img/CharSelect/knight` `{'name': 'knight'}`
+- `canvas` `/Login.img/CharSelect/knight/0` `{'name': '0', 'width': '83', 'height': '156'}`
+- `vector` `/Login.img/CharSelect/knight/0/origin` `{'name': 'origin', 'x': '59', 'y': '155'}`
+- `int` `/Login.img/CharSelect/knight/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/CharSelect/aran` `{'name': 'aran'}`
+- `canvas` `/Login.img/CharSelect/aran/0` `{'name': '0', 'width': '74', 'height': '157'}`
+- `vector` `/Login.img/CharSelect/aran/0/origin` `{'name': 'origin', 'x': '57', 'y': '156'}`
+- `int` `/Login.img/CharSelect/aran/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/CharSelect/adventure` `{'name': 'adventure'}`
+- `canvas` `/Login.img/CharSelect/adventure/0` `{'name': '0', 'width': '71', 'height': '158'}`
+- `vector` `/Login.img/CharSelect/adventure/0/origin` `{'name': 'origin', 'x': '52', 'y': '156'}`
+- `int` `/Login.img/CharSelect/adventure/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/knight` `{'name': 'knight'}`
+- `imgdir` `/Login.img/RaceSelect/knight/text` `{'name': 'text'}`
+- `canvas` `/Login.img/RaceSelect/knight/text/0` `{'name': '0', 'width': '579', 'height': '163'}`
+- `vector` `/Login.img/RaceSelect/knight/text/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/knight/text/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/knight/BtKnight` `{'name': 'BtKnight'}`
+- `imgdir` `/Login.img/RaceSelect/knight/BtKnight/normal` `{'name': 'normal'}`
+- `canvas` `/Login.img/RaceSelect/knight/BtKnight/normal/0` `{'name': '0', 'width': '209', 'height': '219'}`
+- `vector` `/Login.img/RaceSelect/knight/BtKnight/normal/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/knight/BtKnight/normal/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/knight/BtKnight/mouseOver` `{'name': 'mouseOver'}`
+- `canvas` `/Login.img/RaceSelect/knight/BtKnight/mouseOver/0` `{'name': '0', 'width': '209', 'height': '219'}`
+- `vector` `/Login.img/RaceSelect/knight/BtKnight/mouseOver/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/knight/BtKnight/mouseOver/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/knight/BtKnight/pressed` `{'name': 'pressed'}`
+- `canvas` `/Login.img/RaceSelect/knight/BtKnight/pressed/0` `{'name': '0', 'width': '1', 'height': '1'}`
+- `vector` `/Login.img/RaceSelect/knight/BtKnight/pressed/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/knight/BtKnight/pressed/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/knight/BtKnight/disabled` `{'name': 'disabled'}`
+- `canvas` `/Login.img/RaceSelect/knight/BtKnight/disabled/0` `{'name': '0', 'width': '1', 'height': '1'}`
+- `vector` `/Login.img/RaceSelect/knight/BtKnight/disabled/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/knight/BtKnight/disabled/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/knight/OnAnimation` `{'name': 'OnAnimation'}`
+- `canvas` `/Login.img/RaceSelect/knight/OnAnimation/0` `{'name': '0', 'width': '209', 'height': '214'}`
+- `vector` `/Login.img/RaceSelect/knight/OnAnimation/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/knight/OnAnimation/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/knight/OffAnimation` `{'name': 'OffAnimation'}`
+- `canvas` `/Login.img/RaceSelect/knight/OffAnimation/0` `{'name': '0', 'width': '1', 'height': '1'}`
+- `vector` `/Login.img/RaceSelect/knight/OffAnimation/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/knight/OffAnimation/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/aran` `{'name': 'aran'}`
+- `imgdir` `/Login.img/RaceSelect/aran/text` `{'name': 'text'}`
+- `canvas` `/Login.img/RaceSelect/aran/text/0` `{'name': '0', 'width': '579', 'height': '163'}`
+- `vector` `/Login.img/RaceSelect/aran/text/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/aran/text/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/aran/BtAran` `{'name': 'BtAran'}`
+- `imgdir` `/Login.img/RaceSelect/aran/BtAran/normal` `{'name': 'normal'}`
+- `canvas` `/Login.img/RaceSelect/aran/BtAran/normal/0` `{'name': '0', 'width': '181', 'height': '222'}`
+- `vector` `/Login.img/RaceSelect/aran/BtAran/normal/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/aran/BtAran/normal/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/aran/BtAran/mouseOver` `{'name': 'mouseOver'}`
+- `canvas` `/Login.img/RaceSelect/aran/BtAran/mouseOver/0` `{'name': '0', 'width': '181', 'height': '222'}`
+- `vector` `/Login.img/RaceSelect/aran/BtAran/mouseOver/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/aran/BtAran/mouseOver/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/aran/BtAran/pressed` `{'name': 'pressed'}`
+- `canvas` `/Login.img/RaceSelect/aran/BtAran/pressed/0` `{'name': '0', 'width': '1', 'height': '1'}`
+- `vector` `/Login.img/RaceSelect/aran/BtAran/pressed/0/origin` `{'name': 'origin', 'x': '-10', 'y': '1'}`
+- `int` `/Login.img/RaceSelect/aran/BtAran/pressed/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/aran/BtAran/disabled` `{'name': 'disabled'}`
+- `canvas` `/Login.img/RaceSelect/aran/BtAran/disabled/0` `{'name': '0', 'width': '1', 'height': '1'}`
+- `vector` `/Login.img/RaceSelect/aran/BtAran/disabled/0/origin` `{'name': 'origin', 'x': '-10', 'y': '1'}`
+- `int` `/Login.img/RaceSelect/aran/BtAran/disabled/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/aran/OnAnimation` `{'name': 'OnAnimation'}`
+- `canvas` `/Login.img/RaceSelect/aran/OnAnimation/0` `{'name': '0', 'width': '181', 'height': '222'}`
+- `vector` `/Login.img/RaceSelect/aran/OnAnimation/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/aran/OnAnimation/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/aran/OffAnimation` `{'name': 'OffAnimation'}`
+- `canvas` `/Login.img/RaceSelect/aran/OffAnimation/0` `{'name': '0', 'width': '1', 'height': '1'}`
+- `vector` `/Login.img/RaceSelect/aran/OffAnimation/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/aran/OffAnimation/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/aran1` `{'name': 'aran1'}`
+- `imgdir` `/Login.img/RaceSelect/aran1/text` `{'name': 'text'}`
+- `canvas` `/Login.img/RaceSelect/aran1/text/0` `{'name': '0', 'width': '579', 'height': '163'}`
+- `vector` `/Login.img/RaceSelect/aran1/text/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/aran1/text/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/aran1/BtAran` `{'name': 'BtAran'}`
+- `imgdir` `/Login.img/RaceSelect/aran1/BtAran/normal` `{'name': 'normal'}`
+- `canvas` `/Login.img/RaceSelect/aran1/BtAran/normal/0` `{'name': '0', 'width': '181', 'height': '222'}`
+- `vector` `/Login.img/RaceSelect/aran1/BtAran/normal/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/aran1/BtAran/normal/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/aran1/BtAran/mouseOver` `{'name': 'mouseOver'}`
+- `canvas` `/Login.img/RaceSelect/aran1/BtAran/mouseOver/0` `{'name': '0', 'width': '181', 'height': '222'}`
+- `vector` `/Login.img/RaceSelect/aran1/BtAran/mouseOver/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/aran1/BtAran/mouseOver/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/aran1/BtAran/pressed` `{'name': 'pressed'}`
+- `canvas` `/Login.img/RaceSelect/aran1/BtAran/pressed/0` `{'name': '0', 'width': '1', 'height': '1'}`
+- `vector` `/Login.img/RaceSelect/aran1/BtAran/pressed/0/origin` `{'name': 'origin', 'x': '-10', 'y': '1'}`
+- `int` `/Login.img/RaceSelect/aran1/BtAran/pressed/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/aran1/BtAran/disabled` `{'name': 'disabled'}`
+- `canvas` `/Login.img/RaceSelect/aran1/BtAran/disabled/0` `{'name': '0', 'width': '1', 'height': '1'}`
+- `vector` `/Login.img/RaceSelect/aran1/BtAran/disabled/0/origin` `{'name': 'origin', 'x': '-10', 'y': '1'}`
+- `int` `/Login.img/RaceSelect/aran1/BtAran/disabled/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/aran1/OnAnimation` `{'name': 'OnAnimation'}`
+- `canvas` `/Login.img/RaceSelect/aran1/OnAnimation/0` `{'name': '0', 'width': '181', 'height': '222'}`
+- `vector` `/Login.img/RaceSelect/aran1/OnAnimation/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/aran1/OnAnimation/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/RaceSelect/aran1/OffAnimation` `{'name': 'OffAnimation'}`
+- `canvas` `/Login.img/RaceSelect/aran1/OffAnimation/0` `{'name': '0', 'width': '1', 'height': '1'}`
+- `vector` `/Login.img/RaceSelect/aran1/OffAnimation/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/RaceSelect/aran1/OffAnimation/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight` `{'name': 'NewCharKnight'}`
+- `imgdir` `/Login.img/NewCharKnight/scroll` `{'name': 'scroll'}`
+- `imgdir` `/Login.img/NewCharKnight/scroll/0` `{'name': '0'}`
+- `canvas` `/Login.img/NewCharKnight/scroll/0/0` `{'name': '0', 'width': '242', 'height': '30'}`
+- `vector` `/Login.img/NewCharKnight/scroll/0/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/0/0/z` `{'name': 'z', 'value': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/0/0/delay` `{'name': 'delay', 'value': '250'}`
+- `canvas` `/Login.img/NewCharKnight/scroll/0/1` `{'name': '1', 'width': '242', 'height': '169'}`
+- `vector` `/Login.img/NewCharKnight/scroll/0/1/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/0/1/z` `{'name': 'z', 'value': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/0/1/delay` `{'name': 'delay', 'value': '50'}`
+- `canvas` `/Login.img/NewCharKnight/scroll/0/2` `{'name': '2', 'width': '242', 'height': '167'}`
+- `vector` `/Login.img/NewCharKnight/scroll/0/2/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/0/2/z` `{'name': 'z', 'value': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/0/2/delay` `{'name': 'delay', 'value': '50'}`
+- `canvas` `/Login.img/NewCharKnight/scroll/0/3` `{'name': '3', 'width': '242', 'height': '165'}`
+- `vector` `/Login.img/NewCharKnight/scroll/0/3/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/0/3/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/scroll/1` `{'name': '1'}`
+- `canvas` `/Login.img/NewCharKnight/scroll/1/0` `{'name': '0', 'width': '242', 'height': '165'}`
+- `vector` `/Login.img/NewCharKnight/scroll/1/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/1/0/z` `{'name': 'z', 'value': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/1/0/delay` `{'name': 'delay', 'value': '100'}`
+- `canvas` `/Login.img/NewCharKnight/scroll/1/1` `{'name': '1', 'width': '242', 'height': '167'}`
+- `vector` `/Login.img/NewCharKnight/scroll/1/1/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/1/1/z` `{'name': 'z', 'value': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/1/1/delay` `{'name': 'delay', 'value': '30'}`
+- `canvas` `/Login.img/NewCharKnight/scroll/1/2` `{'name': '2', 'width': '242', 'height': '169'}`
+- `vector` `/Login.img/NewCharKnight/scroll/1/2/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/1/2/z` `{'name': 'z', 'value': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/1/2/delay` `{'name': 'delay', 'value': '30'}`
+- `canvas` `/Login.img/NewCharKnight/scroll/1/3` `{'name': '3', 'width': '242', 'height': '30'}`
+- `vector` `/Login.img/NewCharKnight/scroll/1/3/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/1/3/z` `{'name': 'z', 'value': '0'}`
+- `int` `/Login.img/NewCharKnight/scroll/1/3/delay` `{'name': 'delay', 'value': '1000'}`
+- `imgdir` `/Login.img/NewCharKnight/dice` `{'name': 'dice'}`
+- `canvas` `/Login.img/NewCharKnight/dice/0` `{'name': '0', 'width': '37', 'height': '26'}`
+- `vector` `/Login.img/NewCharKnight/dice/0/origin` `{'name': 'origin', 'x': '0', 'y': '-30'}`
+- `canvas` `/Login.img/NewCharKnight/dice/1` `{'name': '1', 'width': '25', 'height': '54'}`
+- `vector` `/Login.img/NewCharKnight/dice/1/origin` `{'name': 'origin', 'x': '0', 'y': '-2'}`
+- `canvas` `/Login.img/NewCharKnight/dice/2` `{'name': '2', 'width': '27', 'height': '56'}`
+- `vector` `/Login.img/NewCharKnight/dice/2/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `canvas` `/Login.img/NewCharKnight/dice/3` `{'name': '3', 'width': '28', 'height': '43'}`
+- `vector` `/Login.img/NewCharKnight/dice/3/origin` `{'name': 'origin', 'x': '0', 'y': '-13'}`
+- `imgdir` `/Login.img/NewCharKnight/avatarSel` `{'name': 'avatarSel'}`
+- `imgdir` `/Login.img/NewCharKnight/avatarSel/0` `{'name': '0'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/0/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/0/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/0/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/0/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/0/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/0/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/avatarSel/1` `{'name': '1'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/1/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/1/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/1/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/1/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/1/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/1/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/avatarSel/2` `{'name': '2'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/2/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/2/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/2/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/2/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/2/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/2/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/avatarSel/3` `{'name': '3'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/3/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/3/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/3/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/3/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/3/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/3/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/avatarSel/4` `{'name': '4'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/4/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/4/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/4/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/4/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/4/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/4/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/avatarSel/5` `{'name': '5'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/5/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/5/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/5/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/5/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/5/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/5/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/avatarSel/6` `{'name': '6'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/6/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/6/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/6/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/6/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/6/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/6/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/avatarSel/7` `{'name': '7'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/7/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/7/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/7/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/7/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/7/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/7/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/avatarSel/8` `{'name': '8'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/8/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/8/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/8/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharKnight/avatarSel/8/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharKnight/avatarSel/8/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/avatarSel/8/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtCheck` `{'name': 'BtCheck'}`
+- `imgdir` `/Login.img/NewCharKnight/BtCheck/normal` `{'name': 'normal'}`
+- `canvas` `/Login.img/NewCharKnight/BtCheck/normal/0` `{'name': '0', 'width': '47', 'height': '21'}`
+- `vector` `/Login.img/NewCharKnight/BtCheck/normal/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtCheck/normal/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtCheck/mouseOver` `{'name': 'mouseOver'}`
+- `canvas` `/Login.img/NewCharKnight/BtCheck/mouseOver/0` `{'name': '0', 'width': '47', 'height': '21'}`
+- `vector` `/Login.img/NewCharKnight/BtCheck/mouseOver/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtCheck/mouseOver/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtCheck/pressed` `{'name': 'pressed'}`
+- `canvas` `/Login.img/NewCharKnight/BtCheck/pressed/0` `{'name': '0', 'width': '47', 'height': '23'}`
+- `vector` `/Login.img/NewCharKnight/BtCheck/pressed/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtCheck/pressed/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtCheck/disabled` `{'name': 'disabled'}`
+- `canvas` `/Login.img/NewCharKnight/BtCheck/disabled/0` `{'name': '0', 'width': '47', 'height': '21'}`
+- `vector` `/Login.img/NewCharKnight/BtCheck/disabled/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtCheck/disabled/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtYes` `{'name': 'BtYes'}`
+- `imgdir` `/Login.img/NewCharKnight/BtYes/normal` `{'name': 'normal'}`
+- `canvas` `/Login.img/NewCharKnight/BtYes/normal/0` `{'name': '0', 'width': '67', 'height': '38'}`
+- `vector` `/Login.img/NewCharKnight/BtYes/normal/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtYes/normal/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtYes/mouseOver` `{'name': 'mouseOver'}`
+- `canvas` `/Login.img/NewCharKnight/BtYes/mouseOver/0` `{'name': '0', 'width': '67', 'height': '38'}`
+- `vector` `/Login.img/NewCharKnight/BtYes/mouseOver/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtYes/mouseOver/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtYes/pressed` `{'name': 'pressed'}`
+- `canvas` `/Login.img/NewCharKnight/BtYes/pressed/0` `{'name': '0', 'width': '67', 'height': '38'}`
+- `vector` `/Login.img/NewCharKnight/BtYes/pressed/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtYes/pressed/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtYes/disabled` `{'name': 'disabled'}`
+- `canvas` `/Login.img/NewCharKnight/BtYes/disabled/0` `{'name': '0', 'width': '67', 'height': '38'}`
+- `vector` `/Login.img/NewCharKnight/BtYes/disabled/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtYes/disabled/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtNo` `{'name': 'BtNo'}`
+- `imgdir` `/Login.img/NewCharKnight/BtNo/normal` `{'name': 'normal'}`
+- `canvas` `/Login.img/NewCharKnight/BtNo/normal/0` `{'name': '0', 'width': '68', 'height': '38'}`
+- `vector` `/Login.img/NewCharKnight/BtNo/normal/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtNo/normal/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtNo/mouseOver` `{'name': 'mouseOver'}`
+- `canvas` `/Login.img/NewCharKnight/BtNo/mouseOver/0` `{'name': '0', 'width': '68', 'height': '38'}`
+- `vector` `/Login.img/NewCharKnight/BtNo/mouseOver/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtNo/mouseOver/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtNo/pressed` `{'name': 'pressed'}`
+- `canvas` `/Login.img/NewCharKnight/BtNo/pressed/0` `{'name': '0', 'width': '68', 'height': '36'}`
+- `vector` `/Login.img/NewCharKnight/BtNo/pressed/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtNo/pressed/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtNo/disabled` `{'name': 'disabled'}`
+- `canvas` `/Login.img/NewCharKnight/BtNo/disabled/0` `{'name': '0', 'width': '68', 'height': '38'}`
+- `vector` `/Login.img/NewCharKnight/BtNo/disabled/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtNo/disabled/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtLeft` `{'name': 'BtLeft'}`
+- `imgdir` `/Login.img/NewCharKnight/BtLeft/normal` `{'name': 'normal'}`
+- `canvas` `/Login.img/NewCharKnight/BtLeft/normal/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharKnight/BtLeft/normal/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtLeft/normal/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtLeft/mouseOver` `{'name': 'mouseOver'}`
+- `canvas` `/Login.img/NewCharKnight/BtLeft/mouseOver/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharKnight/BtLeft/mouseOver/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtLeft/mouseOver/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtLeft/pressed` `{'name': 'pressed'}`
+- `canvas` `/Login.img/NewCharKnight/BtLeft/pressed/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharKnight/BtLeft/pressed/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtLeft/pressed/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtLeft/disabled` `{'name': 'disabled'}`
+- `canvas` `/Login.img/NewCharKnight/BtLeft/disabled/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharKnight/BtLeft/disabled/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtLeft/disabled/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtRight` `{'name': 'BtRight'}`
+- `imgdir` `/Login.img/NewCharKnight/BtRight/normal` `{'name': 'normal'}`
+- `canvas` `/Login.img/NewCharKnight/BtRight/normal/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharKnight/BtRight/normal/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtRight/normal/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtRight/mouseOver` `{'name': 'mouseOver'}`
+- `canvas` `/Login.img/NewCharKnight/BtRight/mouseOver/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharKnight/BtRight/mouseOver/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtRight/mouseOver/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtRight/pressed` `{'name': 'pressed'}`
+- `canvas` `/Login.img/NewCharKnight/BtRight/pressed/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharKnight/BtRight/pressed/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtRight/pressed/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharKnight/BtRight/disabled` `{'name': 'disabled'}`
+- `canvas` `/Login.img/NewCharKnight/BtRight/disabled/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharKnight/BtRight/disabled/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/BtRight/disabled/0/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharKnight/statTb` `{'name': 'statTb', 'width': '65', 'height': '77'}`
+- `vector` `/Login.img/NewCharKnight/statTb/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharKnight/statTb/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharKnight/charAlert` `{'name': 'charAlert', 'width': '187', 'height': '120'}`
+- `vector` `/Login.img/NewCharKnight/charAlert/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `canvas` `/Login.img/NewCharKnight/charName` `{'name': 'charName', 'width': '203', 'height': '226'}`
+- `vector` `/Login.img/NewCharKnight/charName/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `canvas` `/Login.img/NewCharKnight/charSet` `{'name': 'charSet', 'width': '227', 'height': '377'}`
+- `vector` `/Login.img/NewCharKnight/charSet/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `imgdir` `/Login.img/NewCharAran` `{'name': 'NewCharAran'}`
+- `imgdir` `/Login.img/NewCharAran/scroll` `{'name': 'scroll'}`
+- `imgdir` `/Login.img/NewCharAran/scroll/0` `{'name': '0'}`
+- `canvas` `/Login.img/NewCharAran/scroll/0/0` `{'name': '0', 'width': '242', 'height': '30'}`
+- `vector` `/Login.img/NewCharAran/scroll/0/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/0/0/z` `{'name': 'z', 'value': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/0/0/delay` `{'name': 'delay', 'value': '250'}`
+- `canvas` `/Login.img/NewCharAran/scroll/0/1` `{'name': '1', 'width': '242', 'height': '169'}`
+- `vector` `/Login.img/NewCharAran/scroll/0/1/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/0/1/z` `{'name': 'z', 'value': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/0/1/delay` `{'name': 'delay', 'value': '50'}`
+- `canvas` `/Login.img/NewCharAran/scroll/0/2` `{'name': '2', 'width': '242', 'height': '167'}`
+- `vector` `/Login.img/NewCharAran/scroll/0/2/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/0/2/z` `{'name': 'z', 'value': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/0/2/delay` `{'name': 'delay', 'value': '50'}`
+- `canvas` `/Login.img/NewCharAran/scroll/0/3` `{'name': '3', 'width': '242', 'height': '165'}`
+- `vector` `/Login.img/NewCharAran/scroll/0/3/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/0/3/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/scroll/1` `{'name': '1'}`
+- `canvas` `/Login.img/NewCharAran/scroll/1/0` `{'name': '0', 'width': '242', 'height': '165'}`
+- `vector` `/Login.img/NewCharAran/scroll/1/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/1/0/z` `{'name': 'z', 'value': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/1/0/delay` `{'name': 'delay', 'value': '100'}`
+- `canvas` `/Login.img/NewCharAran/scroll/1/1` `{'name': '1', 'width': '242', 'height': '167'}`
+- `vector` `/Login.img/NewCharAran/scroll/1/1/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/1/1/z` `{'name': 'z', 'value': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/1/1/delay` `{'name': 'delay', 'value': '30'}`
+- `canvas` `/Login.img/NewCharAran/scroll/1/2` `{'name': '2', 'width': '242', 'height': '169'}`
+- `vector` `/Login.img/NewCharAran/scroll/1/2/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/1/2/z` `{'name': 'z', 'value': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/1/2/delay` `{'name': 'delay', 'value': '30'}`
+- `canvas` `/Login.img/NewCharAran/scroll/1/3` `{'name': '3', 'width': '242', 'height': '30'}`
+- `vector` `/Login.img/NewCharAran/scroll/1/3/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/1/3/z` `{'name': 'z', 'value': '0'}`
+- `int` `/Login.img/NewCharAran/scroll/1/3/delay` `{'name': 'delay', 'value': '1000'}`
+- `imgdir` `/Login.img/NewCharAran/dice` `{'name': 'dice'}`
+- `canvas` `/Login.img/NewCharAran/dice/0` `{'name': '0', 'width': '37', 'height': '26'}`
+- `vector` `/Login.img/NewCharAran/dice/0/origin` `{'name': 'origin', 'x': '0', 'y': '-30'}`
+- `canvas` `/Login.img/NewCharAran/dice/1` `{'name': '1', 'width': '25', 'height': '54'}`
+- `vector` `/Login.img/NewCharAran/dice/1/origin` `{'name': 'origin', 'x': '0', 'y': '-2'}`
+- `canvas` `/Login.img/NewCharAran/dice/2` `{'name': '2', 'width': '27', 'height': '56'}`
+- `vector` `/Login.img/NewCharAran/dice/2/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `canvas` `/Login.img/NewCharAran/dice/3` `{'name': '3', 'width': '28', 'height': '43'}`
+- `vector` `/Login.img/NewCharAran/dice/3/origin` `{'name': 'origin', 'x': '0', 'y': '-13'}`
+- `imgdir` `/Login.img/NewCharAran/avatarSel` `{'name': 'avatarSel'}`
+- `imgdir` `/Login.img/NewCharAran/avatarSel/0` `{'name': '0'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/0/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/0/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/0/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/0/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/0/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/0/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/avatarSel/1` `{'name': '1'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/1/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/1/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/1/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/1/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/1/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/1/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/avatarSel/2` `{'name': '2'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/2/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/2/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/2/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/2/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/2/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/2/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/avatarSel/3` `{'name': '3'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/3/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/3/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/3/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/3/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/3/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/3/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/avatarSel/4` `{'name': '4'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/4/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/4/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/4/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/4/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/4/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/4/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/avatarSel/5` `{'name': '5'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/5/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/5/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/5/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/5/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/5/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/5/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/avatarSel/6` `{'name': '6'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/6/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/6/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/6/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/6/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/6/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/6/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/avatarSel/7` `{'name': '7'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/7/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/7/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/7/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/7/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/7/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/7/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/avatarSel/8` `{'name': '8'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/8/normal` `{'name': 'normal', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/8/normal/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/8/normal/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharAran/avatarSel/8/disabled` `{'name': 'disabled', 'width': '200', 'height': '17'}`
+- `vector` `/Login.img/NewCharAran/avatarSel/8/disabled/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/avatarSel/8/disabled/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtCheck` `{'name': 'BtCheck'}`
+- `imgdir` `/Login.img/NewCharAran/BtCheck/normal` `{'name': 'normal'}`
+- `canvas` `/Login.img/NewCharAran/BtCheck/normal/0` `{'name': '0', 'width': '50', 'height': '24'}`
+- `vector` `/Login.img/NewCharAran/BtCheck/normal/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtCheck/normal/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtCheck/mouseOver` `{'name': 'mouseOver'}`
+- `canvas` `/Login.img/NewCharAran/BtCheck/mouseOver/0` `{'name': '0', 'width': '50', 'height': '24'}`
+- `vector` `/Login.img/NewCharAran/BtCheck/mouseOver/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtCheck/mouseOver/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtCheck/pressed` `{'name': 'pressed'}`
+- `canvas` `/Login.img/NewCharAran/BtCheck/pressed/0` `{'name': '0', 'width': '50', 'height': '24'}`
+- `vector` `/Login.img/NewCharAran/BtCheck/pressed/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtCheck/pressed/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtCheck/disabled` `{'name': 'disabled'}`
+- `canvas` `/Login.img/NewCharAran/BtCheck/disabled/0` `{'name': '0', 'width': '50', 'height': '24'}`
+- `vector` `/Login.img/NewCharAran/BtCheck/disabled/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtCheck/disabled/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtYes` `{'name': 'BtYes'}`
+- `imgdir` `/Login.img/NewCharAran/BtYes/normal` `{'name': 'normal'}`
+- `canvas` `/Login.img/NewCharAran/BtYes/normal/0` `{'name': '0', 'width': '75', 'height': '125'}`
+- `vector` `/Login.img/NewCharAran/BtYes/normal/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtYes/normal/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtYes/mouseOver` `{'name': 'mouseOver'}`
+- `canvas` `/Login.img/NewCharAran/BtYes/mouseOver/0` `{'name': '0', 'width': '75', 'height': '125'}`
+- `vector` `/Login.img/NewCharAran/BtYes/mouseOver/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtYes/mouseOver/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtYes/pressed` `{'name': 'pressed'}`
+- `canvas` `/Login.img/NewCharAran/BtYes/pressed/0` `{'name': '0', 'width': '75', 'height': '125'}`
+- `vector` `/Login.img/NewCharAran/BtYes/pressed/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtYes/pressed/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtYes/disabled` `{'name': 'disabled'}`
+- `canvas` `/Login.img/NewCharAran/BtYes/disabled/0` `{'name': '0', 'width': '75', 'height': '125'}`
+- `vector` `/Login.img/NewCharAran/BtYes/disabled/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtYes/disabled/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtNo` `{'name': 'BtNo'}`
+- `imgdir` `/Login.img/NewCharAran/BtNo/normal` `{'name': 'normal'}`
+- `canvas` `/Login.img/NewCharAran/BtNo/normal/0` `{'name': '0', 'width': '70', 'height': '125'}`
+- `vector` `/Login.img/NewCharAran/BtNo/normal/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtNo/normal/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtNo/mouseOver` `{'name': 'mouseOver'}`
+- `canvas` `/Login.img/NewCharAran/BtNo/mouseOver/0` `{'name': '0', 'width': '70', 'height': '125'}`
+- `vector` `/Login.img/NewCharAran/BtNo/mouseOver/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtNo/mouseOver/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtNo/pressed` `{'name': 'pressed'}`
+- `canvas` `/Login.img/NewCharAran/BtNo/pressed/0` `{'name': '0', 'width': '70', 'height': '125'}`
+- `vector` `/Login.img/NewCharAran/BtNo/pressed/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtNo/pressed/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtNo/disabled` `{'name': 'disabled'}`
+- `canvas` `/Login.img/NewCharAran/BtNo/disabled/0` `{'name': '0', 'width': '70', 'height': '125'}`
+- `vector` `/Login.img/NewCharAran/BtNo/disabled/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtNo/disabled/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtLeft` `{'name': 'BtLeft'}`
+- `imgdir` `/Login.img/NewCharAran/BtLeft/normal` `{'name': 'normal'}`
+- `canvas` `/Login.img/NewCharAran/BtLeft/normal/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharAran/BtLeft/normal/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtLeft/normal/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtLeft/mouseOver` `{'name': 'mouseOver'}`
+- `canvas` `/Login.img/NewCharAran/BtLeft/mouseOver/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharAran/BtLeft/mouseOver/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtLeft/mouseOver/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtLeft/pressed` `{'name': 'pressed'}`
+- `canvas` `/Login.img/NewCharAran/BtLeft/pressed/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharAran/BtLeft/pressed/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtLeft/pressed/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtLeft/disabled` `{'name': 'disabled'}`
+- `canvas` `/Login.img/NewCharAran/BtLeft/disabled/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharAran/BtLeft/disabled/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtLeft/disabled/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtRight` `{'name': 'BtRight'}`
+- `imgdir` `/Login.img/NewCharAran/BtRight/normal` `{'name': 'normal'}`
+- `canvas` `/Login.img/NewCharAran/BtRight/normal/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharAran/BtRight/normal/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtRight/normal/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtRight/mouseOver` `{'name': 'mouseOver'}`
+- `canvas` `/Login.img/NewCharAran/BtRight/mouseOver/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharAran/BtRight/mouseOver/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtRight/mouseOver/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtRight/pressed` `{'name': 'pressed'}`
+- `canvas` `/Login.img/NewCharAran/BtRight/pressed/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharAran/BtRight/pressed/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtRight/pressed/0/z` `{'name': 'z', 'value': '0'}`
+- `imgdir` `/Login.img/NewCharAran/BtRight/disabled` `{'name': 'disabled'}`
+- `canvas` `/Login.img/NewCharAran/BtRight/disabled/0` `{'name': '0', 'width': '15', 'height': '16'}`
+- `vector` `/Login.img/NewCharAran/BtRight/disabled/0/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/BtRight/disabled/0/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharAran/statTb` `{'name': 'statTb', 'width': '65', 'height': '77'}`
+- `vector` `/Login.img/NewCharAran/statTb/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `int` `/Login.img/NewCharAran/statTb/z` `{'name': 'z', 'value': '0'}`
+- `canvas` `/Login.img/NewCharAran/charAlert` `{'name': 'charAlert', 'width': '187', 'height': '120'}`
+- `vector` `/Login.img/NewCharAran/charAlert/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `canvas` `/Login.img/NewCharAran/charName` `{'name': 'charName', 'width': '209', 'height': '143'}`
+- `vector` `/Login.img/NewCharAran/charName/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+- `canvas` `/Login.img/NewCharAran/charSet` `{'name': 'charSet', 'width': '270', 'height': '272'}`
+- `vector` `/Login.img/NewCharAran/charSet/origin` `{'name': 'origin', 'x': '0', 'y': '0'}`
+
+## Marker summary
+- Explorer: 1 textual/path matches
+- Cygnus: 4 textual/path matches
+- Aran: 6 textual/path matches
+- Evan: 0 textual/path matches
+- Dual Blade: 0 textual/path matches
+- Resistance: 0 textual/path matches
+- Battle Mage: 0 textual/path matches
+- Wild Hunter: 0 textual/path matches
+- Mechanic: 0 textual/path matches
