@@ -52,6 +52,13 @@ void Client::UpdateGameStartup() {
 
 	//optional non-resolution related stuff
 	if (useTubi) { Memory::FillBytes(0x00485C32, 0x90, 2); }
+	// Evan client compatibility: v83 contains most Evan client logic, but two
+	// SkillInfo gates reject Evan skills. These exact v83 addresses are the
+	// established Evan compatibility edits; keep them post-unpack with the
+	// rest of EverLeaf's runtime client patches.
+	Memory::FillBytes(0x0075C783, 0x90, 4);
+	Memory::FillBytes(0x00761714, 0x90, 21);
+
 	Memory::WriteDouble(0x00AFE8A0, setDamageCap);	//ty rain
 	int setDamageCapInt = static_cast<int>(setDamageCap < 0 ? setDamageCap - 0.5 : setDamageCap + 0.5);
 	Memory::WriteInt(0x008C3304 + 1, setDamageCapInt); //ty rain
