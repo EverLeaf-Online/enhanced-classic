@@ -22,13 +22,14 @@ const wikiDataCss = read("public/css/wiki-data.css");
 const uiux = read("public/css/uiux-2026.css");
 const refero = read("public/css/refero-everleaf-2026.css");
 const unified = read("public/css/unified-terminal-2026.css");
+const innerClean = read("public/css/inner-app-clean-2026.css");
 
 test("global shell has no top navigation or utility ribbon",()=>{
   for(const sheet of [
     "maple-remaster.css","maple-remaster-pages.css","maple-final.css",
     "rankings-remaster.css","rankings-live.css","wiki-remaster.css",
     "wiki-cms.css","wiki-player-2026.css","wiki-data.css","uiux-2026.css",
-    "refero-everleaf-2026.css?v=3","unified-terminal-2026.css?v=1"
+    "refero-everleaf-2026.css?v=3","unified-terminal-2026.css?v=1","inner-app-clean-2026.css?v=1"
   ]) assert.ok(header.includes(sheet),`header should load ${sheet}`);
   assert.match(header,/maple-remaster-admin\.css/);
   assert.match(header,/siteBanner/);
@@ -40,14 +41,11 @@ test("global shell has no top navigation or utility ribbon",()=>{
   assert.doesNotMatch(header,/game-portal-2026\.css|full-site-portal-2026\.css|visuals-2026\.css/);
 });
 
-test("footer exposes the redesigned site navigation",()=>{
-  assert.match(footer,/terminalFooterGrid/);
-  assert.match(footer,/terminalFooterWord/);
-  assert.match(footer,/\/downloads/);
-  assert.match(footer,/\/rankings/);
-  assert.match(footer,/\/wiki/);
-  assert.match(footer,/\/help/);
-  assert.match(footer,/\/login/);
+test("shared footer partial closes the document without rendering a footer",()=>{
+  assert.match(footer,/<\/body>/);
+  assert.match(footer,/<\/html>/);
+  assert.doesNotMatch(footer,/<footer|siteFooter|terminalFooter|terminalFooterGrid/);
+  assert.doesNotMatch(footer,/\/downloads|\/rankings|\/wiki|\/help|\/login/);
 });
 
 test("homepage stops after the five-tile signal strip",()=>{
@@ -88,6 +86,20 @@ test("terminal redesign uses one dark compact visual contract across routes",()=
   assert.match(unified,/@media\(max-width:960px\)/);
   assert.match(unified,/@media\(max-width:640px\)/);
   assert.doesNotMatch(unified,/@import|https?:\/\//i);
+});
+
+test("inner public pages use the final app-clean layer",()=>{
+  assert.match(innerClean,/body\.siteRoute:not\(\.route-home\):not\(\.route-admin\)/);
+  assert.match(innerClean,/Compact the old marketing-style hero treatment/);
+  assert.match(innerClean,/\.pageHeroVisual/);
+  assert.match(innerClean,/display:none!important/);
+  assert.match(innerClean,/body\.route-news \.newsStory/);
+  assert.match(innerClean,/body\.route-downloads \.contentGrid/);
+  assert.match(innerClean,/body\.route-rankings \.rankingPodium/);
+  assert.match(innerClean,/body\.route-wiki \.wikiCatalogGrid/);
+  assert.match(innerClean,/body\.route-login \.authGrid/);
+  assert.match(innerClean,/body\.siteRoute \.siteFooter/);
+  assert.doesNotMatch(innerClean,/@import|https?:\/\//i);
 });
 
 test("wiki is a live WZ and MySQL server-data encyclopedia",()=>{
