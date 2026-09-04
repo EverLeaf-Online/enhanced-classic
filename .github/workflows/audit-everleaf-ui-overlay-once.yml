@@ -44,13 +44,19 @@ jobs:
           & dotnet run --project $proj -c Release --no-build -- $input $out --patch-version=83 --probe-patch-range=1:250 EverLeaf_UI.wz
           if ($LASTEXITCODE -ne 0) { throw 'Overlay export failed' }
           $files=Get-ChildItem $out -Recurse -File -Filter '*.xml'
-          $lines=@('# Embedded EverLeaf UI overlay structure','',"- Source: `client/ezorsia/ezorsia/EzorsiaV2_UI.wz`", "- XML image count: $($files.Count)",'','## Images')
-          foreach($f in $files){ $lines += "- ``$($f.FullName.Substring($out.Length+1).Replace('\','/'))``" }
+          $lines = New-Object System.Collections.Generic.List[string]
+          $lines.Add('# Embedded EverLeaf UI overlay structure')
+          $lines.Add('')
+          $lines.Add('- Source: `client/ezorsia/ezorsia/EzorsiaV2_UI.wz`')
+          $lines.Add("- XML image count: $($files.Count)")
+          $lines.Add('')
+          $lines.Add('## Images')
+          foreach($f in $files){ $lines.Add('- `' + $f.FullName.Substring($out.Length+1).Replace('\','/') + '`') }
           $login=$files | Where-Object {$_.Name -eq 'Login.img.xml'} | Select-Object -First 1
           if($login){
-            $lines += ''; $lines += '## Login selector markers'
+            $lines.Add(''); $lines.Add('## Login selector markers')
             $xml=Get-Content $login.FullName -Raw
-            foreach($term in @('RaceSelect','Evan','Dual','Resistance','NewChar')){ $count=([regex]::Matches($xml,$term,'IgnoreCase')).Count; $lines += "- $term`: $count" }
+            foreach($term in @('RaceSelect','Evan','Dual','Resistance','NewChar')){ $count=([regex]::Matches($xml,$term,'IgnoreCase')).Count; $lines.Add("- ${term}: $count") }
           }
           $lines | Set-Content -Encoding utf8 docs/CLIENT_UI_OVERLAY_STRUCTURE.md
           Get-Content docs/CLIENT_UI_OVERLAY_STRUCTURE.md
