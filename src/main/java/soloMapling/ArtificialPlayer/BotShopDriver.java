@@ -45,6 +45,7 @@ public final class BotShopDriver {
         if (bot.getPosition().distanceSq(npc.getPosition()) > (double) INTERACT_RANGE * INTERACT_RANGE) return ShopResult.fail("shop-too-far");
 
         Shop shop = ShopFactory.getInstance().getShopForNPC(npcId);
+        if (shop == null) return ShopResult.fail("shop-unavailable");
         short slot = shop.findSlotByItemId(itemId);
         if (slot < 0) return ShopResult.fail("item-not-sold");
         InventoryType type = ItemConstants.getInventoryType(itemId);
@@ -66,6 +67,7 @@ public final class BotShopDriver {
         if (item == null) return ShopResult.fail("empty-slot");
 
         Shop shop = ShopFactory.getInstance().getShopForNPC(npcId);
+        if (shop == null) return ShopResult.fail("shop-unavailable");
         int itemId = item.getItemId();
         int before = bot.getInventory(type).countById(itemId);
         int mesosBefore = bot.getMeso();
@@ -85,6 +87,7 @@ public final class BotShopDriver {
         if (item == null || !ItemConstants.isRechargeable(item.getItemId())) return ShopResult.fail("not-rechargeable");
 
         Shop shop = ShopFactory.getInstance().getShopForNPC(npcId);
+        if (shop == null) return ShopResult.fail("shop-unavailable");
         int before = item.getQuantity();
         int mesosBefore = bot.getMeso();
         shop.sendShop(bot.getClient());
@@ -102,6 +105,7 @@ public final class BotShopDriver {
 
         NPC npc = BotNpcDriver.nearestNpc(bot, true);
         if (npc == null) return RestockResult.none("no-shop-on-map");
+        if (npc.getPosition() == null) return RestockResult.none("shop-unavailable");
         if (bot.getPosition().distanceSq(npc.getPosition()) > (double) INTERACT_RANGE * INTERACT_RANGE) {
             GCMovement.move(bot, npc.getPosition().x, npc.getPosition().y);
             return new RestockResult(true, true, false, npc.getId(), 0, 0, "moving-to-shop");
@@ -148,7 +152,7 @@ public final class BotShopDriver {
         ShopItem best = shop.getItems().stream()
                 .filter(item -> item.getPrice() > 0 && !ItemConstants.isRechargeable(item.getItemId()))
                 .filter(item -> {
-                    StatEffect effect = ii.getItemEffect(item.getItemId());
+                    StatEffect effect = safeItemEffect(ii, item.getItemId());
                     if (effect == null) return false;
                     boolean healsHp = effect.getHp() > 0 || effect.getHpRate() > 0.0;
                     boolean healsMp = effect.getMp() > 0 || effect.getMpRate() > 0.0;
@@ -172,14 +176,24 @@ public final class BotShopDriver {
         ItemInformationProvider ii = ItemInformationProvider.getInstance();
         for (Item item : bot.getInventory(InventoryType.USE).list()) {
             if (item == null || item.getQuantity() <= 0) continue;
-            StatEffect effect = ii.getItemEffect(item.getItemId());
+            StatEffect effect = safeItemEffect(ii, item.getItemId());
             if (effect != null) {
                 if (effect.getHp() > 0 || effect.getHpRate() > 0.0) hp += item.getQuantity();
                 if (effect.getMp() > 0 || effect.getMpRate() > 0.0) mp += item.getQuantity();
             }
         }
-        boolean needsAmmo = needsRechargeableForJob(bot.getJob().getId());
+        boolean needsAmmo = bot.getJob() != null && needsRechargeableForJob(bot.getJob().getId());
         return new Supply(hp, mp, needsAmmo && !hasRechargeable(bot));
+    }
+
+    private static StatEffect safeItemEffect(ItemInformationProvider ii, int itemId) {
+        try {
+            return ii.getItemEffect(itemId);
+        } catch (RuntimeException ex) {
+            // Imported/legacy items may have an item record but no usable spec/effect node.
+            // Autonomous QA treats them as non-restorative instead of failing the hunter.
+            return null;
+        }
     }
 
     private static boolean hasRechargeable(Character bot) {
