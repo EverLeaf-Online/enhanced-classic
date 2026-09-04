@@ -12,10 +12,11 @@
     const canonicalUrl=baseSiteUrl+canonicalPath;
     const isAdminPath=canonicalPath.startsWith('/admin');
     const isHome=canonicalPath==='/';
+    const routeKey=isHome?'home':(canonicalPath.split('/').filter(Boolean)[0]||'page').replace(/[^a-z0-9-]/gi,'').toLowerCase();
   %>
   <title><%=pageTitle%></title>
   <meta name="description" content="<%=pageDescription%>">
-  <meta name="theme-color" content="#255d50">
+  <meta name="theme-color" content="#173f38">
   <meta name="color-scheme" content="light">
   <meta name="application-name" content="<%=brand.name%>">
   <meta name="robots" content="<%=isAdminPath?'noindex,nofollow':'index,follow'%>">
@@ -60,10 +61,12 @@
   <link rel="stylesheet" href="/css/site-polish-2026.css?v=1">
   <link rel="stylesheet" href="/css/visuals-2026.css?v=1">
   <link rel="stylesheet" href="/css/game-portal-2026.css?v=1">
+  <link rel="stylesheet" href="/css/full-site-portal-2026.css?v=1">
+  <link rel="stylesheet" href="/css/refero-everleaf-2026.css?v=1">
   <style id="everleaf-nav-cleanup">.nav::after{display:none!important;content:none!important;height:0!important;background:none!important}</style>
   <script src="/js/site.js?v=1" defer></script>
 </head>
-<body class="<%=isHome?'homeRoute':'innerRoute'%>">
+<body class="<%=isHome?'homeRoute':'innerRoute'%> route-<%=routeKey%>">
 <a class="skipLink" href="#main-content">Skip to content</a>
 <%
   const navLinks=[
