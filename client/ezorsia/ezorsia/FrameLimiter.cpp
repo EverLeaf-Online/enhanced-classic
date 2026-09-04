@@ -1,12 +1,15 @@
 #include "stdafx.h"
 #include "FrameLimiter.h"
-#include "AutoTypes.h"
 #include "Memory.h"
 #include "INIReader.h"
 #include "CrashDiagnostics.h"
 
 namespace {
-_sub_777326_t gRenderFrameOriginal = _sub_777326;
+struct IWzGr2D;
+using RenderFrame_t = HRESULT(__thiscall*)(IWzGr2D*);
+constexpr DWORD kRenderFrameAddress = 0x00777326;
+RenderFrame_t gRenderFrameOriginal = reinterpret_cast<RenderFrame_t>(kRenderFrameAddress);
+
 LARGE_INTEGER gCounterFrequency = {};
 LONGLONG gNextFrameTick = 0;
 int gForegroundFpsCap = 60;
