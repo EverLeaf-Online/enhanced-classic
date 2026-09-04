@@ -29,6 +29,8 @@ jobs:
           cache: 'maven'
       - name: Apply Everleaf configuration
         run: python3 tools/apply_everleaf_config.py
+      - name: Audit production contract
+        run: python3 tools/audit_production_contract.py
       - name: Apply Everleaf source transforms
         run: |
           python3 tools/apply_level_cap_250.py
