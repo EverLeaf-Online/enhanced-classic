@@ -11,11 +11,15 @@ const publicViews = [
   'news.ejs','page.ejs','post.ejs','rankings.ejs','recover.ejs','register.ejs','terms.ejs','wiki.ejs'
 ];
 
-test('all core public views use the shared header and footer portal chrome', () => {
+test('all core public views use the shared header while the homepage intentionally ends at the signal strip', () => {
   for (const file of publicViews) {
     const source = read(`src/views/${file}`);
     assert.match(source, /include\("partials\/header"/i, `${file} should use shared portal header`);
-    assert.match(source, /include\("partials\/footer"/i, `${file} should use shared portal footer`);
+    if (file === 'home.ejs') {
+      assert.doesNotMatch(source, /include\("partials\/footer"/i, 'home.ejs should not render the shared footer');
+    } else {
+      assert.match(source, /include\("partials\/footer"/i, `${file} should use shared portal footer`);
+    }
   }
 });
 
