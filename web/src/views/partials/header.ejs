@@ -13,6 +13,7 @@
     const isAdminPath=canonicalPath.startsWith('/admin');
     const isHome=canonicalPath==='/';
     const routeKey=isHome?'home':(canonicalPath.split('/').filter(Boolean)[0]||'page').replace(/[^a-z0-9-]/gi,'').toLowerCase();
+    const hasPlayer=(typeof sessionPlayer!=='undefined'&&Boolean(sessionPlayer));
   %>
   <title><%=pageTitle%></title>
   <meta name="description" content="<%=pageDescription%>">
@@ -68,6 +69,7 @@
     <link rel="stylesheet" href="/css/wiki-art-fix-2026.css?v=1">
     <script src="/js/wiki-art.js?v=1" defer></script>
   <% } %>
+  <link rel="stylesheet" href="/css/public-polish-2026.css?v=1">
   <script src="/js/site.js?v=2" defer></script>
 </head>
 <body class="siteRoute route-<%=routeKey%><%=isAdminPath?' route-admin':''%>">
@@ -82,5 +84,21 @@
   <div role="status" class="siteBanner announcementBanner"><div class="wrap"><strong><%=activeAnnouncement.title%></strong><% if(activeAnnouncement.body){ %><span><%=activeAnnouncement.body%></span><% } %></div></div>
 <% } else if(fallbackAnnouncement){ %>
   <div role="status" class="siteBanner announcementBanner"><div class="wrap"><span><%=fallbackAnnouncement%></span></div></div>
+<% } %>
+<% if(!isHome&&!isAdminPath){ %>
+  <nav class="publicChrome" aria-label="EverLeaf website navigation">
+    <div class="wrap publicChromeInner">
+      <a class="publicChromeBrand" href="/" aria-label="EverLeaf home"><img src="/assets/everleaf-remaster.svg" alt=""><span>EverLeaf</span></a>
+      <div class="publicChromeLinks">
+        <a href="/">Home</a>
+        <a class="<%=routeKey==='news'?'active':''%>" href="/news">News</a>
+        <a class="<%=routeKey==='downloads'?'active':''%>" href="/downloads">Download</a>
+        <a class="<%=routeKey==='rankings'?'active':''%>" href="/rankings">Rankings</a>
+        <a class="<%=routeKey==='wiki'?'active':''%>" href="/wiki">Wiki</a>
+        <a class="<%=routeKey==='help'?'active':''%>" href="/help">Help</a>
+        <a class="publicChromeAccount <%=routeKey==='account'||routeKey==='login'||routeKey==='register'||routeKey==='recover'?'active':''%>" href="<%=hasPlayer?'/account':'/login'%>"><%=hasPlayer?'Account':'Sign in'%></a>
+      </div>
+    </div>
+  </nav>
 <% } %>
 <div id="main-content" class="siteContent" tabindex="-1">
