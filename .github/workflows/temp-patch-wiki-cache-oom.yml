@@ -1,0 +1,93 @@
+name: Temporary wiki cache OOM patch runner
+
+on:
+  push:
+    branches: [hotfix/wiki-cache-oom]
+    paths:
+      - '.github/workflows/temp-patch-wiki-cache-oom.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: hotfix/wiki-cache-oom
+          fetch-depth: 0
+
+      - name: Bound parsed WZ XML cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('web/src/services/wikiDataService.js')
+          text = p.read_text()
+          old = '''function readXml(file) {
+            const full = path.resolve(file);
+            let stat;
+            try { stat = fs.statSync(full); } catch { return null; }
+            const cached = state.parsedFiles.get(full);
+            if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) return cached.document;
+            const document = parseWzXmlText(fs.readFileSync(full, "utf8"));
+            state.parsedFiles.set(full, { mtimeMs: stat.mtimeMs, size: stat.size, document });
+            return document;
+          }
+          '''
+          new = '''const PARSED_FILE_CACHE_MAX = Math.max(8, Math.min(128, Number(process.env.WIKI_PARSED_FILE_CACHE_MAX || 24)));
+
+          function touchParsedFileCache(full, entry) {
+            if (state.parsedFiles.has(full)) state.parsedFiles.delete(full);
+            state.parsedFiles.set(full, entry);
+            while (state.parsedFiles.size > PARSED_FILE_CACHE_MAX) {
+              const oldest = state.parsedFiles.keys().next().value;
+              if (oldest == null) break;
+              state.parsedFiles.delete(oldest);
+            }
+          }
+
+          function readXml(file) {
+            const full = path.resolve(file);
+            let stat;
+            try { stat = fs.statSync(full); } catch { return null; }
+            const cached = state.parsedFiles.get(full);
+            if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+              touchParsedFileCache(full, cached);
+              return cached.document;
+            }
+            const document = parseWzXmlText(fs.readFileSync(full, "utf8"));
+            touchParsedFileCache(full, { mtimeMs: stat.mtimeMs, size: stat.size, document });
+            return document;
+          }
+          '''
+          if 'PARSED_FILE_CACHE_MAX' in text:
+              print('Cache bound already present; no source change needed.')
+          else:
+              if old not in text:
+                  raise SystemExit('Expected readXml block not found; refusing unsafe patch.')
+              p.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Test web
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd web
+          npm ci
+          npm test
+
+      - name: Commit source patch and remove temporary runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/temp-patch-wiki-cache-oom.yml
+          git add web/src/services/wikiDataService.js
+          git commit -m 'fix(web): bound parsed WZ cache to prevent OOM crashes'
+          git push origin HEAD:hotfix/wiki-cache-oom
