@@ -1,4 +1,5 @@
 name: Check EverLeaf Web CMS
+# Canonical reconciliation gate: keep web/CMS validation attached to master promotions.
 
 on:
   push:
