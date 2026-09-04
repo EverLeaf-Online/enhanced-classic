@@ -35,8 +35,10 @@ test("global navigation loads the unified Maple remaster design system",()=>{
   assert.match(header,/maple-jobs\.css/);
   assert.match(header,/maple-final\.css/);
   assert.match(header,/rankings-remaster\.css/);
+  assert.match(header,/rankings-live\.css/);
   assert.match(header,/home-polish\.css/);
   assert.match(header,/wiki-remaster\.css/);
+  assert.match(header,/wiki-cms\.css/);
   assert.match(header,/uiux-2026\.css/);
   assert.match(header,/maple-remaster-admin\.css/);
   assert.doesNotMatch(header,/design-v2\.css/);
@@ -109,12 +111,13 @@ test("homepage class guide uses clean centered local artwork",()=>{
   for(const asset of ["launcher","trophy","journal","community","account"]) assert.match(home,new RegExp(`/assets/ui/${asset}\\.svg`));
 });
 
-test("wiki is a searchable library-backed knowledge database",()=>{
+test("wiki is a searchable CMS-backed knowledge database",()=>{
   assert.match(wiki,/EVERLEAF WIKI/);
   assert.match(wiki,/wikiSearch/);
-  assert.match(wiki,/Browse database/);
-  assert.match(wiki,/Library-backed/);
-  assert.match(wiki,/entry\.source/);
+  assert.match(wiki,/Browse the Wiki/);
+  assert.match(wiki,/CMS-backed/);
+  assert.match(wiki,/entry\.sourceDoc\|\|entry\.source/);
+  assert.match(wiki,/entry\.updatedAt/);
   assert.doesNotMatch(wiki,/Wiki is being built/);
 });
 
