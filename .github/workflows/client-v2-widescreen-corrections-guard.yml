@@ -1,0 +1,65 @@
+name: Client v2 widescreen corrections guard
+
+on:
+  pull_request:
+    branches: [release-dev, master]
+    paths:
+      - "client/ezorsia/ezorsia/WidescreenCorrections.h"
+      - "client/ezorsia/ezorsia/dinput8.cpp"
+      - ".github/workflows/client-v2-widescreen-corrections-guard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  widescreen-contract:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify owner-backed widescreen correction invariants
+        shell: pwsh
+        run: |
+          $fix = Get-Content "client/ezorsia/ezorsia/WidescreenCorrections.h" -Raw
+          $dinput = Get-Content "client/ezorsia/ezorsia/dinput8.cpp" -Raw
+          $client = Get-Content "client/ezorsia/ezorsia/Client.cpp" -Raw
+
+          foreach ($required in @(
+            'kCWndHorizontalLowerBound = 0x009DFCF3',
+            'kCWndVerticalLowerBound = 0x009DFE6B',
+            'kLimitedViewDarkHeight = 0x0055B885',
+            'horizontalLower == Client::m_nGameHeight',
+            'verticalLower == Client::m_nGameWidth',
+            'limitedViewHeight == Client::m_nGameWidth',
+            'static_cast<unsigned int>(-Client::m_nGameWidth)',
+            'static_cast<unsigned int>(-Client::m_nGameHeight)',
+            'static_cast<unsigned int>(Client::m_nGameHeight)',
+            'widescreen correction preflight mismatch'
+          )) {
+            if (-not $fix.Contains($required)) { throw "Missing widescreen invariant: $required" }
+          }
+
+          # Preserve evidence that these corrections still target real inherited
+          # wrong-axis writes. If upstream Client.cpp changes, this guard forces a
+          # re-review instead of silently applying stale post-patch assumptions.
+          foreach ($legacy in @(
+            'Memory::WriteInt(dwViewPortHeight + 3, m_nGameHeight)',
+            'Memory::WriteInt(dwViewPortWidth + 3, m_nGameWidth)',
+            'Memory::WriteInt(0x0055B884 + 1, m_nGameWidth)'
+          )) {
+            if (-not $client.Contains($legacy)) { throw "Inherited HD write changed; re-audit correction: $legacy" }
+          }
+
+          if (-not $dinput.Contains('WidescreenCorrections::Apply();')) {
+            throw "Verified corrections are not invoked after normal Client v2 bootstrap"
+          }
+          if (-not $dinput.Contains('MainFunc invokes this after Client::UpdateResolution()')) {
+            throw "Correction invocation ordering is no longer documented"
+          }
+
+          # Early naked proxy exports must remain resolver/launcher-only; geometry
+          # correction belongs to the normal post-resolution CreateHook path.
+          $directInputExport = [regex]::Match($dinput, 'void DirectInput8Create\(\)[\s\S]*?^\}', 'Multiline').Value
+          $joystickExport = [regex]::Match($dinput, 'void GetdfDIJoystick\(\)[\s\S]*?^\}', 'Multiline').Value
+          if ($directInputExport.Contains('WidescreenCorrections')) { throw "Early DirectInput export applies memory corrections" }
+          if ($joystickExport.Contains('WidescreenCorrections')) { throw "Early joystick export applies memory corrections" }
