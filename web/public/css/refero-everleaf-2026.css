@@ -1,0 +1,474 @@
+/* EverLeaf Refero-informed redesign — September 2026
+   Storybook field journal + classic MMORPG portal. Uses only EverLeaf-owned/local assets. */
+
+:root{
+  --el-ink:#173f38;
+  --el-ink-2:#2f5b52;
+  --el-paper:#fbf6e9;
+  --el-paper-2:#f2ead7;
+  --el-card:#fffdf5;
+  --el-line:#d7cfb7;
+  --el-leaf:#59ad62;
+  --el-leaf-deep:#347b49;
+  --el-mint:#cce8ce;
+  --el-sky:#dcefed;
+  --el-gold:#e5bd5d;
+  --el-peach:#f2b18e;
+  --el-shadow:0 1px 0 rgba(255,255,255,.82) inset,0 18px 50px rgba(39,75,58,.10);
+  --el-shadow-soft:0 10px 26px rgba(39,75,58,.08);
+  --el-serif:Georgia,"Times New Roman",serif;
+  --el-sans:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+html{background:var(--el-paper);scroll-behavior:smooth}
+body:not(.route-admin){
+  margin:0;
+  background:
+    radial-gradient(circle at 7% 4%,rgba(204,232,206,.55),transparent 24rem),
+    radial-gradient(circle at 94% 12%,rgba(220,239,237,.62),transparent 25rem),
+    var(--el-paper)!important;
+  color:var(--el-ink-2)!important;
+  font-family:var(--el-sans)!important;
+  -webkit-font-smoothing:antialiased;
+}
+body:not(.route-admin) h1,
+body:not(.route-admin) h2,
+body:not(.route-admin) .authIntro h1,
+body:not(.route-admin) .authCard h2,
+body:not(.route-admin) .featurePanel>h2,
+body:not(.route-admin) .paperCard>h2{
+  font-family:var(--el-serif)!important;
+  color:var(--el-ink)!important;
+  letter-spacing:-.038em!important;
+  font-weight:700!important;
+}
+body:not(.route-admin) a{color:var(--el-leaf-deep)}
+body:not(.route-admin) .wrap{width:min(1200px,calc(100% - 40px))!important}
+body:not(.route-admin) .muted{color:#6c7c72!important}
+body:not(.route-admin) .pageEyebrow,
+body:not(.route-admin) .kicker{
+  color:var(--el-leaf-deep)!important;
+  font:800 10px/1.25 var(--el-sans)!important;
+  letter-spacing:.13em!important;
+  text-transform:uppercase!important;
+}
+
+/* Navigation ---------------------------------------------------------------- */
+body:not(.route-admin) .worldRibbon{
+  min-height:31px!important;
+  background:var(--el-ink)!important;
+  border:0!important;
+  color:#f8f2df!important;
+  font-size:10px!important;
+  letter-spacing:.025em;
+}
+body:not(.route-admin) .worldRibbon a{color:#f8f2df!important;opacity:.78}
+body:not(.route-admin) .worldRibbon a:hover{opacity:1}
+body:not(.route-admin):not(.homeRoute) .nav{
+  position:sticky!important;top:0!important;z-index:1000!important;
+  padding:0!important;
+  background:rgba(251,246,233,.94)!important;
+  border-bottom:1px solid rgba(122,128,98,.20)!important;
+  box-shadow:none!important;
+  backdrop-filter:blur(16px) saturate(1.05)!important;
+}
+body:not(.route-admin) .navin{
+  min-height:78px!important;
+  grid-template-columns:210px 1fr auto!important;
+  gap:18px!important;
+}
+body:not(.route-admin) .brandImage img{width:190px!important;max-height:58px!important}
+body:not(.route-admin) .desktopLinks{height:78px!important;gap:1px!important}
+body:not(.route-admin) .desktopLinks>a:not(.btn){
+  min-height:42px!important;
+  height:auto!important;
+  margin:auto 1px!important;
+  padding:0 13px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  border:0!important;
+  border-radius:999px!important;
+  color:#557067!important;
+  background:transparent!important;
+  font:800 10px/1 var(--el-sans)!important;
+  letter-spacing:.075em!important;
+  transition:background-color .18s ease,color .18s ease,transform .18s ease!important;
+}
+body:not(.route-admin) .desktopLinks>a:not(.btn):hover{
+  background:rgba(204,232,206,.55)!important;color:var(--el-ink)!important;transform:translateY(-1px)
+}
+body:not(.route-admin) .desktopLinks>a:not(.btn).active{
+  background:var(--el-mint)!important;color:var(--el-ink)!important;box-shadow:none!important
+}
+body:not(.route-admin) .desktopLinks>a:not(.btn).active:before{display:none!important}
+body:not(.route-admin) .navActions{gap:8px!important}
+body:not(.route-admin) .navActions .btn{min-height:42px!important}
+body:not(.route-admin) .btn{
+  min-height:46px!important;
+  padding:0 19px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  border:1px solid #cfc6ae!important;
+  border-radius:999px!important;
+  background:var(--el-card)!important;
+  color:var(--el-ink)!important;
+  box-shadow:0 3px 0 rgba(103,98,69,.08)!important;
+  font:800 11px/1 var(--el-sans)!important;
+  letter-spacing:.045em!important;
+  text-decoration:none!important;
+  transition:transform .18s ease,box-shadow .18s ease,background-color .18s ease,border-color .18s ease!important;
+}
+body:not(.route-admin) .btn:hover{transform:translateY(-1px);box-shadow:0 7px 18px rgba(39,75,58,.10)!important}
+body:not(.route-admin) .btn.primary{
+  background:var(--el-leaf)!important;
+  border-color:var(--el-leaf-deep)!important;
+  color:#fffdf3!important;
+  box-shadow:0 4px 0 #397d48,0 9px 22px rgba(49,112,66,.18)!important;
+}
+body:not(.route-admin) .btn.primary:hover{background:#64b96d!important}
+body:not(.route-admin) .btn.ghost{background:rgba(255,253,245,.42)!important}
+body:not(.route-admin) .btn.small{min-height:40px!important;padding:0 15px!important;font-size:10px!important}
+
+/* Homepage navigation and hero --------------------------------------------- */
+body.homeRoute:not(.route-admin) .nav{
+  position:absolute!important;inset:0 0 auto!important;z-index:1000!important;
+  padding:18px 20px 0!important;background:transparent!important;border:0!important;box-shadow:none!important;pointer-events:none
+}
+body.homeRoute:not(.route-admin) .nav .navin{
+  min-height:76px!important;width:min(1240px,calc(100% - 10px))!important;
+  padding:0 16px 0 20px!important;
+  border:1px solid rgba(255,253,239,.66)!important;
+  border-radius:999px!important;
+  background:rgba(251,246,233,.86)!important;
+  box-shadow:0 15px 44px rgba(23,63,56,.15)!important;
+  backdrop-filter:blur(16px)!important;
+  pointer-events:auto
+}
+body.homeRoute:not(.route-admin) .nav.navScrolled .navin{background:rgba(251,246,233,.97)!important;transform:translateY(-2px)}
+body.homeRoute:not(.route-admin) .mapleHero{
+  min-height:min(900px,94vh)!important;
+  border:0!important;
+  background:#b7ddcf!important;
+  isolation:isolate!important;
+}
+body.homeRoute:not(.route-admin) .mapleHeroBg{
+  inset:0!important;
+  background-position:center 40%!important;
+  filter:saturate(.98) contrast(.98) brightness(1.06)!important;
+  transform:scale(1.01)!important;
+  animation:none!important;
+}
+body.homeRoute:not(.route-admin) .mapleHeroShade{
+  background:
+    linear-gradient(90deg,rgba(23,63,56,.76) 0%,rgba(23,63,56,.54) 34%,rgba(23,63,56,.12) 67%,rgba(23,63,56,.03) 100%),
+    linear-gradient(180deg,rgba(23,63,56,.04),rgba(23,63,56,.18))!important;
+}
+body.homeRoute:not(.route-admin) .mapleHero:before{
+  content:"";position:absolute;z-index:2;inset:auto -3% -1px;height:120px;pointer-events:none;
+  background:var(--el-paper);
+  clip-path:polygon(0 62%,7% 46%,16% 55%,27% 35%,39% 52%,51% 31%,64% 51%,74% 37%,87% 55%,100% 39%,100% 100%,0 100%)
+}
+body.homeRoute:not(.route-admin) .mapleHero:after{display:none!important}
+body.homeRoute:not(.route-admin) .mapleHeroInner{
+  min-height:min(900px,94vh)!important;
+  grid-template-columns:minmax(0,1fr) 330px!important;
+  gap:62px!important;
+  padding-top:124px!important;padding-bottom:118px!important
+}
+body.homeRoute:not(.route-admin) .mapleHeroCopy{max-width:700px!important;margin-left:0!important;padding:30px 0!important}
+body.homeRoute:not(.route-admin) .mapleHeroTag{
+  width:max-content!important;padding:8px 13px!important;border:1px solid rgba(251,246,233,.35)!important;border-radius:999px!important;
+  background:rgba(23,63,56,.32)!important;color:#f6df8e!important;backdrop-filter:none!important;font:800 10px/1 var(--el-sans)!important;letter-spacing:.12em!important
+}
+body.homeRoute:not(.route-admin) .mapleHeroCopy .heroBrand{width:clamp(265px,30vw,390px)!important;margin:22px 0 12px!important;filter:drop-shadow(0 5px 8px rgba(23,63,56,.20))!important}
+body.homeRoute:not(.route-admin) .mapleHeroCopy h1{
+  max-width:700px!important;margin:0 0 20px!important;color:#fffdf4!important;
+  font-family:var(--el-serif)!important;font-size:clamp(54px,6.2vw,94px)!important;line-height:.91!important;letter-spacing:-.06em!important;text-shadow:0 2px 18px rgba(23,63,56,.20)
+}
+body.homeRoute:not(.route-admin) .mapleHeroCopy h1 em{display:block;color:#d7efa7!important;font-weight:400!important}
+body.homeRoute:not(.route-admin) .mapleHeroCopy p{max-width:620px!important;color:#fbf8eb!important;font-size:16px!important;line-height:1.72!important}
+body.homeRoute:not(.route-admin) .mapleHeroActions{gap:9px!important;margin-top:29px!important}
+body.homeRoute:not(.route-admin) .mapleHeroActions .btn{min-height:50px!important}
+body.homeRoute:not(.route-admin) .mapleHeroActions .btn.ghost{color:#fffdf3!important;border-color:rgba(255,253,243,.35)!important;background:rgba(23,63,56,.24)!important}
+body.homeRoute:not(.route-admin) .mapleHeroFacts{margin-top:25px!important;gap:8px!important}
+body.homeRoute:not(.route-admin) .mapleHeroFacts span{
+  padding:7px 10px!important;border:1px solid rgba(255,253,243,.22)!important;border-radius:999px!important;background:rgba(23,63,56,.25)!important;color:#f7f2df!important;font-size:9px!important
+}
+body.homeRoute:not(.route-admin) .mapleHeroFacts span:before{color:var(--el-gold)!important}
+body.homeRoute:not(.route-admin) .mapleLive{
+  align-self:end!important;margin-bottom:58px!important;padding:0!important;
+  border:1px solid rgba(255,255,255,.70)!important;border-radius:30px!important;
+  background:rgba(255,253,245,.94)!important;box-shadow:0 30px 90px rgba(23,63,56,.22)!important;backdrop-filter:none!important;overflow:hidden!important
+}
+body.homeRoute:not(.route-admin) .mapleLiveHead{padding:18px 19px!important;background:var(--el-ink)!important;border:0!important}
+body.homeRoute:not(.route-admin) .mapleLiveGrid{padding:10px!important;gap:7px!important}
+body.homeRoute:not(.route-admin) .mapleLiveMetric{padding:13px!important;border:0!important;border-radius:18px!important;background:#f7f0df!important}
+body.homeRoute:not(.route-admin) .mapleLiveMetric:nth-child(2){background:var(--el-mint)!important}
+body.homeRoute:not(.route-admin) .mapleLiveMetric:nth-child(3){background:#f7e9b8!important}
+body.homeRoute:not(.route-admin) .mapleLiveMetric:nth-child(4){background:var(--el-sky)!important}
+body.homeRoute:not(.route-admin) .mapleLiveFoot{padding:12px 16px 5px!important;border:0!important;background:transparent!important}
+body.homeRoute:not(.route-admin) .liveRefresh{padding:7px 16px 15px!important}
+body.homeRoute:not(.route-admin) .mapleHeroCharacters .left{bottom:2px!important;left:max(-95px,calc(50% - 820px))!important;width:min(29vw,420px)!important}
+body.homeRoute:not(.route-admin) .mapleHeroCharacters .right{bottom:8px!important;right:max(-50px,calc(50% - 800px))!important;width:min(29vw,440px)!important}
+
+/* Quick action strip -------------------------------------------------------- */
+body.homeRoute:not(.route-admin) .mapleQuick{position:relative!important;z-index:8!important;margin:-38px 0 0!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important}
+body.homeRoute:not(.route-admin) .mapleQuick .wrap{
+  width:min(1040px,calc(100% - 42px))!important;
+  padding:8px!important;border:1px solid var(--el-line)!important;border-radius:30px!important;background:var(--el-card)!important;box-shadow:var(--el-shadow)!important
+}
+body.homeRoute:not(.route-admin) .mapleQuick a{min-height:82px!important;padding:11px 13px!important;border:0!important;border-radius:22px!important;transition:transform .18s ease,background-color .18s ease!important}
+body.homeRoute:not(.route-admin) .mapleQuick a:hover{transform:translateY(-2px);background:#f3ecd9!important}
+body.homeRoute:not(.route-admin) .mapleQuick a:nth-child(2){background:rgba(229,189,93,.14)!important}
+body.homeRoute:not(.route-admin) .mapleQuick a:nth-child(3){background:rgba(204,232,206,.36)!important}
+body.homeRoute:not(.route-admin) .mapleQuick a:nth-child(4){background:rgba(220,239,237,.55)!important}
+body.homeRoute:not(.route-admin) .mapleQuickIcon{width:44px!important;height:44px!important;border-radius:15px!important;background:var(--el-ink)!important;box-shadow:none!important}
+body.homeRoute:not(.route-admin) .mapleQuick strong{font-size:12px!important;color:var(--el-ink)!important}.mapleQuick small{font-size:9px!important}
+
+/* Homepage editorial sections --------------------------------------------- */
+body.homeRoute:not(.route-admin) .mapleHomeBody{padding:105px 0 110px!important;background:transparent!important}
+body:not(.route-admin) .sectionHead{margin-bottom:27px!important;align-items:end!important}
+body:not(.route-admin) .sectionHead h2,
+body:not(.route-admin) .mapleJobsHead h2,
+body:not(.route-admin) .homeJourneyHead h2{font-size:clamp(34px,4vw,56px)!important;line-height:1.02!important;margin:5px 0 0!important;max-width:760px!important}
+body:not(.route-admin) .sectionHead>a,
+body:not(.route-admin) .mapleJobsHead>a{font:800 10px/1 var(--el-sans)!important;letter-spacing:.08em!important;text-decoration:none!important}
+body.homeRoute:not(.route-admin) .homeJourney{
+  position:relative!important;margin:0 0 112px!important;padding:42px!important;border:1px solid var(--el-line)!important;border-radius:42px!important;
+  background:linear-gradient(135deg,#fffdf5 0 58%,#edf4df 58% 100%)!important;box-shadow:var(--el-shadow-soft)!important;overflow:hidden
+}
+body.homeRoute:not(.route-admin) .homeJourney:after{content:"";position:absolute;right:-50px;bottom:-70px;width:240px;height:240px;border:32px solid rgba(89,173,98,.10);border-radius:50%;pointer-events:none}
+body.homeRoute:not(.route-admin) .homeJourneyHead{display:grid!important;grid-template-columns:minmax(0,1.2fr) minmax(260px,.7fr)!important;gap:35px!important;align-items:end!important}
+body.homeRoute:not(.route-admin) .homeJourneyHead p{font-size:15px!important;line-height:1.7!important}
+body.homeRoute:not(.route-admin) .journeySteps{gap:10px!important;margin-top:30px!important}
+body.homeRoute:not(.route-admin) .journeyStep{padding:22px!important;border:1px solid rgba(110,121,91,.15)!important;border-radius:25px!important;background:rgba(255,253,245,.90)!important;box-shadow:none!important;transition:transform .18s ease,box-shadow .18s ease!important}
+body.homeRoute:not(.route-admin) .journeyStep:hover{transform:translateY(-3px);box-shadow:var(--el-shadow-soft)!important}
+body.homeRoute:not(.route-admin) .journeyStepIcon{width:54px!important;height:54px!important;border-radius:19px!important;background:var(--el-mint)!important}
+body.homeRoute:not(.route-admin) .journeyStep:nth-child(2) .journeyStepIcon{background:#f7e9b8!important}
+body.homeRoute:not(.route-admin) .journeyStep:nth-child(3) .journeyStepIcon{background:var(--el-sky)!important}
+body.homeRoute:not(.route-admin) .journeyStep strong{color:var(--el-ink)!important;font-size:15px!important}
+body.homeRoute:not(.route-admin) .journeyStep p{font-size:12px!important;line-height:1.65!important}
+body.homeRoute:not(.route-admin) .journeyStep small{color:var(--el-leaf-deep)!important}
+
+body.homeRoute:not(.route-admin) .homeFeatureGrid{gap:13px!important;margin-bottom:105px!important}
+body.homeRoute:not(.route-admin) .libraryFeatureCard{min-height:220px!important;padding:27px!important;border:1px solid var(--el-line)!important;border-radius:31px!important;background:var(--el-card)!important;box-shadow:none!important}
+body.homeRoute:not(.route-admin) .libraryFeatureCard:nth-child(2){background:#f5eccf!important}
+body.homeRoute:not(.route-admin) .libraryFeatureCard:nth-child(3){background:#e3f0e4!important}
+body.homeRoute:not(.route-admin) .libraryFeatureCard h3{color:var(--el-ink)!important;font-family:var(--el-serif)!important;font-size:25px!important;letter-spacing:-.025em!important}
+body.homeRoute:not(.route-admin) .everleafPromises{margin:0 -40px 110px!important;padding:70px 40px!important;border-radius:48px!important;background:var(--el-ink)!important;color:#f8f1dd!important;overflow:hidden!important}
+body.homeRoute:not(.route-admin) .everleafPromises .pageEyebrow{color:#bde1af!important}
+body.homeRoute:not(.route-admin) .everleafPromises h2{color:#fff8e4!important}
+body.homeRoute:not(.route-admin) .promiseGrid{gap:10px!important}
+body.homeRoute:not(.route-admin) .promiseCard{padding:26px!important;border:1px solid rgba(255,255,255,.12)!important;border-radius:26px!important;background:rgba(255,255,255,.055)!important;box-shadow:none!important}
+body.homeRoute:not(.route-admin) .promiseCard b{color:var(--el-gold)!important}.promiseCard h3{color:#fff8e4!important}.promiseCard p{color:#d9e2d5!important}
+
+body.homeRoute:not(.route-admin) .mapleJobs{margin-bottom:110px!important}
+body.homeRoute:not(.route-admin) .mapleJobsHead{margin-bottom:28px!important}
+body.homeRoute:not(.route-admin) .mapleJobsGrid{gap:12px!important}
+body.homeRoute:not(.route-admin) .mapleJobCard{border:1px solid var(--el-line)!important;border-radius:31px!important;background:var(--el-card)!important;box-shadow:none!important;overflow:hidden!important;transition:transform .2s ease,box-shadow .2s ease!important}
+body.homeRoute:not(.route-admin) .mapleJobCard:hover{transform:translateY(-4px);box-shadow:var(--el-shadow-soft)!important}
+body.homeRoute:not(.route-admin) .mapleJobPortrait{background:linear-gradient(180deg,var(--el-sky),#f8f2e2)!important}
+body.homeRoute:not(.route-admin) .mapleJobCard:nth-child(2n) .mapleJobPortrait{background:linear-gradient(180deg,var(--el-mint),#f8f2e2)!important}
+body.homeRoute:not(.route-admin) .mapleJobCard:nth-child(3n) .mapleJobPortrait{background:linear-gradient(180deg,#f5e5b8,#f8f2e2)!important}
+body.homeRoute:not(.route-admin) .mapleJobTitle h3{font-family:var(--el-serif)!important;color:var(--el-ink)!important;font-size:23px!important;letter-spacing:-.02em!important}
+body.homeRoute:not(.route-admin) .mapleSpecialJob{border:1px solid var(--el-line)!important;border-radius:32px!important;background:#f4edda!important;box-shadow:none!important}
+body.homeRoute:not(.route-admin) .cygnusFeature{background:linear-gradient(115deg,#e1eee4,#f4edda)!important}
+body.homeRoute:not(.route-admin) .aranFeature{background:#eef2e5!important}.evanFeature{background:#e5eff1!important}
+
+body.homeRoute:not(.route-admin) .mapleNewsGrid{gap:13px!important}
+body:not(.route-admin) .newsStory{border:0!important;border-radius:31px!important;background:var(--el-card)!important;box-shadow:var(--el-shadow-soft)!important;overflow:hidden!important}
+body:not(.route-admin) .newsStory img{aspect-ratio:16/9!important;object-fit:cover!important}
+body:not(.route-admin) .newsStoryBody{padding:24px!important}
+body:not(.route-admin) .newsStory h3{font-family:var(--el-serif)!important;color:var(--el-ink)!important;font-size:23px!important;letter-spacing:-.025em!important}
+
+/* Universal inner page framing -------------------------------------------- */
+body.innerRoute:not(.route-admin) .siteContent{min-height:72vh!important}
+body.innerRoute:not(.route-admin) .lightPage{background:transparent!important}
+body.innerRoute:not(.route-admin) .lightTitle,
+body.innerRoute:not(.route-admin) .wikiDataHero,
+body.innerRoute:not(.route-admin) .wikiListHero{
+  position:relative!important;overflow:hidden!important;
+  padding:76px 0 80px!important;
+  background:linear-gradient(135deg,#e4efe3 0 58%,#f3e9cf 58% 100%)!important;
+  border:0!important;border-bottom:1px solid var(--el-line)!important
+}
+body.innerRoute:not(.route-admin) .lightTitle:after,
+body.innerRoute:not(.route-admin) .wikiDataHero:after,
+body.innerRoute:not(.route-admin) .wikiListHero:after{
+  content:"";position:absolute;right:-70px;bottom:-95px;width:310px;height:310px;border:42px solid rgba(89,173,98,.13);border-radius:50%;pointer-events:none
+}
+body.innerRoute:not(.route-admin) .lightTitle h1,
+body.innerRoute:not(.route-admin) .wikiDataHero h1,
+body.innerRoute:not(.route-admin) .wikiListHero h1{
+  margin:8px 0 15px!important;font-size:clamp(45px,5.6vw,76px)!important;line-height:.94!important;color:var(--el-ink)!important;max-width:850px!important
+}
+body.innerRoute:not(.route-admin) .lightTitle p,
+body.innerRoute:not(.route-admin) .wikiDataHero p,
+body.innerRoute:not(.route-admin) .wikiListHero p{max-width:720px!important;font-size:16px!important;line-height:1.72!important;color:#4f695f!important}
+body.innerRoute:not(.route-admin) .pageHeroGrid{gap:45px!important;align-items:center!important}
+body.innerRoute:not(.route-admin) .pageHeroAside,
+body.innerRoute:not(.route-admin) .pageHeroVisual{
+  border:1px solid rgba(99,111,84,.18)!important;border-radius:31px!important;background:rgba(255,253,245,.72)!important;box-shadow:none!important;overflow:hidden!important
+}
+body.innerRoute:not(.route-admin) .pageHeroAside{padding:25px!important}
+body.innerRoute:not(.route-admin) .pageHeroAside strong{color:var(--el-ink)!important;font-family:var(--el-serif)!important;font-size:21px!important}
+body.innerRoute:not(.route-admin) .pageHeroVisual img{border-radius:0!important}
+body.innerRoute:not(.route-admin) .contentGrid,
+body.innerRoute:not(.route-admin) .helpGrid,
+body.innerRoute:not(.route-admin) .accountPage,
+body.innerRoute:not(.route-admin) .rankingsPageV2,
+body.innerRoute:not(.route-admin) .wikiCatalogSection,
+body.innerRoute:not(.route-admin) .wikiSearchResults{padding-top:55px!important;padding-bottom:80px!important}
+body.innerRoute:not(.route-admin) .featurePanel,
+body.innerRoute:not(.route-admin) .paperCard,
+body.innerRoute:not(.route-admin) .helpCard,
+body.innerRoute:not(.route-admin) .downloadCard{
+  border:1px solid var(--el-line)!important;border-radius:28px!important;background:var(--el-card)!important;box-shadow:var(--el-shadow-soft)!important
+}
+body.innerRoute:not(.route-admin) .featurePanel{padding:28px!important}
+body.innerRoute:not(.route-admin) .paperCard{padding:24px!important}
+
+/* Route-specific hero personalities --------------------------------------- */
+body.route-news .lightTitle{background:linear-gradient(135deg,#f4e9cb 0 58%,#e2efea 58% 100%)!important}
+body.route-downloads .lightTitle{background:linear-gradient(135deg,#d9ebd8 0 58%,#f2e5bd 58% 100%)!important}
+body.route-rankings .lightTitle{background:linear-gradient(135deg,#f6e8bb 0 55%,#dfece0 55% 100%)!important}
+body.route-wiki .wikiDataHero,body.route-wiki .wikiListHero{background:linear-gradient(135deg,#dcefed 0 58%,#e2ecd9 58% 100%)!important}
+body.route-help .lightTitle{background:linear-gradient(135deg,#e3eedc 0 55%,#f2d9c8 55% 100%)!important}
+body.route-account .lightTitle{background:linear-gradient(135deg,#dcefed 0 55%,#f2e5bd 55% 100%)!important}
+body.route-terms .lightTitle,body.route-rules .lightTitle,body.route-about .lightTitle{background:linear-gradient(135deg,#f3ead8 0 60%,#e1ede2 60% 100%)!important}
+
+/* News --------------------------------------------------------------------- */
+body.route-news .newsList{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:18px!important;padding:60px 0 86px!important}
+body.route-news .newsList .newsStory:first-child{grid-column:1/-1!important;display:grid!important;grid-template-columns:minmax(0,1.12fr) minmax(330px,.88fr)!important;min-height:360px!important}
+body.route-news .newsList .newsStory:first-child img{height:100%!important;aspect-ratio:auto!important}
+body.route-news .newsList .newsStory:first-child .newsStoryBody{padding:36px!important;display:flex!important;flex-direction:column!important;justify-content:center!important}
+body.route-news .newsList .newsStory:first-child h3{font-size:34px!important}
+
+/* Downloads ---------------------------------------------------------------- */
+body.route-downloads .contentGrid{grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr)!important;gap:22px!important}
+body.route-downloads .contentStack>.featurePanel:first-child{padding:34px!important;background:linear-gradient(135deg,#e3f0e4,#fff9ea)!important}
+body.route-downloads .downloadCard{padding:18px 20px!important;margin-bottom:10px!important;box-shadow:none!important;transition:transform .18s ease,box-shadow .18s ease!important}
+body.route-downloads .downloadCard:hover{transform:translateX(3px);box-shadow:var(--el-shadow-soft)!important}
+body.route-downloads .downloadIcon{width:54px!important;height:54px!important;border-radius:18px!important;background:var(--el-mint)!important}
+body.route-downloads .downloadGroupTitle{margin:31px 0 12px!important;color:var(--el-ink)!important;font-family:var(--el-serif)!important;font-size:24px!important}
+body.route-downloads aside .paperCard:nth-child(2){background:#edf3e5!important}.route-downloads aside .paperCard:nth-child(3){background:#f7ebc8!important}
+
+/* Rankings ----------------------------------------------------------------- */
+body.route-rankings .rankingStats{gap:9px!important}
+body.route-rankings .rankingStats>div{padding:20px!important;border:1px solid var(--el-line)!important;border-radius:23px!important;background:var(--el-card)!important;box-shadow:none!important}
+body.route-rankings .rankingStats>div:nth-child(2){background:#f8edc9!important}.route-rankings .rankingStats>div:nth-child(4){background:#e4efe3!important}
+body.route-rankings .rankingStats strong{font-family:var(--el-serif)!important;color:var(--el-ink)!important;font-size:30px!important}
+body.route-rankings .rankingPodium{gap:12px!important;align-items:end!important}
+body.route-rankings .rankingPodiumCard{border:1px solid var(--el-line)!important;border-radius:30px!important;background:var(--el-card)!important;box-shadow:none!important}
+body.route-rankings .rankingPodiumCard.first{min-height:410px!important;background:linear-gradient(180deg,#f8e8a8,#fffdf5 60%)!important;box-shadow:0 18px 60px rgba(164,126,40,.13)!important}
+body.route-rankings .rankingPodiumCard.second{background:linear-gradient(180deg,#e9ece9,#fffdf5 62%)!important}
+body.route-rankings .rankingPodiumCard.third{background:linear-gradient(180deg,#efd9c8,#fffdf5 62%)!important}
+body.route-rankings .rankingBoard{border-radius:34px!important;overflow:hidden!important;padding:0!important}
+body.route-rankings .rankingBoardHead{padding:28px 28px 20px!important}
+body.route-rankings .rankingTable{border-collapse:separate!important;border-spacing:0!important}
+body.route-rankings .rankingTable thead th{background:#edf0df!important;color:var(--el-ink)!important;border-bottom:1px solid var(--el-line)!important}
+body.route-rankings .rankingTable tbody tr:nth-child(even){background:#fbf7ea!important}
+body.route-rankings .rankingTable tbody tr:hover{background:#eef4e6!important}
+body.route-rankings .rankingSearch{border:1px solid var(--el-line)!important;border-radius:28px!important;background:#fffdf5!important;box-shadow:none!important;padding:18px!important}
+body.route-rankings .rankingTabs{gap:6px!important}.route-rankings .rankingTabs .tab{border-radius:999px!important;border:1px solid var(--el-line)!important;background:#fffdf5!important}.route-rankings .rankingTabs .tab.active{background:var(--el-ink)!important;color:#fffdf4!important}
+
+/* Wiki --------------------------------------------------------------------- */
+body.route-wiki .wikiDataHeroInner{gap:42px!important}.route-wiki .wikiDataHeroCopy h1 em{color:var(--el-leaf-deep)!important;font-weight:400!important}
+body.route-wiki .wikiDataSearch{padding:8px!important;border:1px solid var(--el-line)!important;border-radius:999px!important;background:rgba(255,253,245,.91)!important;box-shadow:var(--el-shadow-soft)!important}
+body.route-wiki .wikiDataSearch input,body.route-wiki .wikiDataSearch select{border:0!important;background:transparent!important;box-shadow:none!important}
+body.route-wiki .wikiDataHeroPanel{border:1px solid rgba(90,111,92,.18)!important;border-radius:34px!important;background:rgba(255,253,245,.78)!important;box-shadow:none!important}
+body.route-wiki .wikiCatalogGrid{gap:12px!important}
+body.route-wiki .wikiCatalogCard{min-height:210px!important;padding:25px!important;border:1px solid var(--el-line)!important;border-radius:30px!important;box-shadow:none!important;background:var(--el-card)!important}
+body.route-wiki .wikiCatalogCard:nth-child(2n){background:#e7f1e7!important}.route-wiki .wikiCatalogCard:nth-child(3n){background:#e7f1f2!important}.route-wiki .wikiCatalogCard:nth-child(4n){background:#f7ebc9!important}
+body.route-wiki .wikiCatalogCard h3{font-family:var(--el-serif)!important;color:var(--el-ink)!important;font-size:25px!important}
+body.route-wiki .wikiDataResult{border:1px solid var(--el-line)!important;border-radius:24px!important;background:var(--el-card)!important;box-shadow:none!important}
+body.route-wiki .wikiDataResult:hover{box-shadow:var(--el-shadow-soft)!important;transform:translateY(-2px)}
+body.route-wiki .wikiListCount{border-radius:28px!important;background:#fffdf5!important;border:1px solid var(--el-line)!important}
+
+/* Help --------------------------------------------------------------------- */
+body.route-help .helpGrid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:15px!important}
+body.route-help .helpCard{min-height:260px!important;padding:30px!important;box-shadow:none!important}
+body.route-help .helpCard:nth-child(2){background:#e7f1f2!important}.route-help .helpCard:nth-child(3){background:#f8ebca!important}.route-help .helpCard:nth-child(4){background:#e4efe3!important}
+body.route-help .helpIcon{width:58px!important;height:58px!important;border-radius:20px!important;background:#fffdf5!important;border:1px solid rgba(105,116,95,.15)!important}
+body.route-help .helpCard h3{font-family:var(--el-serif)!important;font-size:27px!important;color:var(--el-ink)!important;letter-spacing:-.025em!important}
+
+/* Auth / account ----------------------------------------------------------- */
+body.route-login .siteContent,body.route-register .siteContent,body.route-recover .siteContent{background:linear-gradient(135deg,#dcefed 0 48%,#f5ead2 48% 100%)!important}
+body.route-login .authWrap,body.route-register .authWrap,body.route-recover .authWrap{min-height:calc(100vh - 109px)!important;padding:70px 0!important;background:transparent!important}
+body.route-login .authGrid,body.route-register .authGrid,body.route-recover .authGrid{gap:18px!important;max-width:1050px!important}
+body.route-login .authIntro,body.route-register .authIntro,body.route-recover .authIntro{
+  padding:42px!important;border:1px solid rgba(103,117,97,.16)!important;border-radius:40px!important;background:rgba(255,253,245,.60)!important;box-shadow:none!important
+}
+body.route-login .authIntro h1,body.route-register .authIntro h1,body.route-recover .authIntro h1{font-size:clamp(43px,5vw,66px)!important;line-height:.95!important}
+body.route-login .authCard,body.route-register .authCard,body.route-recover .authCard{
+  padding:34px!important;border:1px solid var(--el-line)!important;border-radius:34px!important;background:var(--el-card)!important;box-shadow:0 25px 70px rgba(39,75,58,.13)!important
+}
+body:not(.route-admin) label{color:var(--el-ink)!important;font:800 11px/1.2 var(--el-sans)!important;letter-spacing:.035em!important}
+body:not(.route-admin) input,body:not(.route-admin) select,body:not(.route-admin) textarea{
+  min-height:50px!important;border:1px solid #d1c8b0!important;border-radius:14px!important;background:#fffef9!important;color:var(--el-ink)!important;box-shadow:0 1px 0 rgba(255,255,255,.8) inset!important;font-family:var(--el-sans)!important
+}
+body:not(.route-admin) input:focus,body:not(.route-admin) select:focus,body:not(.route-admin) textarea:focus{outline:3px solid rgba(89,173,98,.20)!important;border-color:var(--el-leaf)!important}
+body.route-account .accountQuick{gap:7px!important}.route-account .accountStats{gap:8px!important}.route-account .accountStats .stat{border:1px solid var(--el-line)!important;border-radius:22px!important;background:var(--el-card)!important;box-shadow:none!important}.route-account .accountStats .stat:nth-child(2){background:#f8ebc8!important}.route-account .accountStats .stat:nth-child(4){background:#e6f0e6!important}
+body.route-account .accountShell{gap:18px!important}.route-account .characterRoster{border-radius:32px!important}.route-account .characterCard{border:1px solid var(--el-line)!important;border-radius:23px!important;background:#fffdf5!important}.route-account .accountSidebar .paperCard:nth-child(1){background:#f8ebc8!important}.route-account .accountSidebar .paperCard:nth-child(2){background:#e4efe3!important}
+
+/* Editorial pages ---------------------------------------------------------- */
+body.route-post .lightPage .wrap,body.route-page .lightPage .wrap,body.route-terms .lightPage .wrap,body.route-rules .lightPage .wrap,body.route-about .lightPage .wrap{max-width:1040px!important}
+body:not(.route-admin) .articleCard,body:not(.route-admin) .proseCard,body:not(.route-admin) .pageBody{
+  border:1px solid var(--el-line)!important;border-radius:32px!important;background:var(--el-card)!important;box-shadow:var(--el-shadow-soft)!important
+}
+body:not(.route-admin) .prose,body:not(.route-admin) .articleBody{max-width:760px!important;font-size:16px!important;line-height:1.82!important}
+
+/* Messages / errors -------------------------------------------------------- */
+body:not(.route-admin) .notice{border:1px solid #b6d6b7!important;border-radius:18px!important;background:#e8f3e6!important;color:#2b6340!important}
+body:not(.route-admin) .error{border:1px solid #e0b6ad!important;border-radius:18px!important;background:#f8e5df!important;color:#8d3d35!important}
+body:not(.route-admin) .authWrap .featurePanel{text-align:center!important;padding:42px!important;border-radius:36px!important}
+
+/* Footer ------------------------------------------------------------------- */
+body:not(.route-admin) .siteFooter{
+  position:relative!important;margin-top:0!important;padding:68px 0 24px!important;
+  background:var(--el-ink)!important;color:#dce5d9!important;border:0!important;overflow:hidden!important
+}
+body:not(.route-admin) .siteFooter:before{content:"";position:absolute;left:-110px;top:-160px;width:360px;height:360px;border:55px solid rgba(204,232,206,.07);border-radius:50%}
+body:not(.route-admin) .footerGrid{grid-template-columns:minmax(280px,1.6fr) repeat(3,minmax(130px,.6fr))!important;gap:36px!important}
+body:not(.route-admin) .footerBrand p{max-width:470px!important;color:#b9cbbd!important;line-height:1.75!important}
+body:not(.route-admin) .footerLogo img{width:230px!important;filter:drop-shadow(0 5px 7px rgba(0,0,0,.12))}
+body:not(.route-admin) .footerCol strong{color:#f5df97!important;font:800 10px/1 var(--el-sans)!important;letter-spacing:.12em!important}
+body:not(.route-admin) .footerCol a{color:#dce5d9!important;font-size:13px!important;opacity:.82}.siteFooter .footerCol a:hover{opacity:1!important;color:#fff8e5!important}
+body:not(.route-admin) .footerBottom{border-top:1px solid rgba(255,255,255,.10)!important;color:#8fa79a!important}
+
+/* Responsive --------------------------------------------------------------- */
+@media (max-width:1050px){
+  body:not(.route-admin) .navin{grid-template-columns:185px 1fr auto!important}.desktopLinks>a:not(.btn){padding-inline:9px!important;font-size:9px!important}
+  body.homeRoute:not(.route-admin) .mapleHeroInner{grid-template-columns:minmax(0,1fr) 300px!important;gap:28px!important}
+  body.homeRoute:not(.route-admin) .everleafPromises{margin-inline:-15px!important}
+}
+@media (max-width:820px){
+  body:not(.route-admin) .wrap{width:min(100% - 28px,1200px)!important}
+  body:not(.route-admin) .worldRibbon{display:none!important}
+  body:not(.route-admin) .nav,body.homeRoute:not(.route-admin) .nav{position:sticky!important;top:0!important;padding:0!important;background:rgba(251,246,233,.96)!important;border-bottom:1px solid rgba(122,128,98,.18)!important;pointer-events:auto!important}
+  body.homeRoute:not(.route-admin) .nav .navin{width:100%!important;min-height:70px!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
+  body:not(.route-admin) .navin{min-height:70px!important;grid-template-columns:1fr auto!important}.desktopLinks,.navActions{display:none!important}.mobileMenu{display:block!important}
+  body:not(.route-admin) .brandImage img{width:164px!important}
+  body:not(.route-admin) .mobileMenuPanel{border:1px solid var(--el-line)!important;border-radius:24px!important;background:var(--el-card)!important;box-shadow:var(--el-shadow)!important}
+  body.homeRoute:not(.route-admin) .mapleHero{min-height:auto!important}.homeRoute .mapleHeroInner{min-height:auto!important;grid-template-columns:1fr!important;padding:70px 0 110px!important}.homeRoute .mapleHeroCopy{max-width:100%!important}.homeRoute .mapleHeroCopy h1{font-size:clamp(48px,13vw,72px)!important}.homeRoute .mapleLive{max-width:480px!important;width:100%!important;margin:0!important;justify-self:start!important}.homeRoute .mapleHeroCharacters{opacity:.55!important}
+  body.homeRoute:not(.route-admin) .mapleQuick{margin-top:-25px!important}.homeRoute .mapleQuick .wrap{grid-template-columns:repeat(2,1fr)!important;border-radius:24px!important}.homeRoute .mapleQuick a:last-child{grid-column:1/-1!important}
+  body.homeRoute:not(.route-admin) .mapleHomeBody{padding-top:75px!important}.homeRoute .homeJourney{padding:28px!important;border-radius:32px!important;margin-bottom:80px!important}.homeRoute .homeJourneyHead{grid-template-columns:1fr!important;gap:12px!important}.journeySteps{grid-template-columns:1fr!important}.homeRoute .everleafPromises{padding:45px 25px!important;border-radius:34px!important;margin-bottom:80px!important}.promiseGrid{grid-template-columns:1fr 1fr!important}
+  body.innerRoute:not(.route-admin) .lightTitle,body.innerRoute:not(.route-admin) .wikiDataHero,body.innerRoute:not(.route-admin) .wikiListHero{padding:52px 0!important}.pageHeroGrid{grid-template-columns:1fr!important}.pageHeroAside,.pageHeroVisual{max-width:620px!important}
+  body.route-news .newsList{grid-template-columns:1fr!important}.route-news .newsList .newsStory:first-child{grid-column:auto!important;display:block!important;min-height:0!important}.route-news .newsList .newsStory:first-child img{height:auto!important;aspect-ratio:16/9!important}
+  body.route-downloads .contentGrid{grid-template-columns:1fr!important}.route-help .helpGrid{grid-template-columns:1fr!important}.accountShell{grid-template-columns:1fr!important}
+  body:not(.route-admin) .footerGrid{grid-template-columns:1.4fr 1fr 1fr!important}.footerCol:last-child{grid-column:2/4!important}
+}
+@media (max-width:560px){
+  body.homeRoute:not(.route-admin) .mapleHeroInner{padding-top:55px!important}.homeRoute .mapleHeroCopy h1{font-size:46px!important}.homeRoute .mapleHeroActions{display:grid!important;grid-template-columns:1fr!important}.homeRoute .mapleHeroActions .btn{width:100%!important}.homeRoute .mapleHeroFacts{display:flex!important;overflow:auto!important;padding-bottom:4px!important;flex-wrap:nowrap!important}.homeRoute .mapleHeroFacts span{white-space:nowrap!important}
+  body.homeRoute:not(.route-admin) .mapleQuick .wrap{grid-template-columns:1fr!important}.homeRoute .mapleQuick a:last-child{grid-column:auto!important}.homeRoute .homeJourney{padding:22px!important}.promiseGrid{grid-template-columns:1fr!important}.homeFeatureGrid,.mapleJobsGrid,.mapleNewsGrid{grid-template-columns:1fr!important}
+  body.innerRoute:not(.route-admin) .lightTitle h1,body.innerRoute:not(.route-admin) .wikiDataHero h1,body.innerRoute:not(.route-admin) .wikiListHero h1{font-size:42px!important}.lightTitle p,.wikiDataHero p{font-size:15px!important}.featurePanel,.paperCard,.helpCard{border-radius:24px!important}
+  body.route-wiki .wikiDataSearch{border-radius:24px!important;display:grid!important;grid-template-columns:1fr!important;padding:10px!important}.route-wiki .wikiDataSearch .btn{width:100%!important}
+  body.route-rankings .rankingStats{grid-template-columns:1fr 1fr!important}.route-rankings .rankingPodium{grid-template-columns:1fr!important}.route-rankings .rankingPodiumCard.first{min-height:auto!important;order:-1!important}
+  body.route-login .authIntro,body.route-register .authIntro,body.route-recover .authIntro{padding:28px!important;border-radius:30px!important}.route-login .authCard,.route-register .authCard,.route-recover .authCard{padding:25px!important;border-radius:28px!important}
+  body:not(.route-admin) .footerGrid{grid-template-columns:1fr!important}.footerCol:last-child{grid-column:auto!important}.footerBottom{display:grid!important;gap:8px!important}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
