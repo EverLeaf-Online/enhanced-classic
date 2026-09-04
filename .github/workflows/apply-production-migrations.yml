@@ -116,6 +116,8 @@ jobs:
             everleaf_nx_drop_balance.sql
             everleaf_rare_global_drop_balance.sql
             everleaf_boss_rare_scroll_drops.sql
+            everleaf_empress_stronghold_progress.sql
+            everleaf_empress_weekly_lockout.sql
           )
 
           for migration in "${migrations[@]}"; do
@@ -128,8 +130,8 @@ jobs:
               "INSERT INTO everleaf_schema_migration_log (migration_name,migration_sha256,release_sha) VALUES ('$migration','$checksum','$RELEASE_SHA') ON DUPLICATE KEY UPDATE migration_sha256=VALUES(migration_sha256), release_sha=VALUES(release_sha), applied_at=CURRENT_TIMESTAMP;"
           done
 
-          table_count="$("${mysql_cmd[@]}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='cosmic' AND table_name IN ('everleaf_weekly_account_state','everleaf_weekly_character_objective','everleaf_verdant_mark_balance','everleaf_pq_point_balance','everleaf_pq_point_ledger','everleaf_account_entitlement','everleaf_account_entitlement_ledger','everleaf_vote_reward_ledger','everleaf_encounter_attempt','everleaf_encounter_weekly_reward','everleaf_rooted_material_balance','everleaf_rooted_forge_order');")"
-          test "$table_count" = 12 || { echo "Expected 12 EverLeaf structural tables, found $table_count" >&2; exit 1; }
+          table_count="$("${mysql_cmd[@]}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='cosmic' AND table_name IN ('everleaf_weekly_account_state','everleaf_weekly_character_objective','everleaf_verdant_mark_balance','everleaf_pq_point_balance','everleaf_pq_point_ledger','everleaf_account_entitlement','everleaf_account_entitlement_ledger','everleaf_vote_reward_ledger','everleaf_encounter_attempt','everleaf_encounter_weekly_reward','everleaf_rooted_material_balance','everleaf_rooted_forge_order','everleaf_empress_stronghold_progress','everleaf_empress_weekly_clear');")"
+          test "$table_count" = 14 || { echo "Expected 14 EverLeaf structural tables, found $table_count" >&2; exit 1; }
 
           forge_column="$("${mysql_cmd[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='cosmic' AND table_name='inventoryequipment' AND column_name='everleaf_forge_stage';")"
           test "$forge_column" = 1 || { echo 'Forge-stage persistence column missing.' >&2; exit 1; }
@@ -146,7 +148,7 @@ jobs:
           test "$nx250" = 1 || { echo "250 NX global drop balance is not exact (matching rows=$nx250)." >&2; exit 1; }
 
           migration_count="$("${mysql_cmd[@]}" -e 'SELECT COUNT(*) FROM everleaf_schema_migration_log;')"
-          test "$migration_count" -ge 13 || { echo "Expected at least 13 logged EverLeaf migrations, found $migration_count" >&2; exit 1; }
+          test "$migration_count" -ge 15 || { echo "Expected at least 15 logged EverLeaf migrations, found $migration_count" >&2; exit 1; }
           echo "EverLeaf production migration verification passed: tables=$table_count forge_column=$forge_column boss_scroll_rows=$boss_scroll_rows migration_log_rows=$migration_count"
           REMOTE
 
