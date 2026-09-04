@@ -1,10 +1,126 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><% const defaultDescription=(typeof siteDescription!=='undefined'&&siteDescription)?siteDescription:'EverLeaf Enhanced Classic MapleStory v83'; const baseSiteUrl=(typeof siteUrl!=='undefined'&&siteUrl)?siteUrl:'https://everleafms.online'; const pageTitle=title?title+' • '+brand.name:brand.name; const pageDescription=(typeof description!=='undefined'&&description)?description:defaultDescription; const canonicalPath=(typeof currentPath!=='undefined'&&currentPath)?currentPath:'/'; const canonicalUrl=baseSiteUrl+canonicalPath; const isAdminPath=canonicalPath.startsWith('/admin'); %><title><%=pageTitle%></title><meta name="description" content="<%=pageDescription%>"><meta name="theme-color" content="#255d50"><link rel="canonical" href="<%=canonicalUrl%>"><meta property="og:type" content="website"><meta property="og:site_name" content="<%=brand.name%>"><meta property="og:title" content="<%=pageTitle%>"><meta property="og:description" content="<%=pageDescription%>"><meta property="og:url" content="<%=canonicalUrl%>"><meta property="og:image" content="<%=baseSiteUrl%>/assets/everleaf-logo.webp"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="<%=pageTitle%>"><meta name="twitter:description" content="<%=pageDescription%>"><meta name="twitter:image" content="<%=baseSiteUrl%>/assets/everleaf-logo.webp"><link rel="stylesheet" href="/css/maple-remaster.css"><link rel="stylesheet" href="/css/maple-remaster-pages.css"><link rel="stylesheet" href="/css/maple-jobs.css"><link rel="stylesheet" href="/css/maple-final.css"><link rel="stylesheet" href="/css/rankings-remaster.css"><link rel="stylesheet" href="/css/home-polish.css"><link rel="stylesheet" href="/css/wiki-remaster.css"><link rel="stylesheet" href="/css/wiki-library-v2.css"><% if(isAdminPath){ %><link rel="stylesheet" href="/css/maple-remaster-admin.css"><link rel="stylesheet" href="/css/cms-knowledge.css"><% } %><link rel="stylesheet" href="/css/uiux-2026.css?v=2"></head><body><a class="skipLink" href="#main-content">Skip to content</a>
-<% const navLinks=[{href:"/",label:"HOME"},{href:"/news",label:"NEWS"},{href:"/downloads",label:"DOWNLOAD"},{href:"/rankings",label:"RANKINGS"},{href:"/wiki",label:"WIKI"},{href:brand.discordUrl,label:"DISCORD",external:true},{href:"/help",label:"HELP"}]; %>
-<div class="worldRibbon"><div class="wrap"><span><strong>EVERLEAF WORLD</strong> · Enhanced Classic v83 · Community-first progression</span><nav aria-label="Utility links"><a href="/vote">Vote for NX</a><a href="/rules">Rules</a><a href="/terms">Terms</a><% if(typeof player!=='undefined'&&player&&player.isAdmin){ %><a href="/admin">Staff CMS</a><% } %></nav></div></div>
-<nav class="nav" aria-label="Primary navigation"><div class="wrap navin"><a class="brand brandImage" href="/" aria-label="EverLeaf home"><img src="/assets/everleaf-remaster.svg" alt="EverLeaf Enhanced Classic"></a><div class="links desktopLinks">
-<% navLinks.forEach(({href,label,external})=>{ const isActive=!external&&(typeof currentPath!=='undefined')&&(href==="/"?currentPath==="/":currentPath.startsWith(href)); %><a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><%=label%></a><% }) %></div>
-<div class="navActions"><% if(typeof player!=='undefined'&&player){ %><a class="btn small ghost accountNav" href="/account">ACCOUNT</a><% }else{ %><a class="btn small ghost" href="/login">LOGIN</a><a class="btn small primary" href="/register">PLAY FREE</a><% } %></div>
-<details class="mobileMenu"><summary aria-label="Open navigation">MENU <span aria-hidden="true">☰</span></summary><div class="mobileMenuPanel"><% navLinks.forEach(({href,label,external})=>{ const isActive=!external&&(typeof currentPath!=='undefined')&&(href==="/"?currentPath==="/":currentPath.startsWith(href)); %><a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><%=label%></a><% }) %><div class="mobileAuth"><% if(typeof player!=='undefined'&&player){ %><a class="btn primary accountNav" href="/account">ACCOUNT</a><% }else{ %><a class="btn ghost" href="/login">LOGIN</a><a class="btn primary" href="/register">PLAY FREE</a><% } %></div></div></details></div></nav>
-<% const maintenance=(typeof settings!=='undefined'&&settings&&String(settings.maintenance_message||'').trim())||''; const fallbackAnnouncement=(typeof settings!=='undefined'&&settings&&String(settings.announcement||'').trim())||''; %>
-<% if(maintenance){ %><div role="status" class="siteBanner maintenanceBanner"><div class="wrap"><strong>Maintenance</strong><span><%=maintenance%></span></div></div><% } else if(typeof activeAnnouncement!=='undefined'&&activeAnnouncement){ %><div role="status" class="siteBanner announcementBanner"><div class="wrap"><strong><%=activeAnnouncement.title%></strong><% if(activeAnnouncement.body){ %><span><%=activeAnnouncement.body%></span><% } %></div></div><% } else if(fallbackAnnouncement){ %><div role="status" class="siteBanner announcementBanner"><div class="wrap"><span><%=fallbackAnnouncement%></span></div></div><% } %>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <% 
+    const defaultDescription=(typeof siteDescription!=='undefined'&&siteDescription)?siteDescription:'EverLeaf Enhanced Classic MapleStory v83';
+    const baseSiteUrl=(typeof siteUrl!=='undefined'&&siteUrl)?siteUrl:'https://everleafms.online';
+    const pageTitle=title?title+' • '+brand.name:brand.name;
+    const pageDescription=(typeof description!=='undefined'&&description)?description:defaultDescription;
+    const canonicalPath=(typeof currentPath!=='undefined'&&currentPath)?currentPath:'/';
+    const canonicalUrl=baseSiteUrl+canonicalPath;
+    const isAdminPath=canonicalPath.startsWith('/admin');
+    const isHome=canonicalPath==='/';
+  %>
+  <title><%=pageTitle%></title>
+  <meta name="description" content="<%=pageDescription%>">
+  <meta name="theme-color" content="#255d50">
+  <meta name="color-scheme" content="light">
+  <meta name="application-name" content="<%=brand.name%>">
+  <meta name="robots" content="<%=isAdminPath?'noindex,nofollow':'index,follow'%>">
+  <link rel="canonical" href="<%=canonicalUrl%>">
+  <link rel="icon" href="/assets/everleaf-remaster.svg" type="image/svg+xml">
+  <% if(isHome){ %><link rel="preload" as="image" href="/assets/hero-forest.webp" type="image/webp"><% } %>
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="<%=brand.name%>">
+  <meta property="og:title" content="<%=pageTitle%>">
+  <meta property="og:description" content="<%=pageDescription%>">
+  <meta property="og:url" content="<%=canonicalUrl%>">
+  <meta property="og:image" content="<%=baseSiteUrl%>/assets/everleaf-logo.webp">
+  <meta property="og:image:alt" content="EverLeaf Enhanced Classic">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="<%=pageTitle%>">
+  <meta name="twitter:description" content="<%=pageDescription%>">
+  <meta name="twitter:image" content="<%=baseSiteUrl%>/assets/everleaf-logo.webp">
+  <meta name="twitter:image:alt" content="EverLeaf Enhanced Classic">
+
+  <link rel="stylesheet" href="/css/maple-remaster.css">
+  <link rel="stylesheet" href="/css/maple-remaster-pages.css">
+  <link rel="stylesheet" href="/css/maple-jobs.css">
+  <link rel="stylesheet" href="/css/maple-final.css">
+  <link rel="stylesheet" href="/css/rankings-remaster.css">
+  <link rel="stylesheet" href="/css/home-polish.css">
+  <link rel="stylesheet" href="/css/wiki-remaster.css">
+  <link rel="stylesheet" href="/css/wiki-library-v2.css">
+  <% if(isAdminPath){ %>
+    <link rel="stylesheet" href="/css/maple-remaster-admin.css">
+    <link rel="stylesheet" href="/css/cms-knowledge.css">
+  <% } %>
+  <link rel="stylesheet" href="/css/uiux-2026.css?v=2">
+  <link rel="stylesheet" href="/css/site-polish-2026.css?v=1">
+  <script src="/js/site.js?v=1" defer></script>
+</head>
+<body>
+<a class="skipLink" href="#main-content">Skip to content</a>
+<%
+  const navLinks=[
+    {href:"/",label:"HOME"},
+    {href:"/news",label:"NEWS"},
+    {href:"/downloads",label:"DOWNLOAD"},
+    {href:"/rankings",label:"RANKINGS"},
+    {href:"/wiki",label:"WIKI"},
+    {href:brand.discordUrl,label:"DISCORD",external:true},
+    {href:"/help",label:"HELP"}
+  ];
+%>
+<div class="worldRibbon">
+  <div class="wrap">
+    <span><strong>EVERLEAF WORLD</strong> · Enhanced Classic v83 · Community-first progression</span>
+    <nav aria-label="Utility links">
+      <a href="/vote">Vote for NX</a>
+      <a href="/rules">Rules</a>
+      <a href="/terms">Terms</a>
+      <% if(typeof player!=='undefined'&&player&&player.isAdmin){ %><a href="/admin">Staff CMS</a><% } %>
+    </nav>
+  </div>
+</div>
+<nav class="nav" aria-label="Primary navigation">
+  <div class="wrap navin">
+    <a class="brand brandImage" href="/" aria-label="EverLeaf home">
+      <img src="/assets/everleaf-remaster.svg" alt="EverLeaf Enhanced Classic">
+    </a>
+    <div class="links desktopLinks">
+      <% navLinks.forEach(({href,label,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
+        <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><%=label%></a>
+      <% }) %>
+    </div>
+    <div class="navActions">
+      <% if(typeof player!=='undefined'&&player){ %>
+        <a class="btn small ghost accountNav" href="/account">ACCOUNT</a>
+      <% }else{ %>
+        <a class="btn small ghost" href="/login">LOGIN</a>
+        <a class="btn small primary" href="/register">PLAY FREE</a>
+      <% } %>
+    </div>
+    <details class="mobileMenu">
+      <summary aria-label="Open navigation" aria-controls="mobile-navigation" aria-expanded="false">MENU <span aria-hidden="true">☰</span></summary>
+      <div id="mobile-navigation" class="mobileMenuPanel">
+        <% navLinks.forEach(({href,label,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
+          <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><%=label%></a>
+        <% }) %>
+        <div class="mobileAuth">
+          <% if(typeof player!=='undefined'&&player){ %>
+            <a class="btn primary accountNav" href="/account">ACCOUNT</a>
+          <% }else{ %>
+            <a class="btn ghost" href="/login">LOGIN</a>
+            <a class="btn primary" href="/register">PLAY FREE</a>
+          <% } %>
+        </div>
+      </div>
+    </details>
+  </div>
+</nav>
+<%
+  const maintenance=(typeof settings!=='undefined'&&settings&&String(settings.maintenance_message||'').trim())||'';
+  const fallbackAnnouncement=(typeof settings!=='undefined'&&settings&&String(settings.announcement||'').trim())||'';
+%>
+<% if(maintenance){ %>
+  <div role="status" class="siteBanner maintenanceBanner"><div class="wrap"><strong>Maintenance</strong><span><%=maintenance%></span></div></div>
+<% } else if(typeof activeAnnouncement!=='undefined'&&activeAnnouncement){ %>
+  <div role="status" class="siteBanner announcementBanner"><div class="wrap"><strong><%=activeAnnouncement.title%></strong><% if(activeAnnouncement.body){ %><span><%=activeAnnouncement.body%></span><% } %></div></div>
+<% } else if(fallbackAnnouncement){ %>
+  <div role="status" class="siteBanner announcementBanner"><div class="wrap"><span><%=fallbackAnnouncement%></span></div></div>
+<% } %>
 <div id="main-content" class="siteContent" tabindex="-1">
