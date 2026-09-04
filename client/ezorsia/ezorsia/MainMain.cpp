@@ -36,11 +36,11 @@ MainMain::MainMain(std::function<void()> pPostMutexFunc)
 			HGLOBAL hResourceData = LoadResource(hModule, hResource);
 			DWORD resourceSize = SizeofResource(hModule, hResource);
 			LPVOID resourceData = LockResource(hResourceData); Sleep(2); SuspendThread(MainMain::mainTHread);
-			if (WriteFile(hOrg, resourceData, resourceSize, &dw, NULL) && dw == resourceSize) { 
+			if (WriteFile(hOrg, resourceData, resourceSize, &dw, NULL) && dw == resourceSize) {
 				CloseHandle(hOrg);
 				ResumeThread(MainMain::mainTHread);
 			}
-			else { 
+			else {
 				CloseHandle(hOrg);
 				MessageBox(NULL, L"your config.ini file doesn't exist, please re-download config.ini from Ezorsia v2 releases at https://github.com/444Ro666/MapleEzorsia-v2", L"bad config file", 0);
 				ExitProcess(0);
@@ -110,6 +110,8 @@ MainMain::MainMain(std::function<void()> pPostMutexFunc)
 	Client::m_nGameHeight = supportedResolution ? requestedHeight : 720;
 	Client::WindowedMode = reader.GetBoolean("general", "WindowedMode", true);
 	Client::RemoveLogos = reader.GetBoolean("general", "RemoveLogos", true);
+	Client::ModernLoginUI = reader.GetBoolean("general", "ModernLoginUI", true);
+	Client::ShowFutureClassCards = reader.GetBoolean("general", "ShowFutureClassCards", true);
 
 	// Official gameplay and compatibility policy: not player-configurable.
 	Client::MsgAmount = 26;
@@ -124,8 +126,8 @@ MainMain::MainMain(std::function<void()> pPostMutexFunc)
 	const unsigned int sleepySleepy = 0;
 	// EverLeaf intentionally disables arbitrary third-party DLL loading.
 
-	//Sleep is for the unpacked client run //themida needs a slight amount of time to unpack or exe memory will be corrupted and crash. from my 
-//tests the amount of time to sleep for ranges from 80 to 300 miliseconds, but may differ depending on the machine; most modern pc are pretty 
+	//Sleep is for the unpacked client run //themida needs a slight amount of time to unpack or exe memory will be corrupted and crash. from my
+//tests the amount of time to sleep for ranges from 80 to 300 miliseconds, but may differ depending on the machine; most modern pc are pretty
 //fast so favor lower numbers. if the number is too high the non-system hooks wont reach the main thread in time and the main thread will
 	if (sleepySleepy != 0) { Sleep(sleepySleepy); }//run without them (causing hackshield load that is normally overwritten and hooked in time to block access)
 

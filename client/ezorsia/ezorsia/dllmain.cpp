@@ -25,7 +25,7 @@ void MainFunc() {
 	Hook_sub_494D07(true);//seems to work//unlikely conflict, section virtualized by default //sub_494D07	end	00494D2C //unnamed function, part of CClientSocket::Connect in v83, merged together with connect in v95
 	Hook_sub_494D2F(true);//seems to work//unlikely conflict, section virtualized by default //sub_494D2F	end	00494ECE //CClientSocket::Connect(CClientSocket *this, sockaddr_in *pAddr)
 	//Hook_sub_494ED1(false);//not rewritten//unlikely conflict, section virtualized by default //sub_494ED1  end 004954C4 //CClientSocket::OnConnect(CClientSocket * this, int bSuccess)
-	Hook_sub_9F4E54(true);//rewritten friendly CrC non-checker//unlikely conflict, section virtualized by default //sub_9F4E54  end 009F4F08	//likely: unsigned int __cdecl Crc32_GetCrc32_VMTable(unsigned int* pmem, unsigned int size, unsigned int* pcheck, unsigned int *pCrc32) 
+	Hook_sub_9F4E54(true);//rewritten friendly CrC non-checker//unlikely conflict, section virtualized by default //sub_9F4E54  end 009F4F08	//likely: unsigned int __cdecl Crc32_GetCrc32_VMTable(unsigned int* pmem, unsigned int size, unsigned int* pcheck, unsigned int *pCrc32)
 	//Hook_sub_9F4F09(false);//not rewritten//unlikely conflict, section virtualized by default //sub_9F4F09  end 009F4FD9 //unknown func, built into cwvsapp::run in v95 //not called by anything
 	Hook_sub_9F4FDA(true);//seems to work//unlikely conflict, section virtualized by default //sub_9F4FDA end 009F51D3 //void __thiscall CWvsApp::CWvsApp(CWvsApp *this, const char *sCmdLine)
 	Hook_sub_9F5239(true);//seems to work//unlikely conflict, section virtualized by default //sub_9F5239 end 009F5C4F //void __thiscall CWvsApp::SetUp(CWvsApp *this)
@@ -72,6 +72,11 @@ void MainFunc() {
 	std::cout << "Applying resolution " << Client::m_nGameWidth << "x" << Client::m_nGameHeight << std::endl;
 	Client::UpdateResolution();
 
+	if (Client::ModernLoginUI) {
+		std::cout << "Applying EverLeaf modern login UI" << std::endl;
+		Client::UpdateLogin();
+	}
+
 	dinput8::CreateHook();	std::cout << "dinput8 hook initialized" << std::endl;
 }
 
@@ -103,7 +108,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 		//INITWINHOOK("KERNEL32", "RegCreateKeyExA", RegCreateKeyExA_Original, RegCreateKeyExA_t, WinHooks::RegCreateKeyExA_Hook); //Maplestory saves registry information (config stuff) for a number of things. This can be used to track that.
 		//INITWINHOOK("KERNEL32", "GetProcAddress", GetProcAddress_Original, GetProcAddress_t, WinHooks::GetProcAddress_Hook); //Used to map out imports used by MapleStory
 		//INITWINHOOK("NTDLL", "NtTerminateProcess", NtTerminateProcess_Original, NtTerminateProcess_t, WinHooks::NtTerminateProcess_Hook); //We use this function to track what memory addresses are killing the process,There are more ways that Maple kills itself, but this is one of them.
-		
+
 		DisableThreadLibraryCalls(hModule);
 		CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)&MainProc, NULL, 0, 0);
 		break;

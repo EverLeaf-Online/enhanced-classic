@@ -26,6 +26,14 @@ def require(path: str, *fragments: str) -> None:
             raise SystemExit(f"ERROR {path} missing Evan invariant: {fragment}")
 
 
+def require_any(path: str, *fragments: str) -> None:
+    data = text(path)
+    if not any(fragment in data for fragment in fragments):
+        raise SystemExit(
+            f"ERROR {path} missing all accepted Evan invariants: {', '.join(fragments)}"
+        )
+
+
 def forbid(path: str, *fragments: str) -> None:
     data = text(path)
     for fragment in fragments:
@@ -52,12 +60,24 @@ def audit_skill_data() -> None:
 
 
 def main() -> int:
+    create_char = "src/main/java/net/server/handlers/login/CreateCharHandler.java"
     require(
-        "src/main/java/net/server/handlers/login/CreateCharHandler.java",
+        create_char,
         "import client.creator.novice.EvanCreator;",
-        "case 3: // Evan",
         "EvanCreator.createCharacter",
     )
+    # Older code used a magic-number switch arm; the modernized selector uses
+    # named type constants plus a server-side allowlist. Both are valid Evan
+    # creation wiring, but the constant form is preferred going forward.
+    require_any(create_char, "case 3: // Evan", "case TYPE_EVAN:")
+    if "case TYPE_EVAN:" in text(create_char):
+        require(
+            create_char,
+            "static final int TYPE_EVAN = 3;",
+            "isSupportedCharacterType",
+            "type == TYPE_EVAN",
+        )
+
     require(
         "src/main/java/client/creator/novice/EvanCreator.java",
         "Job.EVAN",
@@ -160,6 +180,7 @@ def main() -> int:
 
     print("EverLeaf Evan release audit: PASS")
     print("  fresh Evan creation: selector 3 -> job 2001, level 1, Utah's attic")
+    print("  server capability gate: unsupported selector families fail closed")
     print("  automatic mastery growth: catch-up safe at 10/20/30/40/50/60/80/100/120/160")
     print("  mastery SP: one normal level-up grant into newly unlocked book; no generic changeJob double grant")
     print("  job growth chain: 2001, 2200, 2210-2218")
