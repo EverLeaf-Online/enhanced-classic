@@ -1,6 +1,6 @@
 const express = require("express");
 const env = require("../config/env");
-const game = require("../services/gameService");
+const appearances = require("../services/avatarAppearanceService");
 const jobName = require("../utils/jobs");
 
 const router = express.Router();
@@ -26,12 +26,16 @@ function fallbackAsset(job=0) {
   return "/assets/everleaf-remaster.svg";
 }
 
-function rendererUrl(appearance, includeEquipment=true) {
+function rendererUrl(appearance, includeEquipment=true, version="83") {
   const skin = 2000 + Math.max(0, Number(appearance.skincolor || 0));
   const items = [Number(appearance.face || 0), Number(appearance.hair || 0)];
   if (includeEquipment) items.push(...(appearance.equipment || []).map(Number));
   const ids = [...new Set(items.filter(id => Number.isInteger(id) && id > 0))];
-  return `${env.avatar.baseUrl}/api/${encodeURIComponent(env.avatar.region)}/${encodeURIComponent(env.avatar.version)}/Character/center/${skin}/${ids.join(",")}/stand1/0?resize=2&padding=6`;
+  return `${env.avatar.baseUrl}/api/${encodeURIComponent(env.avatar.region)}/${encodeURIComponent(version)}/Character/center/${skin}/${ids.join(",")}/stand1/0?resize=2&padding=6`;
+}
+
+function rendererVersions() {
+  return [...new Set(["83", String(env.avatar.version || "").trim()].filter(Boolean))];
 }
 
 async function fetchAvatar(url) {
@@ -53,12 +57,30 @@ async function fetchAvatar(url) {
   }
 }
 
+async function renderAppearance(appearance, includeEquipment) {
+  let lastError = null;
+  for (const version of rendererVersions()) {
+    try {
+      return await fetchAvatar(rendererUrl(appearance,includeEquipment,version));
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("no character renderer version is configured");
+}
+
 function cacheSet(id, value) {
   if (cache.size >= MAX_CACHE_ENTRIES) {
     const oldest = cache.keys().next().value;
     if (oldest !== undefined) cache.delete(oldest);
   }
   cache.set(id, { ...value, expiresAt: Date.now() + env.avatar.cacheMs });
+}
+
+function redirectFallback(res,job=0) {
+  res.set("Cache-Control","public, max-age=60, stale-while-revalidate=300");
+  res.set("X-EverLeaf-Avatar-Source","fallback");
+  return res.redirect(302,fallbackAsset(job));
 }
 
 router.get("/character-avatar/:id.png", async (req,res) => {
@@ -69,36 +91,38 @@ router.get("/character-avatar/:id.png", async (req,res) => {
   if (cached && cached.expiresAt > Date.now()) {
     res.set("Content-Type",cached.type);
     res.set("Cache-Control","public, max-age=300, stale-while-revalidate=3600");
+    res.set("X-EverLeaf-Avatar-Source","renderer-cache");
     return res.send(cached.bytes);
   }
   if (cached) cache.delete(id);
 
   let appearance;
   try {
-    appearance = await game.characterAppearance(id);
+    appearance = await appearances.characterAppearance(id);
   } catch (error) {
     console.warn(`Character avatar DB lookup failed for ${id}:`,error.message);
-    return res.status(503).end();
+    return redirectFallback(res,Number(req.query.job) || 0);
   }
   if (!appearance) return res.status(404).end();
 
   let image = null;
   try {
-    image = await fetchAvatar(rendererUrl(appearance,true));
+    image = await renderAppearance(appearance,true);
   } catch (fullError) {
     try {
-      image = await fetchAvatar(rendererUrl(appearance,false));
+      image = await renderAppearance(appearance,false);
     } catch (baseError) {
       console.warn(`Character avatar render failed for ${id}:`,fullError.message,"/",baseError.message);
     }
   }
 
-  if (!image) return res.redirect(302,fallbackAsset(appearance.job));
+  if (!image) return redirectFallback(res,appearance.job);
   cacheSet(id,image);
   res.set("Content-Type",image.type);
   res.set("Cache-Control","public, max-age=300, stale-while-revalidate=3600");
+  res.set("X-EverLeaf-Avatar-Source","renderer");
   return res.send(image.bytes);
 });
 
 module.exports = router;
-module.exports._test = { fallbackAsset, rendererUrl };
+module.exports._test = { fallbackAsset, rendererUrl, rendererVersions };

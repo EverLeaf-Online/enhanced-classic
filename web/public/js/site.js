@@ -18,8 +18,28 @@
     mobileSummary.setAttribute('aria-expanded', String(Boolean(mobileMenu.open)));
   };
 
+  const hydrateLiveAvatars = () => {
+    document.querySelectorAll('img[data-live-avatar]').forEach((image) => {
+      const liveUrl = String(image.dataset.liveAvatar || '').trim();
+      if (!liveUrl || image.dataset.liveAvatarBound === '1') return;
+      image.dataset.liveAvatarBound = '1';
+
+      const probe = new Image();
+      probe.decoding = 'async';
+      probe.onload = () => {
+        image.src = liveUrl;
+        image.dataset.liveAvatarLoaded = '1';
+      };
+      probe.onerror = () => {
+        image.dataset.liveAvatarFailed = '1';
+      };
+      probe.src = liveUrl;
+    });
+  };
+
   syncNav();
   syncMobileState();
+  hydrateLiveAvatars();
   window.addEventListener('scroll', syncNav, { passive: true });
 
   if (mobileMenu) {

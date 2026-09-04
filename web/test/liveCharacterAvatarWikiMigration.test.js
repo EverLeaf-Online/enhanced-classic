@@ -21,18 +21,29 @@ test('rankings query exposes the real character id needed for appearance renderi
 
 test('same-origin avatar route renders saved appearance and falls back safely',()=>{
   const avatar=read('src/routes/avatar.js');
+  const appearance=read('src/services/avatarAppearanceService.js');
+  const rankings=read('src/views/rankings.ejs');
+  const site=read('public/js/site.js');
   const server=read('src/server.js');
   const env=read('src/config/env.js');
   assert.match(server,/routes\/avatar/);
   assert.match(avatar,/\/character-avatar\/:id\.png/);
-  assert.match(avatar,/game\.characterAppearance/);
+  assert.match(avatar,/appearances\.characterAppearance/);
+  assert.match(appearance,/game\.characterAppearance/);
+  assert.match(appearance,/retrying without equipment/);
+  assert.match(appearance,/equipment:\[\]/);
   assert.match(avatar,/Character\/center/);
   assert.match(avatar,/appearance\.face/);
   assert.match(avatar,/appearance\.hair/);
   assert.match(avatar,/appearance\.equipment/);
-  assert.match(avatar,/fetchAvatar\(rendererUrl\(appearance,true\)\)/);
-  assert.match(avatar,/fetchAvatar\(rendererUrl\(appearance,false\)\)/);
+  assert.match(avatar,/renderAppearance\(appearance,true\)/);
+  assert.match(avatar,/renderAppearance\(appearance,false\)/);
   assert.match(avatar,/fallbackAsset/);
+  assert.match(rankings,/data-live-avatar/);
+  assert.doesNotMatch(rankings,/onerror=/);
+  assert.match(site,/querySelectorAll\('img\[data-live-avatar\]'\)/);
+  assert.match(site,/const probe = new Image\(\)/);
+  assert.match(site,/image\.src = liveUrl/);
   assert.match(env,/MAPLESTORY_IO_BASE_URL/);
   assert.match(env,/MAPLESTORY_IO_VERSION/);
 });
