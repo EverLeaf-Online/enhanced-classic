@@ -29,6 +29,7 @@ void AppendRaw(const char* text) {
 
     DWORD written = 0;
     WriteFile(file, text, static_cast<DWORD>(strlen(text)), &written, nullptr);
+    FlushFileBuffers(file);
     CloseHandle(file);
 }
 
@@ -111,7 +112,6 @@ LONG WINAPI EverLeafUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo) 
 #endif
 
     AppendTimestamped("CRASH", details);
-    FlushFileBuffers(INVALID_HANDLE_VALUE); // harmless no-op; file writes above are already closed
 
     // Observe only. Preserve Windows/the client's normal crash handling instead
     // of swallowing an access violation and attempting to continue corrupted state.
