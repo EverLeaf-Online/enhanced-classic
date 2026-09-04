@@ -1,0 +1,60 @@
+name: Audit live UI hash once
+
+on:
+  push:
+    branches: [feature/client-job-selector-modernization-20260904]
+    paths: ['.github/workflows/audit-live-ui-hash-once.yml']
+
+permissions:
+  contents: write
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/client-job-selector-modernization-20260904
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+      - name: Record live UI identity
+        run: |
+          set -euo pipefail
+          mkdir -p docs
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' > docs/LIVE_UI_WZ_IDENTITY.md <<'REMOTE'
+          set -euo pipefail
+          echo '# Live UI.wz identity'
+          echo
+          for p in /opt/everleaf/patches/files/UI.wz /opt/everleaf/current/UI.wz /opt/everleaf/current/client/UI.wz; do
+            if [ -s "$p" ]; then
+              echo "- path: \`$p\`"
+              echo "- size: $(stat -c %s "$p")"
+              echo "- sha256: $(sha256sum "$p" | awk '{print $1}')"
+              exit 0
+            fi
+          done
+          echo '- ERROR: live UI.wz not found in expected paths'
+          exit 1
+          REMOTE
+          cat docs/LIVE_UI_WZ_IDENTITY.md
+      - name: Commit identity
+        run: |
+          set -euo pipefail
+          git config user.name everleaf-client-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add docs/LIVE_UI_WZ_IDENTITY.md
+          git commit -m 'docs: record live UI WZ identity'
+          git push origin HEAD:feature/client-job-selector-modernization-20260904
