@@ -3,11 +3,13 @@ package client.command;
 import client.command.commands.gm4.QaBotCommand;
 import client.command.commands.gm4.QaBotOpsCommand;
 import org.junit.jupiter.api.Test;
+import soloMapling.ArtificialPlayer.BotQaSoakRunner;
 
 import java.lang.reflect.Field;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -30,5 +32,12 @@ class CommandsExecutorSoloMaplingTest {
         assertNotNull(qaBotOps, "!qabotops must be explicitly registered");
         assertInstanceOf(QaBotOpsCommand.class, qaBotOps);
         assertEquals(4, qaBotOps.getRank());
+    }
+
+    @Test
+    void soakRunnerFailsClosedWithoutExplicitArmToken() {
+        BotQaSoakRunner.SoakResult result = BotQaSoakRunner.start(1, 1);
+        assertFalse(result.success());
+        assertEquals("explicit-arm-token-required", result.reason());
     }
 }
