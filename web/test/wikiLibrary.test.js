@@ -60,7 +60,7 @@ test('Wiki UI is explicitly a searchable server-data encyclopedia',()=>{
   assert.match(hub,/WZ \+ MySQL/);
   assert.match(hub,/BROWSE CATALOG/);
   assert.match(hub,/wikiDataSearch/);
-  assert.match(hub,/duplicate and obvious internal\/test records/);
+  assert.match(hub,/Duplicate and obvious internal\/test records/);
   assert.doesNotMatch(hub,/HOW IT WORKS/);
   assert.doesNotMatch(hub,/EverLeaf data, not a generic MapleStory copy/);
   assert.match(hub,/\/wiki\/guides/);
