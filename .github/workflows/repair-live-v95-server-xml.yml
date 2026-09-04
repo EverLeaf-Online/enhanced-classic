@@ -49,36 +49,62 @@ jobs:
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
           CURRENT="$(readlink -f /opt/everleaf/current)"
-          test -d "$CURRENT"
           test -d "$CURRENT/wz"
           systemctl is-active --quiet everleaf.service
 
-          STAGE=''
-          for d in $(find /home/ubuntu/everleaf-staging -maxdepth 1 -type d -name 'community-wholesale-live-*' -printf '%T@ %p\n' | sort -nr | awk '{print $2}'); do
-            if [ -s "$d/community-full-xml.zip" ] && [ -s "$d/export-status.txt" ] && grep -q '^XML_COUNT=44236$' "$d/export-status.txt"; then
-              STAGE="$d"
-              break
-            fi
-          done
-          test -n "$STAGE" || { echo 'No verified 44,236-XML Community/v95 wholesale stage found.' >&2; exit 1; }
-          unzip -t "$STAGE/community-full-xml.zip" >/dev/null
-          echo "USING_STAGE=$STAGE"
+          SOURCE_KIND=''
+          SOURCE=''
+
+          # Prefer an immutable old release that still contains the complete wholesale XML tree.
+          while read -r _ wzdir; do
+            [ -d "$wzdir" ] || continue
+            count="$(find "$wzdir" -type f -name '*.xml' | wc -l)"
+            echo "RELEASE_WZ_CANDIDATE count=$count path=$wzdir"
+            if [ "$count" -eq 44236 ]; then SOURCE_KIND='dir'; SOURCE="$wzdir"; break; fi
+          done < <(find /opt/everleaf/releases -mindepth 2 -maxdepth 2 -type d -name wz -printf '%T@ %p\n' 2>/dev/null | sort -nr)
+
+          # Otherwise use any preserved wholesale XML archive, regardless of whether its sidecar status file survived.
+          if [ -z "$SOURCE" ]; then
+            while read -r _ zip; do
+              [ -s "$zip" ] || continue
+              count="$(unzip -Z1 "$zip" | grep -cE '\.xml$' || true)"
+              echo "WHOLESALE_ZIP_CANDIDATE count=$count path=$zip"
+              if [ "$count" -eq 44236 ]; then SOURCE_KIND='zip'; SOURCE="$zip"; break; fi
+            done < <(find /home/ubuntu/everleaf-staging -type f -name 'community-full-xml.zip' -printf '%T@ %p\n' 2>/dev/null | sort -nr)
+          fi
+
+          # Last recovery source: any explicit server-WZ backup containing the complete tree.
+          if [ -z "$SOURCE" ]; then
+            while read -r _ wzdir; do
+              [ -d "$wzdir" ] || continue
+              count="$(find "$wzdir" -type f -name '*.xml' | wc -l)"
+              echo "BACKUP_WZ_CANDIDATE count=$count path=$wzdir"
+              if [ "$count" -eq 44236 ]; then SOURCE_KIND='dir'; SOURCE="$wzdir"; break; fi
+            done < <(find /opt/everleaf/backups -type d \( -name 'server-wz-xml' -o -name 'wz' \) -printf '%T@ %p\n' 2>/dev/null | sort -nr)
+          fi
+
+          test -n "$SOURCE" || { echo 'No preserved 44,236-XML full-v95 server tree found on Oracle.' >&2; exit 1; }
+          echo "V95_RECOVERY_SOURCE kind=$SOURCE_KIND source=$SOURCE"
 
           TS="$(date -u +%Y%m%dT%H%M%SZ)"
           BACKUP="/opt/everleaf/backups/v95-server-xml-repair/$TS"
           sudo install -d -o ubuntu -g ubuntu /opt/everleaf/shared "$BACKUP"
           sudo cp -a "$CURRENT/wz" "$BACKUP/pre-repair-wz"
           printf '%s\n' "$CURRENT" > "$BACKUP/current-release.txt"
-          printf '%s\n' "$STAGE" > "$BACKUP/source-stage.txt"
+          printf '%s %s\n' "$SOURCE_KIND" "$SOURCE" > "$BACKUP/source.txt"
 
           NEW="/opt/everleaf/shared/wz-v95.new-$TS"
           rm -rf "$NEW"
           mkdir -p "$NEW"
-          unzip -q "$STAGE/community-full-xml.zip" -d "$NEW"
+          if [ "$SOURCE_KIND" = dir ]; then
+            cp -a "$SOURCE/." "$NEW/"
+          else
+            unzip -q "$SOURCE" -d "$NEW"
+          fi
 
           WZROOT="$NEW" python3 - <<'PY'
           from pathlib import Path
-          import os,re,sys
+          import os,re
           root=Path(os.environ['WZROOT'])
           xml_count=sum(1 for _ in root.rglob('*.xml'))
           assert xml_count == 44236, xml_count
@@ -89,20 +115,14 @@ jobs:
           assert len(future)==42, len(future)
           ninja=[800040000,800040100,800040200,800040201,800040202,800040203,800040204,800040205,800040206,800040207,800040208,800040209,800040210,800040211,800040300,800040301,800040302,800040303,800040304,800040305,800040306,800040307,800040308,800040309,800040310,800040311,800040312,800040313,800040314,800040315,800040400,800040401,800040410]
           assert not [i for i in ninja if i not in maps], [i for i in ninja if i not in maps]
-          def exact_files(fam, ids):
+          def missing_files(fam, ids):
               d=root/fam
               return [i for i in ids if not list(d.rglob(f'{i}.img.xml'))]
-          assert not exact_files('Mob.wz',range(8850000,8850012)), exact_files('Mob.wz',range(8850000,8850012))
-          assert not exact_files('Mob.wz',range(9400400,9400411)), exact_files('Mob.wz',range(9400400,9400411))
-          assert not exact_files('Npc.wz',range(9110100,9110115)), exact_files('Npc.wz',range(9110100,9110115))
+          for fam,ids in [('Mob.wz',range(8850000,8850012)),('Mob.wz',range(9400400,9400411)),('Npc.wz',range(9110100,9110115))]:
+              missing=missing_files(fam,ids); assert not missing,(fam,missing)
           def family_text(fam):
-              parts=[]
-              for p in (root/fam).rglob('*.xml'):
-                  try: parts.append(p.read_text(errors='ignore'))
-                  except Exception: pass
-              return '\n'.join(parts)
-          item_text=family_text('Item.wz')
-          quest_text=family_text('Quest.wz')
+              return '\n'.join(p.read_text(errors='ignore') for p in (root/fam).rglob('*.xml'))
+          item_text=family_text('Item.wz'); quest_text=family_text('Quest.wz')
           for i in range(4000337,4000347): assert f'name="{i}"' in item_text or f'value="{i}"' in item_text, i
           for q in range(8163,8172): assert f'name="{q}"' in quest_text or f'value="{q}"' in quest_text, q
           print(f'FULL_V95_XML_VALID xml={xml_count} future_henesys={len(future)} ninja_maps={len(ninja)}')
@@ -125,9 +145,7 @@ jobs:
           test "$(find "$CURRENT/wz" -type f -name '*.xml' | wc -l)" -eq 44236
           sudo systemctl restart everleaf.service
           for i in $(seq 1 45); do
-            if systemctl is-active --quiet everleaf.service && python3 "$CURRENT/tools/verify_channel_runtime.py" --config "$CURRENT/config.yaml" --host 127.0.0.1 >/tmp/v95-repair-health.json 2>&1; then
-              break
-            fi
+            if systemctl is-active --quiet everleaf.service && python3 "$CURRENT/tools/verify_channel_runtime.py" --config "$CURRENT/config.yaml" --host 127.0.0.1 >/tmp/v95-repair-health.json 2>&1; then break; fi
             sleep 2
           done
           systemctl is-active --quiet everleaf.service
@@ -139,7 +157,7 @@ jobs:
           test -f "$CURRENT/scripts/event/CygnusBattle.js"
           test -f "$CURRENT/scripts/portal/ninja_Boss.js"
 
-          printf 'stage=%s\nxml_count=44236\nrepaired=%s\n' "$STAGE" "$(date -u +%FT%TZ)" | sudo tee /opt/everleaf/.server-wz-baseline >/dev/null
+          printf 'source_kind=%s\nsource=%s\nxml_count=44236\nrepaired=%s\n' "$SOURCE_KIND" "$SOURCE" "$(date -u +%FT%TZ)" | sudo tee /opt/everleaf/.server-wz-baseline >/dev/null
           trap - ERR
           echo 'LIVE_FULL_V95_SERVER_XML_RESTORED'
           REMOTE
@@ -148,12 +166,10 @@ jobs:
         run: |
           python3 - <<'PY'
           import socket
-          host='132.145.141.79'
-          missing=[]
+          host='132.145.141.79'; missing=[]
           for port in [8484,*range(7575,7595)]:
               try:
                   with socket.create_connection((host,port),timeout=5): print('OK',port)
-              except OSError as exc:
-                  missing.append(port); print('FAIL',port,exc)
+              except OSError as exc: missing.append(port); print('FAIL',port,exc)
           if missing: raise SystemExit(missing)
           PY
