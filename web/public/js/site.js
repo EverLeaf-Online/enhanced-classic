@@ -6,6 +6,7 @@
   const nav = document.querySelector('.nav');
   const mobileMenu = document.querySelector('.mobileMenu');
   const mobileSummary = mobileMenu?.querySelector('summary');
+  const siteTopbarMenu = document.querySelector('.siteTopbarMenu');
 
   const syncNav = () => {
     if (!nav) return;
@@ -41,9 +42,44 @@
     });
   };
 
+  const bindPasswordToggles = () => {
+    document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+      const targetId = String(button.getAttribute('data-password-toggle') || '').trim();
+      const input = targetId ? document.getElementById(targetId) : null;
+      if (!input || input.dataset.passwordToggleBound === '1') return;
+      input.dataset.passwordToggleBound = '1';
+
+      button.addEventListener('click', () => {
+        const showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        button.setAttribute('aria-pressed', String(!showing));
+        button.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+        input.focus({ preventScroll: true });
+      });
+    });
+  };
+
+  const bindTopbarMenu = () => {
+    if (!siteTopbarMenu) return;
+    siteTopbarMenu.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', () => { siteTopbarMenu.open = false; });
+    });
+    document.addEventListener('click', (event) => {
+      if (!siteTopbarMenu.open || siteTopbarMenu.contains(event.target)) return;
+      siteTopbarMenu.open = false;
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || !siteTopbarMenu.open) return;
+      siteTopbarMenu.open = false;
+      siteTopbarMenu.querySelector('summary')?.focus();
+    });
+  };
+
   syncNav();
   syncMobileState();
   hydrateLiveAvatars();
+  bindPasswordToggles();
+  bindTopbarMenu();
   window.addEventListener('scroll', syncNav, { passive: true });
 
   if (mobileMenu) {
