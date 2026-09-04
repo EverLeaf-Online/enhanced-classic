@@ -1,0 +1,103 @@
+/* EverLeaf Wiki app workspace + MapleStory artwork layer. */
+.route-wiki .wikiAppPage{background:#0f120f!important;color:#dce3d7!important;min-height:100%!important;height:100%!important;overflow:auto!important;scrollbar-gutter:stable}
+.route-wiki .wikiAppPage .wrap{width:min(100%,1540px);max-width:none;margin-inline:auto;padding-inline:clamp(18px,3vw,46px)}
+.route-wiki .wikiDataHero,.route-wiki .wikiListHero{background:#0f120f!important;border-color:#2b322b!important;box-shadow:none!important}
+.route-wiki .wikiDataHero:before{display:none!important}
+.route-wiki .wikiDataHeroInner{padding:28px clamp(18px,3vw,46px) 22px!important;gap:24px!important;grid-template-columns:minmax(0,1fr) minmax(230px,310px)!important}
+.route-wiki .wikiDataHeroCopy h1,.route-wiki .wikiListHero h1,.route-wiki .wikiEntityHero h1,.route-wiki .wikiCatalogHeading h2,.route-wiki .wikiSearchResultsHead h2{color:#f1efe4!important;font-family:Georgia,"Times New Roman",serif!important;text-shadow:none!important}
+.route-wiki .wikiDataHeroCopy h1{font-size:clamp(34px,4vw,58px)!important;margin:5px 0 12px!important}
+.route-wiki .wikiDataHeroCopy h1 em{color:#73ad79!important}
+.route-wiki .wikiDataHeroCopy>p,.route-wiki .wikiCatalogHeading p,.route-wiki .wikiListHero p,.route-wiki .wikiSearchResultsHead p{color:#9aa69a!important;line-height:1.5!important}
+.route-wiki .wikiDataHeroCopy>p{font-size:14px!important;margin-bottom:16px!important;max-width:840px!important}
+.route-wiki .wikiDataHeroPanel{background:#141914!important;border:1px solid #313a31!important;border-radius:0!important;box-shadow:none!important;padding:18px!important;color:#dce3d7!important}
+.route-wiki .wikiDataHeroPanel>strong{color:#f1efe4!important;font-size:20px!important}
+.route-wiki .wikiDataHeroPanel>small,.route-wiki .wikiDataHeroPanel>div{color:#879487!important}
+.route-wiki .wikiDataHeroPanel>div{border-color:#2d352d!important;padding:7px 0!important}
+.route-wiki .wikiDataHeroPanel>div b{color:#73ad79!important}
+.route-wiki .wikiDataHeroRune{border-color:#45604a!important;background:#101510!important;color:#73ad79!important;border-radius:0!important;margin-bottom:12px!important}
+.route-wiki .wikiDataSearch{gap:0!important;max-width:none!important;border:1px solid #303830;background:#111511}
+.route-wiki .wikiDataSearch select,.route-wiki .wikiDataSearch input{background:#111511!important;color:#e4e8df!important;border:0!important;border-right:1px solid #303830!important;border-radius:0!important;box-shadow:none!important;min-height:44px!important}
+.route-wiki .wikiDataSearch input::placeholder{color:#667266}
+.route-wiki .wikiDataSearch .btn{border-radius:0!important;min-height:44px!important;border:0!important;border-left:1px solid #303830!important;background:#182019!important;color:#92c899!important}
+.route-wiki .wikiDataTrust{margin-top:10px!important;color:#718071!important}
+.route-wiki .wikiCatalogSection{padding:22px clamp(18px,3vw,46px) 28px!important}
+.route-wiki .wikiCatalogHeading{margin-bottom:12px!important;align-items:center!important}
+.route-wiki .wikiCatalogHeading h2{font-size:clamp(28px,3vw,39px)!important;margin:3px 0!important}
+.route-wiki .wikiCatalogHeading>div>p{display:none!important}
+.route-wiki .wikiCatalogGrid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:1px!important;background:#2a302a!important;border:1px solid #2a302a!important}
+.route-wiki .wikiCatalogCard{background:#111511!important;color:#d9e0d5!important;border:0!important;border-radius:0!important;box-shadow:none!important;min-height:128px!important;padding:17px!important;grid-template-columns:58px 1fr auto!important;gap:0 14px!important;transform:none!important}
+.route-wiki .wikiCatalogCard:hover{background:#151b15!important;transform:none!important;box-shadow:inset 3px 0 #73ad79!important}
+.route-wiki .wikiCatalogCard h3{color:#f0eee2!important;font-size:22px!important;margin:3px 0 5px!important}
+.route-wiki .wikiCatalogCard p{color:#7f8b80!important;font-size:10px!important;line-height:1.35!important;max-width:360px}
+.route-wiki .wikiCatalogCard small{color:#66846c!important}
+.route-wiki .wikiCatalogCard>strong{color:#69aa78!important;font-size:18px!important}
+.route-wiki .wikiCatalogCard>b{color:#6da87a!important;margin-top:8px!important}
+.route-wiki .wikiMapleAsset{position:relative;display:grid;place-items:center;overflow:hidden;background:#171d17!important;border:1px solid #344034!important;color:#6f9c75!important}
+.route-wiki .wikiMapleAsset img{display:block;max-width:88%;max-height:88%;width:auto;height:auto;object-fit:contain;image-rendering:auto;filter:drop-shadow(0 3px 4px rgba(0,0,0,.32))}
+.route-wiki .wikiMapleAsset:after{content:""}
+.route-wiki .wikiMapleAsset.is-missing:after,.route-wiki .wikiMapleAsset:not(:has(img)):after{content:attr(data-fallback);font:700 11px/1 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.08em;color:#6e9874}
+.route-wiki .wikiCatalogIcon{width:52px!important;height:52px!important;border-radius:0!important;font-size:0!important}
+.route-wiki .wikiDataResultGrid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:1px!important;background:#2a302a!important;border:1px solid #2a302a!important}
+.route-wiki .wikiDataResult{background:#111511!important;color:#dce3d7!important;border:0!important;border-radius:0!important;padding:12px!important;grid-template-columns:48px 1fr 18px!important}
+.route-wiki .wikiDataResult:hover{background:#161c16!important}
+.route-wiki .wikiDataResultIcon{width:46px!important;height:46px!important;border-radius:0!important;font-size:0!important}
+.route-wiki .wikiDataResult strong{color:#eeeade!important;font-size:16px!important}
+.route-wiki .wikiDataResult small,.route-wiki .wikiDataResult p{color:#788579!important}
+.route-wiki .wikiListHero{padding:18px 0 14px!important}
+.route-wiki .wikiListHero .wikiBreadcrumb{padding:0 0 10px!important;color:#798679!important}
+.route-wiki .wikiBreadcrumb a{color:#75aa7d!important}
+.route-wiki .wikiListHeroGrid{align-items:center!important}
+.route-wiki .wikiListHero h1{font-size:clamp(32px,3.4vw,48px)!important;margin:2px 0 4px!important}
+.route-wiki .wikiListCount strong{color:#6eb17d!important;font-size:28px!important}
+.route-wiki .wikiListCount span,.route-wiki .wikiListCount small{color:#718071!important}
+.route-wiki .wikiListSearch{margin-top:12px!important}
+.route-wiki .wikiTypeTabs{margin-top:9px!important;gap:1px!important}
+.route-wiki .wikiTypeTabs a{border:1px solid #303830!important;background:#111511!important;color:#8d998d!important;border-radius:0!important;padding:7px 10px!important}
+.route-wiki .wikiTypeTabs a.active{background:#1a241b!important;color:#9bd2a3!important;border-color:#45604a!important}
+.route-wiki .wikiListBody{padding:12px clamp(18px,3vw,46px) 22px!important}
+.route-wiki .wikiDataTableWrap{border:1px solid #2d352d!important;border-radius:0!important;background:#101410!important;box-shadow:none!important;max-height:calc(100vh - 260px)!important;overflow:auto!important}
+.route-wiki .wikiDataTable{min-width:760px!important;background:#101410!important}
+.route-wiki .wikiDataTable thead{position:sticky;top:0;z-index:2;background:#161c16!important;color:#829e86!important}
+.route-wiki .wikiDataTable th{background:#161c16!important;color:#7f9b83!important;padding:9px 12px!important;border-bottom:1px solid #313a31!important}
+.route-wiki .wikiDataTable td{padding:8px 12px!important;border-color:#252c25!important;background:#101410!important;color:#aab4aa!important}
+.route-wiki .wikiDataTable tbody tr:hover td{background:#151a15!important}
+.route-wiki .wikiDataTable code{color:#7c9b82!important}
+.route-wiki .wikiEntityName strong{color:#ece9dc!important;font-size:15px!important}
+.route-wiki .wikiEntityName small,.route-wiki .wikiEntitySubtype,.route-wiki .wikiEntityDescription{color:#778477!important}
+.route-wiki .wikiEntityPrimaryLink span{color:#69a978!important}
+.route-wiki .wikiArtColumn{width:62px!important;min-width:62px!important}
+.route-wiki .wikiListAsset{width:42px;height:42px;text-decoration:none}
+.route-wiki .wikiPagination{margin-top:10px!important}
+.route-wiki .wikiPagination a,.route-wiki .wikiPagination span{border-radius:0!important;border-color:#303830!important;background:#121712!important;color:#8f9b8f!important}
+.route-wiki .wikiEntityPage{padding-bottom:18px!important}
+.route-wiki .wikiEntityPage>.wikiBreadcrumb{padding-top:12px!important}
+.route-wiki .wikiEntityHero{margin-top:9px!important;margin-bottom:10px!important;grid-template-columns:minmax(0,1fr) 240px!important;gap:1px!important;background:#2c332c!important}
+.route-wiki .wikiEntityIdentity{background:#111511!important;border:0!important;border-radius:0!important;padding:16px!important;grid-template-columns:96px 1fr!important}
+.route-wiki .wikiEntityGlyph{width:88px!important;height:88px!important;border-radius:0!important;background:#171d17!important;border:1px solid #354035!important;box-shadow:none!important;font-size:0!important}
+.route-wiki .wikiEntityGlyph img{max-width:92%;max-height:92%;object-fit:contain;filter:drop-shadow(0 4px 5px rgba(0,0,0,.35))}
+.route-wiki .wikiEntityIdentity p{color:#879487!important}
+.route-wiki .wikiEntityBadges span{border-color:#354035!important;background:#151b15!important;color:#839584!important;border-radius:0!important}
+.route-wiki .wikiEntityHero>aside{background:#141914!important;border-radius:0!important;color:#889588!important;padding:16px!important}
+.route-wiki .wikiEntityHero>aside strong{color:#eeeade!important}
+.route-wiki .wikiEntityHero>aside a{color:#74ae7d!important}
+.route-wiki .wikiEntityLayout{grid-template-columns:minmax(0,1fr) 240px!important;gap:10px!important}
+.route-wiki .wikiEntityContent{gap:8px!important}
+.route-wiki .wikiEntitySection,.route-wiki .wikiEntitySideBox,.route-wiki .wikiSideSearch,.route-wiki .wikiRawSection{background:#111511!important;border:1px solid #2d352d!important;border-radius:0!important;box-shadow:none!important;color:#a9b3a9!important}
+.route-wiki .wikiEntitySection{padding:15px!important}
+.route-wiki .wikiEntitySectionHead{padding-bottom:8px!important;margin-bottom:9px!important;border-color:#2b332b!important}
+.route-wiki .wikiEntitySectionHead h2,.route-wiki .wikiRawSection h2{color:#eeeade!important;font-size:22px!important}
+.route-wiki .wikiStatGrid>div,.route-wiki .wikiRawGrid>div{background:#151a15!important;border-color:#2c342c!important;border-radius:0!important;padding:9px!important}
+.route-wiki .wikiStatGrid small,.route-wiki .wikiRawGrid small{color:#697669!important}
+.route-wiki .wikiStatGrid strong,.route-wiki .wikiRawGrid strong{color:#a9c7ad!important}
+.route-wiki .wikiRelationTable,.route-wiki .wikiPortalList,.route-wiki .wikiSkillLevels details{border-color:#2c342c!important;border-radius:0!important;background:#101410!important}
+.route-wiki .wikiRelationTable>a,.route-wiki .wikiPortalList>div,.route-wiki .wikiSkillLevels details{border-color:#252d25!important;color:#929f92!important;background:#101410!important}
+.route-wiki .wikiRelationTable>a:hover,.route-wiki .wikiRelationCards>a:hover{background:#161c16!important}
+.route-wiki .wikiRelationCards>a{background:#131813!important;border-color:#2c342c!important;border-radius:0!important;color:#899689!important}
+.route-wiki .wikiRelationCards strong,.route-wiki .wikiRelationTable strong{color:#e5e6dc!important}
+.route-wiki .wikiEntitySidebar{gap:8px!important}
+.route-wiki .wikiEntitySideBox,.route-wiki .wikiSideSearch{padding:14px!important}
+.route-wiki .wikiEntitySideBox>strong,.route-wiki .wikiSideSearch>strong{color:#e9e7dc!important}
+.route-wiki .wikiEntitySideBox p,.route-wiki .wikiEntitySideBox dd{color:#899589!important}
+.route-wiki .wikiSideSearch input{background:#0e120e!important;border:1px solid #303830!important;color:#e2e6dd!important;border-radius:0!important}
+@media(max-width:900px){.route-wiki .wikiCatalogGrid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.route-wiki .wikiDataHeroInner{grid-template-columns:1fr!important}.route-wiki .wikiDataHeroPanel{display:none!important}.route-wiki .wikiEntityLayout,.route-wiki .wikiEntityHero{grid-template-columns:1fr!important}.route-wiki .wikiEntitySidebar{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))}.route-wiki .wikiDataTableWrap{max-height:calc(100vh - 285px)!important}}
+@media(max-width:620px){.route-wiki .wikiCatalogGrid,.route-wiki .wikiDataResultGrid{grid-template-columns:1fr!important}.route-wiki .wikiCatalogCard{min-height:112px!important}.route-wiki .wikiListHeroGrid{align-items:start!important}.route-wiki .wikiListCount{display:none!important}.route-wiki .wikiDataSearch select{display:none!important}.route-wiki .wikiEntityIdentity{grid-template-columns:70px 1fr!important}.route-wiki .wikiEntityGlyph{width:64px!important;height:64px!important}.route-wiki .wikiEntitySidebar{grid-template-columns:1fr!important}.route-wiki .wikiStatGrid,.route-wiki .wikiRawGrid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
