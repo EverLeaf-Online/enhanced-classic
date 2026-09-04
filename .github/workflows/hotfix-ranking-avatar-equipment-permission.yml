@@ -1,0 +1,72 @@
+name: Hotfix Live Ranking Avatar Equipment Permission
+
+on:
+  push:
+    branches: [diag/ranking-avatar-equipment-sep4]
+    paths:
+      - '.github/workflows/hotfix-ranking-avatar-equipment-permission.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Grant read-only equipment access and verify live avatars
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o ConnectTimeout=15 -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+            set -euo pipefail
+            WEB_DB_ACCOUNT_COUNT=0
+            while IFS=$'\t' read -r db_user db_host; do
+              [ -n "$db_user" ] || continue
+              escaped_user="${db_user//\'/\'\'}"
+              escaped_host="${db_host//\'/\'\'}"
+              sudo mysql -e "GRANT SELECT ON \`cosmic\`.\`inventoryitems\` TO '${escaped_user}'@'${escaped_host}';"
+              WEB_DB_ACCOUNT_COUNT=$((WEB_DB_ACCOUNT_COUNT + 1))
+            done < <(sudo mysql -NBe "SELECT User,Host FROM mysql.user WHERE User='everleaf_web' ORDER BY Host;")
+            test "$WEB_DB_ACCOUNT_COUNT" -gt 0
+            sudo mysql -e 'FLUSH PRIVILEGES;'
+
+            sudo systemctl restart everleaf-web
+            sleep 2
+            systemctl is-active --quiet everleaf-web
+
+            for spec in '16:1310' '17:1110' '14:420' '12:410'; do
+              id="${spec%%:*}"; job="${spec##*:}"
+              headers="$(mktemp)"
+              image="$(mktemp)"
+              curl -fsS --max-time 40 -D "$headers" -o "$image" "http://127.0.0.1:3000/character-avatar/${id}.png?job=${job}"
+              grep -Eqi '^x-everleaf-avatar-source:[[:space:]]*local-wz(-cache)?[[:space:]]*$' "$headers"
+              grep -Eqi '^x-everleaf-avatar-mode:[[:space:]]*full[[:space:]]*$' "$headers"
+              grep -Eqi '^x-everleaf-avatar-equipment-count:[[:space:]]*[1-9][0-9]*[[:space:]]*$' "$headers"
+              count="$(grep -Ei '^x-everleaf-avatar-equipment-count:' "$headers" | tail -n1 | tr -d '\r')"
+              echo "avatar ${id}: ${count}"
+              rm -f "$headers" "$image"
+            done
+          REMOTE
