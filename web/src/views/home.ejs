@@ -92,29 +92,9 @@
     </div>
   </section>
 
-  <section class="wrap classSection" aria-labelledby="class-title">
-    <div class="sectionIndex"><span>SECTION / 03</span><span>ADVENTURER MATRIX</span></div>
-    <div class="classHeader">
-      <div><p class="terminalLabel">FIVE CLASSIC FAMILIES + BEGINNER</p><h2 id="class-title">CHOOSE YOUR SIGNAL.</h2></div>
-      <p>Meet the familiar instructors behind EverLeaf's Adventurer paths. Each family keeps its classic identity while the wider server systems are tuned for long-term play.</p>
-    </div>
-    <div class="classMatrix">
-      <article class="classNode"><div class="classNodeArt"><img src="/assets/jobs/beginner/beginner-clean.png" alt="Beginner adventurer" loading="lazy"></div><div class="classNodeMeta"><span>00 / START</span><strong>BEGINNER</strong><small>EXPLORER / MAPLE ISLAND</small></div></article>
-      <article class="classNode"><div class="classNodeArt"><img src="/assets/jobs/instructors/warrior.png" alt="Warrior instructor" loading="lazy"></div><div class="classNodeMeta"><span>01 / STR</span><strong>WARRIOR</strong><small>PERION / FRONTLINE</small></div></article>
-      <article class="classNode"><div class="classNodeArt"><img src="/assets/jobs/instructors/magician.png" alt="Magician instructor" loading="lazy"></div><div class="classNodeMeta"><span>02 / INT</span><strong>MAGICIAN</strong><small>ELLINIA / SPELLCASTER</small></div></article>
-      <article class="classNode"><div class="classNodeArt"><img src="/assets/jobs/instructors/bowman.png" alt="Bowman instructor" loading="lazy"></div><div class="classNodeMeta"><span>03 / DEX</span><strong>BOWMAN</strong><small>HENESYS / RANGED</small></div></article>
-      <article class="classNode"><div class="classNodeArt"><img src="/assets/jobs/instructors/thief.png" alt="Thief instructor" loading="lazy"></div><div class="classNodeMeta"><span>04 / LUK</span><strong>THIEF</strong><small>KERNING / MOBILITY</small></div></article>
-      <article class="classNode"><div class="classNodeArt"><img src="/assets/jobs/instructors/pirate.png" alt="Pirate instructor" loading="lazy"></div><div class="classNodeMeta"><span>05 / STR+DEX</span><strong>PIRATE</strong><small>NAUTILUS / HYBRID</small></div></article>
-    </div>
-    <div class="specialClassRail">
-      <div><span>EXPANDED PATHS</span><strong>CYGNUS KNIGHTS / ARAN / EVAN</strong></div>
-      <a href="/wiki">EXPLORE CLASSES ↗</a>
-    </div>
-  </section>
-
   <section class="dataSection" aria-labelledby="data-title">
     <div class="wrap">
-      <div class="sectionIndex"><span>SECTION / 04</span><span>LIVE WORLD DATA</span></div>
+      <div class="sectionIndex"><span>SECTION / 03</span><span>LIVE WORLD DATA</span></div>
       <div class="dataHeader"><h2 id="data-title">THE WORLD IS NOT STATIC.</h2><p>Live character data and first-party updates sit beside the game instead of behind it.</p></div>
       <div class="dataSplit">
         <section class="journalFeed" aria-labelledby="journal-title">
@@ -130,20 +110,10 @@
           <% if(topCharacters&&topCharacters.length){ topCharacters.forEach((character,i)=>{ %>
             <a class="rankingRow" href="/rankings"><span class="rankNo"><%=String(i+1).padStart(2,'0')%></span><div><strong><%=character.name%></strong><small><%=character.jobName||'Adventurer'%></small></div><b>LV. <%=character.level%></b></a>
           <% }) } else { %>
-            <div class="emptySignal"><span>RANKING SIGNAL PENDING</span><p>Live character rankings will populate when game data is available.</p></div>
+            <div class="emptySignal"><span>RANKING DATA PENDING</span><p>Live character rankings will populate when game data is available.</p></div>
           <% } %>
         </section>
       </div>
-    </div>
-  </section>
-
-  <section class="wrap wikiSignalSection" aria-labelledby="wiki-signal-title">
-    <div class="sectionIndex"><span>SECTION / 05</span><span>KNOWLEDGE SIGNAL</span></div>
-    <div class="wikiSignalHeader"><div><p class="terminalLabel">EVERLEAF HANDBOOK</p><h2 id="wiki-signal-title">KNOW THE WORLD<br>BEFORE IT KNOWS YOU.</h2></div><a class="btn ghost" href="/wiki">OPEN WIKI</a></div>
-    <div class="wikiSignalRows">
-      <% (featuredWiki||[]).forEach((entry,i)=>{ %>
-        <a href="/wiki/<%=entry.slug%>" class="wikiSignalRow" data-source="<%=entry.sourceDoc||''%>"><span><%=String(i+1).padStart(2,'0')%></span><div><small><%=entry.status||'REFERENCE'%></small><strong><%=entry.title%></strong><p><%=entry.summary%></p></div><b>↗</b></a>
-      <% }) %>
     </div>
   </section>
 
