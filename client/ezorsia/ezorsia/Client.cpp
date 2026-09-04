@@ -16,6 +16,18 @@ std::string Client::ServerIP_AddressFromINI = "132.145.141.79";
 
 void Client::UpdateGameStartup() {
 
+	// EVERLEAF_SELECTOR_RUNTIME_DUMP: temporary, removed after deriving the Evan selector hook.
+	FILE* selectorDump = fopen("everleaf-selector-runtime.txt", "w");
+	if (selectorDump) {
+		const unsigned char* selectorBytes = reinterpret_cast<const unsigned char*>(0x005F4F20);
+		for (int i = 0; i < 0x1E0; ++i) {
+			if ((i % 16) == 0) fprintf(selectorDump, "\n%08X: ", 0x005F4F20 + i);
+			fprintf(selectorDump, "%02X ", selectorBytes[i]);
+		}
+		fprintf(selectorDump, "\n");
+		fclose(selectorDump);
+	}
+
 	Memory::CodeCave(cc0x00A63FF3, dw0x00A63FF3, dw0x00A63FF3Nops); //fix start @0x00A63FF3, may be unnecessary, but dump of vanilla client showed broken code here
 
 	Memory::CodeCave(ccCLoginSendCheckPasswordPacket, dwCLoginSendCheckPasswordPacket, CLoginSendCheckPasswordPacketNops); //CLogin::SendCheckPasswordPacket: At the start of the sequence of pushes that contains 0C9h, place a long jmp to further down in the method to the SystemInfo basic block.Do auth patches for encoding the correct strings(user / pw)
