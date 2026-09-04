@@ -55,6 +55,7 @@ test('Wiki UI is explicitly a searchable server-data encyclopedia',()=>{
   const entry=read('src/views/wiki-data-entry.ejs');
   const css=read('public/css/wiki-data.css');
   const cleanupCss=read('public/css/wiki-cleanup-2026.css');
+  const darkCss=read('public/css/wiki-app-dark-2026.css');
   const header=read('src/views/partials/header.ejs');
   assert.match(hub,/EVERLEAF DATA WIKI/);
   assert.match(hub,/WZ \+ MySQL/);
@@ -74,8 +75,16 @@ test('Wiki UI is explicitly a searchable server-data encyclopedia',()=>{
   assert.match(css,/\.wikiDataTable/);
   assert.match(cleanupCss,/\.wikiDataTableClean/);
   assert.match(cleanupCss,/@media\(max-width:760px\)/);
+  assert.match(darkCss,/body\.route-wiki \.wikiDataPage/);
+  assert.match(darkCss,/background:#12130f!important/);
+  assert.match(darkCss,/main\.wikiCatalogListPage/);
+  assert.match(darkCss,/main\.wikiEntityPage/);
+  assert.match(darkCss,/\.wikiDataTable td/);
+  assert.match(darkCss,/\.wikiEntitySection/);
+  assert.match(darkCss,/@media\(max-width:680px\)/);
   assert.match(header,/wiki-data\.css/);
   assert.match(header,/wiki-cleanup-2026\.css/);
+  assert.match(header,/app-frame-v2-2026\.css[\s\S]*wiki-app-dark-2026\.css/);
 });
 
 test('CMS knowledge dashboard continues to support supplemental Wiki guides',()=>{
