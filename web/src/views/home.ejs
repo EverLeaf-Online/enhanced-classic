@@ -46,7 +46,7 @@
   </div>
 </section>
 
-<nav class="signalStrip" aria-label="EverLeaf quick links">
+<nav class="signalStrip" aria-label="EverLeaf primary navigation">
   <div class="wrap signalStripGrid">
     <a href="/downloads"><span>01</span><strong>DOWNLOAD</strong><small>Launcher + client</small></a>
     <a href="<%=sessionPlayer?'/account':'/login'%>"><span>02</span><strong><%=sessionPlayer?'ACCOUNT':'LOGIN'%></strong><small>Characters + security</small></a>
@@ -55,74 +55,5 @@
     <a href="/news"><span>05</span><strong>JOURNAL</strong><small>Updates + events</small></a>
   </div>
 </nav>
-
-<main class="terminalHome">
-  <section class="wrap dossierSection" aria-labelledby="world-dossier-title">
-    <div class="sectionIndex"><span>SECTION / 01</span><span>WORLD DOSSIER</span></div>
-    <div class="dossierGrid">
-      <div class="dossierStatement">
-        <p class="terminalLabel">WHY EVERLEAF EXISTS</p>
-        <h2 id="world-dossier-title">THE GAME YOU REMEMBER.<br><span>THE ROAD AHEAD, REBUILT.</span></h2>
-      </div>
-      <div class="dossierCopy">
-        <p>EverLeaf keeps v83 recognizable at its core and puts the work into the systems around it: progression that respects your time, transparent changes, launcher-managed updates, useful account tools, live rankings, and a growing knowledge base.</p>
-        <a class="terminalInlineLink" href="/wiki">READ THE EVERLEAF HANDBOOK ↗</a>
-      </div>
-    </div>
-    <div class="dossierMetrics">
-      <article><span>01</span><strong>CLASSIC-FIRST</strong><p>v83 remains the foundation. Changes remove friction instead of replacing the game.</p></article>
-      <article><span>02</span><strong>FAIR SYSTEMS</strong><p>No mandatory competitive purchases. Progression and community stay at the center.</p></article>
-      <article><span>03</span><strong>MANAGED CLIENT</strong><p>The EverLeaf launcher handles supported installs, repairs, patches, and future updates.</p></article>
-      <article><span>04</span><strong>LIVING PORTAL</strong><p>Rankings, Wiki, news, account tools, and support remain useful after your first download.</p></article>
-    </div>
-  </section>
-
-  <section class="entrySection" aria-labelledby="entry-title">
-    <div class="wrap">
-      <div class="sectionIndex"><span>SECTION / 02</span><span>ENTRY SEQUENCE</span></div>
-      <div class="entryHeader">
-        <h2 id="entry-title">ZERO TO MAPLE WORLD<br>IN THREE MOVES.</h2>
-        <p>The website, launcher, and game account are one connected path. Start here and the rest stays simple.</p>
-      </div>
-      <div class="entrySequence">
-        <a href="<%=sessionPlayer?'/account':'/register'%>" class="entryStep"><span class="entryNo">01</span><div><small>IDENTITY</small><strong><%=sessionPlayer?'REVIEW YOUR ACCOUNT':'CREATE YOUR ACCOUNT'%></strong><p><%=sessionPlayer?'Check your characters, security, and linked services.':'Create one EverLeaf account for the website and game client.'%></p></div><b>→</b></a>
-        <a href="/downloads" class="entryStep"><span class="entryNo">02</span><div><small>CLIENT</small><strong>INSTALL THE LAUNCHER</strong><p>Use the supported launcher to install, verify, repair, and update EverLeaf.</p></div><b>→</b></a>
-        <a href="/help" class="entryStep"><span class="entryNo">03</span><div><small>WORLD</small><strong>ENTER MAPLE WORLD</strong><p>Launch the client, choose a channel, and use Player Help when Windows needs attention.</p></div><b>→</b></a>
-      </div>
-    </div>
-  </section>
-
-  <section class="dataSection" aria-labelledby="data-title">
-    <div class="wrap">
-      <div class="sectionIndex"><span>SECTION / 03</span><span>LIVE WORLD DATA</span></div>
-      <div class="dataHeader"><h2 id="data-title">THE WORLD IS NOT STATIC.</h2><p>Live character data and first-party updates sit beside the game instead of behind it.</p></div>
-      <div class="dataSplit">
-        <section class="journalFeed" aria-labelledby="journal-title">
-          <div class="moduleHeader"><span id="journal-title">WORLD JOURNAL</span><a href="/news">ALL ENTRIES ↗</a></div>
-          <% if(posts&&posts.length){ posts.slice(0,3).forEach((p,i)=>{ %>
-            <a class="journalRow" href="/news/<%=p.slug%>"><span class="journalNo">0<%=i+1%></span><div><small><%=String(p.type||'news').toUpperCase()%> / <%=String(p.created_at).slice(0,10)%></small><strong><%=p.title%></strong><p><%=p.excerpt%></p></div><b>↗</b></a>
-          <% }) } else { %>
-            <div class="emptySignal"><span>NO ENTRIES YET</span><p>The World Journal is ready for the next EverLeaf update.</p></div>
-          <% } %>
-        </section>
-        <section class="rankingFeed" aria-labelledby="ranking-title">
-          <div class="moduleHeader"><span id="ranking-title">TOP ADVENTURERS</span><a href="/rankings">FULL RANKINGS ↗</a></div>
-          <% if(topCharacters&&topCharacters.length){ topCharacters.forEach((character,i)=>{ %>
-            <a class="rankingRow" href="/rankings"><span class="rankNo"><%=String(i+1).padStart(2,'0')%></span><div><strong><%=character.name%></strong><small><%=character.jobName||'Adventurer'%></small></div><b>LV. <%=character.level%></b></a>
-          <% }) } else { %>
-            <div class="emptySignal"><span>RANKING DATA PENDING</span><p>Live character rankings will populate when game data is available.</p></div>
-          <% } %>
-        </section>
-      </div>
-    </div>
-  </section>
-
-  <section class="finalTransmission">
-    <div class="wrap finalTransmissionGrid">
-      <div><span class="terminalLabel">TRANSMISSION / READY</span><h2>ENTER<br>EVERLEAF.</h2></div>
-      <div class="finalTransmissionCopy"><p>Your account, launcher, rankings, Wiki, community, and support are already connected around the same world. The next move is yours.</p><div><a class="btn primary" href="<%=sessionPlayer?'/downloads':'/register'%>"><%=sessionPlayer?'DOWNLOAD & PLAY':'START YOUR JOURNEY'%></a><a class="btn ghost" href="<%=brand.discordUrl%>" target="_blank" rel="noopener noreferrer">JOIN DISCORD ↗</a></div></div>
-    </div>
-  </section>
-</main>
 
 <%- include("partials/footer",{player:sessionPlayer}) %>
