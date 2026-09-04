@@ -1,0 +1,117 @@
+name: Resolve v83 race selector button handler once
+
+on:
+  push:
+    branches: [feature/client-job-selector-modernization-20260904]
+    paths: ['.github/workflows/resolve-v83-race-button-handler-once.yml']
+
+permissions:
+  contents: write
+
+env:
+  EVERLEAF_PUBLIC_BASE: https://everleafms.online
+
+jobs:
+  resolve:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/client-job-selector-modernization-20260904
+          fetch-depth: 0
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build instrumented client DLL
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python client/scripts/apply-ui-modernization.py
+          python client/scripts/apply-community-ui-preference.py
+          msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+      - name: Reconstruct managed client
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $client=Join-Path $env:RUNNER_TEMP 'client'; New-Item -ItemType Directory -Force -Path $client | Out-Null
+          $baseline=Get-Content client/managed-client-baseline.json -Raw | ConvertFrom-Json
+          foreach($entry in @($baseline.managedFiles)){
+            $name=[string]$entry.path
+            if($name -notmatch '^[A-Za-z0-9_.-]+$'){ throw "Unsafe path $name" }
+            Invoke-WebRequest -Uri "$env:EVERLEAF_PUBLIC_BASE/patches/$name" -OutFile (Join-Path $client $name) -MaximumRedirection 5 -TimeoutSec 180 -UseBasicParsing
+          }
+          Copy-Item client/ezorsia/out/Release/dinput8.dll (Join-Path $client 'dinput8.dll') -Force
+          Copy-Item client/ezorsia/ezorsia/config.ini (Join-Path $client 'config.ini') -Force
+          "CLIENT_DIR=$client" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Launch and capture unpacked code
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Add-Type @'
+          using System; using System.Runtime.InteropServices;
+          public static class RPM {
+            [DllImport("kernel32.dll", SetLastError=true)] public static extern IntPtr OpenProcess(uint access,bool inherit,int pid);
+            [DllImport("kernel32.dll", SetLastError=true)] public static extern bool ReadProcessMemory(IntPtr h,IntPtr addr,byte[] buf,int size,out IntPtr read);
+            [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
+          }
+          '@
+          $p=Start-Process -FilePath (Join-Path $env:CLIENT_DIR 'EverLeaf.exe') -WorkingDirectory $env:CLIENT_DIR -PassThru
+          Start-Sleep -Seconds 15
+          $proc=Get-Process -Name EverLeaf -ErrorAction SilentlyContinue | Sort-Object WorkingSet64 -Descending | Select-Object -First 1
+          if(-not $proc){ throw 'EverLeaf process missing' }
+          $h=[RPM]::OpenProcess(0x0010 -bor 0x0400,$false,$proc.Id); if($h -eq [IntPtr]::Zero){throw 'OpenProcess failed'}
+          try {
+            $base=0x00500000; $size=0x00200000; $buf=New-Object byte[] $size; $read=[IntPtr]::Zero
+            if(-not [RPM]::ReadProcessMemory($h,[IntPtr]$base,$buf,$size,[ref]$read)){throw 'ReadProcessMemory failed'}
+            [IO.File]::WriteAllBytes((Join-Path $env:RUNNER_TEMP 'client-code.bin'),$buf[0..($read.ToInt64()-1)])
+          } finally { [RPM]::CloseHandle($h)|Out-Null; Get-Process -Name EverLeaf -ErrorAction SilentlyContinue|Stop-Process -Force -ErrorAction SilentlyContinue }
+      - name: Find race-field writers and candidate selector functions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --disable-pip-version-check capstone
+          @'
+          from pathlib import Path
+          from capstone import Cs, CS_ARCH_X86, CS_MODE_32
+          from capstone.x86 import X86_OP_MEM, X86_OP_IMM
+          import os
+          BASE=0x00500000
+          data=Path(os.environ['RUNNER_TEMP'],'client-code.bin').read_bytes()
+          md=Cs(CS_ARCH_X86,CS_MODE_32); md.detail=True
+          ins=list(md.disasm(data,BASE))
+          hits=[]
+          for idx,i in enumerate(ins):
+              mem214=False
+              for op in i.operands:
+                  if op.type==X86_OP_MEM and op.mem.disp==0x214:
+                      mem214=True
+              if mem214:
+                  lo=max(0,idx-12); hi=min(len(ins),idx+18)
+                  hits.append((i.address,ins[lo:hi]))
+          lines=['# v83 race selector field-writer analysis','',f'- scanned: `0x{BASE:08X}`..`0x{BASE+len(data):08X}`',f'- instructions touching displacement `+0x214`: {len(hits)}','']
+          for addr,window in hits:
+              lines += [f'## Candidate near `0x{addr:08X}`','```asm']
+              lines += [f'{x.address:08X}: {x.mnemonic:<7} {x.op_str}' for x in window]
+              lines += ['```','']
+          # Also record compact immediate-0/1/2/3 writes in the login/race-select neighborhood.
+          lines += ['## Immediate writes 0..3 near 0x005E0000..0x00620000','']
+          for i in ins:
+              if not (0x005E0000 <= i.address < 0x00620000): continue
+              if i.mnemonic not in ('mov','and','or'): continue
+              if len(i.operands)<2 or i.operands[0].type!=X86_OP_MEM or i.operands[1].type!=X86_OP_IMM: continue
+              v=i.operands[1].imm & 0xffffffff
+              if v<=3:
+                  lines.append(f'- `{i.address:08X}: {i.mnemonic} {i.op_str}`')
+          Path('docs/CLIENT_V83_RACE_BUTTON_HANDLER.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
+          print('\n'.join(lines[:500]))
+          '@ | Set-Content -Encoding utf8 "$env:RUNNER_TEMP/analyze.py"
+          python "$env:RUNNER_TEMP/analyze.py"
+      - name: Commit analysis
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name everleaf-client-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add docs/CLIENT_V83_RACE_BUTTON_HANDLER.md
+          git commit -m 'docs: resolve v83 race selector field writers'
+          git pull --rebase origin feature/client-job-selector-modernization-20260904
+          git push origin HEAD:feature/client-job-selector-modernization-20260904
