@@ -1,0 +1,159 @@
+name: Restore full v95 server XML
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/repair-live-v95-server-xml.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-game-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Restore and validate canonical full-v95 XML tree
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          CURRENT="$(readlink -f /opt/everleaf/current)"
+          test -d "$CURRENT"
+          test -d "$CURRENT/wz"
+          systemctl is-active --quiet everleaf.service
+
+          STAGE=''
+          for d in $(find /home/ubuntu/everleaf-staging -maxdepth 1 -type d -name 'community-wholesale-live-*' -printf '%T@ %p\n' | sort -nr | awk '{print $2}'); do
+            if [ -s "$d/community-full-xml.zip" ] && [ -s "$d/export-status.txt" ] && grep -q '^XML_COUNT=44236$' "$d/export-status.txt"; then
+              STAGE="$d"
+              break
+            fi
+          done
+          test -n "$STAGE" || { echo 'No verified 44,236-XML Community/v95 wholesale stage found.' >&2; exit 1; }
+          unzip -t "$STAGE/community-full-xml.zip" >/dev/null
+          echo "USING_STAGE=$STAGE"
+
+          TS="$(date -u +%Y%m%dT%H%M%SZ)"
+          BACKUP="/opt/everleaf/backups/v95-server-xml-repair/$TS"
+          sudo install -d -o ubuntu -g ubuntu /opt/everleaf/shared "$BACKUP"
+          sudo cp -a "$CURRENT/wz" "$BACKUP/pre-repair-wz"
+          printf '%s\n' "$CURRENT" > "$BACKUP/current-release.txt"
+          printf '%s\n' "$STAGE" > "$BACKUP/source-stage.txt"
+
+          NEW="/opt/everleaf/shared/wz-v95.new-$TS"
+          rm -rf "$NEW"
+          mkdir -p "$NEW"
+          unzip -q "$STAGE/community-full-xml.zip" -d "$NEW"
+
+          WZROOT="$NEW" python3 - <<'PY'
+          from pathlib import Path
+          import os,re,sys
+          root=Path(os.environ['WZROOT'])
+          xml_count=sum(1 for _ in root.rglob('*.xml'))
+          assert xml_count == 44236, xml_count
+          for fam in ('Item.wz','Map.wz','Mob.wz','Npc.wz','Quest.wz','Reactor.wz','Skill.wz','String.wz'):
+              assert (root/fam).is_dir(), fam
+          maps={int(m.group(1)) for p in (root/'Map.wz').rglob('*.img.xml') if (m:=re.match(r'^(\d+)\.img\.xml$',p.name))}
+          future=sorted(i for i in maps if 271000000 <= i <= 271040300)
+          assert len(future)==42, len(future)
+          ninja=[800040000,800040100,800040200,800040201,800040202,800040203,800040204,800040205,800040206,800040207,800040208,800040209,800040210,800040211,800040300,800040301,800040302,800040303,800040304,800040305,800040306,800040307,800040308,800040309,800040310,800040311,800040312,800040313,800040314,800040315,800040400,800040401,800040410]
+          assert not [i for i in ninja if i not in maps], [i for i in ninja if i not in maps]
+          def exact_files(fam, ids):
+              d=root/fam
+              return [i for i in ids if not list(d.rglob(f'{i}.img.xml'))]
+          assert not exact_files('Mob.wz',range(8850000,8850012)), exact_files('Mob.wz',range(8850000,8850012))
+          assert not exact_files('Mob.wz',range(9400400,9400411)), exact_files('Mob.wz',range(9400400,9400411))
+          assert not exact_files('Npc.wz',range(9110100,9110115)), exact_files('Npc.wz',range(9110100,9110115))
+          def family_text(fam):
+              parts=[]
+              for p in (root/fam).rglob('*.xml'):
+                  try: parts.append(p.read_text(errors='ignore'))
+                  except Exception: pass
+              return '\n'.join(parts)
+          item_text=family_text('Item.wz')
+          quest_text=family_text('Quest.wz')
+          for i in range(4000337,4000347): assert f'name="{i}"' in item_text or f'value="{i}"' in item_text, i
+          for q in range(8163,8172): assert f'name="{q}"' in quest_text or f'value="{q}"' in quest_text, q
+          print(f'FULL_V95_XML_VALID xml={xml_count} future_henesys={len(future)} ninja_maps={len(ninja)}')
+          PY
+
+          sudo rm -rf /opt/everleaf/shared/wz-v95.previous
+          if [ -d /opt/everleaf/shared/wz-v95 ]; then sudo mv /opt/everleaf/shared/wz-v95 /opt/everleaf/shared/wz-v95.previous; fi
+          sudo mv "$NEW" /opt/everleaf/shared/wz-v95
+
+          rollback(){
+            echo 'V95_SERVER_XML_REPAIR_FAILED_ROLLING_BACK' >&2
+            sudo rm -rf "$CURRENT/wz"
+            sudo cp -a "$BACKUP/pre-repair-wz" "$CURRENT/wz"
+            sudo systemctl restart everleaf.service || true
+          }
+          trap rollback ERR
+
+          sudo rm -rf "$CURRENT/wz"
+          sudo cp -a /opt/everleaf/shared/wz-v95 "$CURRENT/wz"
+          test "$(find "$CURRENT/wz" -type f -name '*.xml' | wc -l)" -eq 44236
+          sudo systemctl restart everleaf.service
+          for i in $(seq 1 45); do
+            if systemctl is-active --quiet everleaf.service && python3 "$CURRENT/tools/verify_channel_runtime.py" --config "$CURRENT/config.yaml" --host 127.0.0.1 >/tmp/v95-repair-health.json 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          systemctl is-active --quiet everleaf.service
+          python3 "$CURRENT/tools/verify_channel_runtime.py" --config "$CURRENT/config.yaml" --host 127.0.0.1
+          test "$(find "$CURRENT/wz/Map.wz" -type f -name '271*.img.xml' | wc -l)" -ge 42
+          test -n "$(find "$CURRENT/wz/Map.wz" -type f -name '800040410.img.xml' -print -quit)"
+          test -n "$(find "$CURRENT/wz/Mob.wz" -type f -name '8850011.img.xml' -print -quit)"
+          test -n "$(find "$CURRENT/wz/Mob.wz" -type f -name '9400410.img.xml' -print -quit)"
+          test -f "$CURRENT/scripts/event/CygnusBattle.js"
+          test -f "$CURRENT/scripts/portal/ninja_Boss.js"
+
+          printf 'stage=%s\nxml_count=44236\nrepaired=%s\n' "$STAGE" "$(date -u +%FT%TZ)" | sudo tee /opt/everleaf/.server-wz-baseline >/dev/null
+          trap - ERR
+          echo 'LIVE_FULL_V95_SERVER_XML_RESTORED'
+          REMOTE
+
+      - name: Verify public game ports
+        run: |
+          python3 - <<'PY'
+          import socket
+          host='132.145.141.79'
+          missing=[]
+          for port in [8484,*range(7575,7595)]:
+              try:
+                  with socket.create_connection((host,port),timeout=5): print('OK',port)
+              except OSError as exc:
+                  missing.append(port); print('FAIL',port,exc)
+          if missing: raise SystemExit(missing)
+          PY
