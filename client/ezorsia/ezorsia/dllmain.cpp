@@ -5,6 +5,7 @@
 #include "CrashDiagnostics.h"
 #include "FrameLimiter.h"
 #include "DisplayMode.h"
+#include "WidescreenCorrections.h"
 #include "AddyLocations.h"
 
 #include <atomic>
@@ -23,9 +24,6 @@ struct ClientSignature {
     const char* name;
 };
 
-// Stable entry bytes from EverLeaf's pinned GMS v83 client after its protected
-// image has unpacked. Checking several independent owners is safer than letting
-// one individual hook wait forever on a single byte.
 const ClientSignature kUnpackSignatures[] = {
     { 0x0044E88E, 0x55, "MyGetProcAddress" },
     { 0x009F5239, 0xB8, "CWvsApp::SetUp" },
@@ -83,9 +81,6 @@ bool InstallEarlyHook(const char* name, bool (*hook)(bool), bool critical) {
 }
 
 bool InstallEarlyHooks() {
-    // Detours transactions are deliberately installed on the bootstrap worker
-    // instead of inside DllMain, avoiding transaction/loader-sensitive work
-    // while the Windows loader lock is held.
     if (!InstallEarlyHook("CreateMutexA", Hook_CreateMutexA, false)) return false;
     if (!InstallEarlyHook("WSPStartup", Hook_WSPStartup, true)) return false;
     if (!InstallEarlyHook("CreateWindowExA", Hook_CreateWindowExA, false)) return false;
@@ -114,9 +109,6 @@ DWORD WINAPI BootstrapWatchdog(LPVOID) {
 }
 } // namespace
 
-// Executed only after the pinned v83 image has reached its expected unpacked
-// state. Function-level installers still retain their legacy readiness checks,
-// but Client v2 preflight prevents normal startup from entering them early.
 void MainFunc() {
     CrashDiagnostics::SetPhase("installing-client-hooks");
 
@@ -129,12 +121,6 @@ void MainFunc() {
         }
     };
 
-    // Inherited pass-through/tracking replacements are intentionally omitted.
-    // Most importantly, Client v2 leaves CWvsApp::Run on the stock v83 code path.
-    // The inherited rewrite incorrectly gated Maple's positive Patch/Disconnect/
-    // Terminate Z-exception codes with FAILED(HRESULT), preventing native dispatch.
-    // Keeping stock Run restores the correct v83 exception semantics while calls
-    // to separately hooked functions such as CallUpdate remain detoured normally.
     requiredHook("CClientSocket::Connect(context)", Hook_sub_494CA3(true));
     requiredHook("CClientSocket::Connect(prep)", Hook_sub_494D07(true));
     requiredHook("CClientSocket::Connect(sockaddr)", Hook_sub_494D2F(true));
@@ -168,10 +154,12 @@ void MainFunc() {
               << Client::m_nGameWidth << "x" << Client::m_nGameHeight << std::endl;
     Client::UpdateResolution();
 
-    // Repair the confirmed inherited tooltip wrong-axis write after the normal HD
-    // table has applied. Additional owner-backed geometry corrections are layered
-    // separately so this integration point stays easy to validate.
     Memory::WriteInt(dwToolTipLimitVPos + 1, Client::m_nGameHeight - 1);
+
+    CrashDiagnostics::SetPhase("applying-widescreen-corrections");
+    if (!WidescreenCorrections::Apply()) {
+        CrashDiagnostics::LogEvent("owner-backed widescreen corrections unavailable; continuing without them");
+    }
 
     if (Client::ModernLoginUI) {
         CrashDiagnostics::SetPhase("applying-login-ui");
@@ -233,17 +221,11 @@ DWORD WINAPI MainProc(LPVOID) {
     return 0;
 }
 
-// DllMain stays intentionally small. In particular, Detours transactions,
-// client memory patching, network provider work, and singleton destruction are
-// not performed while the loader lock is held.
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
     switch (ul_reason_for_call) {
     case DLL_PROCESS_ATTACH: {
         DisableThreadLibraryCalls(hModule);
 
-        // Capture a handle to MapleStory's loader/main thread for the legacy
-        // resource bootstrap code that briefly suspends it while generating
-        // missing config/UI resources.
         MainMain::mainTHread = OpenThread(
             THREAD_SUSPEND_RESUME | THREAD_QUERY_INFORMATION,
             FALSE,
@@ -264,9 +246,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         break;
     }
     case DLL_PROCESS_DETACH:
-        // Do not manually invoke MainMain's destructor here. Process teardown
-        // already reclaims these resources, and provider/destructor work during
-        // loader-lock teardown was a known crash/null-dereference risk.
         if (lpReserved == nullptr && gBootstrapComplete) {
             CloseHandle(gBootstrapComplete);
             gBootstrapComplete = nullptr;
