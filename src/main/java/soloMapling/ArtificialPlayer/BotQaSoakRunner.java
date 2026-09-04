@@ -23,12 +23,19 @@ import java.util.concurrent.ScheduledFuture;
 public final class BotQaSoakRunner {
     private static final Logger log = LoggerFactory.getLogger(BotQaSoakRunner.class);
     private static final long TICK_MS = 1_000L;
+    private static final String ARM_TOKEN = "ARM";
     public static final int MAX_DURATION_MINUTES = 12 * 60;
     private static final Map<Integer, Run> runsByOwner = new ConcurrentHashMap<>();
 
     private BotQaSoakRunner() {}
 
-    public static synchronized SoakResult start(int ownerId, int durationMinutes) {
+    /** Fail closed for callers that omit the explicit production-soak arming token. */
+    public static SoakResult start(int ownerId, int durationMinutes) {
+        return SoakResult.fail("explicit-arm-token-required");
+    }
+
+    public static synchronized SoakResult start(int ownerId, int durationMinutes, String armToken) {
+        if (!ARM_TOKEN.equals(armToken)) return SoakResult.fail("explicit-arm-token-required");
         if (ownerId <= 0) return SoakResult.fail("invalid-owner");
         if (durationMinutes < 1 || durationMinutes > MAX_DURATION_MINUTES) {
             return SoakResult.fail("duration-must-be-1-to-" + MAX_DURATION_MINUTES + "-minutes");
