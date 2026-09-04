@@ -1,174 +1,158 @@
 <%- include("partials/header",{title:"Home",player:sessionPlayer}) %>
 
-<section class="mapleHero homeV2Hero">
-  <div class="mapleHeroBg" aria-hidden="true"></div>
-  <div class="mapleHeroShade" aria-hidden="true"></div>
-  <div class="mapleHeroCharacters" aria-hidden="true">
-    <img class="left" src="/assets/hero-left.webp" alt="" decoding="async">
-    <img class="right" src="/assets/hero-right.webp" alt="" decoding="async">
-  </div>
-  <div class="wrap mapleHeroInner">
-    <div class="mapleHeroCopy">
-      <div class="mapleHeroTag">WELCOME BACK TO MAPLE WORLD</div>
-      <img class="heroBrand" src="/assets/everleaf-remaster.svg" alt="EverLeaf Enhanced Classic">
-      <h1>Classic Maple,<em>grown with care.</em></h1>
-      <p>EverLeaf keeps the familiar v83 adventure at its core, then improves the road around it: thoughtful quality-of-life, fair progression, launcher-managed updates, community development, and a world designed to last.</p>
-      <div class="mapleHeroActions">
-        <a class="btn primary" href="<%=sessionPlayer?'/downloads':'/register'%>"><%=sessionPlayer?'PLAY EVERLEAF':'START YOUR JOURNEY'%></a>
-        <a class="btn" href="/downloads">GET THE LAUNCHER</a>
-        <a class="btn ghost" href="/wiki">OPEN WIKI</a>
-      </div>
-      <div class="mapleHeroFacts" aria-label="EverLeaf highlights">
-        <span>Enhanced Classic v83</span>
-        <span>No mandatory HP washing</span>
-        <span>No pay-to-win advantage</span>
-        <span>20 channels</span>
+<section class="terminalHero" aria-labelledby="everleaf-home-title">
+  <div class="terminalHeroBackdrop" aria-hidden="true"></div>
+  <div class="terminalHeroNoise" aria-hidden="true"></div>
+
+  <div class="wrap terminalHeroGrid">
+    <div class="terminalHeroIdentity">
+      <div class="terminalLabel"><span>WORLD 01</span><span>ENHANCED CLASSIC</span><span>REV 083</span></div>
+      <h1 id="everleaf-home-title"><span>EVER</span><span>LEAF</span></h1>
+      <p class="terminalHeroLead">Classic MapleStory foundations, rebuilt around fair progression, community development, launcher-managed updates, and a world meant to last.</p>
+      <div class="terminalHeroActions">
+        <a class="btn primary" href="<%=sessionPlayer?'/downloads':'/register'%>"><%=sessionPlayer?'ENTER EVERLEAF':'CREATE ACCOUNT'%></a>
+        <a class="btn ghost" href="/downloads">DOWNLOAD LAUNCHER</a>
       </div>
     </div>
 
-    <aside id="server-status" class="mapleLive homeV2Status" aria-label="EverLeaf live server status">
-      <div class="mapleLiveHead">
-        <strong>EverLeaf World</strong>
-        <span class="liveState"><i id="live-dot" class="liveDot <%=status.online?'online':''%>" aria-hidden="true"></i><span id="live-state-label"><%=status.online?'Open for adventure':'Currently unavailable'%></span></span>
+    <div class="everleafArtifact" aria-label="EverLeaf Maple World artwork">
+      <div class="artifactHalo artifactHaloOne" aria-hidden="true"></div>
+      <div class="artifactHalo artifactHaloTwo" aria-hidden="true"></div>
+      <div class="artifactCrosshair" aria-hidden="true"><span></span><span></span></div>
+      <img class="artifactCharacter artifactCharacterBack" src="/assets/hero-left.webp" alt="" decoding="async">
+      <img class="artifactCharacter artifactCharacterFront" src="/assets/hero-right.webp" alt="Maple World adventurers" decoding="async">
+      <div class="artifactStamp" aria-hidden="true"><span>EL</span><small>WORLD<br>083</small></div>
+      <div class="artifactTelemetry" aria-hidden="true"><span>MAPLE WORLD / ONLINE</span><span>LOCAL ASSET / 02</span></div>
+    </div>
+
+    <aside id="server-status" class="heroTelemetry" aria-label="EverLeaf live server status">
+      <div class="telemetryHeader">
+        <span>LIVE WORLD TELEMETRY</span>
+        <span class="liveState"><i id="live-dot" class="liveDot <%=status.online?'online':''%>" aria-hidden="true"></i><span id="live-state-label"><%=status.online?'OPEN':'UNAVAILABLE'%></span></span>
       </div>
-      <div class="mapleLiveGrid" aria-live="polite">
-        <div class="mapleLiveMetric"><small>Server</small><strong id="live-status" class="<%=status.online?'online':''%>"><%=status.online?'ONLINE':'OFFLINE'%></strong></div>
-        <div class="mapleLiveMetric"><small>Players</small><strong id="live-players"><%=players===null?'—':players%></strong></div>
-        <div class="mapleLiveMetric"><small>Channels</small><strong id="live-channels" class="gold"><%=status.channels%>/<%=status.totalChannels%></strong></div>
-        <div class="mapleLiveMetric"><small>Client</small><strong><%=brand.version%></strong></div>
+      <div class="telemetryReadout">
+        <div><small>SERVER</small><strong id="live-status" class="<%=status.online?'online':''%>"><%=status.online?'ONLINE':'OFFLINE'%></strong></div>
+        <div><small>PLAYERS</small><strong id="live-players"><%=players===null?'—':players%></strong></div>
+        <div><small>CHANNELS</small><strong id="live-channels"><%=status.channels%>/<%=status.totalChannels%></strong></div>
+        <div><small>CLIENT</small><strong><%=brand.version%></strong></div>
       </div>
-      <div class="mapleLiveFoot">Live status is read from the existing EverLeaf server integration.</div>
-      <div class="liveRefresh"><span id="live-refresh">Refreshing live status…</span><a href="/help">Need help?</a></div>
+      <div class="telemetryFooter"><span id="live-refresh">Refreshing live status…</span><a href="/help">SYSTEM HELP ↗</a></div>
     </aside>
+  </div>
+
+  <div class="wrap heroEdgeRail">
+    <div><span class="terminalLabel">CORE PRINCIPLES</span><p>NO PAY-TO-WIN / NO MANDATORY HP WASHING / COMMUNITY-FIRST</p></div>
+    <div class="heroEdgeLinks"><a href="/wiki">WIKI ↗</a><a href="/rankings">RANKINGS ↗</a><a href="<%=brand.discordUrl%>" target="_blank" rel="noopener noreferrer">DISCORD ↗</a></div>
   </div>
 </section>
 
-<nav class="mapleQuick" aria-label="EverLeaf quick links">
-  <div class="wrap">
-    <a href="/downloads"><b class="mapleQuickIcon"><img src="/assets/ui/launcher.svg" alt=""></b><span><strong>Download</strong><small>Launcher & client</small></span></a>
-    <a href="/rankings"><b class="mapleQuickIcon"><img src="/assets/ui/trophy.svg" alt=""></b><span><strong>Rankings</strong><small>Top adventurers</small></span></a>
-    <a href="/wiki"><b class="mapleQuickIcon"><img src="/assets/ui/journal.svg" alt=""></b><span><strong>Wiki</strong><small>Game knowledge</small></span></a>
-    <a href="<%=brand.discordUrl%>" target="_blank" rel="noopener noreferrer"><b class="mapleQuickIcon"><img src="/assets/ui/community.svg" alt=""></b><span><strong>Community</strong><small>Guilds & Discord</small></span></a>
-    <a href="<%=sessionPlayer?'/account':'/login'%>"><b class="mapleQuickIcon"><img src="/assets/ui/account.svg" alt=""></b><span><strong><%=sessionPlayer?'My Account':'Account'%></strong><small><%=sessionPlayer?'Characters & settings':'Login or register'%></small></span></a>
+<nav class="signalStrip" aria-label="EverLeaf quick links">
+  <div class="wrap signalStripGrid">
+    <a href="/downloads"><span>01</span><strong>DOWNLOAD</strong><small>Launcher + client</small></a>
+    <a href="<%=sessionPlayer?'/account':'/login'%>"><span>02</span><strong><%=sessionPlayer?'ACCOUNT':'LOGIN'%></strong><small>Characters + security</small></a>
+    <a href="/rankings"><span>03</span><strong>RANKINGS</strong><small>Live character data</small></a>
+    <a href="/wiki"><span>04</span><strong>WIKI</strong><small>Systems + knowledge</small></a>
+    <a href="/news"><span>05</span><strong>JOURNAL</strong><small>Updates + events</small></a>
   </div>
 </nav>
 
-<section class="mapleHomeBody">
-  <div class="wrap">
-    <section class="homeJourney" aria-labelledby="journey-title">
-      <div class="homeJourneyHead">
-        <div>
-          <div class="pageEyebrow">NEW TO EVERLEAF?</div>
-          <h2 id="journey-title">From zero to Maple World in three steps.</h2>
-        </div>
-        <p>The launcher handles the client and future updates, while your EverLeaf account connects the website, character tools, and game login.</p>
+<main class="terminalHome">
+  <section class="wrap dossierSection" aria-labelledby="world-dossier-title">
+    <div class="sectionIndex"><span>SECTION / 01</span><span>WORLD DOSSIER</span></div>
+    <div class="dossierGrid">
+      <div class="dossierStatement">
+        <p class="terminalLabel">WHY EVERLEAF EXISTS</p>
+        <h2 id="world-dossier-title">THE GAME YOU REMEMBER.<br><span>THE ROAD AHEAD, REBUILT.</span></h2>
       </div>
-      <div class="journeySteps">
-        <a class="journeyStep" data-step="1" href="<%=sessionPlayer?'/account':'/register'%>">
-          <b class="journeyStepIcon"><img src="/assets/ui/account.svg" alt=""></b>
-          <span><strong><%=sessionPlayer?'Check your account':'Create your account'%></strong><p><%=sessionPlayer?'Review your characters and account settings before you jump back in.':'Make one EverLeaf account for the website and the v83 game client.'%></p><small><%=sessionPlayer?'OPEN ACCOUNT →':'REGISTER FREE →'%></small></span>
-        </a>
-        <a class="journeyStep" data-step="2" href="/downloads">
-          <b class="journeyStepIcon"><img src="/assets/ui/launcher.svg" alt=""></b>
-          <span><strong>Install the launcher</strong><p>Download the supported EverLeaf launcher and let it manage the current client and patches.</p><small>DOWNLOAD →</small></span>
-        </a>
-        <a class="journeyStep" data-step="3" href="/help">
-          <b class="journeyStepIcon"><img src="/assets/ui/tool.svg" alt=""></b>
-          <span><strong>Enter Maple World</strong><p>Launch, sign in, choose a channel, and use Player Help if Windows or the client needs attention.</p><small>PLAYER HELP →</small></span>
-        </a>
+      <div class="dossierCopy">
+        <p>EverLeaf keeps v83 recognizable at its core and puts the work into the systems around it: progression that respects your time, transparent changes, launcher-managed updates, useful account tools, live rankings, and a growing knowledge base.</p>
+        <a class="terminalInlineLink" href="/wiki">READ THE EVERLEAF HANDBOOK ↗</a>
       </div>
-    </section>
-
-    <div class="sectionHead">
-      <div>
-        <div class="pageEyebrow">EVERLEAF HANDBOOK</div>
-        <h2>Old-school foundations. Better long-term play.</h2>
-      </div>
-      <a href="/wiki">OPEN THE WIKI →</a>
     </div>
-    <div class="mapleIntro homeFeatureGrid libraryFeatureGrid">
+    <div class="dossierMetrics">
+      <article><span>01</span><strong>CLASSIC-FIRST</strong><p>v83 remains the foundation. Changes remove friction instead of replacing the game.</p></article>
+      <article><span>02</span><strong>FAIR SYSTEMS</strong><p>No mandatory competitive purchases. Progression and community stay at the center.</p></article>
+      <article><span>03</span><strong>MANAGED CLIENT</strong><p>The EverLeaf launcher handles supported installs, repairs, patches, and future updates.</p></article>
+      <article><span>04</span><strong>LIVING PORTAL</strong><p>Rankings, Wiki, news, account tools, and support remain useful after your first download.</p></article>
+    </div>
+  </section>
+
+  <section class="entrySection" aria-labelledby="entry-title">
+    <div class="wrap">
+      <div class="sectionIndex"><span>SECTION / 02</span><span>ENTRY SEQUENCE</span></div>
+      <div class="entryHeader">
+        <h2 id="entry-title">ZERO TO MAPLE WORLD<br>IN THREE MOVES.</h2>
+        <p>The website, launcher, and game account are one connected path. Start here and the rest stays simple.</p>
+      </div>
+      <div class="entrySequence">
+        <a href="<%=sessionPlayer?'/account':'/register'%>" class="entryStep"><span class="entryNo">01</span><div><small>IDENTITY</small><strong><%=sessionPlayer?'REVIEW YOUR ACCOUNT':'CREATE YOUR ACCOUNT'%></strong><p><%=sessionPlayer?'Check your characters, security, and linked services.':'Create one EverLeaf account for the website and game client.'%></p></div><b>→</b></a>
+        <a href="/downloads" class="entryStep"><span class="entryNo">02</span><div><small>CLIENT</small><strong>INSTALL THE LAUNCHER</strong><p>Use the supported launcher to install, verify, repair, and update EverLeaf.</p></div><b>→</b></a>
+        <a href="/help" class="entryStep"><span class="entryNo">03</span><div><small>WORLD</small><strong>ENTER MAPLE WORLD</strong><p>Launch the client, choose a channel, and use Player Help when Windows needs attention.</p></div><b>→</b></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap classSection" aria-labelledby="class-title">
+    <div class="sectionIndex"><span>SECTION / 03</span><span>ADVENTURER MATRIX</span></div>
+    <div class="classHeader">
+      <div><p class="terminalLabel">FIVE CLASSIC FAMILIES + BEGINNER</p><h2 id="class-title">CHOOSE YOUR SIGNAL.</h2></div>
+      <p>Meet the familiar instructors behind EverLeaf's Adventurer paths. Each family keeps its classic identity while the wider server systems are tuned for long-term play.</p>
+    </div>
+    <div class="classMatrix">
+      <article class="classNode"><div class="classNodeArt"><img src="/assets/jobs/beginner/beginner-clean.png" alt="Beginner adventurer" loading="lazy"></div><div class="classNodeMeta"><span>00 / START</span><strong>BEGINNER</strong><small>EXPLORER / MAPLE ISLAND</small></div></article>
+      <article class="classNode"><div class="classNodeArt"><img src="/assets/jobs/instructors/warrior.png" alt="Warrior instructor" loading="lazy"></div><div class="classNodeMeta"><span>01 / STR</span><strong>WARRIOR</strong><small>PERION / FRONTLINE</small></div></article>
+      <article class="classNode"><div class="classNodeArt"><img src="/assets/jobs/instructors/magician.png" alt="Magician instructor" loading="lazy"></div><div class="classNodeMeta"><span>02 / INT</span><strong>MAGICIAN</strong><small>ELLINIA / SPELLCASTER</small></div></article>
+      <article class="classNode"><div class="classNodeArt"><img src="/assets/jobs/instructors/bowman.png" alt="Bowman instructor" loading="lazy"></div><div class="classNodeMeta"><span>03 / DEX</span><strong>BOWMAN</strong><small>HENESYS / RANGED</small></div></article>
+      <article class="classNode"><div class="classNodeArt"><img src="/assets/jobs/instructors/thief.png" alt="Thief instructor" loading="lazy"></div><div class="classNodeMeta"><span>04 / LUK</span><strong>THIEF</strong><small>KERNING / MOBILITY</small></div></article>
+      <article class="classNode"><div class="classNodeArt"><img src="/assets/jobs/instructors/pirate.png" alt="Pirate instructor" loading="lazy"></div><div class="classNodeMeta"><span>05 / STR+DEX</span><strong>PIRATE</strong><small>NAUTILUS / HYBRID</small></div></article>
+    </div>
+    <div class="specialClassRail">
+      <div><span>EXPANDED PATHS</span><strong>CYGNUS KNIGHTS / ARAN / EVAN</strong></div>
+      <a href="/wiki">EXPLORE CLASSES ↗</a>
+    </div>
+  </section>
+
+  <section class="dataSection" aria-labelledby="data-title">
+    <div class="wrap">
+      <div class="sectionIndex"><span>SECTION / 04</span><span>LIVE WORLD DATA</span></div>
+      <div class="dataHeader"><h2 id="data-title">THE WORLD IS NOT STATIC.</h2><p>Live character data and first-party updates sit beside the game instead of behind it.</p></div>
+      <div class="dataSplit">
+        <section class="journalFeed" aria-labelledby="journal-title">
+          <div class="moduleHeader"><span id="journal-title">WORLD JOURNAL</span><a href="/news">ALL ENTRIES ↗</a></div>
+          <% if(posts&&posts.length){ posts.slice(0,3).forEach((p,i)=>{ %>
+            <a class="journalRow" href="/news/<%=p.slug%>"><span class="journalNo">0<%=i+1%></span><div><small><%=String(p.type||'news').toUpperCase()%> / <%=String(p.created_at).slice(0,10)%></small><strong><%=p.title%></strong><p><%=p.excerpt%></p></div><b>↗</b></a>
+          <% }) } else { %>
+            <div class="emptySignal"><span>NO ENTRIES YET</span><p>The World Journal is ready for the next EverLeaf update.</p></div>
+          <% } %>
+        </section>
+        <section class="rankingFeed" aria-labelledby="ranking-title">
+          <div class="moduleHeader"><span id="ranking-title">TOP ADVENTURERS</span><a href="/rankings">FULL RANKINGS ↗</a></div>
+          <% if(topCharacters&&topCharacters.length){ topCharacters.forEach((character,i)=>{ %>
+            <a class="rankingRow" href="/rankings"><span class="rankNo"><%=String(i+1).padStart(2,'0')%></span><div><strong><%=character.name%></strong><small><%=character.jobName||'Adventurer'%></small></div><b>LV. <%=character.level%></b></a>
+          <% }) } else { %>
+            <div class="emptySignal"><span>RANKING SIGNAL PENDING</span><p>Live character rankings will populate when game data is available.</p></div>
+          <% } %>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap wikiSignalSection" aria-labelledby="wiki-signal-title">
+    <div class="sectionIndex"><span>SECTION / 05</span><span>KNOWLEDGE SIGNAL</span></div>
+    <div class="wikiSignalHeader"><div><p class="terminalLabel">EVERLEAF HANDBOOK</p><h2 id="wiki-signal-title">KNOW THE WORLD<br>BEFORE IT KNOWS YOU.</h2></div><a class="btn ghost" href="/wiki">OPEN WIKI</a></div>
+    <div class="wikiSignalRows">
       <% (featuredWiki||[]).forEach((entry,i)=>{ %>
-        <a class="mapleIntroCard libraryFeatureCard" href="/wiki/<%=entry.slug%>">
-          <b><%=i===0?'v83':i===1?'PATCH':'NX'%></b>
-          <span class="libraryFeatureStatus"><%=entry.status%></span>
-          <h3><%=entry.title%></h3>
-          <p><%=entry.summary%></p>
-          <small><%=entry.sourceDoc||entry.source%></small>
-        </a>
+        <a href="/wiki/<%=entry.slug%>" class="wikiSignalRow" data-source="<%=entry.sourceDoc||''%>"><span><%=String(i+1).padStart(2,'0')%></span><div><small><%=entry.status||'REFERENCE'%></small><strong><%=entry.title%></strong><p><%=entry.summary%></p></div><b>↗</b></a>
       <% }) %>
     </div>
+  </section>
 
-    <section class="everleafPromises" aria-labelledby="everleaf-values">
-      <div class="sectionHead">
-        <div>
-          <div class="pageEyebrow">WHY EVERLEAF</div>
-          <h2 id="everleaf-values">Familiar where it matters. Better where it counts.</h2>
-        </div>
-      </div>
-      <div class="promiseGrid">
-        <article class="promiseCard"><b aria-hidden="true">01</b><h3>Classic-first progression</h3><p>v83 remains the foundation, with changes focused on removing friction rather than replacing the game you remember.</p></article>
-        <article class="promiseCard"><b aria-hidden="true">02</b><h3>Fair supporter model</h3><p>EverLeaf is built around progression and community—not selling competitive power or mandatory advantages.</p></article>
-        <article class="promiseCard"><b aria-hidden="true">03</b><h3>Managed client updates</h3><p>The launcher is the supported path for installs, repair, and future patches so players spend less time fixing files by hand.</p></article>
-        <article class="promiseCard"><b aria-hidden="true">04</b><h3>Knowledge that grows</h3><p>The Wiki, patch notes, rankings, and account portal live together so the website stays useful after your first download.</p></article>
-      </div>
-    </section>
-
-    <section class="mapleJobs mapleJobsPolished" aria-labelledby="adventurer-jobs">
-      <div class="mapleJobsHead">
-        <div>
-          <div class="pageEyebrow">ADVENTURER JOBS</div>
-          <h2 id="adventurer-jobs">Choose your road through Maple World.</h2>
-          <p>Begin as a fresh adventurer, then meet the classic instructors behind EverLeaf's five Adventurer families and follow the familiar v83 advancement paths.</p>
-        </div>
-        <a href="/wiki">SEE EVERY CLASS →</a>
-      </div>
-      <div class="mapleJobsGrid mapleJobsGridSix">
-        <article class="mapleJobCard beginnerJobCard"><div class="mapleJobPortrait beginnerPortrait"><img src="/assets/jobs/beginner/beginner-clean.png" alt="Beginner adventurer artwork" loading="lazy" decoding="async"></div><div class="mapleJobTitle"><div><h3>Beginner</h3><small>Your adventure starts here</small></div></div><div class="mapleJobMeta"><span>START</span><span>Explorer</span></div><p class="mapleJobPath"><strong>Learn the basics</strong><br>Reach your first advancement and choose the class family that fits you.</p><span class="mapleJobFoot">Every legend starts somewhere</span></article>
-        <article class="mapleJobCard"><div class="mapleJobPortrait"><img src="/assets/jobs/instructors/warrior.png" alt="Dances with Balrog, Warrior instructor" loading="lazy" decoding="async"></div><div class="mapleJobTitle"><div><h3>Warrior</h3><small>Dances with Balrog · Perion</small></div></div><div class="mapleJobMeta"><span>STR</span><span>Frontline</span></div><p class="mapleJobPath"><strong>Fighter · Page · Spearman</strong><br>Hero, Paladin, and Dark Knight paths.</p><span class="mapleJobFoot">Heavy weapons · durable melee</span></article>
-        <article class="mapleJobCard"><div class="mapleJobPortrait"><img src="/assets/jobs/instructors/magician.png" alt="Grendel the Really Old, Magician instructor" loading="lazy" decoding="async"></div><div class="mapleJobTitle"><div><h3>Magician</h3><small>Grendel the Really Old · Ellinia</small></div></div><div class="mapleJobMeta"><span>INT</span><span>Magic</span></div><p class="mapleJobPath"><strong>Fire/Poison · Ice/Lightning · Cleric</strong><br>Arch Mage and Bishop paths.</p><span class="mapleJobFoot">Spells · support · elemental damage</span></article>
-        <article class="mapleJobCard"><div class="mapleJobPortrait"><img src="/assets/jobs/instructors/bowman.png" alt="Athena Pierce, Bowman instructor" loading="lazy" decoding="async"></div><div class="mapleJobTitle"><div><h3>Bowman</h3><small>Athena Pierce · Henesys</small></div></div><div class="mapleJobMeta"><span>DEX</span><span>Ranged</span></div><p class="mapleJobPath"><strong>Hunter · Crossbowman</strong><br>Bow Master and Marksman paths.</p><span class="mapleJobFoot">Range · precision · sustained damage</span></article>
-        <article class="mapleJobCard"><div class="mapleJobPortrait"><img src="/assets/jobs/instructors/thief.png" alt="Dark Lord, Thief instructor" loading="lazy" decoding="async"></div><div class="mapleJobTitle"><div><h3>Thief</h3><small>Dark Lord · Kerning City</small></div></div><div class="mapleJobMeta"><span>LUK</span><span>Mobility</span></div><p class="mapleJobPath"><strong>Assassin · Bandit</strong><br>Night Lord and Shadower paths.</p><span class="mapleJobFoot">Speed · burst · evasive play</span></article>
-        <article class="mapleJobCard"><div class="mapleJobPortrait piratePortrait"><img src="/assets/jobs/instructors/pirate.png" alt="Kyrin, Pirate instructor" loading="lazy" decoding="async"></div><div class="mapleJobTitle"><div><h3>Pirate</h3><small>Kyrin · Nautilus</small></div></div><div class="mapleJobMeta"><span>STR / DEX</span><span>Hybrid</span></div><p class="mapleJobPath"><strong>Brawler · Gunslinger</strong><br>Buccaneer and Corsair paths.</p><span class="mapleJobFoot">Knuckles · firearms · mobility</span></article>
-      </div>
-      <div class="mapleSpecialJobs mapleSpecialJobsPolished">
-        <article class="mapleSpecialJob cygnusFeature"><div class="mapleSpecialJobArt cygnusFeatureArt"><img src="/assets/jobs/special/cygnus-clean.png" alt="Cygnus Knights artwork" loading="lazy" decoding="async"></div><div class="mapleSpecialJobCopy"><span class="specialKicker">CYGNUS KNIGHTS</span><strong>Heroes of Ereve</strong><small>Ereve · Knights of Cygnus</small><span>Dawn Warrior · Blaze Wizard · Wind Archer · Night Walker · Thunder Breaker</span><a href="/rankings?class=overall">VIEW CYGNUS RANKINGS →</a></div></article>
-        <article class="mapleSpecialJob specialCompact aranFeature"><div class="mapleSpecialJobArt"><img src="/assets/jobs/special/aran.png" alt="Aran artwork" loading="lazy" decoding="async"></div><div class="mapleSpecialJobCopy"><strong>Aran</strong><small>Rien · Legendary Polearm Warrior</small><span>Combo-driven polearm progression with its own advancement path.</span></div></article>
-        <article class="mapleSpecialJob specialCompact evanFeature"><div class="mapleSpecialJobArt"><img src="/assets/jobs/special/evan.png" alt="Evan artwork" loading="lazy" decoding="async"></div><div class="mapleSpecialJobCopy"><strong>Evan</strong><small>Dragon Master · Mir</small><span>Dragon-partner mage progression supported by EverLeaf rankings and data.</span></div></article>
-      </div>
-    </section>
-
-    <div class="mapleHomeColumns">
-      <section>
-        <div class="sectionHead">
-          <div><div class="pageEyebrow">WORLD JOURNAL</div><h2>Latest from EverLeaf</h2></div>
-          <a href="/news">ALL NEWS →</a>
-        </div>
-        <div class="mapleNewsGrid">
-          <% const newsImages=['/assets/news-welcome.webp','/assets/news-event.webp','/assets/news-patch.webp']; %>
-          <% posts.slice(0,3).forEach((p,i)=>{ %>
-            <a class="newsStory" href="/news/<%=p.slug%>"><img src="<%=newsImages[i%newsImages.length]%>" alt="" loading="lazy" decoding="async"><div class="newsStoryBody"><div class="newsStoryMeta"><span class="kicker"><%=p.type%></span><span><%=String(p.created_at).slice(0,10)%></span></div><h3><%=p.title%></h3><p><%=p.excerpt%></p><strong>Read journal entry →</strong></div></a>
-          <% }) %>
-          <% if(!posts.length){ %>
-            <div class="newsStory"><img src="/assets/news-welcome.webp" alt="" loading="lazy" decoding="async"><div class="newsStoryBody"><span class="kicker">WORLD NEWS</span><h3>Welcome to EverLeaf</h3><p>Server news, patch notes, events, and maintenance notices will appear here.</p></div></div>
-          <% } %>
-        </div>
-      </section>
-      <aside>
-        <div class="mapleRank">
-          <div class="mapleRankHead"><div class="pageEyebrow">HALL OF LEGENDS</div><h2>Top Adventurers</h2></div>
-          <% (topCharacters||[]).slice(0,7).forEach((r,i)=>{ %><div class="mapleRankRow"><span class="mapleRankNo"><%=i+1%></span><span><strong><%=r.name%></strong><% if(r.jobName){ %><small><%=r.jobName%></small><% } %></span><strong class="rankLv">Lv. <%=r.level%></strong></div><% }) %>
-          <% if(!(topCharacters||[]).length){ %><div class="mapleRankRow"><span class="mapleRankNo">1</span><span><strong>Rankings coming soon</strong></span><strong class="rankLv">—</strong></div><% } %>
-          <div style="padding:14px"><a class="btn" href="/rankings" style="width:100%;display:flex;justify-content:center">VIEW FULL RANKINGS</a></div>
-        </div>
-      </aside>
+  <section class="finalTransmission">
+    <div class="wrap finalTransmissionGrid">
+      <div><span class="terminalLabel">TRANSMISSION / READY</span><h2>ENTER<br>EVERLEAF.</h2></div>
+      <div class="finalTransmissionCopy"><p>Your account, launcher, rankings, Wiki, community, and support are already connected around the same world. The next move is yours.</p><div><a class="btn primary" href="<%=sessionPlayer?'/downloads':'/register'%>"><%=sessionPlayer?'DOWNLOAD & PLAY':'START YOUR JOURNEY'%></a><a class="btn ghost" href="<%=brand.discordUrl%>" target="_blank" rel="noopener noreferrer">JOIN DISCORD ↗</a></div></div>
     </div>
+  </section>
+</main>
 
-    <div class="mapleCta homeCta">
-      <div><span class="kicker">BEGINNER'S PATH</span><h2>Your next adventure starts here.</h2><p>Create your account, install through the launcher, and enter Maple World with the community.</p></div>
-      <div class="mapleCtaActions"><a class="btn primary" href="<%=sessionPlayer?'/downloads':'/register'%>"><%=sessionPlayer?'DOWNLOAD LAUNCHER':'CREATE ACCOUNT'%></a><a class="btn" href="/help">PLAYER HELP</a></div>
-    </div>
-  </div>
-</section>
-
-<script src="/js/home-status.js" defer></script>
-<%- include("partials/footer") %>
+<%- include("partials/footer",{player:sessionPlayer}) %>

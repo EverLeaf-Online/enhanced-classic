@@ -33,7 +33,11 @@ jobs:
           test -f public/css/maple-remaster-admin.css
           test -f public/css/maple-jobs.css
           test -f public/css/maple-final.css
+          test -f public/css/refero-everleaf-2026.css
           test -f public/assets/everleaf-remaster.svg
+          test -f public/assets/hero-forest.webp
+          test -f public/assets/hero-left.webp
+          test -f public/assets/hero-right.webp
           for asset in warrior magician bowman thief pirate cygnus aran evan; do
             test -f "public/assets/jobs/${asset}.svg"
           done
@@ -43,10 +47,12 @@ jobs:
           grep -q 'maple-remaster.css' src/views/partials/header.ejs
           grep -q 'maple-jobs.css' src/views/partials/header.ejs
           grep -q 'maple-final.css' src/views/partials/header.ejs
-          grep -q 'mapleHero' src/views/home.ejs
-          grep -q 'mapleJobsGrid' src/views/home.ejs
-          grep -q 'mapleSpecialJobs' src/views/home.ejs
-          grep -q '/assets/ui/trophy.svg' src/views/home.ejs
+          grep -q 'refero-everleaf-2026.css?v=2' src/views/partials/header.ejs
+          grep -q 'terminalHero' src/views/home.ejs
+          grep -q 'everleafArtifact' src/views/home.ejs
+          grep -q 'heroTelemetry' src/views/home.ejs
+          grep -q 'classMatrix' src/views/home.ejs
+          grep -q '/assets/jobs/instructors/warrior.png' src/views/home.ejs
           grep -q '/assets/ui/recovery.svg' src/views/help.ejs
           grep -q 'rankingTable' src/views/rankings.ejs
           grep -q 'characterCards' src/views/account.ejs
