@@ -67,8 +67,21 @@ public class CharSelectedWithPicHandler extends AbstractPacketHandler {
                 return;
             }
 
-            String[] socket = server.getInetSocket(c, c.getWorld(), c.getChannel());
-            if (socket == null) {
+            final InetAddress channelAddress;
+            final int channelPort;
+            try {
+                String[] socket = server.getInetSocket(c, c.getWorld(), c.getChannel());
+                if (socket == null || socket.length < 2 || socket[0] == null || socket[0].isBlank()) {
+                    throw new IllegalStateException("Channel endpoint is unavailable");
+                }
+                channelAddress = InetAddress.getByName(socket[0]);
+                channelPort = Integer.parseInt(socket[1]);
+                if (channelPort < 1 || channelPort > 65535) {
+                    throw new IllegalArgumentException("Channel port is outside the valid TCP range");
+                }
+            } catch (UnknownHostException | RuntimeException e) {
+                log.error("Unable to prepare PIC character-select handoff for world={} channel={} charId={}",
+                        c.getWorld(), c.getChannel(), charId, e);
                 c.sendPacket(PacketCreator.getAfterLoginError(10));
                 return;
             }
@@ -81,12 +94,7 @@ public class CharSelectedWithPicHandler extends AbstractPacketHandler {
 
             server.unregisterLoginState(c);
             c.setCharacterOnSessionTransitionState(charId);
-
-            try {
-                c.sendPacket(PacketCreator.getServerIP(InetAddress.getByName(socket[0]), Integer.parseInt(socket[1]), charId));
-            } catch (UnknownHostException | NumberFormatException e) {
-                e.printStackTrace();
-            }
+            c.sendPacket(PacketCreator.getServerIP(channelAddress, channelPort, charId));
         } else {
             c.sendPacket(PacketCreator.wrongPic());
         }
