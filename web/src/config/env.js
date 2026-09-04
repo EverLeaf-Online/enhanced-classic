@@ -39,6 +39,7 @@ module.exports = {
     database: process.env.GAME_DB_NAME || "cosmic",
     accountsTable: process.env.GAME_ACCOUNTS_TABLE || "accounts",
     charactersTable: process.env.GAME_CHARACTERS_TABLE || "characters",
+    inventoryItemsTable: process.env.GAME_INVENTORY_ITEMS_TABLE || "inventoryitems",
     accountId: process.env.GAME_ACCOUNT_ID_COLUMN || "id",
     accountName: process.env.GAME_ACCOUNT_NAME_COLUMN || "name",
     accountPassword: process.env.GAME_ACCOUNT_PASSWORD_COLUMN || "password",
@@ -46,13 +47,24 @@ module.exports = {
     accountBanned: process.env.GAME_ACCOUNT_BANNED_COLUMN || "banned",
     accountLoggedIn: process.env.GAME_ACCOUNT_LOGGEDIN_COLUMN || "loggedin",
     accountVotePoints: process.env.GAME_ACCOUNT_VOTE_POINTS_COLUMN || "votepoints",
+    characterId: process.env.GAME_CHARACTER_ID_COLUMN || "id",
     characterAccountId: process.env.GAME_CHARACTER_ACCOUNT_ID_COLUMN || "accountid",
     characterName: process.env.GAME_CHARACTER_NAME_COLUMN || "name",
     characterLevel: process.env.GAME_CHARACTER_LEVEL_COLUMN || "level",
     characterJob: process.env.GAME_CHARACTER_JOB_COLUMN || "job",
     characterFame: process.env.GAME_CHARACTER_FAME_COLUMN || "fame",
     characterGm: process.env.GAME_CHARACTER_GM_COLUMN || "gm",
-    characterExp: process.env.GAME_CHARACTER_EXP_COLUMN || "exp"
+    characterExp: process.env.GAME_CHARACTER_EXP_COLUMN || "exp",
+    characterSkin: process.env.GAME_CHARACTER_SKIN_COLUMN || "skincolor",
+    characterFace: process.env.GAME_CHARACTER_FACE_COLUMN || "face",
+    characterHair: process.env.GAME_CHARACTER_HAIR_COLUMN || "hair"
+  },
+
+  avatar: {
+    baseUrl: String(process.env.MAPLESTORY_IO_BASE_URL || "https://maplestory.io").replace(/\/$/, ""),
+    region: String(process.env.MAPLESTORY_IO_REGION || "GMS").replace(/[^A-Za-z]/g, "") || "GMS",
+    version: String(process.env.MAPLESTORY_IO_VERSION || "82").replace(/[^0-9A-Za-z.]/g, "") || "82",
+    cacheMs: Math.max(60_000, Number(process.env.CHARACTER_AVATAR_CACHE_MS || 300_000))
   },
 
   registration: {
