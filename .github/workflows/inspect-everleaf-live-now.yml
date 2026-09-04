@@ -28,56 +28,45 @@ jobs:
           if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$HOST" > ~/.ssh/known_hosts; fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Live runtime and web outage capture
+      - name: Apply live web OOM mitigation and verify
         shell: bash
         run: |
           set -euo pipefail
           ssh -o BatchMode=yes -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_everleaf ubuntu@132.145.141.79 'bash -s' <<'REMOTE'
-          set +e
-          echo '=== TIME / RELEASE ==='
+          set -euo pipefail
+          echo '=== BEFORE ==='
           date -Is
-          readlink -f /opt/everleaf/current
-          cat /opt/everleaf/current/.everleaf-source-sha 2>/dev/null || true
-
-          echo '=== GAME SERVICE / CHANNELS ==='
           systemctl is-active everleaf.service
-          python3 /opt/everleaf/current/tools/verify_channel_runtime.py --config /opt/everleaf/current/config.yaml --host 127.0.0.1 2>&1 | tail -60 || true
+          systemctl is-active everleaf-web.service || true
+          systemctl show everleaf-web.service --property=NRestarts --property=MainPID --property=ActiveState --property=SubState --no-pager || true
 
-          echo '=== WEB / NGINX / AVATAR SERVICES ==='
-          for unit in everleaf-web.service nginx.service everleaf-wz-avatar.service mysql.service mariadb.service; do
-            echo "--- $unit ---"
-            systemctl is-active "$unit" 2>&1 || true
-            systemctl show "$unit" --property=ActiveState --property=SubState --property=Result --property=MainPID --no-pager 2>&1 || true
-          done
+          sudo install -d -m 755 /etc/systemd/system/everleaf-web.service.d
+          cat <<'EOF' | sudo tee /etc/systemd/system/everleaf-web.service.d/oom-hotfix.conf >/dev/null
+          [Service]
+          Environment=NODE_OPTIONS=--max-old-space-size=4096
+          EOF
+          sudo systemctl daemon-reload
+          sudo systemctl restart everleaf-web.service
 
-          echo '=== LISTENERS ==='
-          sudo ss -ltnp | grep -E ':(80|443|3000|3011|3306|8484|7575|7576|7577|7578|7579|7580|7581|7582|7583|7584|7585|7586|7587|7588|7589|7590|7591|7592|7593|7594)\b' || true
-
-          echo '=== LOCAL HTTP PROBES ==='
-          for url in http://127.0.0.1:3000/ http://127.0.0.1:3000/api/status http://127.0.0.1:3000/v1/launcher/status http://127.0.0.1:3011/; do
-            echo "--- $url ---"
-            curl -sS -o /tmp/probe-body -D - --max-time 8 "$url" 2>&1 | head -30 || true
-            head -c 800 /tmp/probe-body 2>/dev/null || true
+          for i in 1 2 3 4 5; do
+            sleep 3
+            pid="$(systemctl show everleaf-web.service --property=MainPID --value)"
+            echo "sample=$i pid=$pid state=$(systemctl is-active everleaf-web.service || true)"
+            if [ -n "$pid" ] && [ "$pid" != 0 ]; then
+              ps -o pid,rss,vsz,%mem,%cpu,etime,cmd -p "$pid" || true
+            fi
+            curl -fsS --max-time 8 http://127.0.0.1:3000/api/status
             echo
           done
 
-          echo '=== PUBLIC HTTPS PROBE FROM HOST ==='
-          curl -k -sS -o /tmp/public-body -D - --max-time 8 https://127.0.0.1/ -H 'Host: everleafms.online' 2>&1 | head -30 || true
-          head -c 800 /tmp/public-body 2>/dev/null || true
+          echo '=== PUBLIC HTTPS ==='
+          curl -k -fsS --resolve everleafms.online:443:127.0.0.1 --max-time 10 https://everleafms.online/ >/dev/null
+          curl -k -fsS --resolve everleafms.online:443:127.0.0.1 --max-time 10 https://everleafms.online/api/status
           echo
 
-          echo '=== EVERLEAF-WEB JOURNAL ==='
-          journalctl -u everleaf-web.service -n 120 --no-pager 2>&1 || true
+          echo '=== GAME RUNTIME ==='
+          python3 /opt/everleaf/current/tools/verify_channel_runtime.py --config /opt/everleaf/current/config.yaml --host 127.0.0.1
 
-          echo '=== NGINX ERROR LOG ==='
-          sudo tail -120 /var/log/nginx/error.log 2>&1 || true
-
-          echo '=== SYSTEMD UNIT ==='
-          systemctl cat everleaf-web.service 2>&1 || true
-
-          echo '=== NODE / WEB DIR ==='
-          node --version 2>&1 || true
-          npm --version 2>&1 || true
-          ls -la /opt/everleaf/web | head -80 || true
-          [ -f /opt/everleaf/web/package.json ] && cat /opt/everleaf/web/package.json | head -120 || true
+          echo '=== RECENT WEB ERRORS ==='
+          journalctl -u everleaf-web.service --since '3 minutes ago' --no-pager | tail -80 || true
           REMOTE
