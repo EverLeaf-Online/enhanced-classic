@@ -113,6 +113,29 @@ function initCms() {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS wiki_articles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL UNIQUE,
+      category TEXT NOT NULL DEFAULT 'systems',
+      title TEXT NOT NULL,
+      eyebrow TEXT NOT NULL DEFAULT 'EVERLEAF WIKI',
+      summary TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'EverLeaf Guide',
+      verification TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT '',
+      source_doc TEXT NOT NULL DEFAULT '',
+      tags_json TEXT NOT NULL DEFAULT '[]',
+      facts_json TEXT NOT NULL DEFAULT '[]',
+      published INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS wiki_articles_category_published
+      ON wiki_articles(category,published,title);
+    CREATE INDEX IF NOT EXISTS wiki_articles_updated
+      ON wiki_articles(updated_at DESC);
+
     CREATE TABLE IF NOT EXISTS audit_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       admin_id INTEGER,
@@ -155,6 +178,39 @@ function initCms() {
     ["rules","Server Rules","Play fair, respect other players, protect your account, and do not exploit, bot, scam, harass, or disrupt the service. Staff may act to protect the server and community when abuse is confirmed."],
     ["terms","Terms of Service","By creating an account or using EverLeaf, you agree to follow the server rules and community standards. Keep your credentials private, do not cheat or exploit the service, and understand that EverLeaf may be updated, restarted, changed, or discontinued. Donations support server operation and do not grant ownership of the service. EverLeaf is a fan-made private server and is not affiliated with or endorsed by Nexon."]
   ].forEach(row => pageStmt.run(...row));
+
+  // The code-owned catalog is only the initial seed. Once imported, staff can
+  // edit and publish Wiki articles from the CMS without losing their changes
+  // during deploys because the SQLite data directory is preserved.
+  const { entries: wikiSeeds } = require("../services/wikiCatalog");
+  const wikiStmt = db.prepare(`
+    INSERT OR IGNORE INTO wiki_articles
+      (slug,category,title,eyebrow,summary,body,status,verification,source,source_doc,tags_json,facts_json,published)
+    VALUES
+      (@slug,@category,@title,@eyebrow,@summary,@body,@status,@verification,@source,@sourceDoc,@tagsJson,@factsJson,1)
+  `);
+  const seedWiki = db.transaction(() => {
+    for (const entry of wikiSeeds) {
+      const body = (entry.sections || [])
+        .map(([heading, text]) => `## ${heading}\n${text}`)
+        .join("\n\n");
+      wikiStmt.run({
+        slug: entry.slug,
+        category: entry.category,
+        title: entry.title,
+        eyebrow: entry.eyebrow || "EVERLEAF WIKI",
+        summary: entry.summary || "",
+        body,
+        status: entry.status || "EverLeaf Guide",
+        verification: entry.verification || "Library curated",
+        source: entry.source || "EverLeaf",
+        sourceDoc: entry.sourceDoc || entry.source || "EverLeaf",
+        tagsJson: JSON.stringify(entry.tags || []),
+        factsJson: JSON.stringify(entry.facts || [])
+      });
+    }
+  });
+  seedWiki();
 }
 
 function settings() {
