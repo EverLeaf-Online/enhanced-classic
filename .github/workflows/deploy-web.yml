@@ -50,6 +50,14 @@ jobs:
             ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
           fi
           chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host $EVERLEAF_DEPLOY_HOST
+            ServerAliveInterval 30
+            ServerAliveCountMax 20
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          EOF
+          chmod 600 ~/.ssh/config
           ssh-keygen -lf ~/.ssh/known_hosts || true
 
       - name: Verify SSH access
