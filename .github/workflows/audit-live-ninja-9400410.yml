@@ -47,9 +47,9 @@ jobs:
             find "$d/Map.wz" -type f -name '800040000.img.xml' -print -quit | grep -q . || continue
             trees=$((trees+1))
             echo "TREE $d xml=$count"
-            m=$(( (grep -R -l --include='*.xml' -w '9400410' "$d/Map.wz" 2>/dev/null || true) | wc -l ))
-            q=$(( (grep -R -l --include='*.xml' -w '9400410' "$d/Quest.wz" 2>/dev/null || true) | wc -l ))
-            r=$(( (grep -R -l --include='*.xml' -w '9400410' "$d/Mob.wz" 2>/dev/null || true) | wc -l ))
+            m=$( (grep -R -l --include='*.xml' -w '9400410' "$d/Map.wz" 2>/dev/null || true) | wc -l )
+            q=$( (grep -R -l --include='*.xml' -w '9400410' "$d/Quest.wz" 2>/dev/null || true) | wc -l )
+            r=$( (grep -R -l --include='*.xml' -w '9400410' "$d/Mob.wz" 2>/dev/null || true) | wc -l )
             f=$(find "$d/Mob.wz" -type f -name '9400410.img.xml' | wc -l)
             echo "  map_reference_files=$m quest_reference_files=$q mob_reference_files=$r exact_mob_files=$f"
             if [ "$m" -gt 0 ]; then grep -R -l --include='*.xml' -w '9400410' "$d/Map.wz" | head -20 || true; fi
