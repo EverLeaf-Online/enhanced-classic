@@ -11,6 +11,7 @@ from pathlib import Path
 CHARACTER = Path("src/main/java/client/Character.java")
 CLIENT = Path("src/main/java/client/Client.java")
 FOOTHOLD = Path("src/main/java/server/maps/Foothold.java")
+MAP_FACTORY = Path("src/main/java/server/maps/MapFactory.java")
 SERVER_CONFIG = Path("src/main/java/config/ServerConfig.java")
 COMMANDS_EXECUTOR = Path("src/main/java/client/command/CommandsExecutor.java")
 
@@ -97,6 +98,26 @@ def patch_character() -> None:
         "    public boolean isLoggedinWorld() {\n",
         id_addition,
         "public void setID(int id)",
+    )
+
+    # Character login already has a Henesys fallback for a map that cannot be
+    # loaded. Persist that recovery in memory so the next save cannot strand the
+    # character back in the same unavailable map.
+    old_map_fallback = """                        if (ret.map == null) {
+                            ret.map = mapManager.getMap(MapId.HENESYS);
+                        }
+"""
+    new_map_fallback = """                        if (ret.map == null) {
+                            ret.map = mapManager.getMap(MapId.HENESYS);
+                            ret.mapid = MapId.HENESYS;
+                            ret.initialSpawnPoint = 0;
+                        }
+"""
+    text = replace_once(
+        text,
+        old_map_fallback,
+        new_map_fallback,
+        "ret.mapid = MapId.HENESYS;",
     )
 
     CHARACTER.write_text(text, encoding="utf-8")
@@ -197,6 +218,27 @@ def patch_foothold() -> None:
     FOOTHOLD.write_text(text, encoding="utf-8")
 
 
+def patch_map_factory() -> None:
+    text = MAP_FACTORY.read_text(encoding="utf-8")
+    old = """        Data mapData = mapSource.getData(mapName);    // source.getData issue with giving nulls in rare ocasions found thanks to MedicOP
+        Data infoData = mapData.getChildByPath("info");
+"""
+    new = """        Data mapData = mapSource.getData(mapName);    // source.getData issue with giving nulls in rare ocasions found thanks to MedicOP
+        if (mapData == null) {
+            System.err.println("Missing map WZ data for map " + mapid + " (" + mapName + ")");
+            return null;
+        }
+        Data infoData = mapData.getChildByPath("info");
+"""
+    text = replace_once(
+        text,
+        old,
+        new,
+        "Missing map WZ data for map ",
+    )
+    MAP_FACTORY.write_text(text, encoding="utf-8")
+
+
 def patch_server_config() -> None:
     text = SERVER_CONFIG.read_text(encoding="utf-8")
     addition = """    // SoloMapling QA: opt-in only. EverLeaf keeps automatic bot population off
@@ -229,9 +271,10 @@ def main() -> None:
     patch_character()
     patch_client()
     patch_foothold()
+    patch_map_factory()
     patch_server_config()
     patch_commands_executor()
-    print("SoloMapling host hooks applied (Character, Client, Foothold, ServerConfig, QA command, synthetic bot id).")
+    print("SoloMapling host hooks applied (Character, Client, Foothold, MapFactory, ServerConfig, QA command, synthetic bot id, missing-map login recovery).")
 
 
 if __name__ == "__main__":
