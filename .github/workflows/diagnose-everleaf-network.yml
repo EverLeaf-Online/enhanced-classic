@@ -1,4 +1,4 @@
-# Manual character-select/network diagnostic trigger: 2026-09-04
+# Durable character-select/network diagnostic: 2026-09-04
 name: Diagnose EverLeaf Network
 
 on:
@@ -9,7 +9,7 @@ on:
       - '.github/workflows/diagnose-everleaf-network.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
@@ -20,6 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
@@ -37,35 +41,86 @@ jobs:
           fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Inspect production networking
+      - name: Inspect production networking and login handoff
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' > /tmp/live-network.txt <<'REMOTE'
           set -euo pipefail
           CURRENT="$(readlink -f /opt/everleaf/current)"
+          CONFIG="$CURRENT/config.yaml"
+          RELEASE="$(awk '{print $1}' /opt/everleaf/.deployed-release 2>/dev/null || awk '{print $1}' /opt/everleaf/LAST_DEPLOYED_RELEASE 2>/dev/null || true)"
+          PRIMARY_CHANNELS="$(awk '/^worlds:/{in_worlds=1;next} in_worlds && /^[[:space:]]*channels:/{print $2; exit}' "$CONFIG")"
+          HOST="$(awk '/^[[:space:]]*HOST:/{gsub(/"/,"",$2); print $2; exit}' "$CONFIG")"
+          EXPECTED=21
+          LISTENERS=0
+          for port in 8484 $(seq 7575 7594); do
+            if ss -ltn | awk '{print $4}' | grep -Eq "(^|:)$port$"; then LISTENERS=$((LISTENERS+1)); fi
+          done
+          RECENT_HANDOFF_ERRORS="$(sudo journalctl -u everleaf.service --since '30 minutes ago' --no-pager 2>/dev/null | grep -Eic 'CharSelectedHandler|PlayerLoggedinHandler|Invalid host string|LOGIN_SERVER_TRANSITION|character.*transition|afterloginerror' || true)"
+          echo "RELEASE=$RELEASE"
           echo "CURRENT=$CURRENT"
-          echo '--- effective channel config ---'
-          grep -E '^[[:space:]]*(HOST|LANHOST|LOCALHOST|CHANNEL_SIZE|WORLDS):|^[[:space:]]*channels:' "$CURRENT/config.yaml" | head -30
-          echo '--- listeners ---'
-          ss -lntp | grep -E ':(8484|75(7[5-9]|8[0-9]|9[0-4]))\b' || true
-          echo '--- firewall ---'
-          sudo ufw status || true
-          echo '--- recent server journal ---'
-          sudo journalctl -u everleaf.service --since '20 minutes ago' --no-pager | tail -300
+          echo "HOST=$HOST"
+          echo "PRIMARY_CHANNELS=$PRIMARY_CHANNELS"
+          echo "LISTENERS=$LISTENERS/$EXPECTED"
+          echo "RECENT_HANDOFF_ERRORS=$RECENT_HANDOFF_ERRORS"
           REMOTE
+          cat /tmp/live-network.txt
 
-      - name: Probe public ports
+      - name: Probe public login and channel ports
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
+          python3 - <<'PY' > /tmp/public-ports.txt
           import socket
           host='132.145.141.79'
-          for port in [8484,*range(7575,7595)]:
+          ports=[8484,*range(7575,7595)]
+          missing=[]
+          for port in ports:
               try:
                   with socket.create_connection((host,port),timeout=3):
-                      print(f'OK {port}')
-              except OSError as exc:
-                  print(f'FAIL {port}: {exc}')
+                      pass
+              except OSError:
+                  missing.append(port)
+          print(f'PUBLIC_PORTS={len(ports)-len(missing)}/{len(ports)}')
+          print('MISSING_PORTS=' + (','.join(map(str, missing)) if missing else 'none'))
+          if missing:
+              raise SystemExit(1)
           PY
+          cat /tmp/public-ports.txt
+
+      - name: Publish sanitized network diagnostic
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          release="$(grep '^RELEASE=' /tmp/live-network.txt 2>/dev/null | cut -d= -f2- || true)"
+          current="$(grep '^CURRENT=' /tmp/live-network.txt 2>/dev/null | cut -d= -f2- || true)"
+          host="$(grep '^HOST=' /tmp/live-network.txt 2>/dev/null | cut -d= -f2- || true)"
+          channels="$(grep '^PRIMARY_CHANNELS=' /tmp/live-network.txt 2>/dev/null | cut -d= -f2- || true)"
+          listeners="$(grep '^LISTENERS=' /tmp/live-network.txt 2>/dev/null | cut -d= -f2- || true)"
+          errors="$(grep '^RECENT_HANDOFF_ERRORS=' /tmp/live-network.txt 2>/dev/null | cut -d= -f2- || true)"
+          public_ports="$(grep '^PUBLIC_PORTS=' /tmp/public-ports.txt 2>/dev/null | cut -d= -f2- || true)"
+          missing="$(grep '^MISSING_PORTS=' /tmp/public-ports.txt 2>/dev/null | cut -d= -f2- || true)"
+          mkdir -p docs
+          cat > docs/LIVE_NETWORK_DIAGNOSTIC.md <<EOF
+          # EverLeaf Live Network / Character-Select Diagnostic
+
+          Verified UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          - Recorded game release: \`${release:-unknown}\`
+          - Active release directory: \`${current:-unknown}\`
+          - Effective advertised channel host: \`${host:-unknown}\`
+          - Primary-world configured channels: \`${channels:-unknown}\`
+          - Internal login/channel listeners: \`${listeners:-unknown}\`
+          - Public login/channel ports: \`${public_ports:-unknown}\`
+          - Missing public ports: \`${missing:-unknown}\`
+          - Recent login/character-handoff error-pattern count (30m): \`${errors:-unknown}\`
+
+          This report intentionally contains no raw player/session log lines.
+          EOF
+          git config user.name everleaf-release-bot
+          git config user.email 173628847+iampolicy@users.noreply.github.com
+          git add docs/LIVE_NETWORK_DIAGNOSTIC.md
+          git commit -m 'ops: record live network and character-select diagnostic' || exit 0
+          git push origin HEAD:release-dev
