@@ -64,6 +64,7 @@
   <link rel="stylesheet" href="/css/full-site-portal-2026.css?v=1">
   <link rel="stylesheet" href="/css/refero-everleaf-2026.css?v=1">
   <link rel="stylesheet" href="/css/terminal-everleaf-2026.css?v=1">
+  <link rel="stylesheet" href="/css/terminal-everleaf-final-2026.css?v=1">
   <script src="/js/site.js?v=1" defer></script>
 </head>
 <body class="terminalMode <%=isAdminPath?'adminMode ':''%><%=isHome?'homeRoute':'innerRoute'%> route-<%=routeKey%>">
@@ -82,51 +83,15 @@
   const maintenance=(typeof settings!=="undefined"&&settings&&String(settings.maintenance_message||"").trim())||"";
   const fallbackAnnouncement=(typeof settings!=="undefined"&&settings&&String(settings.announcement||"").trim())||"";
 %>
-
-<!-- retained as a compatibility marker for older tests/scripts; intentionally not part of the visible shell -->
 <div class="worldRibbon" hidden aria-hidden="true">EVERLEAF WORLD</div>
-
 <header class="terminalHeader">
-  <a class="terminalBrand brand brandImage" href="/" aria-label="EverLeaf home">
-    <span class="terminalBrandMark">EVERLEAF</span>
-    <span class="terminalBrandMeta"><b>ENHANCED CLASSIC</b><span>V83 // <%=isAdminPath?'STAFF TERMINAL':'WORLD TERMINAL'%></span></span>
-  </a>
-
+  <a class="terminalBrand brand brandImage" href="/" aria-label="EverLeaf home"><span class="terminalBrandMark">EVERLEAF</span><span class="terminalBrandMeta"><b>ENHANCED CLASSIC</b><span>V83 // <%=isAdminPath?'STAFF TERMINAL':'WORLD TERMINAL'%></span></span></a>
   <div class="terminalNav desktopLinks nav" aria-label="Primary navigation">
-    <% navLinks.forEach(({href,label,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
-      <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><%=label%></a>
-    <% }) %>
-    <span class="terminalAuth navActions">
-      <% if(shellPlayer){ %>
-        <% if(shellPlayer.isAdmin){ %><a href="/admin">CMS</a><% } %>
-        <a class="accountNav primary" href="/account">ACCOUNT</a>
-      <% } else { %>
-        <a href="/login">LOGIN</a>
-        <a class="primary" href="/register">PLAY</a>
-      <% } %>
-    </span>
+    <% navLinks.forEach(({href,label,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %><a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><%=label%></a><% }) %>
+    <span class="terminalAuth navActions"><% if(shellPlayer){ %><% if(shellPlayer.isAdmin){ %><a href="/admin">CMS</a><% } %><a class="accountNav primary" href="/account">ACCOUNT</a><% } else { %><a href="/login">LOGIN</a><a class="primary" href="/register">PLAY</a><% } %></span>
   </div>
-
-  <details class="terminalMobile mobileMenu">
-    <summary aria-label="Open navigation" aria-controls="mobile-navigation">MENU</summary>
-    <div id="mobile-navigation" class="terminalMobilePanel mobileMenuPanel">
-      <% navLinks.forEach(({href,label,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %>
-        <a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><%=label%></a>
-      <% }) %>
-      <% if(shellPlayer){ %><a class="accountNav" href="/account">ACCOUNT</a><% }else{ %><a href="/login">LOGIN</a><a href="/register">PLAY</a><% } %>
-      <% if(shellPlayer&&shellPlayer.isAdmin){ %><a href="/admin">CMS</a><% } %>
-    </div>
-  </details>
+  <details class="terminalMobile mobileMenu"><summary aria-label="Open navigation" aria-controls="mobile-navigation">MENU</summary><div id="mobile-navigation" class="terminalMobilePanel mobileMenuPanel"><% navLinks.forEach(({href,label,external})=>{ const isActive=!external&&(href==="/"?canonicalPath==="/":canonicalPath.startsWith(href)); %><a class="<%=isActive?'active':''%>" href="<%=href%>"<% if(isActive){ %> aria-current="page"<% } %><% if(external){ %> target="_blank" rel="noopener noreferrer"<% } %>><%=label%></a><% }) %><% if(shellPlayer){ %><a class="accountNav" href="/account">ACCOUNT</a><% }else{ %><a href="/login">LOGIN</a><a href="/register">PLAY</a><% } %><% if(shellPlayer&&shellPlayer.isAdmin){ %><a href="/admin">CMS</a><% } %></div></details>
 </header>
-
 <div class="terminalRouteTag"><%=isAdminPath?'STAFF://':'WORLD://'%><span><%=routeKey.toUpperCase()%></span> / EVERLEAFMS.ONLINE</div>
-
-<% if(maintenance){ %>
-  <div role="status" class="siteBanner terminalNotice maintenanceBanner"><strong>MAINTENANCE</strong><span><%=maintenance%></span></div>
-<% } else if(typeof activeAnnouncement!=="undefined"&&activeAnnouncement){ %>
-  <div role="status" class="siteBanner terminalNotice announcementBanner"><strong><%=activeAnnouncement.title%></strong><% if(activeAnnouncement.body){ %><span><%=activeAnnouncement.body%></span><% } %></div>
-<% } else if(fallbackAnnouncement){ %>
-  <div role="status" class="siteBanner terminalNotice announcementBanner"><strong>WORLD NOTICE</strong><span><%=fallbackAnnouncement%></span></div>
-<% } %>
-
+<% if(maintenance){ %><div role="status" class="siteBanner terminalNotice maintenanceBanner"><strong>MAINTENANCE</strong><span><%=maintenance%></span></div><% } else if(typeof activeAnnouncement!=="undefined"&&activeAnnouncement){ %><div role="status" class="siteBanner terminalNotice announcementBanner"><strong><%=activeAnnouncement.title%></strong><% if(activeAnnouncement.body){ %><span><%=activeAnnouncement.body%></span><% } %></div><% } else if(fallbackAnnouncement){ %><div role="status" class="siteBanner terminalNotice announcementBanner"><strong>WORLD NOTICE</strong><span><%=fallbackAnnouncement%></span></div><% } %>
 <div id="main-content" class="siteContent" tabindex="-1">
