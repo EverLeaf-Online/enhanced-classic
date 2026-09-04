@@ -1,0 +1,407 @@
+/* EverLeaf public app frame v2 — Sep 2026
+   Makes every public route behave like the homepage: one viewport, no document sprawl,
+   with route content scrolling inside the application frame. Rankings and Wiki receive
+   purpose-built dense workspace layouts instead of stacked marketing sections. */
+
+body.siteRoute:not(.route-home):not(.route-admin){
+  height:100dvh!important;
+  min-height:100dvh!important;
+  overflow:hidden!important;
+  display:flex!important;
+  flex-direction:column!important;
+  background:#12130f!important;
+}
+
+body.siteRoute:not(.route-home):not(.route-admin) .siteBanner{flex:0 0 auto!important}
+
+body.siteRoute:not(.route-home):not(.route-admin) .siteContent{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  height:auto!important;
+  overflow:hidden!important;
+  display:block!important;
+  background:#12130f!important;
+}
+
+/* Every public page becomes an in-app scroll surface instead of growing the browser page. */
+body.siteRoute:not(.route-home):not(.route-admin) .siteContent>main{
+  height:100%!important;
+  min-height:0!important;
+  overflow:auto!important;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  scrollbar-color:#4a4a45 #12130f;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .siteContent>main::-webkit-scrollbar{width:8px;height:8px}
+body.siteRoute:not(.route-home):not(.route-admin) .siteContent>main::-webkit-scrollbar-track{background:#12130f}
+body.siteRoute:not(.route-home):not(.route-admin) .siteContent>main::-webkit-scrollbar-thumb{background:#4a4a45}
+
+/* Shared compact route header — much closer to the homepage signal-strip density. */
+body.siteRoute:not(.route-home):not(.route-admin) .lightTitle,
+body.siteRoute:not(.route-home):not(.route-admin) .rankingsHero,
+body.siteRoute:not(.route-home):not(.route-admin) .wikiDataHero,
+body.siteRoute:not(.route-home):not(.route-admin) .accountHero{
+  padding:18px 0 16px!important;
+  border-bottom:1px solid #343530!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .lightTitle h1,
+body.siteRoute:not(.route-home):not(.route-admin) .rankingsHero h1,
+body.siteRoute:not(.route-home):not(.route-admin) .wikiDataHero h1,
+body.siteRoute:not(.route-home):not(.route-admin) .accountHero h1{
+  font-size:clamp(38px,5vw,72px)!important;
+  line-height:.76!important;
+  margin-top:6px!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .lightTitle p,
+body.siteRoute:not(.route-home):not(.route-admin) .rankingsHero p,
+body.siteRoute:not(.route-home):not(.route-admin) .wikiDataHero p,
+body.siteRoute:not(.route-home):not(.route-admin) .accountHero p{
+  max-width:68ch!important;
+  margin-top:9px!important;
+  font-size:11px!important;
+  line-height:1.25!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .pageEyebrow{font-size:8px!important}
+
+/* Generic routes: reduce empty breathing room so the first useful interaction is visible immediately. */
+body.siteRoute:not(.route-home):not(.route-admin) .lightBody,
+body.siteRoute:not(.route-home):not(.route-admin) .contentSection,
+body.siteRoute:not(.route-home):not(.route-admin) .pageSection,
+body.siteRoute:not(.route-home):not(.route-admin) .contentGrid,
+body.siteRoute:not(.route-home):not(.route-admin) .contentStack{
+  padding-top:14px!important;
+  padding-bottom:18px!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .wrap{max-width:none!important}
+
+/* -------------------------------------------------------------------------
+   Rankings workspace
+   ------------------------------------------------------------------------- */
+body.route-rankings .siteContent>main{
+  overflow:hidden!important;
+  display:grid!important;
+  grid-template-rows:auto minmax(0,1fr)!important;
+}
+body.route-rankings .rankingsHero{
+  padding:14px 0 12px!important;
+}
+body.route-rankings .rankingsHero h1{font-size:clamp(34px,4.4vw,64px)!important}
+body.route-rankings .rankingsHero p{max-width:76ch!important;margin-top:6px!important}
+body.route-rankings .rankingsPageV2{
+  min-height:0!important;
+  height:100%!important;
+  overflow:auto!important;
+  padding:10px 0 16px!important;
+  display:block!important;
+  scrollbar-width:thin;
+}
+
+/* Summary becomes a narrow status rail, not four large cards. */
+body.route-rankings .rankingStats{
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:0!important;
+  margin:0 0 8px!important;
+  border:1px solid #343530!important;
+  background:#12130f!important;
+}
+body.route-rankings .rankingStats>div{
+  min-height:54px!important;
+  padding:8px 12px!important;
+  border:0!important;
+  border-right:1px solid #292a26!important;
+  display:grid!important;
+  grid-template-columns:auto 1fr!important;
+  grid-template-rows:auto auto!important;
+  column-gap:10px!important;
+  align-items:end!important;
+}
+body.route-rankings .rankingStats>div:last-child{border-right:0!important}
+body.route-rankings .rankingStats small{grid-column:1/3;font-size:7px!important}
+body.route-rankings .rankingStats strong{font-size:24px!important;line-height:.9!important}
+body.route-rankings .rankingStats span{font-size:8px!important;align-self:end!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+body.route-rankings .rankingsIntro{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:12px!important;
+  align-items:end!important;
+  margin:0 0 8px!important;
+  padding:0!important;
+}
+body.route-rankings .rankingsIntro h2{font-size:clamp(28px,3.2vw,44px)!important;margin:0!important;line-height:.85!important}
+body.route-rankings .rankingsIntro .muted{display:none!important}
+body.route-rankings .rankingSeasonCard{
+  min-width:250px!important;
+  padding:9px 12px!important;
+  border:1px solid #343530!important;
+  background:#171814!important;
+}
+body.route-rankings .rankingSeasonCard small{font-size:7px!important}
+body.route-rankings .rankingSeasonCard strong{font-size:16px!important}
+body.route-rankings .rankingSeasonCard span{font-size:8px!important;line-height:1.2!important}
+
+/* Search and class filters read as one toolbar. */
+body.route-rankings .rankingSearch{
+  display:grid!important;
+  grid-template-columns:minmax(220px,1fr) auto auto!important;
+  gap:6px!important;
+  align-items:end!important;
+  margin:0!important;
+  padding:8px!important;
+  border:1px solid #343530!important;
+  border-bottom:0!important;
+  background:#171814!important;
+}
+body.route-rankings .rankingSearch input[type="search"]{min-height:36px!important}
+body.route-rankings .rankingSearch .btn{min-height:36px!important;padding:0 14px!important}
+body.route-rankings .rankingTabs{
+  display:flex!important;
+  gap:3px!important;
+  overflow-x:auto!important;
+  white-space:nowrap!important;
+  margin:0 0 8px!important;
+  padding:6px 8px!important;
+  border:1px solid #343530!important;
+  background:#12130f!important;
+  scrollbar-width:none;
+}
+body.route-rankings .rankingTabs::-webkit-scrollbar{display:none}
+body.route-rankings .rankingTabs .tab{flex:0 0 auto!important;min-height:28px!important;padding:0 10px!important;display:flex!important;align-items:center!important;font-size:8px!important}
+
+/* Top three are a compact leader strip instead of oversized podium cards. */
+body.route-rankings .rankingPodium{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:1px!important;
+  margin:0 0 8px!important;
+  border:1px solid #343530!important;
+  background:#343530!important;
+}
+body.route-rankings .rankingPodiumCard{
+  min-height:72px!important;
+  padding:8px 10px!important;
+  display:grid!important;
+  grid-template-columns:28px 50px minmax(0,1fr)!important;
+  gap:8px!important;
+  align-items:center!important;
+  background:#12130f!important;
+  border:0!important;
+}
+body.route-rankings .rankingPodiumRank{position:static!important;font-size:12px!important;align-self:start!important}
+body.route-rankings .rankingPodiumArt{width:50px!important;height:50px!important;min-height:0!important}
+body.route-rankings .rankingPodiumArt img{width:100%!important;height:100%!important;object-fit:contain!important}
+body.route-rankings .rankingPodiumName{font-size:17px!important;line-height:1!important}
+body.route-rankings .rankingPodiumJob,
+body.route-rankings .rankingPodiumLevel{font-size:8px!important}
+body.route-rankings .rankingLiveLook{display:none!important}
+
+/* Table is the primary product. */
+body.route-rankings .rankingBoardV2{
+  border:1px solid #343530!important;
+  background:#12130f!important;
+}
+body.route-rankings .rankingBoardHead{
+  min-height:48px!important;
+  padding:8px 10px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:12px!important;
+}
+body.route-rankings .rankingBoardHead h2{font-size:20px!important;margin:2px 0 0!important}
+body.route-rankings .rankingLegend{font-size:7px!important;display:flex!important;gap:10px!important}
+body.route-rankings .tableWrap{overflow:auto!important;max-height:min(49dvh,520px)!important}
+body.route-rankings .rankingTableV2{min-width:760px!important}
+body.route-rankings .rankingTableV2 thead{position:sticky!important;top:0!important;z-index:3!important;background:#171814!important}
+body.route-rankings .rankingTableV2 th{height:32px!important;padding:6px 10px!important;font-size:7px!important}
+body.route-rankings .rankingTableV2 td{height:52px!important;padding:5px 10px!important}
+body.route-rankings .rankPlayerIcon{width:36px!important;height:36px!important;min-width:36px!important}
+body.route-rankings .rankPlayerText strong{font-size:13px!important}
+body.route-rankings .rankPlayerText small,
+body.route-rankings .rankLevelBlock small,
+body.route-rankings .rankingFame small,
+body.route-rankings .rankingExp small{display:none!important}
+body.route-rankings .rankingFooter{padding:8px 10px!important;min-height:42px!important}
+body.route-rankings .rankingRefresh{display:none!important}
+
+/* -------------------------------------------------------------------------
+   Wiki workspace
+   ------------------------------------------------------------------------- */
+body.route-wiki .siteContent>main.wikiDataPage{
+  overflow:hidden!important;
+  display:flex!important;
+  flex-direction:column!important;
+}
+body.route-wiki .wikiDataHero{
+  flex:0 0 auto!important;
+  padding:14px 0 12px!important;
+}
+body.route-wiki .wikiDataHeroInner{
+  display:block!important;
+}
+body.route-wiki .wikiDataHeroCopy{max-width:none!important}
+body.route-wiki .wikiDataHero h1{
+  margin:5px 0 0!important;
+  font-size:clamp(32px,4vw,58px)!important;
+  line-height:.82!important;
+  max-width:none!important;
+}
+body.route-wiki .wikiDataHero h1 br{display:none!important}
+body.route-wiki .wikiDataHero h1 em{font-style:normal!important;color:#9f9b95!important}
+body.route-wiki .wikiDataHero p{
+  max-width:90ch!important;
+  margin:6px 0 9px!important;
+  font-size:10px!important;
+}
+body.route-wiki .wikiDataHeroPanel{display:none!important}
+
+/* Search is the dominant Wiki control. */
+body.route-wiki .wikiDataSearch{
+  display:grid!important;
+  grid-template-columns:150px minmax(0,1fr) auto!important;
+  gap:5px!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:0!important;
+}
+body.route-wiki .wikiDataSearch select,
+body.route-wiki .wikiDataSearch input,
+body.route-wiki .wikiDataSearch .btn{min-height:36px!important;height:36px!important}
+body.route-wiki .wikiDataSearch .btn{padding:0 16px!important}
+body.route-wiki .wikiDataTrust{
+  display:flex!important;
+  gap:14px!important;
+  margin-top:6px!important;
+  font-size:7px!important;
+}
+
+body.route-wiki .wikiDataWarning{flex:0 0 auto!important;margin-top:8px!important;padding:8px 10px!important}
+body.route-wiki .wikiCatalogSection,
+body.route-wiki .wikiSearchResults{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  overflow:auto!important;
+  padding-top:10px!important;
+  padding-bottom:12px!important;
+  scrollbar-width:thin;
+}
+body.route-wiki .wikiCatalogHeading,
+body.route-wiki .wikiSearchResultsHead{
+  min-height:48px!important;
+  margin:0 0 7px!important;
+  padding:0!important;
+  display:flex!important;
+  align-items:end!important;
+  justify-content:space-between!important;
+  gap:14px!important;
+}
+body.route-wiki .wikiCatalogHeading h2,
+body.route-wiki .wikiSearchResultsHead h2{font-size:clamp(24px,2.7vw,38px)!important;line-height:.9!important;margin:2px 0!important}
+body.route-wiki .wikiCatalogHeading p,
+body.route-wiki .wikiSearchResultsHead p{display:none!important}
+body.route-wiki .wikiCatalogHeading>a{font-size:8px!important}
+
+/* Catalog = six compact data tiles. */
+body.route-wiki .wikiCatalogGrid{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:1px!important;
+  border:1px solid #343530!important;
+  background:#343530!important;
+}
+body.route-wiki .wikiCatalogCard{
+  min-height:102px!important;
+  padding:12px!important;
+  display:grid!important;
+  grid-template-columns:30px minmax(0,1fr) auto!important;
+  grid-template-rows:auto 1fr!important;
+  gap:5px 9px!important;
+  align-items:center!important;
+  border:0!important;
+  background:#12130f!important;
+}
+body.route-wiki .wikiCatalogIcon{grid-row:1/3!important;font-size:18px!important}
+body.route-wiki .wikiCatalogCard h3{font-size:22px!important;line-height:.9!important;margin:2px 0!important}
+body.route-wiki .wikiCatalogCard p{font-size:8px!important;line-height:1.2!important;margin:0!important;max-width:44ch!important}
+body.route-wiki .wikiCatalogCard>strong{font-size:17px!important;align-self:center!important}
+body.route-wiki .wikiCatalogCard>strong small{font-size:7px!important}
+body.route-wiki .wikiCatalogCard>b{grid-column:3!important;grid-row:2!important;font-size:8px!important;align-self:end!important}
+
+/* Search results become dense rows instead of large result cards. */
+body.route-wiki .wikiDataResultGrid{
+  display:block!important;
+  border-top:1px solid #343530!important;
+}
+body.route-wiki .wikiDataResult{
+  min-height:64px!important;
+  padding:8px 10px!important;
+  display:grid!important;
+  grid-template-columns:28px minmax(0,1fr) 20px!important;
+  gap:10px!important;
+  align-items:center!important;
+  border:0!important;
+  border-bottom:1px solid #292a26!important;
+  border-radius:0!important;
+  background:#12130f!important;
+}
+body.route-wiki .wikiDataResult:hover{background:#171814!important}
+body.route-wiki .wikiDataResultIcon{font-size:16px!important}
+body.route-wiki .wikiDataResult strong{font-size:15px!important}
+body.route-wiki .wikiDataResult small{font-size:7px!important}
+body.route-wiki .wikiDataResult p{font-size:8px!important;margin:2px 0 0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Auth/account/help/download/news pages all stay within the same app frame. */
+body.route-login .authWrap,
+body.route-register .authWrap,
+body.route-recover .authWrap{min-height:100%!important;height:auto!important}
+body.route-news .newsList{padding-top:8px!important;padding-bottom:12px!important}
+body.route-downloads .contentGrid,
+body.route-help .contentGrid{padding-top:8px!important;padding-bottom:12px!important}
+
+/* Responsive: preserve the app frame, but simplify dense controls for smaller screens. */
+@media(max-width:900px){
+  body.route-rankings .rankingStats{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  body.route-rankings .rankingStats>div:nth-child(2){border-right:0!important}
+  body.route-rankings .rankingStats>div:nth-child(-n+2){border-bottom:1px solid #292a26!important}
+  body.route-rankings .rankingsIntro{grid-template-columns:1fr!important}
+  body.route-rankings .rankingSeasonCard{display:none!important}
+  body.route-rankings .rankingPodium{grid-template-columns:1fr!important}
+  body.route-rankings .rankingPodiumCard{min-height:58px!important;grid-template-columns:28px 42px 1fr!important}
+  body.route-rankings .rankingPodiumArt{width:42px!important;height:42px!important}
+  body.route-wiki .wikiCatalogGrid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+
+@media(max-width:620px){
+  body.siteRoute:not(.route-home):not(.route-admin) .lightTitle,
+  body.siteRoute:not(.route-home):not(.route-admin) .rankingsHero,
+  body.siteRoute:not(.route-home):not(.route-admin) .wikiDataHero,
+  body.siteRoute:not(.route-home):not(.route-admin) .accountHero{padding:11px 0 10px!important}
+  body.siteRoute:not(.route-home):not(.route-admin) .lightTitle h1,
+  body.siteRoute:not(.route-home):not(.route-admin) .rankingsHero h1,
+  body.siteRoute:not(.route-home):not(.route-admin) .wikiDataHero h1,
+  body.siteRoute:not(.route-home):not(.route-admin) .accountHero h1{font-size:34px!important}
+  body.siteRoute:not(.route-home):not(.route-admin) .lightTitle p,
+  body.siteRoute:not(.route-home):not(.route-admin) .rankingsHero p,
+  body.siteRoute:not(.route-home):not(.route-admin) .wikiDataHero p{display:none!important}
+  body.route-rankings .rankingSearch{grid-template-columns:1fr auto!important}
+  body.route-rankings .rankingSearch>a{display:none!important}
+  body.route-rankings .rankingStats strong{font-size:20px!important}
+  body.route-rankings .rankingStats span{display:none!important}
+  body.route-rankings .tableWrap{max-height:none!important}
+  body.route-wiki .wikiDataSearch{grid-template-columns:1fr auto!important}
+  body.route-wiki .wikiDataSearch select{grid-column:1/3!important;min-height:30px!important;height:30px!important}
+  body.route-wiki .wikiDataTrust span:nth-child(n+2){display:none!important}
+  body.route-wiki .wikiCatalogGrid{grid-template-columns:1fr!important}
+  body.route-wiki .wikiCatalogCard{min-height:82px!important}
+}
+
+@media(max-height:650px) and (min-width:901px){
+  body.route-rankings .rankingsHero p,
+  body.route-wiki .wikiDataHero p{display:none!important}
+  body.route-rankings .rankingsHero,
+  body.route-wiki .wikiDataHero{padding:10px 0 9px!important}
+  body.route-rankings .rankingStats{display:none!important}
+  body.route-rankings .rankingPodium{display:none!important}
+  body.route-wiki .wikiDataTrust{display:none!important}
+}
