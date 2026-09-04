@@ -174,7 +174,7 @@ jobs:
           rm -f "$q" "$s"
           echo "NINJA_QUEST_CANONICAL_CLIENT_PUBLISHED backup=$WORK"
           '@
-          $remote | & $ssh -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "bash -s -- '$qRemote' '$sRemote' '$env:GITHUB_SHA'"
+          ($remote -replace "`r","") | & $ssh -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "bash -s -- '$qRemote' '$sRemote' '$env:GITHUB_SHA'"
           if($LASTEXITCODE){throw 'canonical Ninja quest publish failed'}
 
       - name: Verify public patch manifest
