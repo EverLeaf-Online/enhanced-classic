@@ -1,1 +1,24 @@
-<%- include("partials/header",{title:"Register"}) %><main class="authWrap"><div class="authGrid"><section class="authIntro"><img src="/assets/everleaf-remaster.svg" alt="EverLeaf Enhanced Classic"><div class="pageEyebrow">New Adventurer</div><h1>Begin your EverLeaf story.</h1><p>Create one account for both the website and game client, then install through the launcher and step into Maple World.</p><div class="miniGrid" style="margin-top:18px"><div class="miniCard"><strong>v83</strong><span>Enhanced Classic</span></div><div class="miniCard"><strong>20</strong><span>World channels</span></div><div class="miniCard"><strong>Fair</strong><span>No pay-to-win</span></div></div></section><div class="authCard"><div class="pageEyebrow">Account Creation</div><h2>Create EverLeaf Account</h2><% if(!enabled){%><div class="notice">Registration is disabled by server configuration.</div><%}%><% if(error){%><div class="error"><%=error%></div><%}%><form method="post"><label>Username</label><input name="username" minlength="4" maxlength="13" pattern="[A-Za-z0-9_]+" autocomplete="username" required><label>Email</label><input type="email" name="email" autocomplete="email" required><label>Password</label><input type="password" name="password" minlength="8" maxlength="12" autocomplete="new-password" aria-describedby="register-password-help" required><p id="register-password-help" class="muted">Use 8-12 characters so your password works in the v83 game client.</p><label>Confirm Password</label><input type="password" name="confirmPassword" minlength="8" maxlength="12" autocomplete="new-password" required><label style="display:flex;gap:8px;align-items:flex-start;font-size:12px"><input type="checkbox" name="agree" value="yes" style="width:auto;margin-top:2px" required><span>I agree to the <a href="/terms" style="font-weight:800">Terms of Service</a>.</span></label><button class="btn primary" <%=enabled?"":"disabled"%>>CREATE ACCOUNT</button></form><p class="muted" style="margin-top:18px">Already registered? <a href="/login" style="font-weight:800">Return to login.</a></p></div></div></main><%- include("partials/footer") %>
+<%- include("partials/header",{title:"Register"}) %>
+<main class="terminalAuthPage authWrap">
+  <section class="terminalAuthIdentity authIntro">
+    <div><div class="pageEyebrow">SESSION://PROVISION ACCOUNT</div><h1>ENTER<br>EVERLEAF.</h1><p>Create one EverLeaf account for both the website and v83 game client, then install through the launcher and connect to Maple World.</p></div>
+    <div class="terminalAuthTelemetry miniGrid"><div><small>CLIENT</small><strong>V83</strong></div><div><small>CHANNELS</small><strong>20</strong></div><div><small>POWER SALE</small><strong>NONE</strong></div></div>
+  </section>
+
+  <section class="terminalAuthForm authCard">
+    <div class="pageEyebrow">ACCOUNT://CREATE</div>
+    <h2>Create EverLeaf Account</h2>
+    <% if(!enabled){ %><div class="notice">Registration is disabled by server configuration.</div><% } %>
+    <% if(error){ %><div class="error"><%=error%></div><% } %>
+    <form method="post">
+      <label>Username</label><input name="username" minlength="4" maxlength="13" pattern="[A-Za-z0-9_]+" autocomplete="username" required>
+      <label>Email</label><input type="email" name="email" autocomplete="email" required>
+      <label>Password</label><input type="password" name="password" minlength="8" maxlength="12" autocomplete="new-password" aria-describedby="register-password-help" required><p id="register-password-help" class="muted">Use 8–12 characters so the password works in the v83 game client.</p>
+      <label>Confirm Password</label><input type="password" name="confirmPassword" minlength="8" maxlength="12" autocomplete="new-password" required>
+      <label><input type="checkbox" name="agree" value="yes" style="width:auto;min-height:auto;margin-right:8px" required> I agree to the <a href="/terms">Terms of Service</a>.</label>
+      <button class="btn primary" <%=enabled?'':'disabled'%>>PROVISION ACCOUNT</button>
+    </form>
+    <div class="terminalAuthDivider"><span class="pageEyebrow">EXISTING ACCOUNT</span><p class="muted">Already registered? <a href="/login">Return to login.</a></p></div>
+  </section>
+</main>
+<%- include("partials/footer") %>
