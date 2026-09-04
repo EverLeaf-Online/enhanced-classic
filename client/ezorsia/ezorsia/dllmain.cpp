@@ -3,6 +3,7 @@
 #include "ReplacementFuncs.h"
 #include "dinput8.h"
 #include "INIReader.h"
+#include "AddyLocations.h"
 
 #include <atomic>
 
@@ -90,6 +91,21 @@ bool InstallEarlyHooks() {
     if (!InstallEarlyHook("GetACP", Hook_GetACP, false)) return false;
     if (!InstallEarlyHook("GetModuleFileNameW", Hook_GetModuleFileNameW, false)) return false;
     return true;
+}
+
+void EnableSystemDpiAwareness() {
+    using SetProcessDPIAwareFn = BOOL(WINAPI*)();
+    HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    if (!user32) {
+        return;
+    }
+
+    auto setProcessDpiAware = reinterpret_cast<SetProcessDPIAwareFn>(
+        GetProcAddress(user32, "SetProcessDPIAware")
+    );
+    if (setProcessDpiAware && setProcessDpiAware()) {
+        std::cout << "EverLeaf Client v2: system DPI awareness enabled" << std::endl;
+    }
 }
 
 HWND FindEverLeafGameWindow() {
@@ -313,6 +329,11 @@ void MainFunc() {
               << Client::m_nGameWidth << "x" << Client::m_nGameHeight << std::endl;
     Client::UpdateResolution();
 
+    // The inherited HD patch accidentally writes the horizontal dimension into
+    // the vertical CUIToolTip bound. Correct the post-unpack value here without
+    // disturbing the rest of the battle-tested resolution patch table.
+    Memory::WriteInt(dwToolTipLimitVPos + 1, Client::m_nGameHeight - 1);
+
     if (Client::ModernLoginUI) {
         std::cout << "EverLeaf Client v2: applying modern login UI" << std::endl;
         Client::UpdateLogin();
@@ -343,6 +364,11 @@ DWORD WINAPI MainProc(LPVOID) {
         ExitProcess(ERROR_BAD_EXE_FORMAT);
         return ERROR_BAD_EXE_FORMAT;
     }
+
+    // v83 predates modern Windows DPI virtualization. Mark the process as DPI
+    // aware before Maple creates its top-level HWND so configured resolutions and
+    // monitor centering use physical pixels instead of scaled virtual coordinates.
+    EnableSystemDpiAwareness();
 
     MainMain::CreateInstance(MainFunc);
     StartDisplayModeWorker();
