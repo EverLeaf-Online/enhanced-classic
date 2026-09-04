@@ -52,7 +52,7 @@ test('Wiki UI is explicitly a searchable server-data encyclopedia',()=>{
   const hub=read('src/views/wiki.ejs');
   const list=read('src/views/wiki-data-list.ejs');
   const entry=read('src/views/wiki-data-entry.ejs');
-  const css=read('public/css/wiki-data-2026.css');
+  const css=read('public/css/wiki-data.css');
   const header=read('src/views/partials/header.ejs');
   assert.match(hub,/EVERLEAF DATA WIKI/);
   assert.match(hub,/WZ \+ MySQL/);
@@ -63,7 +63,7 @@ test('Wiki UI is explicitly a searchable server-data encyclopedia',()=>{
   assert.match(entry,/wikiEntityPage/);
   assert.match(css,/\.wikiCatalogGrid/);
   assert.match(css,/\.wikiDataTable/);
-  assert.match(header,/wiki-data-2026\.css/);
+  assert.match(header,/wiki-data\.css/);
 });
 
 test('CMS knowledge dashboard continues to support supplemental Wiki guides',()=>{
