@@ -88,26 +88,26 @@ jobs:
           import os
           BASE=0x00500000
           data=Path(os.environ['RUNNER_TEMP'],'client-code.bin').read_bytes()
-          md=Cs(CS_ARCH_X86,CS_MODE_32); md.detail=True
+          md=Cs(CS_ARCH_X86,CS_MODE_32); md.detail=True; md.skipdata=True
           ins=list(md.disasm(data,BASE))
           hits=[]
           for idx,i in enumerate(ins):
-              if any(op.type==X86_OP_MEM and op.mem.disp==0x214 for op in i.operands):
+              if i.id and any(op.type==X86_OP_MEM and op.mem.disp==0x214 for op in i.operands):
                   hits.append((i.address,ins[max(0,idx-18):min(len(ins),idx+28)]))
-          lines=['# v83 selector control analysis','',f'- scanned: `0x{BASE:08X}`..`0x{BASE+len(data):08X}`',f'- instructions touching CLogin/race displacement `+0x214`: {len(hits)}','']
+          lines=['# v83 selector control analysis','',f'- scanned: `0x{BASE:08X}`..`0x{BASE+len(data):08X}`',f'- decoded instructions: {sum(1 for i in ins if i.id)}',f'- instructions touching CLogin/race displacement `+0x214`: {len(hits)}','']
           for addr,window in hits:
               lines += [f'## Candidate near `0x{addr:08X}`','```asm']
-              lines += [f'{x.address:08X}: {x.mnemonic:<7} {x.op_str}' for x in window]
+              lines += [f'{x.address:08X}: {x.mnemonic:<7} {x.op_str}' for x in window if x.id]
               lines += ['```','']
           lines += ['## Small immediate writes in login/selector region','']
           for i in ins:
-              if not (0x005E0000 <= i.address < 0x00620000): continue
+              if not i.id or not (0x005E0000 <= i.address < 0x00620000): continue
               if i.mnemonic not in ('mov','and','or','cmp') or len(i.operands)<2: continue
               if i.operands[0].type!=X86_OP_MEM or i.operands[1].type!=X86_OP_IMM: continue
               v=i.operands[1].imm & 0xffffffff
               if v<=6: lines.append(f'- `{i.address:08X}: {i.mnemonic} {i.op_str}`')
           Path('docs/CLIENT_V83_SELECTOR_CONTROL_ANALYSIS.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
-          print('\n'.join(lines[:900]))
+          print('\n'.join(lines[:1200]))
           '@ | Set-Content -Encoding utf8 "$env:RUNNER_TEMP/analyze.py"
           python "$env:RUNNER_TEMP/analyze.py"
       - name: Commit analysis
@@ -118,5 +118,6 @@ jobs:
           git config user.email 173628847+iampolicy@users.noreply.github.com
           git add docs/CLIENT_V83_SELECTOR_CONTROL_ANALYSIS.md
           git commit -m 'docs: resolve v83 selector control handlers'
+          git reset --hard HEAD
           git pull --rebase origin feature/client-ui-selector-phase2-20260904
           git push origin HEAD:feature/client-ui-selector-phase2-20260904
