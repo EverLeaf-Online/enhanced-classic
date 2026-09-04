@@ -69,9 +69,13 @@ jobs:
             'EverLeaf Client v2 startup error',
             'kClientUnpackTimeoutMs',
             'kClientBootstrapTimeoutMs',
-            'ExitProcess(ERROR_DLL_INIT_FAILED)'
+            'ExitProcess(ERROR_DLL_INIT_FAILED)',
+            '#include "DisplayMode.h"',
+            'DisplayMode::EnableSystemDpiAwareness()',
+            'DisplayMode::StartWorker()',
+            'Memory::WriteInt(dwToolTipLimitVPos + 1, Client::m_nGameHeight - 1)'
           )) {
-            if (-not $bootstrap.Contains($pattern)) { throw "Missing Client v2 bootstrap marker: $pattern" }
+            if (-not $bootstrap.Contains($pattern)) { throw "Missing Client v2 bootstrap/display wiring marker: $pattern" }
           }
           if ($bootstrap.Contains('MainMain::GetInstance()->~MainMain()')) {
             throw "Client v2 must not manually destroy MainMain under DllMain loader lock"
@@ -87,6 +91,24 @@ jobs:
             if ($attachBlock.Contains($pattern)) {
               throw "Detours hook installation leaked back into DllMain: $pattern"
             }
+          }
+
+          $display = Get-Content "client/ezorsia/ezorsia/DisplayMode.h" -Raw
+          foreach ($pattern in @(
+            'FindEverLeafGameWindow',
+            'ApplyBorderlessWindow',
+            'CenterWindowedClient',
+            'CaptureWindowedState',
+            'RestoreWindowedState',
+            'ToggleBorderlessWindow',
+            'EverLeafWindowProc',
+            'EnableAltEnterToggle',
+            'WM_SYSKEYDOWN',
+            'WM_SYSCHAR',
+            'CallWindowProcA',
+            'GetWindowThreadProcessId'
+          )) {
+            if (-not $display.Contains($pattern)) { throw "Missing Client v2 display invariant: $pattern" }
           }
 
           $dinput = Get-Content "client/ezorsia/ezorsia/dinput8.cpp" -Raw
@@ -127,6 +149,13 @@ jobs:
             if ($config -match [regex]::Escape($name)) { throw "Player config exposes forbidden setting: $name" }
           }
           if (-not ($config -match 'PreferCommunityUI=true')) { throw "Managed client does not default to Community UI" }
+          if (-not ($config -match 'WindowedMode=true')) { throw "Managed client must keep the safe windowed renderer by default" }
+          if (-not ($config -match 'BorderlessWindow=false')) { throw "Managed client must expose borderless mode as opt-in until runtime validation is green" }
+          if (-not ($config -match 'EnableAltEnterToggle=true')) { throw "Managed client must expose the reversible Alt+Enter borderless toggle" }
+          if (-not ($config -match 'CenterWindow=true')) { throw "Managed client must center framed windowed mode by default" }
+          if (-not ($config -match 'ForegroundFPSCap=60')) { throw "Managed client must default foreground presentation to 60 FPS" }
+          if (-not ($config -match 'LimitBackgroundFPS=true')) { throw "Managed client must enable background throttling by default" }
+          if (-not ($config -match 'BackgroundFPSCap=15')) { throw "Managed client must default background presentation to 15 FPS" }
           if (-not (Test-Path "$package/EverLeaf_UI.wz")) { throw "Missing branded EverLeaf UI file" }
           if (Test-Path "$package/EzorsiaV2_UI.wz") { throw "Legacy UI filename leaked into package" }
           Compress-Archive -Path "$package/*" -DestinationPath "EverleafClient-source-built.zip"
