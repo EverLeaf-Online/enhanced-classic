@@ -1,0 +1,97 @@
+name: Audit v95 Ninja NPC runtime
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-v95-ninja-npc-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh audit-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+      - name: Classify Ninja NPC and quest runtime dependencies
+        run: |
+          set -euo pipefail
+          cat > /tmp/ninja-npc-runtime.py <<'PY'
+          from pathlib import Path
+          import os,json,re,subprocess,xml.etree.ElementTree as ET
+          current=Path(os.path.realpath('/opt/everleaf/current'))
+          wz=current/'wz'; scripts=current/'scripts'
+          npcs=list(range(9110100,9110115)); quests=list(range(8163,8172))
+          spawned=set()
+          for p in (wz/'Map.wz').rglob('800040*.img.xml'):
+              try:r=ET.parse(p).getroot()
+              except Exception:continue
+              for sec in r.iter():
+                  if sec.attrib.get('name')!='life':continue
+                  for life in list(sec):
+                      vals={c.attrib.get('name',''):c.attrib.get('value','') for c in list(life)}
+                      if vals.get('type')=='n' and vals.get('id','').isdigit():spawned.add(int(vals['id']))
+          def mysql(sql):
+              return subprocess.check_output(['sudo','mysql','-NBe',sql],text=True).strip().splitlines()
+          shop=set(map(int,mysql('SELECT DISTINCT npcid FROM cosmic.shops WHERE npcid BETWEEN 9110100 AND 9110114')))
+          npc_rows=[]
+          for n in npcs:
+              npc_rows.append({'npc':n,'spawned':n in spawned,'npc_script':(scripts/'npc'/f'{n}.js').exists(),'shop':n in shop})
+          quest_rows=[]
+          roots=[]
+          for p in (wz/'Quest.wz').rglob('*.xml'):
+              try: roots.append((p,ET.parse(p).getroot()))
+              except Exception: pass
+          for q in quests:
+              hits=[]; script_tokens=[]; npc_refs=set()
+              for p,r in roots:
+                  for node in r.iter():
+                      attrs=node.attrib
+                      matched=False
+                      for attr in ('name','value'):
+                          raw=attrs.get(attr,'')
+                          if raw.isdigit() and int(raw)==q: matched=True
+                      if matched:
+                          hits.append(str(p.relative_to(wz)))
+                      name=attrs.get('name','').lower(); value=attrs.get('value','')
+                      if name in ('startscript','endscript','script') and value:
+                          script_tokens.append([str(p.relative_to(wz)),name,value])
+                      if name in ('npc','startnpc','endnpc') and value.isdigit() and int(value) in npcs:
+                          npc_refs.add(int(value))
+              quest_rows.append({'quest':q,'xml_files':sorted(set(hits)),'quest_script_file':(scripts/'quest'/f'{q}.js').exists(),'script_tokens':script_tokens,'npc_refs':sorted(npc_refs)})
+          out={'service_active':subprocess.run(['systemctl','is-active','--quiet','everleaf.service']).returncode==0,'npc_rows':npc_rows,'quest_rows':quest_rows}
+          print(json.dumps(out,indent=2))
+          PY
+          scp /tmp/ninja-npc-runtime.py everleaf-oracle:/tmp/ninja-npc-runtime.py
+          ssh everleaf-oracle 'python3 /tmp/ninja-npc-runtime.py' | tee audit-output/ninja-npc-runtime.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v95-ninja-npc-runtime-${{ github.run_id }}
+          path: audit-output/
+          retention-days: 90
