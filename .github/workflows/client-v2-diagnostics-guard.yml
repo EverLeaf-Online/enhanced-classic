@@ -29,20 +29,34 @@ jobs:
 
           foreach ($required in @(
             'EverLeafClient.log',
-            'ResolveDiagnosticsPath',
+            'EverLeafCrash.dmp',
+            'ResolveDiagnosticsPaths',
+            'GetSystemDirectoryW',
+            'LoadLibraryW(systemDirectory)',
+            'GetProcAddress(gDbgHelpModule, "MiniDumpWriteDump")',
+            'MiniDumpNormal | MiniDumpWithThreadInfo',
+            'CREATE_ALWAYS',
             'SetUnhandledExceptionFilter(EverLeafUnhandledExceptionFilter)',
             'gPreviousExceptionFilter(exceptionInfo)',
             'EXCEPTION_CONTINUE_SEARCH',
-            'No account, character, chat, or telemetry data is recorded or uploaded.'
+            'No account, character, chat, or telemetry data is intentionally recorded or uploaded.',
+            'it is never transmitted automatically.'
           )) {
             if (-not $diag.Contains($required)) { throw "Missing diagnostics invariant: $required" }
           }
 
           foreach ($forbidden in @(
             'HttpSendRequest', 'WinHttpSendRequest', 'InternetOpenUrl', 'URLDownloadToFile',
-            'socket(', 'send(', 'WSASend(', 'password=', 'pic=', 'launcherTicket='
+            'socket(', 'send(', 'WSASend(', 'password=', 'pic=', 'launcherTicket=',
+            'MiniDumpWithFullMemory', 'MiniDumpWithFullMemoryInfo'
           )) {
-            if ($diag.Contains($forbidden)) { throw "Diagnostics unexpectedly contains network/sensitive marker: $forbidden" }
+            if ($diag.Contains($forbidden)) { throw "Diagnostics unexpectedly contains network/sensitive/full-memory marker: $forbidden" }
+          }
+
+          # The audited copycat folder contains a local x64 dbghelp.dll next to an x86
+          # game. EverLeaf must never resolve dbghelp through the game directory/search path.
+          if ($diag.Contains('LoadLibraryW(L"dbghelp.dll")') -or $diag.Contains('LoadLibraryA("dbghelp.dll")')) {
+            throw "Diagnostics can load a game-directory/search-path dbghelp.dll"
           }
 
           foreach ($required in @('CrashDiagnostics::Install()', 'CrashDiagnostics::SetPhase(')) {
