@@ -1,0 +1,65 @@
+name: Audit Yuna v83 login frame assets
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths: ['.github/workflows/audit-yuna-ui-v83-login-frames.yml']
+permissions:
+  contents: read
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+jobs:
+  audit:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with: {ref: release-dev}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '10.0.x'}
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop';$d=Join-Path $HOME '.ssh';New-Item -ItemType Directory -Force -Path $d|Out-Null;$k=Join-Path $d 'id_everleaf';[IO.File]::WriteAllText($k,($env:SSH_PRIVATE_KEY -replace "`r","")+"`n");$known=Join-Path $d 'known_hosts';if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}else{& 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known}
+      - name: Fetch donor UI
+        shell: pwsh
+        run: |
+          $scp='C:\Program Files\Git\usr\bin\scp.exe';$key=Join-Path $HOME '.ssh/id_everleaf';$out=Join-Path $env:RUNNER_TEMP 'UI.wz';& $scp -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/home/ubuntu/everleaf-staging/yuna-client-current/extracted/YunaMS/UI.wz" $out;if($LASTEXITCODE){throw 'fetch failed'}
+      - name: Build and run inspector
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/YunaUiInspector';New-Item -ItemType Directory -Force -Path $tool|Out-Null
+          @'
+          using MapleLib.WzLib;
+          using MapleLib.WzLib.WzProperties;
+          var file=args[0];
+          using var wz=new WzFile(file,83,WzMapleVersion.GMS);
+          var status=wz.ParseWzFile();
+          Console.WriteLine($"parse={status} version={wz.Version} rootImages={wz.WzDirectory.WzImages.Count}");
+          foreach(var i in wz.WzDirectory.WzImages) Console.WriteLine("ROOT "+i.Name);
+          var img=wz.WzDirectory.WzImages.FirstOrDefault(x=>x.Name.Equals("Login.img",StringComparison.OrdinalIgnoreCase));
+          if(img==null){Console.WriteLine("LOGIN_IMG_NOT_FOUND");return;}
+          img.ParseImage();
+          var common=img["Common"] as WzSubProperty;
+          if(common==null){Console.WriteLine("COMMON_NOT_FOUND");return;}
+          foreach(var p in common.WzProperties){
+            if(!p.Name.StartsWith("frame",StringComparison.OrdinalIgnoreCase)) continue;
+            if(p is WzCanvasProperty c) Console.WriteLine($"FRAME {p.Name} {c.PngProperty.Width}x{c.PngProperty.Height}");
+            else Console.WriteLine($"FRAME {p.Name} type={p.GetType().Name}");
+          }
+          static void Walk(WzImageProperty p,string path,int depth){
+            if(depth>4)return;
+            if(path.Contains("WorldSelect",StringComparison.OrdinalIgnoreCase)||path.Contains("ViewAllChar",StringComparison.OrdinalIgnoreCase)||path.Contains("Char",StringComparison.OrdinalIgnoreCase)||path.Contains("Login",StringComparison.OrdinalIgnoreCase)) Console.WriteLine("PATH "+path+" type="+p.GetType().Name);
+            if(p is WzSubProperty s) foreach(var c in s.WzProperties) Walk(c,path+"/"+c.Name,depth+1);
+          }
+          foreach(var p in img.WzProperties) Walk(p,p.Name,0);
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup><ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup></Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'YunaUiInspector.csproj')
+          dotnet run --project (Join-Path $tool 'YunaUiInspector.csproj') -c Release -- (Join-Path $env:RUNNER_TEMP 'UI.wz')
