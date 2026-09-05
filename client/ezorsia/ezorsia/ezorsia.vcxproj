@@ -179,6 +179,7 @@
       <FileType>CppHeader</FileType>
     </ClInclude>
     <ClInclude Include="Client.h" />
+    <ClInclude Include="EvanRaceSelectPatch.h" />
     <ClInclude Include="CrashDiagnostics.h" />
     <ClInclude Include="DiscordPresence.h" />
     <ClInclude Include="FrameLimiter.h" />
@@ -217,6 +218,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Client.cpp" />
+    <ClCompile Include="EvanRaceSelectPatch.cpp" />
     <ClCompile Include="CrashDiagnostics.cpp" />
     <ClCompile Include="DiscordPresence.cpp" />
     <ClCompile Include="FrameLimiter.cpp" />

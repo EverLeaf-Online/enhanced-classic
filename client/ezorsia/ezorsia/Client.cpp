@@ -1,19 +1,22 @@
 #include "stdafx.h"
 #include "AddyLocations.h"
 #include "codecaves.h"
+#include "EvanRaceSelectPatch.h"
 
-int Client::m_nGameHeight = 720;
-int Client::m_nGameWidth = 1280;
+int Client::m_nGameHeight = 600;
+int Client::m_nGameWidth = 800;
 int Client::MsgAmount = 26;
 bool Client::WindowedMode = true;
 bool Client::RemoveLogos = true;
-bool Client::ModernLoginUI = true;
+bool Client::ModernLoginUI = false;
+bool Client::ShowFutureClassCards = true;
 double Client::setDamageCap = 199999.0;
 bool Client::useTubi = false;
 int Client::speedMovementCap = 140;
 std::string Client::ServerIP_AddressFromINI = "132.145.141.79";
 
 void Client::UpdateGameStartup() {
+	EverLeafEvanRaceSelect::Apply();
 
 	Memory::CodeCave(cc0x00A63FF3, dw0x00A63FF3, dw0x00A63FF3Nops); //fix start @0x00A63FF3, may be unnecessary, but dump of vanilla client showed broken code here
 
@@ -53,6 +56,19 @@ void Client::UpdateGameStartup() {
 
 	//optional non-resolution related stuff
 	if (useTubi) { Memory::FillBytes(0x00485C32, 0x90, 2); }
+	// Evan client compatibility: v83 contains most Evan client logic, but two
+	// SkillInfo gates reject Evan skills. These exact v83 addresses are the
+	// established Evan compatibility edits; keep them post-unpack with the
+	// rest of EverLeaf's runtime client patches.
+	Memory::FillBytes(0x0075C783, 0x90, 4);
+	Memory::FillBytes(0x00761714, 0x90, 21);
+	// Expose the v84-compatible Evan race value on v83 without changing the wire format.
+	// Original bytes at 0x005F4F3C: 0F 85 A5 01 00 00 (race >=3 -> default).
+	// New target 0x005F4FD0 reuses the stable Explorer appearance/name dialog while
+	// preserving CLogin+0x214, so SendNewCharPacket still transmits race 3.
+	unsigned char EvanRace3CreationRoute[] = { 0x0F, 0x85, 0x8E, 0x00, 0x00, 0x00 };
+	Memory::WriteByteArray(0x005F4F3C, EvanRace3CreationRoute, sizeof(EvanRace3CreationRoute));
+
 	Memory::WriteDouble(0x00AFE8A0, setDamageCap);	//ty rain
 	int setDamageCapInt = static_cast<int>(setDamageCap < 0 ? setDamageCap - 0.5 : setDamageCap + 0.5);
 	Memory::WriteInt(0x008C3304 + 1, setDamageCapInt); //ty rain
@@ -163,9 +179,9 @@ void Client::UpdateResolution() {
 	Memory::WriteInt(0x009F6E99 + 1, m_nGameHeight);//push 600
 	Memory::WriteInt(0x009F6EA0 + 1, m_nGameWidth);	//push 800 ; StringPool#1162 (MapleStoryClass)
 
-	Memory::WriteInt(0x007CF48F + 1, m_nGameHeight);//mov eax,600 ; 
+	Memory::WriteInt(0x007CF48F + 1, m_nGameHeight);//mov eax,600 ;
 	Memory::WriteInt(0x007CF49D + 1, m_nGameWidth);	//mov eax,800 ; IWzVector2D::RelMove
-	Memory::WriteInt(0x008A12F4 + 1, m_nGameHeight);//mov eax,600 ; 
+	Memory::WriteInt(0x008A12F4 + 1, m_nGameHeight);//mov eax,600 ;
 	Memory::WriteInt(0x008A1302 + 1, m_nGameWidth);	//mov eax,800 ; IWzVector2D::RelMove
 	Memory::WriteInt(0x007F257E + 1, m_nGameHeight);//push 600
 	Memory::WriteInt(0x007F258F + 1, m_nGameWidth);	//push 800 ; CWnd::CreateWnd
@@ -278,7 +294,7 @@ void Client::UpdateResolution() {
 	Memory::WriteInt(0x008D29B4 + 1, m_nGameHeight - 19);	//push 581
 	Memory::WriteInt(0x008D8BFE + 1, m_nGameHeight - 19);	//push 581
 	Memory::WriteInt(0x008D937E + 1, m_nGameHeight - 19);	//push 581 //008D9373  move mana bar outline? //ty rynyan
-	Memory::WriteInt(0x008D9AC9 + 1, m_nGameHeight - 19);	//push  
+	Memory::WriteInt(0x008D9AC9 + 1, m_nGameHeight - 19);	//push
 	Memory::WriteInt(0x008D1D50 + 1, m_nGameHeight - 22);	//push 578
 	Memory::WriteInt(0x008D1D55 + 1, m_nGameWidth);	//push 800
 	Memory::WriteInt(0x008D1FF4 + 1, m_nGameHeight - 22);	//push 578
@@ -396,7 +412,7 @@ void Client::UpdateResolution() {
 	//008DE8A9 //CUIStatusBar::HitTest //related to prev^
 
 	//Memory::WriteInt(0x008DA11C + 1, m_nGameHeight - 19);//??likely various status bar UI components
-	//008DA115 //sub_8D850B //related to prev^ 
+	//008DA115 //sub_8D850B //related to prev^
 	//Memory::WriteInt(0x008DA3D4 + 1, m_nGameHeight - 56); //exphpmp % labels
 	//Memory::WriteInt(0x008DA463 + 1, m_nGameHeight - 51); //stat bar gradient or bracket
 	//Memory::WriteInt(0x008DA4F2 + 1, m_nGameHeight - 51);//stat bar gradient or bracket
@@ -475,14 +491,14 @@ void Client::UpdateResolution() {
 	//Memory::WriteInt(0x008D3586 + 1, m_nGameHeight - 85);
 	//Memory::WriteInt(0x008D3696 + 1, m_nGameHeight - 85);
 	//Memory::WriteInt(0x008D4058 + 1, m_nGameHeight - 85);
-	//Memory::WriteInt(0x008DF903 + 1, m_nGameHeight - 85);	
-	//008DF908 addr of related^ //CUIStatusBar::ToggleQuickSlot 
+	//Memory::WriteInt(0x008DF903 + 1, m_nGameHeight - 85);
+	//008DF908 addr of related^ //CUIStatusBar::ToggleQuickSlot
 	//Memory::WriteInt(0x008DFFCF + 1, m_nGameHeight - 85);	//CUIStatusBar::SetButtonBlink
 	//008DFFD4 //related to^
 	//Memory::WriteInt(0x008D40CE + 1, m_nGameHeight - 81);//smol buttoms right of chat box (all - 85 ones)
 
 	//Memory::CodeCave(PositionBossBarY2, 0x007E169B, 6);//boss bar, check for server msg, looking in wrong address...
-	//if (serverMessageExists != 0) 
+	//if (serverMessageExists != 0)
 	//{
 	//	Memory::CodeCave(PositionBossBarY, dwBossBar, 7);//boss bar normal position without server msg
 	//}
@@ -557,37 +573,37 @@ void Client::UpdateResolution() {
 
 		nHeightOfsettedLoginViewRecFix = 167 + myHeight; nWidthOfsettedLoginViewRecFix = 540 + myWidth;//para for ViewRec fix
 		nTopOfsettedLoginViewRecFix = 51 + myHeight; nLeftOfsettedLoginViewRecFix = 136 + myWidth;
-		Memory::CodeCave(ccLoginViewRecFix, dwLoginViewRecFix, LoginViewRecFixNOPs);	//world ViewRec fix	
+		Memory::CodeCave(ccLoginViewRecFix, dwLoginViewRecFix, LoginViewRecFixNOPs);	//world ViewRec fix
 
 		a1x = 0 + myWidth; a2x = -149 + myWidth; a2y = 0 + myHeight; a3 = 25; a1y = -250; //a4 = 0;	//LoginDescriptor params
-		Memory::WriteInt(0x0060D849 + 1, 300 + a1y); //speed 1	//temporary fix by increasing the speed of display until i get good enough at procedural programming 
+		Memory::WriteInt(0x0060D849 + 1, 300 + a1y); //speed 1	//temporary fix by increasing the speed of display until i get good enough at procedural programming
 		//and memory management and reverse engineering to use nXXXon's own functions to put a black layer with greater z value to cover the tabs being shown off screen at origin
-		Memory::CodeCave(ccLoginDescriptorFix, dwLoginDescriptorFix, LoginDescriptorFixNOPs);	//world LoginDescriptor fix	
+		Memory::CodeCave(ccLoginDescriptorFix, dwLoginDescriptorFix, LoginDescriptorFixNOPs);	//world LoginDescriptor fix
 	}
 
 	int customEngY = -62, customEngX = -22, dojangYoffset = 0;	//myHeight //-55-35 (myHeight*250/100)	-(myWidth*53/100) 140 -130
 	yOffsetOfMuruengraidPlayer = 50 + dojangYoffset; xOffsetOfMuruengraidPlayer = 169 + myWidth; //params
-	Memory::CodeCave(ccMuruengraidPlayer, dwMuruengraidPlayer, MuruengraidPlayerNOPs);	//muruengraid scaling	
+	Memory::CodeCave(ccMuruengraidPlayer, dwMuruengraidPlayer, MuruengraidPlayerNOPs);	//muruengraid scaling
 	yOffsetOfMuruengraidClock = 26 + dojangYoffset; xOffsetOfMuruengraidClock = 400 + myWidth; //params
 	Memory::CodeCave(ccMuruengraidClock, dwMuruengraidClock, MuruengraidClockNOPs);	//muruengraid scaling
 	yOffsetOfMuruengraidMonster = 50 + dojangYoffset; xOffsetOfMuruengraidMonster = 631 + myWidth; //params
 	Memory::CodeCave(ccMuruengraidMonster, dwMuruengraidMonster, MuruengraidMonsterNOPs);	//muruengraid scaling
 	yOffsetOfMuruengraidMonster1 = 32 + dojangYoffset; xOffsetOfMuruengraidMonster1 = 317 + myWidth; //params
-	Memory::CodeCave(ccMuruengraidMonster1, dwMuruengraidMonster1, MuruengraidMonster1NOPs);	//muruengraid scaling	
+	Memory::CodeCave(ccMuruengraidMonster1, dwMuruengraidMonster1, MuruengraidMonster1NOPs);	//muruengraid scaling
 	yOffsetOfMuruengraidMonster2 = 32 + dojangYoffset; xOffsetOfMuruengraidMonster2 = 482 + myWidth; //params
 	Memory::CodeCave(ccMuruengraidMonster2, dwMuruengraidMonster2, MuruengraidMonster2NOPs);	//muruengraid scaling
 	yOffsetOfMuruengraidEngBar = 86 + dojangYoffset + customEngY; xOffsetOfMuruengraidEngBar = 17 + myWidth + customEngX; //params
-	Memory::CodeCave(ccMuruengraidEngBar, dwMuruengraidEngBar, MuruengraidEngBarNOPs);	//muruengraid scaling	
+	Memory::CodeCave(ccMuruengraidEngBar, dwMuruengraidEngBar, MuruengraidEngBarNOPs);	//muruengraid scaling
 	yOffsetOfMuruengraidEngBar1 = 130 + dojangYoffset + customEngY; xOffsetOfMuruengraidEngBar1 = 20 + myWidth + customEngX; //params
-	Memory::CodeCave(ccMuruengraidEngBar1, dwMuruengraidEngBar1, MuruengraidEngBar1NOPs);	//muruengraid scaling	
+	Memory::CodeCave(ccMuruengraidEngBar1, dwMuruengraidEngBar1, MuruengraidEngBar1NOPs);	//muruengraid scaling
 	yOffsetOfMuruengraidEngBar2 = 80 + dojangYoffset + customEngY; xOffsetOfMuruengraidEngBar2 = 9 + myWidth + customEngX; //params
-	Memory::CodeCave(ccMuruengraidEngBar2, dwMuruengraidEngBar2, MuruengraidEngBar2NOPs);	//muruengraid scaling	
+	Memory::CodeCave(ccMuruengraidEngBar2, dwMuruengraidEngBar2, MuruengraidEngBar2NOPs);	//muruengraid scaling
 	yOffsetOfMuruengraidClearRoundUI = 260 + myHeight; xOffsetOfMuruengraidClearRoundUI = 400 + myWidth; //params
 	Memory::CodeCave(ccMuruengraidClearRoundUI, dwMuruengraidClearRoundUI, MuruengraidClearRoundUINOPs);	//muruengraid scaling
 	//yOffsetOfMuruengraidTimerCanvas = 28 + dojangYoffset; xOffsetOfMuruengraidTimerCanvas = 112 + myWidth; //params
-	//Memory::CodeCave(ccMuruengraidTimerCanvas, dwMuruengraidTimerCanvas, MuruengraidTimerCanvasNOPs);	//muruengraid scaling	
+	//Memory::CodeCave(ccMuruengraidTimerCanvas, dwMuruengraidTimerCanvas, MuruengraidTimerCanvasNOPs);	//muruengraid scaling
 	//yOffsetOfMuruengraidTimerMinutes = 0 + dojangYoffset; xOffsetOfMuruengraidTimerMinutes = 0 + myWidth; //params	//not needed, bar moves all, kept for referrence or if change are needed
-	//Memory::CodeCave(ccMuruengraidTimerMinutes, dwMuruengraidTimerMinutes, MuruengraidTimerMinutesNOPs);	//muruengraid scaling	
+	//Memory::CodeCave(ccMuruengraidTimerMinutes, dwMuruengraidTimerMinutes, MuruengraidTimerMinutesNOPs);	//muruengraid scaling
 	//yOffsetOfMuruengraidTimerSeconds = 0 + dojangYoffset; xOffsetOfMuruengraidTimerSeconds = 68 + myWidth; //params
 	//Memory::CodeCave(ccMuruengraidTimerSeconds, dwMuruengraidTimerSeconds, MuruengraidTimerSecondsNOPs);	//muruengraid scaling
 	yOffsetOfMuruengraidTimerBar = 16 + dojangYoffset; xOffsetOfMuruengraidTimerBar = 345 + myWidth; //params
@@ -600,7 +616,7 @@ void Client::UpdateResolution() {
 	//int myStatsWindowOffsetVal = 4, myStatsWindowOffset = 176, myStatsWindowOffset1 = 177;
 	//Memory::WriteInt(0x008C4AB3 + 1, myStatsWindowOffset); //stat window ty resinate
 	//Memory::WriteInt(0x008C510A + 1, myStatsWindowOffset1); //stat window ty resinate
-	
+
 	//const char* testString = "RoSWzFile"; Memory::WriteString(0x00B3F434, testString);//testing
 	//Memory::WriteInt(0x009F74EA + 3, 16); //testing
 	//Memory::WriteInt(0x008C4286 + 1, 400); //testing
@@ -625,17 +641,15 @@ void Client::EnableNewIGCipher() {//??not called //no idea what cipher is
 	Memory::WriteInt(dwIGCipherDecryptStr + 3, nCipherHash);
 }
 
-void Client::UpdateLogin() {	//un-used //may still contain some useful addresses for custom login
+void Client::UpdateLogin() {
+	// EverLeaf modern-classic login pass. Keep MapleStory's native controls and
+	// event flow; only reposition the stable login dialog/input controls and
+	// restyle their text fields. This makes the change reversible and keeps
+	// world/character-select protocol behavior untouched while the broader UI
+	// backport is screenshot-tested.
 	Memory::CodeCave(PositionLoginDlg, dwLoginCreateDlg, 14);
 	Memory::CodeCave(PositionLoginUsername, dwLoginUsername, 11);
 	Memory::CodeCave(PositionLoginPassword, dwLoginPassword, 8);
-	Memory::WriteInt(dwLoginInputBackgroundColor + 3, 0xFFF8FAFF); // ARGB value
-	Memory::WriteByte(dwLoginInputFontColor + 3, 1); // bool: true=black, false=white
-	Memory::WriteInt(dwLoginLoginBtn + 1, -127); // x-pos
-	Memory::WriteInt(dwLoginFindPasswordBtn + 1, -127); // x-pos
-	Memory::WriteInt(dwLoginQuitBtn + 1, -127); // x-pos
-	Memory::WriteInt(dwLoginFindIDBtn + 1, -127); // x-pos
-	Memory::WriteByte(dwLoginFindIDBtn + 1, -127); // x-pos
-	Memory::WriteByte(dwLoginWebHomeBtn + 1, -127); // x-pos
-	Memory::WriteByte(dwLoginWebRegisterBtn + 1, -127); // x-pos
+	Memory::WriteInt(dwLoginInputBackgroundColor + 3, 0xFFF4F8F1);
+	Memory::WriteByte(dwLoginInputFontColor + 3, 1);
 }
