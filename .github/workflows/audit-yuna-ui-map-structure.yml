@@ -1,0 +1,86 @@
+name: Audit Yuna UI and login map structure
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-yuna-ui-map-structure.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  audit:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $d=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $d|Out-Null
+          $k=Join-Path $d 'id_everleaf'; [IO.File]::WriteAllText($k,($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $d 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}else{& 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known}
+      - name: Fetch donor and EverLeaf WZ files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $dir=Join-Path $env:RUNNER_TEMP 'wz'; New-Item -ItemType Directory -Force -Path $dir|Out-Null
+          $scp='C:\Program Files\Git\usr\bin\scp.exe'; $key=Join-Path $HOME '.ssh/id_everleaf'
+          $pairs=@(
+            @('/home/ubuntu/everleaf-staging/yuna-client-current/extracted/YunaMS/UI.wz','yuna-UI.wz'),
+            @('/home/ubuntu/everleaf-staging/yuna-client-current/extracted/YunaMS/Map.wz','yuna-Map.wz'),
+            @('/opt/everleaf/patches/files/UI.wz','everleaf-UI.wz'),
+            @('/opt/everleaf/patches/files/Map.wz','everleaf-Map.wz')
+          )
+          foreach($pair in $pairs){& $scp -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$($pair[0])" (Join-Path $dir $pair[1]); if($LASTEXITCODE){throw "fetch failed $($pair[0])"}}
+      - name: Build MapleLib inspector
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafYunaInspector'; New-Item -ItemType Directory -Force -Path $tool|Out-Null
+          @'
+          using MapleLib.WzLib;
+          if(args.Length<1) throw new ArgumentException("wz files required");
+          foreach(var file in args){
+            using var wz=new WzFile(file,WzMapleVersion.GMS);
+            var status=wz.ParseWzFile();
+            Console.WriteLine($"=== {Path.GetFileName(file)} parse={status} ===");
+            if(status!=WzFileParseStatus.Success) continue;
+            void Walk(WzDirectory d,string path){
+              foreach(var img in d.WzImages){
+                var p=path+"/"+img.Name;
+                var l=p.ToLowerInvariant();
+                if(l.Contains("login")||l.Contains("world")||l.Contains("char")||l.Contains("select")||l.Contains("maplogin")||l.Contains("back/login")||l.Contains("yuna"))
+                  Console.WriteLine(p);
+              }
+              foreach(var sub in d.WzDirectories) Walk(sub,path+"/"+sub.Name);
+            }
+            Walk(wz.WzDirectory,"");
+          }
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup><ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup></Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafYunaInspector.csproj')
+          dotnet build (Join-Path $tool 'EverLeafYunaInspector.csproj') -c Release
+      - name: Inspect relevant structure
+        shell: pwsh
+        run: |
+          $dir=Join-Path $env:RUNNER_TEMP 'wz'
+          $proj=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafYunaInspector/EverLeafYunaInspector.csproj'
+          dotnet run --project $proj -c Release --no-build -- (Join-Path $dir 'yuna-UI.wz') (Join-Path $dir 'everleaf-UI.wz') (Join-Path $dir 'yuna-Map.wz') (Join-Path $dir 'everleaf-Map.wz')
