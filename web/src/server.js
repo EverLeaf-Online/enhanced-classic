@@ -74,16 +74,23 @@ app.get("/launcher/download",(req,res)=>{
   res.download(env.launcher.portablePath,"EverLeafLauncher-portable.zip");
 });
 
-// Isolated compatibility package for the Yuna-based EverLeaf client migration.
-// Keep this outside the signed production patch manifest until Windows runtime QA
-// proves login -> world -> character -> channel -> map on the EverLeaf server.
-app.get("/client-tests/yuna-runtime",(req,res)=>{
-  const testPackage=path.join(path.dirname(env.launcher.portablePath),"EverLeaf-YunaRuntime-Test.zip");
-  if(!fs.existsSync(testPackage))
-    return res.status(503).send("EverLeaf Yuna runtime test package is not published yet.");
+const clientTestDirectory=path.dirname(env.launcher.portablePath);
+function sendClientTestPackage(res,fileName,description){
+  const filePath=path.join(clientTestDirectory,fileName);
+  if(!fs.existsSync(filePath)) return res.status(503).send(`${description} is not published yet.`);
   res.set("Cache-Control","no-cache");
-  res.download(testPackage,"EverLeaf-YunaRuntime-Test.zip");
-});
+  return res.download(filePath,fileName);
+}
+
+// Isolated compatibility packages for the Yuna-based EverLeaf client migration.
+// They stay outside the signed production patch manifest until runtime QA proves
+// login -> world -> character -> channel -> map on the EverLeaf server.
+app.get("/client-tests/yuna-runtime",(req,res)=>
+  sendClientTestPackage(res,"EverLeaf-YunaRuntime-Test.zip","EverLeaf Yuna runtime test package"));
+app.get("/client-tests/yuna-ui",(req,res)=>
+  sendClientTestPackage(res,"EverLeaf-YunaUI-Overlay.zip","EverLeaf Yuna UI overlay"));
+app.get("/client-tests/yuna-full",(req,res)=>
+  sendClientTestPackage(res,"EverLeaf-YunaClient-Candidate.zip","EverLeaf Yuna full client candidate"));
 
 app.use(session({
   secret:env.sessionSecret,
