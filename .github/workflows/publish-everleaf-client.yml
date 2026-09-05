@@ -33,12 +33,20 @@ jobs:
         shell: pwsh
         run: python client/scripts/apply-community-ui-preference.py
 
+      - name: Apply EverLeaf Client v2 rebrand and startup policy
+        shell: pwsh
+        run: python client/scripts/apply-client-v2-rebrand.py
+
       - name: Configure MSBuild
         uses: microsoft/setup-msbuild@v2
 
       - name: Build source-pinned Win32 release
         shell: pwsh
         run: msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+
+      - name: Verify compiled EverLeaf branding
+        shell: pwsh
+        run: python client/scripts/verify-client-v2-branding.py client/ezorsia/out/Release/dinput8.dll
 
       - name: Build managed client overlay
         shell: pwsh
