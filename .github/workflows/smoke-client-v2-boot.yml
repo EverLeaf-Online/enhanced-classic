@@ -60,41 +60,63 @@ jobs:
             if ($name -notmatch '^[A-Za-z0-9_.-]+$') { throw "Unsafe managed client filename: $name" }
           }
 
-          # The Oracle command only reads the production patch file set. It writes
-          # a temporary archive/hash inventory under /tmp, which is removed after
-          # transfer; no production patch/client files are modified.
           $remoteRoot = '/opt/everleaf/patches/files'
-          $remoteArchive = "/tmp/everleaf-client-v2-boot-$env:GITHUB_RUN_ID.tgz"
-          $remoteHashes = "/tmp/everleaf-client-v2-boot-$env:GITHUB_RUN_ID.sha256"
           $quoted = ($names | ForEach-Object { "'$_'" }) -join ' '
-          $remoteCommand = "set -euo pipefail; cd '$remoteRoot'; for f in $quoted; do test -f `"`$f`"; done; sha256sum $quoted > '$remoteHashes'; tar -czf '$remoteArchive' $quoted; sha256sum '$remoteArchive'"
-          $archiveHashLine = & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" $remoteCommand
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to prepare exact managed client archive on Oracle' }
-          $remoteArchiveHash = (($archiveHashLine | Select-Object -Last 1) -split '\s+')[0].ToLowerInvariant()
-          if ($remoteArchiveHash.Length -ne 64) { throw 'Invalid remote managed-client archive hash' }
+          $sshOptions = @(
+            '-o', 'ServerAliveInterval=15',
+            '-o', 'ServerAliveCountMax=4',
+            '-o', 'ConnectTimeout=20',
+            '-o', 'Compression=no',
+            '-i', $keyPath
+          )
 
-          $archive = Join-Path $env:RUNNER_TEMP 'everleaf-v83-client.tgz'
-          & $scpExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteArchive" $archive
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to fetch private managed client archive' }
-          $localArchiveHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($localArchiveHash -ne $remoteArchiveHash) { throw 'Managed client archive hash mismatch after transfer' }
-
-          $hashes = Join-Path $env:RUNNER_TEMP 'CLIENT_V2_BASELINE_HASHES.txt'
-          & $scpExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteHashes" $hashes
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to fetch managed client hash inventory' }
-          & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "rm -f '$remoteArchive' '$remoteHashes'"
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to remove temporary Oracle smoke archives' }
+          # Fail before transfer if the current managed set is incomplete. This
+          # command only stats known baseline filenames and does not create or
+          # modify anything on Oracle.
+          $remoteCheck = "set -euo pipefail; cd '$remoteRoot'; for f in $quoted; do test -f `"`$f`"; done"
+          & $sshExe @sshOptions "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" $remoteCheck
+          if ($LASTEXITCODE -ne 0) { throw 'Managed client baseline is incomplete on Oracle' }
 
           $clientDir = Join-Path $env:RUNNER_TEMP 'everleaf-client-v2'
           New-Item -ItemType Directory -Force -Path $clientDir | Out-Null
-          tar -xzf $archive -C $clientDir
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to extract managed EverLeaf client' }
+
+          # Copy files individually instead of making Oracle hash + gzip a multi-GB
+          # temporary archive. Each transfer gets keepalives and bounded retries;
+          # a reset therefore retries only the current file rather than rebuilding
+          # the entire client archive.
           foreach ($name in $names) {
-            if (-not (Test-Path (Join-Path $clientDir $name) -PathType Leaf)) { throw "Extracted client missing $name" }
+            $destination = Join-Path $clientDir $name
+            $remoteSource = "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteRoot/$name"
+            $copied = $false
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+              Remove-Item $destination -Force -ErrorAction SilentlyContinue
+              & $scpExe @sshOptions $remoteSource $destination
+              if ($LASTEXITCODE -eq 0 -and (Test-Path $destination -PathType Leaf) -and (Get-Item $destination).Length -gt 0) {
+                $copied = $true
+                break
+              }
+              if ($attempt -lt 3) { Start-Sleep -Seconds (2 * $attempt) }
+            }
+            if (-not $copied) { throw "Failed to fetch managed client file after 3 attempts: $name" }
           }
 
+          foreach ($name in $names) {
+            if (-not (Test-Path (Join-Path $clientDir $name) -PathType Leaf)) { throw "Reconstructed client missing $name" }
+          }
+
+          # Record the exact bytes used by the smoke. The aggregate digest is the
+          # SHA-256 of a stable sorted '<file-sha>  <filename>' inventory.
+          $hashes = Join-Path $env:RUNNER_TEMP 'CLIENT_V2_BASELINE_HASHES.txt'
+          $hashLines = @()
+          foreach ($name in ($names | Sort-Object)) {
+            $digest = (Get-FileHash (Join-Path $clientDir $name) -Algorithm SHA256).Hash.ToLowerInvariant()
+            $hashLines += "$digest  $name"
+          }
+          $hashLines | Set-Content -Encoding ascii $hashes
+          $baselineSetHash = (Get-FileHash $hashes -Algorithm SHA256).Hash.ToLowerInvariant()
+
           "CLIENT_DIR=$clientDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "BASELINE_ARCHIVE_SHA256=$localArchiveHash" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "BASELINE_SET_SHA256=$baselineSetHash" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Build exact Client v2 candidate overlay
         shell: pwsh
@@ -188,7 +210,7 @@ jobs:
               schemaVersion = 1
               kind = 'isolated-everleaf-client-v2-boot-smoke'
               candidateCommit = $env:GITHUB_SHA
-              baselineArchiveSha256 = $env:BASELINE_ARCHIVE_SHA256
+              baselineSetSha256 = $env:BASELINE_SET_SHA256
               executableSha256 = $exeHash
               candidateDinput8Sha256 = $env:CANDIDATE_DLL_SHA256
               candidateConfigSha256 = $env:CANDIDATE_CONFIG_SHA256
