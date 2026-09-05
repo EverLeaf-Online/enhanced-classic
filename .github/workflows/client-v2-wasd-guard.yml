@@ -37,13 +37,20 @@ jobs:
               'kWvsAppInstanceAddress = 0x00BE7B38',
               'kStageInstanceAddress = 0x00BEDED4',
               'kFieldRttiAddress = 0x00BED758',
-              'static_assert(sizeof(ISMSG) == 12',
-              'GetForegroundWindow() == app->m_hWnd',
+              'kStageUiHandlerOffset = 4',
+              'kIsKindOfVtableIndex = 0x48 / sizeof(void*)',
+              'struct InputMessage',
+              'static_assert(sizeof(InputMessage) == 12',
+              'static_assert(sizeof(void*) == 4',
+              'using IsKindOf_t = int(__thiscall*)',
+              'GetForegroundWindow() == gameWindow',
               'IsGameplayField()',
-              'static_cast<IUIMsgHandler*>(stage)',
-              'reinterpret_cast<CRTTI*>(kFieldRttiAddress)',
+              'stage + kStageUiHandlerOffset',
+              'GetIsKindOf(stageUi)',
+              'reinterpret_cast<void*>(kFieldRttiAddress)',
               'IsEditControlFocused()',
-              'reinterpret_cast<CRTTI*>(kCtrlEditRttiAddress)',
+              'GetIsKindOf(focus)',
+              'reinterpret_cast<void*>(kCtrlEditRttiAddress)',
               "case 'W': return VK_UP;",
               "case 'A': return VK_LEFT;",
               "case 'S': return VK_DOWN;",
@@ -58,14 +65,19 @@ jobs:
               if marker not in wasd:
                   raise SystemExit(f'Missing WASD safety marker: {marker}')
 
+          # Keep this feature independent of the legacy AutoTypes translation
+          # unit, whose definitions would duplicate symbols at link time.
+          if '#include "AutoTypes.h"' in wasd or '#include "AutoTypes.h"' in dinput:
+              raise SystemExit('WASD/dinput translation unit reintroduced AutoTypes.h')
+
           # Unknown field/stage state must disable translation, while unknown
           # focus-handler state must be treated as text entry. These complementary
           # fail-closed paths keep both menu navigation and typing untouched.
-          gameplay = re.search(r'inline bool IsGameplayField\(\)\s*\{(.*?)\n\}', wasd, re.S)
-          if not gameplay or '__except (EXCEPTION_EXECUTE_HANDLER)' not in gameplay.group(1) or 'return false;' not in gameplay.group(1):
+          gameplay = wasd.split('inline bool IsGameplayField()', 1)[1].split('inline bool IsEditControlFocused()', 1)[0]
+          if '__except (EXCEPTION_EXECUTE_HANDLER)' not in gameplay or 'return false;' not in gameplay:
               raise SystemExit('Gameplay-field probe does not fail closed')
-          focus = re.search(r'inline bool IsEditControlFocused\(\)\s*\{(.*?)\n\}', wasd, re.S)
-          if not focus or '__except (EXCEPTION_EXECUTE_HANDLER)' not in focus.group(1) or 'return true;' not in focus.group(1):
+          focus = wasd.split('inline bool IsEditControlFocused()', 1)[1].split('inline unsigned int TranslateWasd', 1)[0]
+          if '__except (EXCEPTION_EXECUTE_HANDLER)' not in focus or 'return true;' not in focus:
               raise SystemExit('Edit-focus probe does not fail closed')
 
           # Translation is allowed to mutate only wParam. lParam contains
