@@ -84,20 +84,27 @@ jobs:
           if [ -f "$zip" ]; then
             sha256sum "$zip"
             tmp=$(mktemp -d)
-            trap 'rm -rf "$tmp"' EXIT
             unzip -q "$zip" -d "$tmp"
             echo "DONOR_9400410=$(find "$tmp" -type f -name '9400410.img.xml' -print -quit)"
             for id in 4000337 4000338 4000339 4000340 4000341 4000342 4000343 4000344 4000345 4000346; do
               hits=$(grep -RIl --include='*.xml' -E "(name|value)=\"$id\"" "$tmp/Item.wz" 2>/dev/null | head -5 || true)
               if [ -n "$hits" ]; then printf 'DONOR_%s PRESENT\n%s\n' "$id" "$hits"; else echo "DONOR_$id ABSENT"; fi
             done
+            rm -rf "$tmp"
           fi
 
-          echo "=== core7 donor archive names ==="
+          echo "=== core7 donor archive content ==="
           core=/opt/everleaf/private/wz-donors/gms-v95-core7.zip
           if [ -f "$core" ]; then
             sha256sum "$core"
-            unzip -Z1 "$core" | grep -E '(^|/)9400410\.img\.xml$' || true
+            tmp2=$(mktemp -d)
+            unzip -q "$core" -d "$tmp2"
+            echo "CORE7_9400410=$(find "$tmp2" -type f -name '9400410.img.xml' -print -quit)"
+            for id in 4000337 4000338 4000339 4000340 4000341 4000342 4000343 4000344 4000345 4000346; do
+              hits=$(grep -RIl --include='*.xml' -E "(name|value)=\"$id\"" "$tmp2/Item.wz" 2>/dev/null | head -5 || true)
+              if [ -n "$hits" ]; then printf 'CORE7_%s PRESENT\n%s\n' "$id" "$hits"; else echo "CORE7_$id ABSENT"; fi
+            done
+            rm -rf "$tmp2"
           fi
 
           echo "=== community wholesale backup ==="
