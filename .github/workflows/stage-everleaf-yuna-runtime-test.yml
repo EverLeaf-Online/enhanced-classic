@@ -1,0 +1,141 @@
+name: Stage EverLeaf-routed Yuna runtime test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/stage-everleaf-yuna-runtime-test.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Build routed test overlay and expose separate download
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          donor=/home/ubuntu/everleaf-staging/yuna-client-current/extracted/YunaMS
+          stage=/home/ubuntu/everleaf-staging/yuna-everleaf-runtime-test
+          rm -rf "$stage"
+          mkdir -p "$stage"
+
+          # Keep the donor executable name for this first compatibility gate because
+          # yunams.dll contains explicit executable-name checks. The EverLeaf launcher
+          # will be changed atomically only after this runtime gate is proven.
+          runtime_files=(
+            YunaMS.exe Canvas.dll D3DCompiler_47_cor3.dll Gr2D_DX8.dll NameSpace.dll
+            PCOM.dll PenImc_cor3.dll PresentationNative_cor3.dll ResMan.dll Shape2D.dll
+            Sound_DX8.dll VCRUNTIME140.dll WzFlashRenderer.dll ZLZ.dll aossdk.dll bz32ex.dll
+            d3d8.dll dbghelp.dll dinput8.dll discord_game_sdk.dll ijl15.dll l3codeca.acm
+            mss32.dll msvcp110.dll msvcr110.dll nmcogame.dll nmconew.dll suipre.dll v3hunt.dll
+            vcruntime140_cor3.dll wpfgfx_cor3.dll yunams.dll yunamsw.dll version.data
+          )
+          for f in "${runtime_files[@]}"; do
+            if [ -f "$donor/$f" ]; then cp -a "$donor/$f" "$stage/$f"; fi
+          done
+          test -s "$stage/YunaMS.exe"
+          test -s "$stage/yunams.dll"
+          test -s "$stage/yunamsw.dll"
+
+          cat > "$stage/settings.ini" <<'INI'
+          ; EverLeaf Yuna-runtime compatibility test.
+          ; This package is intentionally separate from the production launcher manifest.
+          [Settings]
+          resolution = 2
+          borderless_fullscreen_mode = 1
+          start_centered = 1
+          map_background = 1
+          wasd_remapping = 0
+          expanded_qs = 0
+          network_route = 0
+          fps_cap = 60
+          fast_boot = 1
+          auto_launch = 0
+          _hint_seen_count = 1
+          INI
+
+          # Route Yuna's primary and long fallback endpoints to EverLeaf. The primary
+          # address is exactly the same byte length as EverLeaf's Oracle IPv4 address.
+          # We intentionally leave the shorter unused fallback literals untouched and
+          # force network_route=0 for the primary route.
+          python3 - "$stage" <<'PY'
+          import pathlib,sys,hashlib
+          root=pathlib.Path(sys.argv[1])
+          target=b'132.145.141.79'
+          exact=b'172.236.239.98'
+          longer=b'172.236.156.117'
+          assert len(target)==len(exact)==14
+          for name in ('yunams.dll','yunamsw.dll'):
+              p=root/name
+              b=bytearray(p.read_bytes())
+              c1=b.count(exact); c2=b.count(longer)
+              assert c1==1,(name,'primary-count',c1)
+              b=b.replace(exact,target)
+              if c2:
+                  assert len(longer)>len(target)
+                  b=b.replace(longer,target+b'\0'*(len(longer)-len(target)))
+              p.write_bytes(b)
+              print('ROUTE_PATCH',name,'primary',c1,'fallback',c2,'sha256',hashlib.sha256(b).hexdigest())
+          PY
+
+          # Prove the chosen route is gone from both runtime DLLs and EverLeaf route is present.
+          python3 - "$stage" <<'PY'
+          import pathlib,sys
+          root=pathlib.Path(sys.argv[1])
+          for name in ('yunams.dll','yunamsw.dll'):
+              b=(root/name).read_bytes()
+              assert b'172.236.239.98' not in b
+              assert b'132.145.141.79' in b
+              print('EVERLEAF_ROUTE_OK',name,b.count(b'132.145.141.79'))
+          PY
+
+          # Inventory and hashes for reproducibility.
+          (cd "$stage" && sha256sum * 2>/dev/null | sort > SHA256SUMS.txt)
+          echo '=== RUNTIME TEST HASHES ==='
+          grep -E 'YunaMS\.exe|yunams\.dll|yunamsw\.dll|dinput8\.dll|d3d8\.dll|settings\.ini|version\.data' "$stage/SHA256SUMS.txt" || true
+
+          # Build a small overlay; it deliberately contains no WZ files. It is meant to
+          # run against a COPY of the existing EverLeaf folder so all known-good content
+          # remains in place while we test only the Yuna runtime layer.
+          zipfile=/opt/everleaf/patches/downloads/EverLeaf-YunaRuntime-Test.zip
+          tmp=/tmp/EverLeaf-YunaRuntime-Test.zip
+          rm -f "$tmp"
+          (cd "$stage" && zip -q -9 "$tmp" ./*)
+          sudo install -m 0644 "$tmp" "$zipfile.new"
+          sudo mv -f "$zipfile.new" "$zipfile"
+          echo "TEST_OVERLAY_SHA256=$(sha256sum "$zipfile"|awk '{print $1}')"
+          echo "TEST_OVERLAY_SIZE=$(stat -c%s "$zipfile")"
+
+          # Check likely public download routes without touching the production patch manifest.
+          for url in \
+            https://everleafms.online/downloads/EverLeaf-YunaRuntime-Test.zip \
+            https://everleafms.online/patches/downloads/EverLeaf-YunaRuntime-Test.zip; do
+            code=$(curl -L -sS -o /dev/null -w '%{http_code}' "$url" || true)
+            echo "PUBLIC_TEST $code $url"
+          done
+          echo 'YUNA_EVERLEAF_RUNTIME_TEST_STAGED_OK'
+          REMOTE
