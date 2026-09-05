@@ -1,0 +1,121 @@
+name: Harden live EverLeaf EXE LAA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/harden-live-everleaf-exe-laa.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Patch only LARGE_ADDRESS_AWARE and publish
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          PATCH=/opt/everleaf/patches
+          EXE="$PATCH/files/EverLeaf.exe"
+          MANIFEST="$PATCH/manifest.json"
+          EXPECT_OLD=ed5a699407b9705528b6a653cdee7395e6e1b7317b9711dcfb34681092072848
+          test -s "$EXE"; test -s "$MANIFEST"
+          old="$(sha256sum "$EXE" | awk '{print $1}')"
+          test "$old" = "$EXPECT_OLD"
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          backup="/opt/everleaf/backups/client-v2-exe-laa-$stamp"
+          sudo mkdir -p "$backup"
+          sudo cp -a "$EXE" "$backup/EverLeaf.exe"
+          sudo cp -a "$MANIFEST" "$backup/manifest.json"
+          candidate="/tmp/EverLeaf-laa-$stamp.exe"
+          cp "$EXE" "$candidate"
+          python3 - "$candidate" <<'PY'
+          import pathlib,struct,sys
+          p=pathlib.Path(sys.argv[1]); b=bytearray(p.read_bytes())
+          assert b[:2]==b'MZ'
+          pe=struct.unpack_from('<I',b,0x3c)[0]
+          assert b[pe:pe+4]==b'PE\0\0'
+          coff=pe+4
+          machine=struct.unpack_from('<H',b,coff)[0]
+          assert machine==0x14c
+          off=coff+18
+          chars=struct.unpack_from('<H',b,off)[0]
+          assert chars==0x010f, hex(chars)
+          struct.pack_into('<H',b,off,chars|0x20)
+          # Prove this is exactly one COFF bit change.
+          before=p.read_bytes()
+          diffs=[i for i,(x,y) in enumerate(zip(before,b)) if x!=y]
+          assert len(diffs)==1 and diffs[0] in (off,off+1), (off,diffs[:20])
+          p.write_bytes(b)
+          print('PE_CHARACTERISTICS',hex(chars),'->',hex(chars|0x20),'offset',hex(off))
+          PY
+          new="$(sha256sum "$candidate" | awk '{print $1}')"
+          test "$new" != "$old"
+          python3 - "$candidate" <<'PY'
+          import pathlib,struct,sys
+          b=pathlib.Path(sys.argv[1]).read_bytes(); pe=struct.unpack_from('<I',b,0x3c)[0]; chars=struct.unpack_from('<H',b,pe+4+18)[0]
+          assert chars & 0x20
+          print('LAA_CANDIDATE_OK',hex(chars))
+          PY
+          ROLLBACK=1
+          rollback(){
+            if [ "$ROLLBACK" = 1 ]; then
+              sudo cp -a "$backup/EverLeaf.exe" "$EXE"
+              sudo cp -a "$backup/manifest.json" "$MANIFEST"
+            fi
+          }
+          trap rollback ERR
+          sudo install -m 0644 "$candidate" "$EXE.new"
+          sudo mv -f "$EXE.new" "$EXE"
+          test "$(sha256sum "$EXE" | awk '{print $1}')" = "$new"
+          generated="/tmp/everleaf-manifest-exe-laa-$stamp.json"
+          LAUNCHER_PATCH_ROOT="$PATCH" \
+          LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" \
+          LAUNCHER_MANIFEST_PATH="$generated" \
+          LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" \
+          LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" \
+          node /opt/everleaf/web/scripts/build-patch-manifest.js 'client-v2-exe-laa'
+          python3 -m json.tool "$generated" >/dev/null
+          sudo install -m 0644 "$generated" "$MANIFEST"
+          local_json="$(curl -fsS http://127.0.0.1:3000/patches/manifest.json)"
+          public_json="$(curl -fsS https://everleafms.online/patches/manifest.json)"
+          printf '%s' "$local_json" | python3 -m json.tool >/dev/null
+          printf '%s' "$public_json" | python3 -m json.tool >/dev/null
+          python3 - "$new" <<'PY'
+          import json,sys
+          expect=sys.argv[1]
+          d=json.load(open('/opt/everleaf/patches/manifest.json'))
+          exe=next(x for x in d['files'] if x['path']=='EverLeaf.exe')
+          assert exe['sha256'].lower()==expect.lower(),(exe,expect)
+          print('MANIFEST_EXE_OK',exe['sha256'],exe['size'])
+          PY
+          # Check the actual bytes served to players match the manifest/canonical EXE.
+          served="$(curl -fsS https://everleafms.online/patches/EverLeaf.exe | sha256sum | awk '{print $1}')"
+          test "$served" = "$new"
+          ROLLBACK=0
+          trap - ERR
+          echo "LIVE_CLIENT_V2_EXE_LAA_OK old=$old new=$new backup=$backup"
+          REMOTE
