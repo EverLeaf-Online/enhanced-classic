@@ -36,7 +36,7 @@ jobs:
           if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$SSH_DIR/known_hosts"; fi
           chmod 600 "$SSH_DIR/known_hosts"
 
-      - name: Trace live panorama and login positioning work
+      - name: Inspect active login instructions and patch history
         run: |
           set -euo pipefail
           SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
@@ -46,49 +46,44 @@ jobs:
           STAGE=/home/ubuntu/everleaf-staging
           SRC="$STAGE/native-client-source/client/ezorsia/ezorsia"
 
-          echo '=== LIVE MANIFEST ==='
-          python3 - <<'PY'
-          import json
-          m=json.load(open('/opt/everleaf/patches/manifest.json'))
-          print('version',m.get('version'))
-          for name in ('Map.wz','UI.wz','dinput8.dll','config.ini'):
-              f=next((x for x in m.get('files',[]) if x.get('path')==name),None)
-              print(name, f and f.get('sha256'), f and f.get('size'))
-          PY
+          echo '=== NATIVE LOGIN CODE DIRECTORY ==='
+          find "$STAGE/native-login-code" -maxdepth 2 -type f -printf '%s %p\n' 2>/dev/null | sort || true
 
-          echo '=== ORIGIN/PANORAMA BUILD FILES ==='
-          find "$STAGE" -type f \( -iname '*origin*.cpp' -o -iname '*origin*.py' -o -iname '*panorama*.py' -o -iname '*panorama*.cpp' -o -iname '*background*.py' -o -iname '*background*.cpp' \) -printf '%TY-%Tm-%Td %TH:%TM:%TS %s %p\n' 2>/dev/null | sort -r | sed -n '1,160p'
-
-          echo '=== CONTENT OF SMALL RELEVANT SOURCES ==='
-          while IFS= read -r f; do
-            [ -f "$f" ] || continue
-            size=$(stat -c %s "$f")
-            [ "$size" -le 80000 ] || continue
-            echo "----- $f ($size bytes) -----"
-            sed -n '1,500p' "$f"
-          done < <(find "$STAGE" -type f \( -iname '*origin*.cpp' -o -iname '*origin*.py' -o -iname '*panorama*.py' -o -iname '*panorama*.cpp' -o -iname '*background*.py' -o -iname '*background*.cpp' \) 2>/dev/null | sort)
-
-          echo '=== RECENT LOGIN ART FILES ==='
-          find "$STAGE/everleaf-login-art-user" -maxdepth 2 -type f -printf '%TY-%Tm-%Td %TH:%TM:%TS %s %p\n' 2>/dev/null | sort -r | sed -n '1,220p'
-
-          echo '=== NATIVE LOGIN ADDRESS BYTES / DISASSEMBLY ==='
-          BIN="$STAGE/native-login-code/login-code.bin"
+          echo '=== ACTIVE 0x620xxx DISASSEMBLY ==='
+          BIN="$STAGE/native-login-code/login-dialog-code.bin"
+          if [ ! -f "$BIN" ]; then BIN="$STAGE/native-login-code/login-dialog.bin"; fi
           if [ -f "$BIN" ]; then
-            for a in 0x005F5E90 0x005F6058 0x005F60A6 0x005F6280 0x005F6319 0x005F6371 0x005F63E2 0x005F642A 0x005F6472; do
+            echo "using $BIN size=$(stat -c %s "$BIN")"
+            objdump -D -b binary -mi386 --adjust-vma=0x620000 "$BIN" > /tmp/login-dialog.dis || true
+            for a in 0x006203E8 0x00620644 0x006206BE 0x00620735 0x006207AF 0x00620829 0x006208A0 0x00620917 0x006209A6 0x00620A0D; do
               echo "--- around $a ---"
-              start=$((a-0x5F0000-24)); [ "$start" -lt 0 ] && start=0
-              dd if="$BIN" bs=1 skip="$start" count=80 2>/dev/null | xxd -g1
-              if command -v objdump >/dev/null; then
-                objdump -D -b binary -mi386 --adjust-vma=0x5F0000 "$BIN" 2>/dev/null | awk -v x="$a" '
-                  BEGIN{target=strtonum(x); lo=target-40; hi=target+80}
-                  /^[[:space:]]*[0-9a-f]+:/ {gsub(":","",$1); addr=strtonum("0x"$1); if(addr>=lo && addr<=hi) print}
-                ' || true
-              fi
+              python3 - "$BIN" "$a" <<'PY'
+          import sys
+          p=sys.argv[1]; a=int(sys.argv[2],0); base=0x620000
+          b=open(p,'rb').read(); off=a-base; lo=max(0,off-32); hi=min(len(b),off+96)
+          print('offset',hex(off),'bytes',b[lo:hi].hex(' '))
+          PY
+              target=$(printf '%x' $((a)))
+              awk -v target="$target" '
+                BEGIN { t=strtonum("0x" target); lo=t-48; hi=t+112 }
+                /^[[:space:]]*[0-9a-f]+:/ { x=$1; gsub(":","",x); n=strtonum("0x" x); if(n>=lo && n<=hi) print }
+              ' /tmp/login-dialog.dis || true
             done
           else
-            echo 'native-login-code/login-code.bin missing'
+            echo 'NO login-dialog-code binary in staging'
           fi
 
-          echo '=== CURRENT LOGIN LAYOUT / WEB INSTALL CALLS ==='
-          grep -RInE 'EverLeafWebLinks::Install|EverLeafLoginLayout::Apply|UpdateLogin\(|dwLogin(LoginBtn|FindPasswordBtn|QuitBtn|FindIDBtn|WebHomeBtn|WebRegisterBtn)' "$SRC" 2>/dev/null | sed -n '1,260p' || true
+          echo '=== ACTIVE LOGIN SOURCE ==='
+          sed -n '225,260p' "$SRC/AddyLocations.h"
+          sed -n '50,90p' "$SRC/codecaves.h"
+          sed -n '638,675p' "$SRC/Client.cpp"
+
+          echo '=== ORIGIN / 616 / 640 REFERENCES ==='
+          grep -RInE 'origin|616|640|background-master-1280x3240|background-master-1280x2160|3240|2160' "$STAGE" \
+            --include='*.cpp' --include='*.h' --include='*.py' --include='*.sh' --include='*.ps1' --include='*.md' --include='*.txt' 2>/dev/null | sed -n '1,400p' || true
+
+          echo '=== RECENT MAP BACKUP SIZES/HASHES ==='
+          for d in /opt/everleaf/backups/remove-popup-20260905T200324Z /opt/everleaf/backups/client-links-20260905T193850Z /opt/everleaf/backups/client-class-selector-20260905T181730Z /opt/everleaf/backups/client-login-polish-20260905T170000Z /opt/everleaf/backups/client-connected-panorama-20260905T161500Z; do
+            [ -f "$d/Map.wz" ] && { echo "$d"; sha256sum "$d/Map.wz"; stat -c '%s %y' "$d/Map.wz"; }
+          done
           REMOTE
