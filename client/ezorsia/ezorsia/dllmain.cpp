@@ -1,5 +1,17 @@
 // dllmain.cpp : EverLeaf v83 Client v2 proxy bootstrap.
 #include "stdafx.h"
+
+// ReplacementFuncs.h inherits a legacy GetFuncAddress helper from AutoTypes.h.
+// That helper normally calls LoadLibraryA while its process-wide hook pointers
+// are being initialized, which means module loading can happen before DllMain.
+// Client v2 only needs already-loaded KERNEL32/USER32 entries at that point;
+// MSWSOCK is resolved explicitly by SafeEarlyHooks on the bootstrap worker.
+// Compile the inherited helper as a loaded-module lookup in this translation
+// unit so static initialization cannot load a DLL under the Windows loader lock.
+#define LoadLibraryA GetModuleHandleA
+#include "AutoTypes.h"
+#undef LoadLibraryA
+
 #include "ReplacementFuncs.h"
 #include "SafeEarlyHooks.h"
 #include "dinput8.h"
