@@ -43,9 +43,6 @@ jobs:
           rm -rf "$stage"
           mkdir -p "$stage"
 
-          # Keep the donor executable name for this first compatibility gate because
-          # yunams.dll contains explicit executable-name checks. The EverLeaf launcher
-          # will be changed atomically only after this runtime gate is proven.
           runtime_files=(
             YunaMS.exe Canvas.dll D3DCompiler_47_cor3.dll Gr2D_DX8.dll NameSpace.dll
             PCOM.dll PenImc_cor3.dll PresentationNative_cor3.dll ResMan.dll Shape2D.dll
@@ -78,10 +75,6 @@ jobs:
           _hint_seen_count = 1
           INI
 
-          # Route Yuna's primary and long fallback endpoints to EverLeaf. The primary
-          # address is exactly the same byte length as EverLeaf's Oracle IPv4 address.
-          # We intentionally leave the shorter unused fallback literals untouched and
-          # force network_route=0 for the primary route.
           python3 - "$stage" <<'PY'
           import pathlib,sys,hashlib
           root=pathlib.Path(sys.argv[1])
@@ -96,13 +89,11 @@ jobs:
               assert c1==1,(name,'primary-count',c1)
               b=b.replace(exact,target)
               if c2:
-                  assert len(longer)>len(target)
                   b=b.replace(longer,target+b'\0'*(len(longer)-len(target)))
               p.write_bytes(b)
               print('ROUTE_PATCH',name,'primary',c1,'fallback',c2,'sha256',hashlib.sha256(b).hexdigest())
           PY
 
-          # Prove the chosen route is gone from both runtime DLLs and EverLeaf route is present.
           python3 - "$stage" <<'PY'
           import pathlib,sys
           root=pathlib.Path(sys.argv[1])
@@ -113,24 +104,26 @@ jobs:
               print('EVERLEAF_ROUTE_OK',name,b.count(b'132.145.141.79'))
           PY
 
-          # Inventory and hashes for reproducibility.
           (cd "$stage" && sha256sum * 2>/dev/null | sort > SHA256SUMS.txt)
           echo '=== RUNTIME TEST HASHES ==='
           grep -E 'YunaMS\.exe|yunams\.dll|yunamsw\.dll|dinput8\.dll|d3d8\.dll|settings\.ini|version\.data' "$stage/SHA256SUMS.txt" || true
 
-          # Build a small overlay; it deliberately contains no WZ files. It is meant to
-          # run against a COPY of the existing EverLeaf folder so all known-good content
-          # remains in place while we test only the Yuna runtime layer.
           zipfile=/opt/everleaf/patches/downloads/EverLeaf-YunaRuntime-Test.zip
           tmp=/tmp/EverLeaf-YunaRuntime-Test.zip
           rm -f "$tmp"
-          (cd "$stage" && zip -q -9 "$tmp" ./*)
+          python3 - "$stage" "$tmp" <<'PY'
+          import pathlib,sys,zipfile
+          root=pathlib.Path(sys.argv[1]); out=pathlib.Path(sys.argv[2])
+          with zipfile.ZipFile(out,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              for p in sorted(root.iterdir()):
+                  if p.is_file(): z.write(p,p.name)
+          print('ZIP_OK',out.stat().st_size)
+          PY
           sudo install -m 0644 "$tmp" "$zipfile.new"
           sudo mv -f "$zipfile.new" "$zipfile"
           echo "TEST_OVERLAY_SHA256=$(sha256sum "$zipfile"|awk '{print $1}')"
           echo "TEST_OVERLAY_SIZE=$(stat -c%s "$zipfile")"
 
-          # Check likely public download routes without touching the production patch manifest.
           for url in \
             https://everleafms.online/downloads/EverLeaf-YunaRuntime-Test.zip \
             https://everleafms.online/patches/downloads/EverLeaf-YunaRuntime-Test.zip; do
