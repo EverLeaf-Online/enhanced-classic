@@ -1,0 +1,44 @@
+name: Smoke EverLeaf native runtime with Yuna UI
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths: ['.github/workflows/smoke-everleaf-native-yuna-ui.yml']
+permissions:
+  contents: read
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+jobs:
+  smoke:
+    runs-on: windows-2025
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with: {ref: release-dev}
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $d=Join-Path $HOME '.ssh';New-Item -ItemType Directory -Force -Path $d|Out-Null;$k=Join-Path $d 'id_everleaf';[IO.File]::WriteAllText($k,($env:SSH_PRIVATE_KEY -replace "`r","")+"`n");$known=Join-Path $d 'known_hosts';if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}else{& 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known}
+      - name: Fetch hybrid candidate and native EverLeaf runtime overrides
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop';$scp='C:\Program Files\Git\usr\bin\scp.exe';$key=Join-Path $HOME '.ssh/id_everleaf';$root=Join-Path $env:RUNNER_TEMP 'NativeYunaUI';New-Item -ItemType Directory -Force -Path $root|Out-Null
+          $zip=Join-Path $env:RUNNER_TEMP 'candidate.zip';& $scp -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/patches/downloads/EverLeaf-YunaClient-Candidate.zip" $zip;if($LASTEXITCODE){throw 'candidate fetch failed'};Expand-Archive $zip -DestinationPath $root -Force
+          # Remove donor runtime so this test cannot accidentally use Yuna hooks.
+          @('YunaMS.exe','yunams.dll','yunamsw.dll','d3d8.dll','dinput8.dll','settings.ini','version.data') | ForEach-Object {Remove-Item (Join-Path $root $_) -Force -ErrorAction SilentlyContinue}
+          # Restore the exact live EverLeaf executable/hook/config and supporting runtime files.
+          foreach($f in @('EverLeaf.exe','dinput8.dll','config.ini','ZLZ.dll')){& $scp -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/patches/files/$f" (Join-Path $root $f);if($LASTEXITCODE){throw "live fetch failed $f"}}
+          # Deliberately replace only UI.wz with Yuna's donor UI; candidate already contains it.
+          Write-Host "UI $((Get-FileHash (Join-Path $root 'UI.wz') -Algorithm SHA256).Hash)"
+          Write-Host "EXE $((Get-FileHash (Join-Path $root 'EverLeaf.exe') -Algorithm SHA256).Hash)"
+          Write-Host "DINPUT $((Get-FileHash (Join-Path $root 'dinput8.dll') -Algorithm SHA256).Hash)"
+          if((Get-FileHash (Join-Path $root 'UI.wz') -Algorithm SHA256).Hash -ne 'CF0C8C141287C9EA846EF23C752893BE914DCF7E4B8137668CDDFEBD4FF99A61'){throw 'wrong Yuna UI'}
+      - name: Launch native EverLeaf with Yuna UI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop';$root=Join-Path $env:RUNNER_TEMP 'NativeYunaUI';Set-Location $root;$start=Get-Date;$p=Start-Process -FilePath (Join-Path $root 'EverLeaf.exe') -WorkingDirectory $root -PassThru;Write-Host "STARTED $($p.Id)";Start-Sleep -Seconds 20;$p.Refresh();if($p.HasExited){throw "EARLY_EXIT $($p.ExitCode)"};Write-Host 'NATIVE_EVERLEAF_YUNA_UI_SURVIVED_20S';Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=$start} -ErrorAction SilentlyContinue | Where-Object {$_.Message -match 'EverLeaf|dinput8|ZLZ'} | Select-Object TimeCreated,Id,ProviderName,Message | Format-List
