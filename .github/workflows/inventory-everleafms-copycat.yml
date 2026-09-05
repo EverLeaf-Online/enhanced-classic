@@ -1,4 +1,4 @@
-name: Inventory EverLeafMS Copycat on VM
+name: Publish EverLeafMS Copycat archive
 
 on:
   push:
@@ -8,11 +8,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  inventory:
+  publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      RELEASE_TAG: everleafms-copycat-2026-09-05
+      REPOSITORY: EverLeaf-Online/enhanced-classic
     steps:
       - name: Configure SSH
         shell: bash
@@ -33,35 +37,42 @@ jobs:
           fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Inventory copycat folder
+      - name: Verify source and runner capacity
         shell: bash
         run: |
           set -euo pipefail
-          ssh -o BatchMode=yes -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_everleaf ubuntu@132.145.141.79 'bash -s' <<'REMOTE'
+          df -h .
+          ssh -o BatchMode=yes -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_everleaf ubuntu@132.145.141.79 'test -d "/home/ubuntu/everleafms copycat" && du -sh "/home/ubuntu/everleafms copycat" && find "/home/ubuntu/everleafms copycat" -type f | wc -l'
+
+      - name: Stream and split exact folder archive
+        shell: bash
+        run: |
           set -euo pipefail
-          echo '=== HOST ==='
-          hostname
-          date -Is
-          df -h / /opt /home 2>/dev/null || true
-          mapfile -d '' matches < <(find /opt /home -xdev -type d \( -iname '*everleafms*copycat*' -o -iname '*everleaf*copycat*' \) -print0 2>/dev/null)
-          if [ "${#matches[@]}" -eq 0 ]; then
-            echo 'COPYCAT_FOLDER_NOT_FOUND'
-            find /opt /home -xdev -maxdepth 6 -type d \( -iname '*everleaf*' -o -iname '*copycat*' \) -print 2>/dev/null | head -200
-            exit 2
+          mkdir -p release-assets
+          ssh -o BatchMode=yes -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_everleaf ubuntu@132.145.141.79 'tar -C /home/ubuntu -cf - "everleafms copycat"' | split -b 1900M -d -a 3 - release-assets/EverleafMS-copycat.tar.part-
+          ssh -o BatchMode=yes -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_everleaf ubuntu@132.145.141.79 'cd "/home/ubuntu/everleafms copycat" && find . -type f -printf "%s\t%P\n" | LC_ALL=C sort' > release-assets/CONTENTS.tsv
+          (cd release-assets && sha256sum EverleafMS-copycat.tar.part-* > SHA256SUMS.txt)
+          printf '%s\n' 'Restore on Linux/macOS:' '  cat EverleafMS-copycat.tar.part-* > EverleafMS-copycat.tar' '  sha256sum -c SHA256SUMS.txt' '  tar -xf EverleafMS-copycat.tar' '' 'Restore on Windows PowerShell:' '  Get-Content EverleafMS-copycat.tar.part-* -AsByteStream | Set-Content EverleafMS-copycat.tar -AsByteStream' '  tar -xf EverleafMS-copycat.tar' > release-assets/RESTORE.txt
+          ls -lh release-assets
+          test "$(find release-assets -name 'EverleafMS-copycat.tar.part-*' -size +0c | wc -l)" -ge 2
+
+      - name: Create release and upload archive parts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$RELEASE_TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --repo "$REPOSITORY" --target "$GITHUB_SHA" --title 'EverLeafMS Copycat client archive' --notes 'Exact archive of /home/ubuntu/everleafms copycat from the EverLeaf VM. Download every .part file plus SHA256SUMS.txt and RESTORE.txt.'
           fi
-          for target in "${matches[@]}"; do
-            echo '=== TARGET ==='
-            printf 'path=%q\n' "$target"
-            du -sh "$target"
-            printf 'files='
-            find "$target" -xdev -type f -printf '.' | wc -c
-            printf 'directories='
-            find "$target" -xdev -type d -printf '.' | wc -c
-            echo '=== TOP LEVEL ==='
-            find "$target" -mindepth 1 -maxdepth 1 -printf '%y\t%s\t%f\n' | sort
-            echo '=== LARGEST FILES ==='
-            find "$target" -xdev -type f -printf '%s\t%P\n' | sort -nr | head -100
-            echo '=== NESTED GIT REPOSITORIES ==='
-            find "$target" -xdev -type d -name .git -print 2>/dev/null || true
+          for asset in release-assets/*; do
+            gh release upload "$RELEASE_TAG" "$asset" --repo "$REPOSITORY" --clobber
           done
-          REMOTE
+
+      - name: Verify published assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --repo "$REPOSITORY" --json url,assets --jq '{url: .url, assets: [.assets[] | {name: .name, size: .size}]}'
