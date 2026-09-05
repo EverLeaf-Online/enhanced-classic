@@ -75,23 +75,23 @@ jobs:
           live_target="$current/wz/Mob.wz/9400410.img.xml"
           stamp=$(date -u +%Y%m%dT%H%M%SZ)
           backup="/opt/everleaf/backups/v95-ninja-9400410-$stamp"
-          mkdir -p "$backup/shared" "$backup/live"
+          sudo mkdir -p "$backup/shared" "$backup/live"
 
           for pair in "$shared_target:$backup/shared/9400410.img.xml" "$live_target:$backup/live/9400410.img.xml"; do
             target=${pair%%:*}; save=${pair#*:}
             if [ -e "$target" ]; then
               old_sha=$(sha256sum "$target" | awk '{print $1}')
-              cp -a "$target" "$save"
+              sudo cp -a "$target" "$save"
               if [ "$old_sha" != "$src_sha" ]; then
                 echo "Existing target differs; backed up before exact donor replacement: $target $old_sha"
               fi
             fi
           done
 
-          install -m 0644 "$src" "$shared_target.tmp"
-          mv -f "$shared_target.tmp" "$shared_target"
-          install -m 0644 "$src" "$live_target.tmp"
-          mv -f "$live_target.tmp" "$live_target"
+          sudo install -m 0644 "$src" "$shared_target.tmp"
+          sudo mv -f "$shared_target.tmp" "$shared_target"
+          sudo install -m 0644 "$src" "$live_target.tmp"
+          sudo mv -f "$live_target.tmp" "$live_target"
 
           test "$(sha256sum "$shared_target" | awk '{print $1}')" = "$src_sha"
           test "$(sha256sum "$live_target" | awk '{print $1}')" = "$src_sha"
