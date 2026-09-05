@@ -1,0 +1,111 @@
+name: Audit v95 Ninja NPC bindings
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-v95-ninja-npc-bindings.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh audit-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+      - name: Inspect Npc.wz default talk/script bindings and quest links
+        run: |
+          set -euo pipefail
+          cat > /tmp/ninja-bindings.py <<'PY'
+          from pathlib import Path
+          import os,json,re,xml.etree.ElementTree as ET
+          current=Path(os.path.realpath('/opt/everleaf/current'))
+          wz=current/'wz'; scripts=current/'scripts'
+          npcs=list(range(9110100,9110115)); quests=list(range(8163,8172))
+
+          def vals_by_name(root):
+              out=[]
+              for n in root.iter():
+                  name=n.attrib.get('name','')
+                  value=n.attrib.get('value','')
+                  if name or value: out.append((name,value))
+              return out
+
+          npc_rows=[]
+          for npc in npcs:
+              files=list((wz/'Npc.wz').rglob(f'{npc}.img.xml'))
+              row={'npc':npc,'file':str(files[0].relative_to(wz)) if files else None,'bindings':[],'candidate_scripts':[]}
+              if files:
+                  root=ET.parse(files[0]).getroot()
+                  for name,value in vals_by_name(root):
+                      low=name.lower()
+                      if low in ('script','defaulttalk','talk','func','shop') or 'script' in low:
+                          row['bindings'].append([name,value])
+                  # Resolve all string-looking binding values to existing NPC scripts.
+                  for name,value in row['bindings']:
+                      if value and not value.startswith('#'):
+                          cand=scripts/'npc'/f'{value}.js'
+                          row['candidate_scripts'].append({'binding':name,'value':value,'exists':cand.exists(),'path':str(cand.relative_to(current))})
+              same=scripts/'npc'/f'{npc}.js'
+              row['same_id_script']=same.exists()
+              npc_rows.append(row)
+
+          # Discover exact quest nodes, NPC references and script flags for the Ninja quest range.
+          quest_rows=[]
+          for qid in quests:
+              refs=set(); scriptish=[]; qfiles=[]
+              for p in (wz/'Quest.wz').rglob('*.xml'):
+                  try: root=ET.parse(p).getroot()
+                  except Exception: continue
+                  # Walk every subtree whose node name numerically equals this quest ID.
+                  matching=[]
+                  for n in root.iter():
+                      raw=n.attrib.get('name','')
+                      if raw.isdigit() and int(raw)==qid: matching.append(n)
+                  if not matching: continue
+                  qfiles.append(str(p.relative_to(wz)))
+                  for m in matching:
+                      for n in m.iter():
+                          name=n.attrib.get('name',''); value=n.attrib.get('value','')
+                          low=name.lower()
+                          if value.isdigit() and int(value) in npcs:
+                              refs.add(int(value))
+                          if 'script' in low or low in ('npc','startnpc','endnpc'):
+                              scriptish.append([str(p.relative_to(wz)),name,value])
+              quest_rows.append({'quest':qid,'files':sorted(set(qfiles)),'npc_refs':sorted(refs),'scriptish':scriptish,'quest_script_exists':(scripts/'quest'/f'{qid}.js').exists()})
+
+          print(json.dumps({'npc_rows':npc_rows,'quest_rows':quest_rows},indent=2))
+          PY
+          scp /tmp/ninja-bindings.py everleaf-oracle:/tmp/ninja-bindings.py
+          ssh everleaf-oracle 'python3 /tmp/ninja-bindings.py' | tee audit-output/ninja-bindings.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v95-ninja-npc-bindings-${{ github.run_id }}
+          path: audit-output/
+          retention-days: 90
