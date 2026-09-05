@@ -1,0 +1,91 @@
+name: Smoke EverLeaf Yuna candidate on Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/smoke-everleaf-yuna-windows.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  smoke:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $d=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $d|Out-Null
+          $k=Join-Path $d 'id_everleaf'; [IO.File]::WriteAllText($k,($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $d 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}else{& 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known}
+      - name: Wait for and fetch full candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $ssh='C:\Program Files\Git\usr\bin\ssh.exe'; $scp='C:\Program Files\Git\usr\bin\scp.exe'; $key=Join-Path $HOME '.ssh/id_everleaf'
+          $remote='/opt/everleaf/patches/downloads/EverLeaf-YunaClient-Candidate.zip'
+          $ready=$false
+          for($i=0;$i -lt 60;$i++){
+            & $ssh -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "test -s '$remote'"
+            if($LASTEXITCODE -eq 0){$ready=$true;break}
+            Start-Sleep -Seconds 10
+          }
+          if(-not $ready){throw 'full candidate was not ready in time'}
+          $zip=Join-Path $env:RUNNER_TEMP 'EverLeaf-YunaClient-Candidate.zip'
+          & $scp -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remote" $zip
+          if($LASTEXITCODE){throw 'candidate download failed'}
+          Get-FileHash $zip -Algorithm SHA256 | Format-List
+          $dest=Join-Path $env:RUNNER_TEMP 'EverLeafYuna'; Expand-Archive -Path $zip -DestinationPath $dest -Force
+          if(!(Test-Path (Join-Path $dest 'YunaMS.exe'))){throw 'candidate missing YunaMS.exe'}
+          if(!(Test-Path (Join-Path $dest 'UI.wz'))){throw 'candidate missing UI.wz'}
+      - name: Verify PE and runtime inventory
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'EverLeafYuna'
+          $required=@('YunaMS.exe','yunams.dll','yunamsw.dll','dinput8.dll','d3d8.dll','UI.wz','Item.wz','Mob.wz','Map.wz','settings.ini')
+          foreach($f in $required){$p=Join-Path $root $f;if(!(Test-Path $p)){throw "missing $f"};Write-Host "$f $((Get-Item $p).Length) $((Get-FileHash $p -Algorithm SHA256).Hash)"}
+          $bytes=[IO.File]::ReadAllBytes((Join-Path $root 'YunaMS.exe'))
+          $pe=[BitConverter]::ToInt32($bytes,0x3c);$chars=[BitConverter]::ToUInt16($bytes,$pe+22)
+          if(($chars -band 0x20)-eq 0){throw 'candidate exe is not LAA'}
+          Write-Host ('PE_CHARACTERISTICS=0x{0:X4} LAA=1' -f $chars)
+      - name: Launch smoke test
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference='Continue'
+          $root=Join-Path $env:RUNNER_TEMP 'EverLeafYuna'; Set-Location $root
+          $before=Get-Date
+          $p=Start-Process -FilePath (Join-Path $root 'YunaMS.exe') -WorkingDirectory $root -PassThru
+          Write-Host "STARTED pid=$($p.Id)"
+          Start-Sleep -Seconds 20
+          $p.Refresh()
+          if($p.HasExited){Write-Host "EARLY_EXIT code=$($p.ExitCode)"}else{Write-Host 'PROCESS_SURVIVED_20S'; Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}
+          Write-Host '=== GENERATED LOGS ==='
+          Get-ChildItem $root -File | Where-Object {$_.LastWriteTime -ge $before -and ($_.Extension -in '.log','.txt','.dmp')} | ForEach-Object {
+            Write-Host "--- $($_.FullName)"
+            if($_.Length -lt 5MB){Get-Content $_.FullName -ErrorAction SilentlyContinue | Select-Object -First 300}
+          }
+      - name: Inspect Windows application errors
+        shell: pwsh
+        if: always()
+        run: |
+          $start=(Get-Date).AddMinutes(-10)
+          Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=$start} -ErrorAction SilentlyContinue |
+            Where-Object {$_.Message -match 'YunaMS|yunams|dinput8|d3d8'} |
+            Select-Object TimeCreated,Id,LevelDisplayName,ProviderName,Message | Format-List
