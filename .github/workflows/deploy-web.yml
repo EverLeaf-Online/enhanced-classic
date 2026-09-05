@@ -121,6 +121,15 @@ jobs:
               fi
             }
 
+            dump_web_diagnostics() {
+              echo '--- everleaf-web status ---' >&2
+              sudo systemctl status everleaf-web --no-pager -l >&2 || true
+              echo '--- everleaf-web recent journal ---' >&2
+              sudo journalctl -u everleaf-web -n 120 --no-pager >&2 || true
+              echo '--- listeners on 3000 ---' >&2
+              sudo ss -ltnp '( sport = :3000 )' >&2 || true
+            }
+
             set_env_var BASE_URL "https://$EVERLEAF_TLS_HOST"
             set_env_var PUBLIC_BASE_URL "https://$EVERLEAF_TLS_HOST"
             set_env_var DISCORD_URL "https://discord.gg/w9ED8vtxa7"
@@ -182,18 +191,37 @@ jobs:
             sudo systemctl restart everleaf-web
             sudo nginx -t
             sudo systemctl reload nginx
-            sleep 2
             systemctl is-active --quiet everleaf-web
             systemctl is-active --quiet everleaf-wz-avatar
             systemctl is-active --quiet nginx
-            curl -fsS --max-time 20 http://127.0.0.1:3000/ >/dev/null
+
+            WEB_READY=0
+            for attempt in $(seq 1 12); do
+              echo "Waiting for EverLeaf web readiness (attempt $attempt/12)..."
+              if curl -fsS --max-time 5 http://127.0.0.1:3000/robots.txt >/dev/null; then
+                WEB_READY=1
+                break
+              fi
+              sleep 5
+            done
+            if [ "$WEB_READY" -ne 1 ]; then
+              echo 'EverLeaf web did not become locally ready within 60 seconds.' >&2
+              dump_web_diagnostics
+              exit 1
+            fi
+
+            curl -fsS --max-time 30 http://127.0.0.1:3000/ >/dev/null || {
+              echo 'Homepage health check failed after the web service became ready.' >&2
+              dump_web_diagnostics
+              exit 1
+            }
             curl -fsS --max-time 20 --resolve "$EVERLEAF_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_TLS_HOST/v1/launcher/status" >/dev/null
             curl -fsS --max-time 20 --resolve "$EVERLEAF_WWW_HOST:443:127.0.0.1" "https://$EVERLEAF_WWW_HOST/v1/launcher/status" >/dev/null
             curl -fsS --max-time 20 --resolve "$EVERLEAF_LEGACY_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_LEGACY_TLS_HOST/v1/launcher/status" >/dev/null
             STATUS_JSON="$(curl -fsS --max-time 20 http://127.0.0.1:3000/api/status)"
             node -e 'const s=JSON.parse(process.argv[1]); if(s.totalChannels!==20) process.exit(1);' "$STATUS_JSON"
 
-            RANKINGS_HTML="$(curl -fsS --max-time 20 http://127.0.0.1:3000/rankings)"
+            RANKINGS_HTML="$(curl -fsS --max-time 30 http://127.0.0.1:3000/rankings)"
             AVATAR_PATH="$(grep -oE 'data-live-avatar="/character-avatar/[0-9]+\.png\?job=[0-9]+"' <<<"$RANKINGS_HTML" | head -n1 | cut -d'"' -f2)"
             test -n "$AVATAR_PATH"
             AVATAR_HEADERS="$(mktemp)"
@@ -217,10 +245,10 @@ jobs:
       - name: Verify public HTTPS
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_TLS_HOST/" >/dev/null
+          curl --fail --silent --show-error --location --max-time 30 "https://$EVERLEAF_TLS_HOST/" >/dev/null
           curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_TLS_HOST/v1/launcher/status" >/dev/null
-          curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_WWW_HOST/" >/dev/null
-          curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_LEGACY_TLS_HOST/" >/dev/null
+          curl --fail --silent --show-error --location --max-time 30 "https://$EVERLEAF_WWW_HOST/" >/dev/null
+          curl --fail --silent --show-error --location --max-time 30 "https://$EVERLEAF_LEGACY_TLS_HOST/" >/dev/null
           STATUS_JSON="$(curl --fail --silent --show-error --max-time 20 "https://$EVERLEAF_TLS_HOST/api/status")"
           node -e 'const s=JSON.parse(process.argv[1]); if(s.totalChannels!==20) process.exit(1);' "$STATUS_JSON"
           test "$(curl --silent --output /dev/null --write-out '%{redirect_url}' --max-time 20 http://132.145.141.79/)" = "https://$EVERLEAF_TLS_HOST/"
