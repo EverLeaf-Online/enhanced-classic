@@ -19,7 +19,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Verify diagnostics privacy and crash-handler invariants
+      - name: Verify diagnostics privacy and crash/freeze-handler invariants
         shell: pwsh
         run: |
           $diag = Get-Content "client/ezorsia/ezorsia/CrashDiagnostics.cpp" -Raw
@@ -30,6 +30,7 @@ jobs:
           foreach ($required in @(
             'EverLeafClient.log',
             'EverLeafCrash.dmp',
+            'EverLeafFreeze.txt',
             'ResolveDiagnosticsPaths',
             'GetSystemDirectoryW',
             'LoadLibraryW(systemDirectory)',
@@ -39,6 +40,11 @@ jobs:
             'SetUnhandledExceptionFilter(EverLeafUnhandledExceptionFilter)',
             'gPreviousExceptionFilter(exceptionInfo)',
             'EXCEPTION_CONTINUE_SEARCH',
+            'FindEverLeafGameWindow()',
+            'SendMessageTimeoutW(',
+            'SMTO_ABORTIFHUNG | SMTO_BLOCK',
+            'kFreezeTimeoutThreshold = 3',
+            'StartFreezeWatchdog()',
             'No account, character, chat, or telemetry data is intentionally recorded or uploaded.',
             'it is never transmitted automatically.'
           )) {
@@ -48,9 +54,10 @@ jobs:
           foreach ($forbidden in @(
             'HttpSendRequest', 'WinHttpSendRequest', 'InternetOpenUrl', 'URLDownloadToFile',
             'socket(', 'send(', 'WSASend(', 'password=', 'pic=', 'launcherTicket=',
-            'MiniDumpWithFullMemory', 'MiniDumpWithFullMemoryInfo'
+            'MiniDumpWithFullMemory', 'MiniDumpWithFullMemoryInfo',
+            'CreateToolhelp32Snapshot', 'Process32First', 'Process32Next', 'EnumProcesses', 'OpenProcess('
           )) {
-            if ($diag.Contains($forbidden)) { throw "Diagnostics unexpectedly contains network/sensitive/full-memory marker: $forbidden" }
+            if ($diag.Contains($forbidden)) { throw "Diagnostics unexpectedly contains network/sensitive/full-memory/process-scan marker: $forbidden" }
           }
 
           # The audited copycat folder contains a local x64 dbghelp.dll next to an x86
