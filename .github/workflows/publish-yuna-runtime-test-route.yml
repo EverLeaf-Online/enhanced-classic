@@ -1,0 +1,73 @@
+name: Publish Yuna runtime test route
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - 'web/src/server.js'
+      - '.github/workflows/publish-yuna-runtime-test-route.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Validate server source
+        run: node --check web/src/server.js
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Install route with rollback and verify download
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_everleaf web/src/server.js "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/tmp/everleaf-server-yuna-test.js"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          LIVE=/opt/everleaf/web/src/server.js
+          TEST=/opt/everleaf/patches/downloads/EverLeaf-YunaRuntime-Test.zip
+          test -s "$LIVE"
+          test -s "$TEST"
+          stamp=$(date -u +%Y%m%dT%H%M%SZ)
+          backup=/opt/everleaf/backups/web-yuna-test-route-$stamp
+          sudo mkdir -p "$backup"
+          sudo cp -a "$LIVE" "$backup/server.js"
+          rollback=1
+          recover(){
+            if [ "$rollback" = 1 ]; then
+              sudo cp -a "$backup/server.js" "$LIVE"
+              sudo systemctl restart everleaf-web.service || true
+            fi
+          }
+          trap recover ERR
+          node --check /tmp/everleaf-server-yuna-test.js
+          sudo install -m 0644 /tmp/everleaf-server-yuna-test.js "$LIVE"
+          sudo systemctl restart everleaf-web.service
+          systemctl is-active --quiet everleaf-web.service
+          expected=$(sha256sum "$TEST"|awk '{print $1}')
+          localsha=$(curl -fsS http://127.0.0.1:3000/client-tests/yuna-runtime | sha256sum | awk '{print $1}')
+          publicsha=$(curl -fsS https://everleafms.online/client-tests/yuna-runtime | sha256sum | awk '{print $1}')
+          test "$localsha" = "$expected"
+          test "$publicsha" = "$expected"
+          rollback=0
+          trap - ERR
+          echo "YUNA_RUNTIME_TEST_ROUTE_OK sha=$expected size=$(stat -c%s "$TEST") backup=$backup"
+          REMOTE
