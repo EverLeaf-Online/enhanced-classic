@@ -59,8 +59,8 @@ jobs:
           if ($actual.Count -ne $required.Count) { throw "Managed overlay contains unexpected files: $($actual -join ', ')" }
           $config = Get-Content "$package/config.ini" -Raw
           if (-not ($config -match 'PreferCommunityUI=true')) { throw "Managed client does not default to Community UI" }
-          if (-not ($config -match '(?m)^width=800\r?$') -or -not ($config -match '(?m)^height=600\r?$')) { throw "Managed client must default to the visually verified native v83 viewport" }
-          if (-not ($config -match '(?m)^ModernLoginUI=false\r?$')) { throw "Unverified login coordinate restyling must remain disabled" }
+          if (-not ($config -match '(?m)^width=1280\r?$') -or -not ($config -match '(?m)^height=720\r?$')) { throw "Managed client must default to the aligned 1280x720 Client v2 viewport" }
+          if (-not ($config -match '(?m)^ModernLoginUI=false\r?$')) { throw "Coordinate-only login restyling must remain disabled so native controls stay aligned with WZ fields" }
           Compress-Archive -Path "$package/*" -DestinationPath "EverleafClient-overlay.zip"
           Get-FileHash "EverleafClient-overlay.zip" -Algorithm SHA256
 
