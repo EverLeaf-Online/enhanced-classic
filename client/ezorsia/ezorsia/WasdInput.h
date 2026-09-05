@@ -6,6 +6,9 @@
 // This deliberately does not install a global/window keyboard hook. Translation
 // requires an active CField stage and also fails closed whenever Maple's focused
 // IUIMsgHandler is a CCtrlEdit, so login/PIC/chat text remains normal W/A/S/D.
+//
+// Keep this header independent of AutoTypes.h. That legacy header defines many
+// process globals and cannot safely be included by a second translation unit.
 namespace EverLeafWasdInput {
 namespace detail {
 
@@ -16,18 +19,44 @@ constexpr DWORD kCtrlEditRttiAddress = 0x00BED5EC;
 constexpr DWORD kWvsAppInstanceAddress = 0x00BE7B38;
 constexpr DWORD kStageInstanceAddress = 0x00BEDED4;
 constexpr DWORD kFieldRttiAddress = 0x00BED758;
+constexpr size_t kStageUiHandlerOffset = 4;
+constexpr size_t kIsKindOfVtableIndex = 0x48 / sizeof(void*);
 
-using GetISMessage_t = int(__fastcall*)(void* pThis, void* edx, ISMSG* pISMsg);
+struct InputMessage {
+    unsigned int message;
+    unsigned int wParam;
+    int lParam;
+};
+
+using GetISMessage_t = int(__fastcall*)(void* pThis, void* edx, InputMessage* pISMsg);
+using IsKindOf_t = int(__thiscall*)(void* pThis, const void* pRtti);
+
 static GetISMessage_t gGetISMessageOriginal =
     reinterpret_cast<GetISMessage_t>(kGetISMessageAddress);
 static bool gEnabled = false;
 
-static_assert(sizeof(ISMSG) == 12, "EverLeaf v83 ISMSG layout drifted");
+static_assert(sizeof(InputMessage) == 12, "EverLeaf v83 ISMSG layout drifted");
+static_assert(sizeof(void*) == 4, "EverLeaf Client v2 native layer must remain Win32/x86");
+
+inline IsKindOf_t GetIsKindOf(void* handler) {
+    if (!handler) {
+        return nullptr;
+    }
+    auto** vtable = *reinterpret_cast<void***>(handler);
+    if (!vtable) {
+        return nullptr;
+    }
+    return reinterpret_cast<IsKindOf_t>(vtable[kIsKindOfVtableIndex]);
+}
 
 inline bool IsMapleForeground() {
     __try {
-        auto* app = *reinterpret_cast<CWvsApp**>(kWvsAppInstanceAddress);
-        return app && app->m_hWnd && GetForegroundWindow() == app->m_hWnd;
+        auto* app = *reinterpret_cast<unsigned char**>(kWvsAppInstanceAddress);
+        if (!app) {
+            return false;
+        }
+        HWND gameWindow = *reinterpret_cast<HWND*>(app + sizeof(void*));
+        return gameWindow && GetForegroundWindow() == gameWindow;
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         return false;
@@ -36,26 +65,22 @@ inline bool IsMapleForeground() {
 
 inline bool IsGameplayField() {
     __try {
-        auto* stage = *reinterpret_cast<CStage**>(kStageInstanceAddress);
+        auto* stage = *reinterpret_cast<unsigned char**>(kStageInstanceAddress);
         if (!stage) {
             return false;
         }
 
-        // CStage inherits IGObj first and IUIMsgHandler second. static_cast keeps
-        // the correct +4 multiple-inheritance adjustment before calling IsKindOf.
-        auto* stageUi = static_cast<IUIMsgHandler*>(stage);
-        if (!stageUi || !stageUi->vfptr) {
+        // CStage's first base is IGObj (one pointer), so its IUIMsgHandler
+        // subobject starts at +4 in this pinned Win32 v83 client.
+        void* stageUi = stage + kStageUiHandlerOffset;
+        IsKindOf_t isKindOf = GetIsKindOf(stageUi);
+        if (!isKindOf) {
             return false;
         }
 
-        auto* vtable = reinterpret_cast<IUIMsgHandlerVtbl*>(stageUi->vfptr);
-        if (!vtable->IsKindOf) {
-            return false;
-        }
-
-        return vtable->IsKindOf(
+        return isKindOf(
             stageUi,
-            reinterpret_cast<CRTTI*>(kFieldRttiAddress)) != 0;
+            reinterpret_cast<const void*>(kFieldRttiAddress)) != 0;
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         // Unknown stage/layout: do not remap menu/login input.
@@ -70,20 +95,20 @@ inline bool IsEditControlFocused() {
             return false;
         }
 
-        auto* focus = *reinterpret_cast<IUIMsgHandler**>(wndMan + kWndManFocusOffset);
-        if (!focus || !focus->vfptr) {
+        void* focus = *reinterpret_cast<void**>(wndMan + kWndManFocusOffset);
+        if (!focus) {
             return false;
         }
 
-        auto* vtable = reinterpret_cast<IUIMsgHandlerVtbl*>(focus->vfptr);
-        if (!vtable->IsKindOf) {
+        IsKindOf_t isKindOf = GetIsKindOf(focus);
+        if (!isKindOf) {
             // Unknown handler layout: fail closed rather than hijacking typing.
             return true;
         }
 
-        return vtable->IsKindOf(
+        return isKindOf(
             focus,
-            reinterpret_cast<CRTTI*>(kCtrlEditRttiAddress)) != 0;
+            reinterpret_cast<const void*>(kCtrlEditRttiAddress)) != 0;
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         // Any version/layout mismatch disables translation for this message.
@@ -101,7 +126,7 @@ inline unsigned int TranslateWasd(unsigned int key) {
     }
 }
 
-inline int __fastcall GetISMessage_Hook(void* pThis, void* edx, ISMSG* pISMsg) {
+inline int __fastcall GetISMessage_Hook(void* pThis, void* edx, InputMessage* pISMsg) {
     const int result = gGetISMessageOriginal(pThis, edx, pISMsg);
     if (!result || !gEnabled || !pISMsg) {
         return result;
