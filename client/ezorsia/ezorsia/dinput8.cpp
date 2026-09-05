@@ -105,6 +105,13 @@ namespace {
 }
 
 void dinput8::CreateHook() {
+	// Enforce the launcher handoff from the verified post-unpack bootstrap too.
+	// Some v83 paths load this proxy without calling DirectInput8Create during
+	// startup, so export-only validation can leave a fresh ticket unconsumed and
+	// allow a direct EverLeaf.exe launch. The consume routine is idempotent when
+	// DirectInput8Create already accepted the same launch.
+	RequireEverLeafLauncher();
+
 	// Eagerly resolve during the normal bootstrap path, while the exported stubs
 	// also call the same thread-safe resolver in case Maple reaches them first.
 	EnsureSystemDinput8();
