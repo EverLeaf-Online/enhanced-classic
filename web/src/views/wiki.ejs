@@ -9,7 +9,48 @@ const categoryAsset={items:2000000,monsters:100100,maps:100000000,skills:1001004
 const categoryFallback={items:'IT',monsters:'MB',maps:'MP',skills:'SK',npcs:'NP',quests:'QU'};
 %>
 <main class="lightPage wikiDataPage wikiAppPage">
-<section class="wikiDataHero"><div class="wrap wikiDataHeroInner"><div class="wikiDataHeroCopy"><div class="pageEyebrow">EVERLEAF DATA WIKI</div><h1>Everything in Maple World,<br><em>from the server itself.</em></h1><p>Search the actual EverLeaf game data: equipment, consumables, chairs, monsters, maps, skills, NPCs, quests, drop sources, shops and world connections. EverLeaf data stays authoritative; MapleStory.io is used only as a visual asset source.</p><form class="wikiDataSearch" action="/wiki" method="get"><select name="type" aria-label="Wiki category"><option value="all" <%=activeType==='all'?'selected':''%>>Everything</option><% Object.entries(types).forEach(([key,meta])=>{ %><option value="<%=key%>" <%=activeType===key?'selected':''%>><%=meta.label%></option><% }) %></select><input type="search" name="q" value="<%=q%>" placeholder="Search item name, monster, map, skill, NPC, quest or ID…" aria-label="Search server data"><button class="btn primary" type="submit">SEARCH</button></form><div class="wikiDataTrust"><span><b class="wikiDataDot <%=status.available?'online':'offline'%>"></b><%=status.available?'Server data loaded':'Server data unavailable'%></span><span>WZ + MySQL</span><span>Catalog refreshed <%=builtTime%></span></div></div><aside class="wikiDataHeroPanel"><span class="wikiDataHeroRune">EL</span><strong>EverLeaf Encyclopedia</strong><small>v83 Enhanced Classic</small><div><span>Items</span><b><%=fmt(status.counts.items)%></b></div><div><span>Monsters</span><b><%=fmt(status.counts.monsters)%></b></div><div><span>Maps</span><b><%=fmt(status.counts.maps)%></b></div></aside></div></section>
+<section class="wikiDataHero">
+  <div class="wrap wikiDataHeroInner">
+    <div class="wikiDataHeroCopy">
+      <div class="pageEyebrow">EVERLEAF DATA WIKI</div>
+      <h1>Everything in Maple World,<br><em>from the server itself.</em></h1>
+      <p>Search the actual EverLeaf game data: equipment, consumables, chairs, monsters, maps, skills, NPCs, quests, drop sources, shops and world connections. EverLeaf data stays authoritative; MapleStory.io is used only as a visual asset source.</p>
+      <form class="wikiDataSearch" action="/wiki" method="get">
+        <select name="type" aria-label="Wiki category">
+          <option value="all" <%=activeType==='all'?'selected':''%>>Everything</option>
+          <% Object.entries(types).forEach(([key,meta])=>{ %><option value="<%=key%>" <%=activeType===key?'selected':''%>><%=meta.label%></option><% }) %>
+        </select>
+        <input type="search" name="q" value="<%=q%>" placeholder="Search item name, monster, map, skill, NPC, quest or ID…" aria-label="Search server data">
+        <button class="btn primary" type="submit">SEARCH</button>
+      </form>
+      <div class="wikiDataTrust">
+        <span><b class="wikiDataDot <%=status.available?'online':'offline'%>"></b><%=status.available?'Server data loaded':'Server data unavailable'%></span>
+        <span>WZ + MySQL</span>
+        <span>Catalog refreshed <%=builtTime%></span>
+      </div>
+    </div>
+
+    <aside class="wikiExplorerPanel" aria-label="Explore EverLeaf Wiki">
+      <div class="wikiExplorerHead">
+        <div><span class="pageEyebrow">QUICK EXPLORE</span><strong>Jump into the live catalog.</strong></div>
+        <span class="wikiExplorerStatus"><b class="wikiDataDot <%=status.available?'online':'offline'%>"></b><%=status.available?'LIVE':'OFFLINE'%></span>
+      </div>
+      <div class="wikiExplorerGrid">
+        <% Object.entries(types).forEach(([key,meta])=>{ const icon=mapleAsset(key,categoryAsset[key]); %>
+          <a class="wikiExplorerTile" href="<%=typeHref(key)%>">
+            <span class="wikiExplorerIcon wikiMapleAsset" data-fallback="<%=categoryFallback[key]%>"><% if(icon){ %><img src="<%=icon%>" alt="" loading="lazy" decoding="async" data-wiki-art><% } %></span>
+            <span><small><%=meta.label%></small><strong><%=fmt(status.counts[key])%></strong></span>
+            <b>↗</b>
+          </a>
+        <% }) %>
+      </div>
+      <div class="wikiExplorerFoot">
+        <span><b><%=fmt(Object.values(status.counts||{}).reduce((sum,n)=>sum+Number(n||0),0))%></b> indexed records</span>
+        <a href="/wiki/guides">Staff guides →</a>
+      </div>
+    </aside>
+  </div>
+</section>
 
 <% if(!status.available){ %><section class="wrap wikiDataWarning"><strong>Wiki data index is not available on this web host yet.</strong><span><%=status.errors&&status.errors[0]?status.errors[0]:'The server WZ directory could not be read.'%></span><a href="/wiki/guides">Open staff guides →</a></section><% } %>
 

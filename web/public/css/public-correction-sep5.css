@@ -1,0 +1,698 @@
+/* EverLeaf public corrective pass — Sep 5 2026
+   Restores the homepage-aligned dark palette after the overly broad light polish,
+   removes nested/cut-off workspaces, and gives Wiki + Rankings useful interactive
+   hero panels. Auth pages intentionally keep their focused light treatment. */
+
+/* --------------------------------------------------------------------------
+   Restore the established homepage-aligned dark system on public inner pages.
+   -------------------------------------------------------------------------- */
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover){
+  --polish-bg:#12130f;
+  --polish-bg-alt:#171814;
+  --polish-surface:#1b1c18;
+  --polish-surface-soft:#20211d;
+  --polish-ink:#e4dfda;
+  --polish-ink-strong:#f2eee9;
+  --polish-muted:#9f9b95;
+  --polish-line:#343530;
+  --polish-line-strong:#474842;
+  --polish-leaf:#71b784;
+  --polish-leaf-dark:#9bd0a8;
+  --polish-leaf-soft:#203128;
+  --polish-blue:#79a9df;
+  --polish-blue-soft:#1e2935;
+  --polish-gold:#d8b36a;
+  --polish-shadow:none;
+  --polish-shadow-soft:none;
+  background:#12130f!important;
+  color:#e4dfda!important;
+}
+
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .siteContent,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .siteContent>main,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .lightPage,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .contentSection,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .pageSection,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .accountPage,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .rankingsPageV2,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .wikiDataPage{
+  background:#12130f!important;
+  color:#e4dfda!important;
+}
+
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .publicChrome{
+  border-bottom:1px solid #2e2f2a!important;
+  background:rgba(18,19,15,.94)!important;
+  box-shadow:none!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .publicChromeBrand{
+  color:#f1eee8!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .publicChromeLinks>a{
+  color:#a9a59f!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .publicChromeLinks>a:hover{
+  background:#1d1e1a!important;
+  color:#f1eee8!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .publicChromeLinks>a.active{
+  background:#e4dfda!important;
+  color:#12130f!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .publicChromeAccount{
+  border-color:#3b3c36!important;
+  background:#181915!important;
+}
+
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .lightTitle,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .rankingsHero,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .wikiDataHero,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .wikiListHero{
+  border-bottom:1px solid #2f302b!important;
+  background:
+    radial-gradient(circle at 78% 20%,rgba(72,121,84,.13),transparent 34%),
+    radial-gradient(circle at 12% 100%,rgba(82,101,128,.08),transparent 36%),
+    #12130f!important;
+  color:#e4dfda!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .lightTitle::before,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .rankingsHero::before,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .wikiDataHero::before{
+  opacity:.035!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .lightTitle h1,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .rankingsHero h1,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .wikiDataHero h1,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .wikiListHero h1{
+  color:#f3f0eb!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .lightTitle p,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .rankingsHero p,
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .wikiDataHero p{
+  color:#aaa69f!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) .pageEyebrow{
+  color:#78b989!important;
+}
+
+/* Re-darken the common light cards introduced by public-polish. */
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) :is(
+  .featurePanel,.contentCard,.lightCard,.pageCard,.infoCard,.formCard,.settingsCard,
+  .statusCard,.accountCard,.accountPanel,.downloadCard,.helpCard,.newsCard,.faqCard,
+  .rankingSeasonCard,.rankingSearch,.rankingBoard,.wikiDataWarning,.wikiDataEmpty
+){
+  border-color:#343530!important;
+  background:#181915!important;
+  color:#e4dfda!important;
+  box-shadow:none!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) :is(input,select,textarea){
+  border-color:#3d3e38!important;
+  background:#11120f!important;
+  color:#ece8e2!important;
+  box-shadow:none!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) :is(input,textarea)::placeholder{
+  color:#6f7069!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin):not(.route-login):not(.route-register):not(.route-recover) :is(input,select,textarea):focus{
+  border-color:#6ea57d!important;
+  outline:2px solid rgba(110,165,125,.18)!important;
+  outline-offset:1px!important;
+}
+
+/* --------------------------------------------------------------------------
+   Wiki — natural page scrolling + interactive explorer panel.
+   -------------------------------------------------------------------------- */
+body.route-wiki .siteContent>main.wikiDataPage{
+  height:auto!important;
+  min-height:100%!important;
+  overflow:auto!important;
+  display:block!important;
+}
+body.route-wiki .wikiDataHero{
+  overflow:visible!important;
+  padding:42px 0 38px!important;
+}
+body.route-wiki .wikiDataHeroInner{
+  display:grid!important;
+  grid-template-columns:minmax(0,1.08fr) minmax(390px,.92fr)!important;
+  gap:34px!important;
+  align-items:stretch!important;
+}
+body.route-wiki .wikiDataHeroCopy{
+  max-width:760px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:center!important;
+}
+body.route-wiki .wikiDataHero h1{
+  max-width:760px!important;
+  margin:9px 0 0!important;
+  font-size:clamp(46px,5.3vw,76px)!important;
+  line-height:.92!important;
+  letter-spacing:-.055em!important;
+}
+body.route-wiki .wikiDataHero h1 br{display:block!important}
+body.route-wiki .wikiDataHero h1 em{
+  color:#73b486!important;
+  font-style:normal!important;
+}
+body.route-wiki .wikiDataHero p{
+  max-width:68ch!important;
+  margin:18px 0 22px!important;
+  font-size:13px!important;
+  line-height:1.65!important;
+}
+body.route-wiki .wikiDataSearch{
+  display:grid!important;
+  grid-template-columns:150px minmax(0,1fr) auto!important;
+  gap:8px!important;
+  max-width:720px!important;
+  margin:0!important;
+  padding:8px!important;
+  border:1px solid #353630!important;
+  border-radius:15px!important;
+  background:#171814!important;
+}
+body.route-wiki .wikiDataSearch select,
+body.route-wiki .wikiDataSearch input,
+body.route-wiki .wikiDataSearch .btn{
+  min-height:44px!important;
+  height:44px!important;
+  border-radius:10px!important;
+}
+body.route-wiki .wikiDataSearch .btn{padding:0 18px!important}
+body.route-wiki .wikiDataTrust{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  gap:8px!important;
+  margin-top:12px!important;
+  font-size:8px!important;
+}
+body.route-wiki .wikiDataTrust>span{
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:6px!important;
+  min-height:28px!important;
+  padding:0 9px!important;
+  border:1px solid #343530!important;
+  border-radius:999px!important;
+  background:#161713!important;
+  color:#918f88!important;
+  text-transform:uppercase!important;
+  letter-spacing:.06em!important;
+}
+
+body.route-wiki .wikiExplorerPanel{
+  min-height:100%!important;
+  padding:18px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  border:1px solid #373832!important;
+  border-radius:22px!important;
+  background:
+    linear-gradient(145deg,rgba(31,34,29,.98),rgba(20,22,18,.98)),
+    #181915!important;
+  box-shadow:0 22px 60px rgba(0,0,0,.24)!important;
+}
+body.route-wiki .wikiExplorerHead{
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:space-between!important;
+  gap:16px!important;
+  padding-bottom:14px!important;
+  border-bottom:1px solid #30312c!important;
+}
+body.route-wiki .wikiExplorerHead strong{
+  display:block!important;
+  margin-top:5px!important;
+  color:#f0ece6!important;
+  font-size:18px!important;
+  line-height:1.15!important;
+}
+body.route-wiki .wikiExplorerStatus{
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:6px!important;
+  min-height:28px!important;
+  padding:0 9px!important;
+  border:1px solid #3b3d36!important;
+  border-radius:999px!important;
+  color:#aaa69f!important;
+  font-size:8px!important;
+  font-weight:800!important;
+  letter-spacing:.08em!important;
+}
+body.route-wiki .wikiExplorerGrid{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:8px!important;
+  margin-top:14px!important;
+}
+body.route-wiki .wikiExplorerTile{
+  min-width:0!important;
+  min-height:78px!important;
+  padding:10px!important;
+  display:grid!important;
+  grid-template-columns:40px minmax(0,1fr) auto!important;
+  gap:10px!important;
+  align-items:center!important;
+  border:1px solid #343630!important;
+  border-radius:14px!important;
+  background:#151612!important;
+  color:#e4dfda!important;
+  text-decoration:none!important;
+  transition:transform .18s ease,border-color .18s ease,background .18s ease!important;
+}
+body.route-wiki .wikiExplorerTile:hover{
+  transform:translateY(-2px)!important;
+  border-color:#52725a!important;
+  background:#1c201a!important;
+}
+body.route-wiki .wikiExplorerIcon{
+  width:40px!important;
+  height:40px!important;
+  display:grid!important;
+  place-items:center!important;
+  border:1px solid #3a3c35!important;
+  border-radius:11px!important;
+  background:#20231d!important;
+  overflow:hidden!important;
+}
+body.route-wiki .wikiExplorerIcon img{max-width:34px!important;max-height:34px!important;object-fit:contain!important}
+body.route-wiki .wikiExplorerTile small{
+  display:block!important;
+  color:#8e9289!important;
+  font-size:8px!important;
+  text-transform:uppercase!important;
+  letter-spacing:.07em!important;
+}
+body.route-wiki .wikiExplorerTile strong{
+  display:block!important;
+  margin-top:3px!important;
+  color:#f0ece6!important;
+  font-size:17px!important;
+  line-height:1!important;
+}
+body.route-wiki .wikiExplorerTile>b{color:#739f7e!important;font-size:13px!important}
+body.route-wiki .wikiExplorerFoot{
+  margin-top:auto!important;
+  padding-top:14px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:12px!important;
+  color:#8f8c85!important;
+  font-size:9px!important;
+}
+body.route-wiki .wikiExplorerFoot b{color:#d9d5cf!important}
+body.route-wiki .wikiExplorerFoot a{color:#8fc69d!important;text-decoration:none!important}
+
+/* Remove the old nested scroll that visually chopped the catalog. */
+body.route-wiki .wikiCatalogSection,
+body.route-wiki .wikiSearchResults{
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:visible!important;
+  padding-top:34px!important;
+  padding-bottom:54px!important;
+}
+body.route-wiki .wikiCatalogHeading,
+body.route-wiki .wikiSearchResultsHead{
+  min-height:0!important;
+  margin-bottom:18px!important;
+  align-items:end!important;
+}
+body.route-wiki .wikiCatalogHeading h2,
+body.route-wiki .wikiSearchResultsHead h2{
+  margin:4px 0 0!important;
+  color:#f0ece6!important;
+  font-size:clamp(30px,3.5vw,48px)!important;
+}
+body.route-wiki .wikiCatalogHeading p,
+body.route-wiki .wikiSearchResultsHead p{
+  display:block!important;
+  margin:9px 0 0!important;
+  max-width:70ch!important;
+  color:#8f8c86!important;
+  font-size:11px!important;
+  line-height:1.5!important;
+}
+body.route-wiki .wikiCatalogGrid{
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:10px!important;
+  border:0!important;
+  background:transparent!important;
+}
+body.route-wiki .wikiCatalogCard{
+  min-height:150px!important;
+  padding:16px!important;
+  border:1px solid #343530!important;
+  border-radius:16px!important;
+  background:#181915!important;
+  color:#e4dfda!important;
+  transition:transform .18s ease,border-color .18s ease,background .18s ease!important;
+}
+body.route-wiki .wikiCatalogCard:hover{
+  transform:translateY(-2px)!important;
+  border-color:#4c6a53!important;
+  background:#1b1d18!important;
+}
+body.route-wiki .wikiCatalogCard h3{color:#f1ede7!important}
+body.route-wiki .wikiCatalogCard p{color:#918e88!important}
+body.route-wiki .wikiCatalogCard>strong{color:#e7e2dc!important}
+body.route-wiki .wikiCatalogCard>b{color:#87be95!important}
+body.route-wiki .wikiDataResult{
+  border-color:#2c2d28!important;
+  background:#151612!important;
+  color:#e4dfda!important;
+}
+body.route-wiki .wikiDataResult:hover{background:#1a1c17!important}
+body.route-wiki .wikiDataResult strong{color:#eeeae4!important}
+body.route-wiki .wikiDataResult p{color:#8f8c86!important}
+
+/* --------------------------------------------------------------------------
+   Rankings — same two-column hero language with an interactive live snapshot.
+   -------------------------------------------------------------------------- */
+body.route-rankings .siteContent>main{
+  height:auto!important;
+  min-height:100%!important;
+  overflow:auto!important;
+  display:block!important;
+}
+body.route-rankings .rankingsHero{
+  overflow:visible!important;
+  padding:42px 0 38px!important;
+}
+body.route-rankings .rankingsHeroGrid{
+  display:grid!important;
+  grid-template-columns:minmax(0,1.05fr) minmax(390px,.95fr)!important;
+  gap:34px!important;
+  align-items:stretch!important;
+}
+body.route-rankings .rankingsHeroCopy{
+  max-width:740px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:center!important;
+}
+body.route-rankings .rankingsHero h1{
+  margin:9px 0 0!important;
+  font-size:clamp(48px,5.5vw,78px)!important;
+  line-height:.92!important;
+  letter-spacing:-.055em!important;
+}
+body.route-rankings .rankingsHero p{
+  max-width:66ch!important;
+  margin:18px 0 22px!important;
+  font-size:13px!important;
+  line-height:1.65!important;
+}
+body.route-rankings .rankingHeroSearch{
+  max-width:650px!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:8px!important;
+  padding:8px!important;
+  border:1px solid #353630!important;
+  border-radius:15px!important;
+  background:#171814!important;
+}
+body.route-rankings .rankingHeroSearch input,
+body.route-rankings .rankingHeroSearch .btn{
+  min-height:44px!important;
+  height:44px!important;
+  border-radius:10px!important;
+}
+body.route-rankings .rankingHeroSearch .btn{padding:0 18px!important}
+body.route-rankings .rankingHeroTrust{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  gap:8px!important;
+  margin-top:12px!important;
+}
+body.route-rankings .rankingHeroTrust>span{
+  min-height:28px!important;
+  padding:0 9px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:6px!important;
+  border:1px solid #343530!important;
+  border-radius:999px!important;
+  background:#161713!important;
+  color:#918f88!important;
+  font-size:8px!important;
+  font-weight:700!important;
+  text-transform:uppercase!important;
+  letter-spacing:.06em!important;
+}
+
+body.route-rankings .rankingHeroPanel{
+  min-height:100%!important;
+  padding:18px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  border:1px solid #373832!important;
+  border-radius:22px!important;
+  background:linear-gradient(145deg,#1f211c,#151612)!important;
+  box-shadow:0 22px 60px rgba(0,0,0,.24)!important;
+}
+body.route-rankings .rankingHeroPanelHead{
+  display:flex!important;
+  justify-content:space-between!important;
+  align-items:flex-start!important;
+  gap:14px!important;
+  padding-bottom:14px!important;
+  border-bottom:1px solid #30312c!important;
+}
+body.route-rankings .rankingHeroPanelHead strong{
+  display:block!important;
+  margin-top:5px!important;
+  color:#f0ece6!important;
+  font-size:18px!important;
+}
+body.route-rankings .rankingHeroPanelHead>a{
+  color:#8fc69d!important;
+  font-size:9px!important;
+  text-decoration:none!important;
+}
+body.route-rankings .rankingHeroLeader{
+  min-height:104px!important;
+  margin-top:14px!important;
+  padding:12px!important;
+  display:grid!important;
+  grid-template-columns:72px minmax(0,1fr) auto!important;
+  gap:14px!important;
+  align-items:center!important;
+  border:1px solid #3a3c35!important;
+  border-radius:16px!important;
+  background:#151612!important;
+  color:#e4dfda!important;
+  text-decoration:none!important;
+  transition:transform .18s ease,border-color .18s ease,background .18s ease!important;
+}
+body.route-rankings a.rankingHeroLeader:hover{
+  transform:translateY(-2px)!important;
+  border-color:#55755e!important;
+  background:#1a1e18!important;
+}
+body.route-rankings .rankingHeroLeaderAvatar{
+  width:72px!important;
+  height:72px!important;
+  display:grid!important;
+  place-items:center!important;
+  border:1px solid #3c3e37!important;
+  border-radius:14px!important;
+  background:#20221d!important;
+  overflow:hidden!important;
+}
+body.route-rankings .rankingHeroLeaderAvatar img{width:100%!important;height:100%!important;object-fit:contain!important}
+body.route-rankings .rankingHeroLeaderCopy small{
+  display:block!important;
+  color:#7fae8b!important;
+  font-size:8px!important;
+  font-weight:800!important;
+  text-transform:uppercase!important;
+  letter-spacing:.06em!important;
+}
+body.route-rankings .rankingHeroLeaderCopy strong{
+  display:block!important;
+  margin-top:4px!important;
+  color:#f0ece6!important;
+  font-size:23px!important;
+  line-height:1!important;
+}
+body.route-rankings .rankingHeroLeaderCopy span{
+  display:block!important;
+  margin-top:5px!important;
+  color:#918e88!important;
+  font-size:10px!important;
+}
+body.route-rankings .rankingHeroLeader>b{color:#789f82!important;font-size:14px!important}
+body.route-rankings .rankingHeroLeaderEmpty{grid-template-columns:auto 1fr!important;color:#8e8b84!important}
+body.route-rankings .rankingHeroFilters{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  gap:6px!important;
+  margin-top:12px!important;
+}
+body.route-rankings .rankingHeroFilters>a{
+  min-height:28px!important;
+  padding:0 9px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  border:1px solid #353731!important;
+  border-radius:999px!important;
+  background:#171814!important;
+  color:#aaa69f!important;
+  font-size:8px!important;
+  font-weight:750!important;
+  text-decoration:none!important;
+}
+body.route-rankings .rankingHeroFilters>a:hover,
+body.route-rankings .rankingHeroFilters>a.active{
+  border-color:#56705c!important;
+  background:#203027!important;
+  color:#cde0d1!important;
+}
+body.route-rankings .rankingHeroMetrics{
+  margin-top:auto!important;
+  padding-top:14px!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:8px!important;
+}
+body.route-rankings .rankingHeroMetrics>span{
+  min-width:0!important;
+  padding:10px!important;
+  border:1px solid #33352f!important;
+  border-radius:12px!important;
+  background:#151612!important;
+}
+body.route-rankings .rankingHeroMetrics small{
+  display:block!important;
+  color:#777a72!important;
+  font-size:7px!important;
+  text-transform:uppercase!important;
+  letter-spacing:.06em!important;
+}
+body.route-rankings .rankingHeroMetrics b{
+  display:block!important;
+  margin-top:4px!important;
+  color:#ece8e2!important;
+  font-size:18px!important;
+}
+
+body.route-rankings .rankingsPageV2{
+  height:auto!important;
+  min-height:0!important;
+  overflow:visible!important;
+  padding-top:28px!important;
+  padding-bottom:54px!important;
+}
+body.route-rankings .rankingStats{
+  border-color:#343530!important;
+  background:#343530!important;
+}
+body.route-rankings .rankingStats>div{background:#171814!important;color:#e4dfda!important}
+body.route-rankings .rankingStats strong{color:#eeeae4!important}
+body.route-rankings .rankingsIntro h2,
+body.route-rankings .rankingBoardHead h2{color:#f0ece6!important}
+body.route-rankings .rankingSeasonCard{background:#181915!important}
+body.route-rankings .rankingSearch{background:#171814!important}
+body.route-rankings .rankingTabs{
+  border-color:#343530!important;
+  background:#12130f!important;
+}
+body.route-rankings .rankingTabs .tab{
+  border-color:#343530!important;
+  background:#171814!important;
+  color:#aaa69f!important;
+}
+body.route-rankings .rankingTabs .tab.active{
+  border-color:#5b775f!important;
+  background:#243029!important;
+  color:#d3e2d5!important;
+}
+body.route-rankings .rankingPodium{
+  border-color:#343530!important;
+  background:#343530!important;
+}
+body.route-rankings .rankingPodiumCard{background:#171814!important;color:#e4dfda!important}
+body.route-rankings .rankingPodiumName{color:#f0ece6!important}
+body.route-rankings .rankingBoardV2{
+  border-color:#343530!important;
+  background:#151612!important;
+}
+body.route-rankings .tableWrap{
+  max-height:none!important;
+  overflow-x:auto!important;
+  overflow-y:visible!important;
+}
+body.route-rankings .rankingTableV2 thead{background:#191a16!important}
+body.route-rankings .rankingTableV2 th{
+  border-color:#30312c!important;
+  background:#191a16!important;
+  color:#8e8b84!important;
+}
+body.route-rankings .rankingTableV2 td{
+  border-color:#292a26!important;
+  background:#151612!important;
+  color:#d8d4ce!important;
+}
+body.route-rankings .rankingTableV2 tbody tr:hover td{background:#1b1d18!important}
+body.route-rankings .rankPlayerText strong,
+body.route-rankings .rankLevelBlock strong,
+body.route-rankings .rankingFame strong,
+body.route-rankings .rankingExp strong{color:#ece8e2!important}
+body.route-rankings .rankingJobBadge{
+  border-color:#3c453d!important;
+  background:#1c261f!important;
+  color:#b9d4bf!important;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive behavior.
+   -------------------------------------------------------------------------- */
+@media(max-width:1050px){
+  body.route-wiki .wikiDataHeroInner,
+  body.route-rankings .rankingsHeroGrid{
+    grid-template-columns:1fr!important;
+  }
+  body.route-wiki .wikiDataHeroCopy,
+  body.route-rankings .rankingsHeroCopy{max-width:none!important}
+  body.route-wiki .wikiExplorerPanel,
+  body.route-rankings .rankingHeroPanel{min-height:0!important}
+}
+
+@media(max-width:760px){
+  body.route-wiki .wikiDataHero,
+  body.route-rankings .rankingsHero{padding:28px 0 26px!important}
+  body.route-wiki .wikiDataHero h1,
+  body.route-rankings .rankingsHero h1{font-size:clamp(40px,12vw,58px)!important}
+  body.route-wiki .wikiDataHero h1 br{display:none!important}
+  body.route-wiki .wikiExplorerGrid{grid-template-columns:1fr!important}
+  body.route-wiki .wikiCatalogGrid{grid-template-columns:1fr!important}
+  body.route-rankings .rankingHeroMetrics{grid-template-columns:repeat(3,1fr)!important}
+}
+
+@media(max-width:620px){
+  body.route-wiki .wikiDataHero p,
+  body.route-rankings .rankingsHero p{display:block!important;font-size:12px!important}
+  body.route-wiki .wikiDataSearch{
+    grid-template-columns:1fr auto!important;
+  }
+  body.route-wiki .wikiDataSearch select{
+    grid-column:1/3!important;
+    min-height:40px!important;
+    height:40px!important;
+  }
+  body.route-rankings .rankingHeroSearch{grid-template-columns:1fr auto!important}
+  body.route-rankings .rankingHeroLeader{grid-template-columns:58px minmax(0,1fr) auto!important}
+  body.route-rankings .rankingHeroLeaderAvatar{width:58px!important;height:58px!important}
+  body.route-rankings .rankingHeroMetrics{grid-template-columns:1fr!important}
+  body.route-rankings .rankingHeroMetrics>span{display:flex!important;align-items:center!important;justify-content:space-between!important}
+  body.route-rankings .rankingHeroMetrics b{margin-top:0!important}
+}

@@ -26,9 +26,46 @@ const podiumRank=(r)=>startRank+rows.indexOf(r)+1;
 const podiumClass=(rank)=>rank===1?'first':rank===2?'second':'third';
 const linkFor=(page=1,cls=activeClass)=>`/rankings?class=${encodeURIComponent(cls)}${q?`&q=${encodeURIComponent(q)}`:''}${page>1?`&page=${page}`:''}`;
 const loadedTime=generatedAt.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+const heroLeader=topThree[0]||rows[0]||null;
+const heroLeaderRank=heroLeader?startRank+rows.indexOf(heroLeader)+1:null;
+const heroClasses=Object.entries(classes).slice(0,6);
 %>
 <main class="lightPage">
-<section class="lightTitle rankingsHero"><div class="wrap pageHeroGrid"><div><div class="pageEyebrow">LIVE HALL OF LEGENDS</div><h1>EverLeaf Rankings</h1><p>Real characters, read directly from the EverLeaf game database. Search players, compare every supported job family, and see who is leading Maple World right now.</p></div><div class="pageHeroAside rankingLiveAside"><strong><span class="rankingDbDot"></span> Live MySQL leaderboard</strong><span>Levels, jobs, fame, EXP, skin, face, hair, and equipped appearance come from the live character database. GM and banned accounts are excluded.</span></div></div></section>
+<section class="lightTitle rankingsHero">
+  <div class="wrap rankingsHeroGrid">
+    <div class="rankingsHeroCopy">
+      <div class="pageEyebrow">LIVE HALL OF LEGENDS</div>
+      <h1>EverLeaf Rankings</h1>
+      <p>Real characters, read directly from the EverLeaf game database. Search players, compare every supported job family, and see who is leading Maple World right now.</p>
+      <form class="rankingHeroSearch" method="get" action="/rankings">
+        <input type="hidden" name="class" value="<%=activeClass%>">
+        <input type="search" name="q" value="<%=q%>" maxlength="20" placeholder="Search a character…" aria-label="Search rankings by character name">
+        <button class="btn primary" type="submit">SEARCH</button>
+      </form>
+      <div class="rankingHeroTrust"><span><b class="rankingDbDot"></b>Live MySQL leaderboard</span><span><%=fmt(totalRanked)%> ranked</span><span>Updated <%=loadedTime%></span></div>
+    </div>
+
+    <aside class="rankingHeroPanel" aria-label="Leaderboard snapshot">
+      <div class="rankingHeroPanelHead">
+        <div><span class="pageEyebrow">LEADERBOARD SNAPSHOT</span><strong><%=q?'Search view':'Top adventurer'%></strong></div>
+        <a href="/rankings">View all →</a>
+      </div>
+      <% if(heroLeader){ %>
+        <a class="rankingHeroLeader" href="#ranking-board">
+          <span class="rankingHeroLeaderAvatar rankingCharacterAvatar"><img src="<%=jobArt(heroLeader.jobName)%>" data-live-avatar="<%=avatar(heroLeader)%>" alt="<%=heroLeader.name%>'s EverLeaf character portrait"></span>
+          <span class="rankingHeroLeaderCopy"><small>#<%=heroLeaderRank%> · <%=heroLeader.jobName||'Adventurer'%></small><strong><%=heroLeader.name%></strong><span>Level <%=fmt(heroLeader.level)%> · <%=fmt(heroLeader.fame)%> fame</span></span>
+          <b>↘</b>
+        </a>
+      <% } else { %>
+        <div class="rankingHeroLeader rankingHeroLeaderEmpty"><span>—</span><span><strong>No ranked character yet</strong><small>This panel fills from the live ladder.</small></span></div>
+      <% } %>
+      <div class="rankingHeroFilters" aria-label="Quick class filters">
+        <% heroClasses.forEach(([key,c])=>{ %><a class="<%=activeClass===key?'active':''%>" href="<%=linkFor(1,key)%>"><%=c.label%></a><% }) %>
+      </div>
+      <div class="rankingHeroMetrics"><span><small>Highest level</small><b><%=fmt(maxLevel)%></b></span><span><small>Average level</small><b><%=totalRanked?Math.round(avgLevel):0%></b></span><span><small>Online</small><b><%=onlinePlayers==null?'—':fmt(onlinePlayers)%></b></span></div>
+    </aside>
+  </div>
+</section>
 <div class="wrap contentStack rankingsPageV2" style="padding-bottom:65px">
 <section class="rankingStats" aria-label="Ranking summary"><div><small>Ranked characters</small><strong><%=fmt(totalRanked)%></strong><span><%=classes[activeClass]?.label||'Overall'%></span></div><div><small>Highest level</small><strong><%=fmt(maxLevel)%></strong><span>Current filter</span></div><div><small>Average level</small><strong><%=totalRanked?Math.round(avgLevel):0%></strong><span>Current filter</span></div><div><small>Players online</small><strong><%=onlinePlayers==null?'—':fmt(onlinePlayers)%></strong><span>Live account status</span></div></section>
 <div class="rankingsIntro"><div><div class="sectionHead"><div><div class="pageEyebrow">CLASS LEADERBOARDS</div><h2><%=classes[activeClass]&&classes[activeClass].label||'All Adventurers'%></h2></div></div><p class="muted">Sorted by level, then EXP, fame, and character name. Character portraits are rendered from each player's saved skin, face, hair, and visible equipped items instead of generic class artwork.</p></div><aside class="rankingSeasonCard"><small>EverLeaf World</small><strong>Hall of Legends</strong><span><%=fmt(totalRanked)%> matching character<%=totalRanked===1?'':'s'%> · loaded at <%=loadedTime%>. Refresh the page to query the latest saved progression.</span></aside></div>
@@ -36,7 +73,7 @@ const loadedTime=generatedAt.toLocaleTimeString(undefined,{hour:'numeric',minute
 <nav class="tabs rankingTabs" aria-label="Ranking class filters"><% Object.entries(classes).forEach(([key,c])=>{ %><a class="tab <%=activeClass===key?'active':''%>" href="<%=linkFor(1,key)%>"><%=c.label%></a><% }) %></nav>
 <% if(error){ %><div class="error rankingError"><strong>Rankings unavailable</strong><span><%=error%></span></div><% } %>
 <% if(!error&&topThree.length){ %><section class="rankingPodium" aria-label="Top ranked adventurers"><% podiumOrder.forEach(r=>{ const rank=podiumRank(r); %><article class="rankingPodiumCard <%=podiumClass(rank)%>"><span class="rankingPodiumRank">#<%=rank%></span><div class="rankingPodiumArt rankingCharacterAvatar"><img src="<%=jobArt(r.jobName)%>" data-live-avatar="<%=avatar(r)%>" alt="<%=r.name%>'s EverLeaf character portrait"></div><div><strong class="rankingPodiumName"><%=r.name%></strong><span class="rankingPodiumJob"><%=r.jobName||'Adventurer'%></span><span class="rankingPodiumLevel">Level <%=r.level%></span><span class="rankingLiveLook">Live character look</span></div></article><% }) %></section><% } %>
-<section class="featurePanel rankingBoard rankingBoardV2"><div class="rankingBoardHead"><div><div class="pageEyebrow"><%=q?'PLAYER SEARCH':'WORLD RANKING'%></div><h2><%=q?`Results for “${q}”`:(classes[activeClass]&&classes[activeClass].label||'All Adventurers')%></h2></div><div class="rankingLegend"><span>Page <%=currentPage%> / <%=totalPages||1%></span><span><%=fmt(totalRanked)%> total</span><span>Live MySQL + appearance</span></div></div>
+<section id="ranking-board" class="featurePanel rankingBoard rankingBoardV2"><div class="rankingBoardHead"><div><div class="pageEyebrow"><%=q?'PLAYER SEARCH':'WORLD RANKING'%></div><h2><%=q?`Results for “${q}”`:(classes[activeClass]&&classes[activeClass].label||'All Adventurers')%></h2></div><div class="rankingLegend"><span>Page <%=currentPage%> / <%=totalPages||1%></span><span><%=fmt(totalRanked)%> total</span><span>Live MySQL + appearance</span></div></div>
 <% if(rows.length){ %><div class="tableWrap"><table class="rankingTable rankingTableV2"><thead><tr><th>Rank</th><th>Adventurer</th><th>Job</th><th>Level</th><th>Fame</th><th>EXP</th></tr></thead><tbody><% rows.forEach((r,i)=>{ const rank=startRank+i+1; %><tr><td class="rankPosition"><span class="rankPositionBadge <%=rank<=3?'top'+rank:''%>">#<%=rank%></span></td><td><div class="rankPlayer"><span class="rankPlayerIcon rankingCharacterAvatar"><img src="<%=jobArt(r.jobName)%>" data-live-avatar="<%=avatar(r)%>" loading="lazy" alt="<%=r.name%>'s EverLeaf character portrait"></span><span class="rankPlayerText"><strong><%=r.name%></strong><small>Live saved appearance</small></span></div></td><td><span class="rankingJobBadge"><%=r.jobName||'Adventurer'%></span></td><td><span class="rankLevelBlock"><strong>Lv. <%=fmt(r.level)%></strong><small>Character level</small></span></td><td class="rankingFame"><strong><%=fmt(r.fame)%></strong><small>Fame</small></td><td class="rankingExp"><strong><%=fmt(r.exp)%></strong><small>Current EXP</small></td></tr><% }) %></tbody></table></div><div class="rankingFooter"><div class="pagination"><% let prev=0; pageNumbers.forEach(p=>{ if(prev&&p-prev>1){ %><span class="pageGap">…</span><% } %><a class="pageBtn <%=p===currentPage?'active':''%>" href="<%=linkFor(p)%>"><%=p%></a><% prev=p; }); %><% if(currentPage<totalPages){ %><a class="pageBtn pageNext" href="<%=linkFor(currentPage+1)%>">Next ›</a><% } %></div><p class="muted rankingRefresh">Queried from the live game database at <%=loadedTime%>.</p></div><% } else if(!error){ %><div class="rankingEmpty"><img src="/assets/ui/trophy.svg" alt=""><h3><%=q?'No matching character.':'No legends here yet.'%></h3><p><%=q?'Try another character name or clear the search.':'No ranked adventurers are available in this class family yet. Be the first to claim the board.'%></p><% if(q){ %><a class="btn" href="/rankings?class=<%=activeClass%>">CLEAR SEARCH</a><% } %></div><% } %>
 </section>
 </div></main><%- include("partials/footer") %>
