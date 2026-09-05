@@ -1,0 +1,20 @@
+name: Audit EverLeaf login stringpool hook
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths: ['.github/workflows/audit-everleaf-stringpool-login-hook.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with: {ref: release-dev}
+      - name: Print login stringpool logic
+        run: |
+          set -euo pipefail
+          f=client/ezorsia/ezorsia/ReplacementFuncs.h
+          grep -n -E 'StringPool|Login\.img|ownLoginFrame|bigLoginFrame|EzorsiaV2WzIncluded|SP_.*LOGIN|frame' "$f" | head -500
