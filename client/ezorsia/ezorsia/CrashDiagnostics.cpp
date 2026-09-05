@@ -2,20 +2,34 @@
 #include "CrashDiagnostics.h"
 #include "Client.h"
 
+#include <DbgHelp.h>
 #include <atomic>
 #include <cstdint>
 
 namespace {
 constexpr wchar_t kDiagnosticsFileName[] = L"EverLeafClient.log";
+constexpr wchar_t kCrashDumpFileName[] = L"EverLeafCrash.dmp";
 wchar_t gDiagnosticsPath[MAX_PATH] = L"EverLeafClient.log";
+wchar_t gCrashDumpPath[MAX_PATH] = L"EverLeafCrash.dmp";
 std::atomic<const char*> gCurrentPhase{ "not-installed" };
 LPTOP_LEVEL_EXCEPTION_FILTER gPreviousExceptionFilter = nullptr;
+HMODULE gDbgHelpModule = nullptr;
 
-void ResolveDiagnosticsPath() {
+using MiniDumpWriteDump_t = BOOL (WINAPI *)(
+    HANDLE,
+    DWORD,
+    HANDLE,
+    MINIDUMP_TYPE,
+    PMINIDUMP_EXCEPTION_INFORMATION,
+    PMINIDUMP_USER_STREAM_INFORMATION,
+    PMINIDUMP_CALLBACK_INFORMATION);
+MiniDumpWriteDump_t gMiniDumpWriteDump = nullptr;
+
+bool ResolveSiblingPath(const wchar_t* fileName, wchar_t (&destination)[MAX_PATH]) {
     wchar_t executablePath[MAX_PATH] = {};
     const DWORD length = GetModuleFileNameW(nullptr, executablePath, MAX_PATH);
     if (!length || length >= MAX_PATH) {
-        return;
+        return false;
     }
 
     wchar_t* slash = wcsrchr(executablePath, L'\\');
@@ -23,17 +37,21 @@ void ResolveDiagnosticsPath() {
     if (forwardSlash && (!slash || forwardSlash > slash)) {
         slash = forwardSlash;
     }
-
     if (!slash) {
-        return;
+        return false;
     }
 
     *(slash + 1) = L'\0';
-    if (wcscat_s(executablePath, MAX_PATH, kDiagnosticsFileName) != 0) {
-        return;
+    if (wcscat_s(executablePath, MAX_PATH, fileName) != 0) {
+        return false;
     }
 
-    wcsncpy_s(gDiagnosticsPath, MAX_PATH, executablePath, _TRUNCATE);
+    return wcsncpy_s(destination, MAX_PATH, executablePath, _TRUNCATE) == 0;
+}
+
+void ResolveDiagnosticsPaths() {
+    ResolveSiblingPath(kDiagnosticsFileName, gDiagnosticsPath);
+    ResolveSiblingPath(kCrashDumpFileName, gCrashDumpPath);
 }
 
 void AppendRaw(const char* text) {
@@ -79,6 +97,73 @@ void AppendTimestamped(const char* kind, const char* text) {
         text ? text : ""
     );
     AppendRaw(line);
+}
+
+bool ResolveMiniDumpWriter() {
+    if (gMiniDumpWriteDump) {
+        return true;
+    }
+
+    wchar_t systemDirectory[MAX_PATH] = {};
+    const UINT systemLength = GetSystemDirectoryW(systemDirectory, MAX_PATH);
+    if (!systemLength || systemLength >= MAX_PATH) {
+        return false;
+    }
+    if (wcscat_s(systemDirectory, MAX_PATH, L"\\dbghelp.dll") != 0) {
+        return false;
+    }
+
+    // Load the Windows system copy explicitly. Never resolve dbghelp.dll through
+    // the game directory, where stale or wrong-architecture copies may exist.
+    gDbgHelpModule = LoadLibraryW(systemDirectory);
+    if (!gDbgHelpModule) {
+        return false;
+    }
+
+    gMiniDumpWriteDump = reinterpret_cast<MiniDumpWriteDump_t>(
+        GetProcAddress(gDbgHelpModule, "MiniDumpWriteDump"));
+    return gMiniDumpWriteDump != nullptr;
+}
+
+bool WriteLocalMiniDump(EXCEPTION_POINTERS* exceptionInfo) {
+    if (!exceptionInfo || !gMiniDumpWriteDump) {
+        return false;
+    }
+
+    HANDLE dump = CreateFileW(
+        gCrashDumpPath,
+        GENERIC_WRITE,
+        FILE_SHARE_READ,
+        nullptr,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr
+    );
+    if (dump == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    MINIDUMP_EXCEPTION_INFORMATION exception = {};
+    exception.ThreadId = GetCurrentThreadId();
+    exception.ExceptionPointers = exceptionInfo;
+    exception.ClientPointers = FALSE;
+
+    // Keep the dump deliberately bounded/privacy-conscious: normal process
+    // crash context plus thread metadata, never a full-memory dump.
+    const auto dumpType = static_cast<MINIDUMP_TYPE>(
+        MiniDumpNormal | MiniDumpWithThreadInfo);
+    const BOOL success = gMiniDumpWriteDump(
+        GetCurrentProcess(),
+        GetCurrentProcessId(),
+        dump,
+        dumpType,
+        &exception,
+        nullptr,
+        nullptr);
+
+    FlushFileBuffers(dump);
+    CloseHandle(dump);
+    return success == TRUE;
 }
 
 LONG WINAPI EverLeafUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo) {
@@ -139,6 +224,11 @@ LONG WINAPI EverLeafUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo) 
 #endif
 
     AppendTimestamped("CRASH", details);
+    AppendTimestamped(
+        "CRASH",
+        WriteLocalMiniDump(exceptionInfo)
+            ? "local minidump written to EverLeafCrash.dmp"
+            : "local minidump unavailable; text crash record retained");
 
     // We are an observer, not a replacement crash policy. Preserve any filter
     // Maple/the runtime installed before Client v2 diagnostics, and otherwise
@@ -151,7 +241,7 @@ LONG WINAPI EverLeafUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo) 
 }
 
 void CrashDiagnostics::Install() {
-    ResolveDiagnosticsPath();
+    ResolveDiagnosticsPaths();
 
     HANDLE file = CreateFileW(
         gDiagnosticsPath,
@@ -165,16 +255,23 @@ void CrashDiagnostics::Install() {
     if (file != INVALID_HANDLE_VALUE) {
         const char header[] =
             "EverLeaf Client v2 local diagnostics\r\n"
-            "No account, character, chat, or telemetry data is recorded or uploaded.\r\n";
+            "No account, character, chat, or telemetry data is intentionally recorded or uploaded.\r\n"
+            "On an unhandled crash, one bounded EverLeafCrash.dmp may be overwritten locally; it is never transmitted automatically.\r\n";
         DWORD written = 0;
         WriteFile(file, header, static_cast<DWORD>(sizeof(header) - 1), &written, nullptr);
         FlushFileBuffers(file);
         CloseHandle(file);
     }
 
+    const bool dumpWriterReady = ResolveMiniDumpWriter();
     gCurrentPhase.store("diagnostics-installed", std::memory_order_relaxed);
     gPreviousExceptionFilter = SetUnhandledExceptionFilter(EverLeafUnhandledExceptionFilter);
     AppendTimestamped("START", "client diagnostics installed");
+    AppendTimestamped(
+        "START",
+        dumpWriterReady
+            ? "system dbghelp MiniDumpWriteDump ready; local bounded crash dump enabled"
+            : "system dbghelp MiniDumpWriteDump unavailable; text crash diagnostics remain enabled");
 }
 
 void CrashDiagnostics::SetPhase(const char* phase) {
