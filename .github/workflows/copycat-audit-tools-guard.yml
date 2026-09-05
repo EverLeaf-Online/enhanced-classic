@@ -1,0 +1,106 @@
+name: Copycat audit tools guard
+
+on:
+  pull_request:
+    branches: [release-dev, master]
+    paths:
+      - "tools/copycat_full_audit.py"
+      - "tools/export_copycat_full.sh"
+      - ".github/workflows/copycat-audit-tools-guard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-tools-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Syntax checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/copycat_full_audit.py
+          bash -n tools/export_copycat_full.sh
+
+      - name: Synthetic full-audit regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="$RUNNER_TEMP/copycat-source"
+          out="$RUNNER_TEMP/copycat-audit"
+          export_dir="$RUNNER_TEMP/copycat-export"
+          mkdir -p "$src/sub"
+
+          printf '%s\n' 'EverLeaf Yuna https://example.invalid/update 132.145.141.79:8484' > "$src/settings.ini"
+          printf '%s\n' 'duplicate payload' > "$src/sub/a.txt"
+          cp "$src/sub/a.txt" "$src/sub/b.txt"
+          printf '%s' 'fake-wz-content borderless WASD FPS' > "$src/UI.wz"
+
+          python3 - <<'PY' "$src/fake.dll"
+          import struct, sys
+          path = sys.argv[1]
+          data = bytearray(0x400)
+          data[0:2] = b'MZ'
+          struct.pack_into('<I', data, 0x3C, 0x80)
+          data[0x80:0x84] = b'PE\0\0'
+          coff = 0x84
+          struct.pack_into('<HHIIIHH', data, coff, 0x014C, 1, 0x5E4A1234, 0, 0, 0xE0, 0x212F)
+          opt = coff + 20
+          struct.pack_into('<H', data, opt, 0x10B)
+          struct.pack_into('<I', data, opt + 16, 0x1000)
+          struct.pack_into('<I', data, opt + 28, 0x400000)
+          struct.pack_into('<I', data, opt + 56, 0x2000)
+          struct.pack_into('<H', data, opt + 68, 2)
+          struct.pack_into('<H', data, opt + 70, 0x0140)
+          sec = opt + 0xE0
+          data[sec:sec+8] = b'.text\0\0\0'
+          struct.pack_into('<IIII', data, sec + 8, 0x200, 0x1000, 0x200, 0x200)
+          struct.pack_into('<I', data, sec + 36, 0x60000020)
+          open(path, 'wb').write(data)
+          PY
+
+          before="$RUNNER_TEMP/source-before.sha256"
+          after="$RUNNER_TEMP/source-after.sha256"
+          find "$src" -type f -print0 | sort -z | xargs -0 sha256sum > "$before"
+
+          python3 tools/copycat_full_audit.py "$src" --output "$out"
+
+          find "$src" -type f -print0 | sort -z | xargs -0 sha256sum > "$after"
+          diff -u "$before" "$after"
+
+          python3 - <<'PY' "$out"
+          import json, pathlib, sys
+          root = pathlib.Path(sys.argv[1])
+          inventory = json.loads((root / 'inventory.json').read_text())
+          duplicates = json.loads((root / 'duplicates.json').read_text())
+          pe = json.loads((root / 'pe-analysis.json').read_text())
+          wz = json.loads((root / 'wz-inventory.json').read_text())
+          findings = json.loads((root / 'findings.json').read_text())
+
+          assert {x['path'] for x in inventory if x.get('type') == 'file'} == {
+              'settings.ini', 'sub/a.txt', 'sub/b.txt', 'UI.wz', 'fake.dll'
+          }
+          assert any(set(group['paths']) == {'sub/a.txt', 'sub/b.txt'} for group in duplicates)
+          assert len(pe) == 1 and pe[0]['pe']['machine_name'] == 'x86'
+          assert pe[0]['pe']['large_address_aware'] is True
+          assert pe[0]['pe']['nx_compat'] is True
+          assert pe[0]['pe']['dynamic_base'] is True
+          assert len(wz) == 1 and wz[0]['path'] == 'UI.wz'
+          settings = next(item for item in findings if item['path'] == 'settings.ini')
+          assert any('example.invalid' in url for url in settings['urls'])
+          assert '132.145.141.79:8484' in settings['ips']
+          assert (root / 'text' / 'settings.ini').is_file()
+          assert (root / 'SUMMARY.md').is_file()
+          PY
+
+          SPLIT_SIZE=1M bash tools/export_copycat_full.sh "$src" "$export_dir"
+          (
+            cd "$export_dir"
+            sha256sum -c *.parts.sha256
+            cat *.tar.part-* | tar -tf - | grep -Fq 'copycat-source/settings.ini'
+          )
+
+          echo 'Copycat full-audit tooling regression passed'
