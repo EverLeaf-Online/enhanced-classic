@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Security.Cryptography;
 
 namespace EverLeaf.Launcher;
 
@@ -11,29 +10,40 @@ internal static class ExecutableHardening
     private const int CoffCharacteristicsOffset = 18;
     private const ushort ImageFileMachineI386 = 0x014C;
     private const ushort ImageFileLargeAddressAware = 0x0020;
-    private const int MaxNormalizedExecutableBytes = 64 * 1024 * 1024;
+    private const int MaxExecutableBytes = 64 * 1024 * 1024;
 
-    internal static void EnsureLargeAddressAware(string executable)
+    // Before signed patch verification, put the launcher-owned PE flag back into
+    // canonical form. Invalid/corrupt executables are deliberately left alone so
+    // PatchService can detect their hash mismatch and repair them normally.
+    internal static void NormalizeForSignedRepair(string executable)
     {
-        using var stream = new FileStream(executable, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-        if (stream.Length <= 0 || stream.Length > MaxNormalizedExecutableBytes)
-            throw new InvalidDataException("EverLeaf.exe has an unexpected size and cannot be PE-hardened safely.");
-
-        var bytes = new byte[checked((int)stream.Length)];
-        ReadExactly(stream, bytes);
-        if (!TryGetCharacteristicsOffset(bytes, out var characteristicsOffset))
-            throw new InvalidDataException("EverLeaf.exe is not the expected Win32 PE executable.");
-
-        var characteristics = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(characteristicsOffset, 2));
-        if ((characteristics & ImageFileLargeAddressAware) != 0)
+        if (!File.Exists(executable))
             return;
 
-        characteristics |= ImageFileLargeAddressAware;
-        stream.Position = characteristicsOffset;
-        Span<byte> updated = stackalloc byte[2];
-        BinaryPrimitives.WriteUInt16LittleEndian(updated, characteristics);
-        stream.Write(updated);
-        stream.Flush(flushToDisk: true);
+        try
+        {
+            SetLargeAddressAware(executable, enabled: false, requireValidPe: false);
+        }
+        catch (IOException)
+        {
+            // PatchService already owns the user-facing repair/in-use error path.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // PatchService already owns the user-facing repair/permission error path.
+        }
+    }
+
+    // Called only after the signed repair has completed successfully. At this
+    // point EverLeaf.exe must be the validated Win32 baseline, so fail closed if
+    // its PE header cannot be hardened exactly as expected.
+    internal static void EnsureLargeAddressAware(string executable)
+    {
+        if (!File.Exists(executable))
+            throw new FileNotFoundException("EverLeaf.exe was not found after signed repair.", executable);
+
+        if (!SetLargeAddressAware(executable, enabled: true, requireValidPe: true))
+            throw new InvalidDataException("EverLeaf.exe is not the expected Win32 PE executable.");
     }
 
     internal static bool IsLargeAddressAware(string executable)
@@ -56,55 +66,39 @@ internal static class ExecutableHardening
         }
     }
 
-    internal static async Task<bool> HashMatchesCanonicalOrLargeAddressAwareAsync(
-        string executable,
-        string expectedSha256,
-        CancellationToken cancellationToken)
+    private static bool SetLargeAddressAware(string executable, bool enabled, bool requireValidPe)
     {
-        if (await PatchService.HashMatchesAsync(executable, expectedSha256, cancellationToken))
+        using var stream = new FileStream(executable, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        if (stream.Length <= 0 || stream.Length > MaxExecutableBytes)
+        {
+            if (requireValidPe)
+                throw new InvalidDataException("EverLeaf.exe has an unexpected size and cannot be PE-hardened safely.");
+            return false;
+        }
+
+        var bytes = new byte[checked((int)stream.Length)];
+        ReadExactly(stream, bytes);
+        if (!TryGetCharacteristicsOffset(bytes, out var characteristicsOffset))
+        {
+            if (requireValidPe)
+                throw new InvalidDataException("EverLeaf.exe is not the expected Win32 PE executable.");
+            return false;
+        }
+
+        var characteristics = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(characteristicsOffset, 2));
+        var updatedCharacteristics = enabled
+            ? (ushort)(characteristics | ImageFileLargeAddressAware)
+            : (ushort)(characteristics & ~ImageFileLargeAddressAware);
+
+        if (updatedCharacteristics == characteristics)
             return true;
 
-        try
-        {
-            var info = new FileInfo(executable);
-            if (!info.Exists || info.Length <= 0 || info.Length > MaxNormalizedExecutableBytes)
-                return false;
-
-            var bytes = await File.ReadAllBytesAsync(executable, cancellationToken);
-            if (!TryGetCharacteristicsOffset(bytes, out var characteristicsOffset))
-                return false;
-
-            var characteristics = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(characteristicsOffset, 2));
-            if ((characteristics & ImageFileLargeAddressAware) == 0)
-                return false;
-
-            // The signed patch manifest describes the canonical server byte stream.
-            // Normalize only the launcher-owned LAA bit before comparing. Any other
-            // local difference remains in the hash and therefore forces repair.
-            characteristics = (ushort)(characteristics & ~ImageFileLargeAddressAware);
-            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(characteristicsOffset, 2), characteristics);
-
-            byte[] expected;
-            try
-            {
-                expected = Convert.FromHexString(expectedSha256);
-            }
-            catch (FormatException)
-            {
-                return false;
-            }
-
-            var normalizedHash = SHA256.HashData(bytes);
-            return CryptographicOperations.FixedTimeEquals(normalizedHash, expected);
-        }
-        catch (IOException)
-        {
-            return false;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return false;
-        }
+        stream.Position = characteristicsOffset;
+        Span<byte> updated = stackalloc byte[2];
+        BinaryPrimitives.WriteUInt16LittleEndian(updated, updatedCharacteristics);
+        stream.Write(updated);
+        stream.Flush(flushToDisk: true);
+        return true;
     }
 
     private static bool TryGetCharacteristicsOffset(ReadOnlySpan<byte> bytes, out int characteristicsOffset)
