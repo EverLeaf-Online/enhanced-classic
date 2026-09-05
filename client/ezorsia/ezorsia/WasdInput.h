@@ -3,9 +3,9 @@
 #include "INIReader.h"
 
 // Optional Client v2 WASD translation at Maple's own DirectInput message layer.
-// This deliberately does not install a global/window keyboard hook. Text-entry
-// controls continue to receive normal W/A/S/D because the remapper fails closed
-// whenever Maple's focused IUIMsgHandler is a CCtrlEdit.
+// This deliberately does not install a global/window keyboard hook. Translation
+// requires an active CField stage and also fails closed whenever Maple's focused
+// IUIMsgHandler is a CCtrlEdit, so login/PIC/chat text remains normal W/A/S/D.
 namespace EverLeafWasdInput {
 namespace detail {
 
@@ -14,6 +14,8 @@ constexpr DWORD kWndManInstanceAddress = 0x00BEC20C;
 constexpr DWORD kWndManFocusOffset = 0x88;
 constexpr DWORD kCtrlEditRttiAddress = 0x00BED5EC;
 constexpr DWORD kWvsAppInstanceAddress = 0x00BE7B38;
+constexpr DWORD kStageInstanceAddress = 0x00BEDED4;
+constexpr DWORD kFieldRttiAddress = 0x00BED758;
 
 using GetISMessage_t = int(__fastcall*)(void* pThis, void* edx, ISMSG* pISMsg);
 static GetISMessage_t gGetISMessageOriginal =
@@ -28,6 +30,35 @@ inline bool IsMapleForeground() {
         return app && app->m_hWnd && GetForegroundWindow() == app->m_hWnd;
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+inline bool IsGameplayField() {
+    __try {
+        auto* stage = *reinterpret_cast<CStage**>(kStageInstanceAddress);
+        if (!stage) {
+            return false;
+        }
+
+        // CStage inherits IGObj first and IUIMsgHandler second. static_cast keeps
+        // the correct +4 multiple-inheritance adjustment before calling IsKindOf.
+        auto* stageUi = static_cast<IUIMsgHandler*>(stage);
+        if (!stageUi || !stageUi->vfptr) {
+            return false;
+        }
+
+        auto* vtable = reinterpret_cast<IUIMsgHandlerVtbl*>(stageUi->vfptr);
+        if (!vtable->IsKindOf) {
+            return false;
+        }
+
+        return vtable->IsKindOf(
+            stageUi,
+            reinterpret_cast<CRTTI*>(kFieldRttiAddress)) != 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        // Unknown stage/layout: do not remap menu/login input.
         return false;
     }
 }
@@ -81,6 +112,7 @@ inline int __fastcall GetISMessage_Hook(void* pThis, void* edx, ISMSG* pISMsg) {
     // key lifecycle remains intact and held movement cannot become stuck.
     if (pISMsg->message != WM_KEYDOWN ||
         !IsMapleForeground() ||
+        !IsGameplayField() ||
         IsEditControlFocused()) {
         return result;
     }
