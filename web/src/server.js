@@ -74,6 +74,17 @@ app.get("/launcher/download",(req,res)=>{
   res.download(env.launcher.portablePath,"EverLeafLauncher-portable.zip");
 });
 
+// Isolated compatibility package for the Yuna-based EverLeaf client migration.
+// Keep this outside the signed production patch manifest until Windows runtime QA
+// proves login -> world -> character -> channel -> map on the EverLeaf server.
+app.get("/client-tests/yuna-runtime",(req,res)=>{
+  const testPackage=path.join(path.dirname(env.launcher.portablePath),"EverLeaf-YunaRuntime-Test.zip");
+  if(!fs.existsSync(testPackage))
+    return res.status(503).send("EverLeaf Yuna runtime test package is not published yet.");
+  res.set("Cache-Control","no-cache");
+  res.download(testPackage,"EverLeaf-YunaRuntime-Test.zip");
+});
+
 app.use(session({
   secret:env.sessionSecret,
   resave:false,
