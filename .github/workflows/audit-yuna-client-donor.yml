@@ -37,47 +37,65 @@ jobs:
             ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
           fi
           chmod 600 ~/.ssh/known_hosts
-      - name: Download and audit donor on Oracle staging
+      - name: Extract and audit staged donor on Oracle
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
           root=/home/ubuntu/everleaf-staging/yuna-client-current
-          mkdir -p "$root"
           archive="$root/yuna-client-latest"
-          echo "Downloading official Yuna client donor..."
-          curl -fL --retry 4 --retry-delay 3 --connect-timeout 20 --max-time 5400 \
-            https://download.yuna.ms/latest -o "$archive"
-          echo "YUNA_DONOR_SHA256=$(sha256sum "$archive" | awk '{print $1}')"
-          echo "YUNA_DONOR_SIZE=$(stat -c%s "$archive")"
+          expected_sha=df8a6bda64cfe3a8bdbe9c1b3e4bbf06dbe08e8ba5f4af413652b5f8d9cda352
+          expected_size=6312484825
+          test -s "$archive"
+          test "$(stat -c%s "$archive")" = "$expected_size"
+          test "$(sha256sum "$archive" | awk '{print $1}')" = "$expected_sha"
+          echo "YUNA_DONOR_SHA256=$expected_sha"
+          echo "YUNA_DONOR_SIZE=$expected_size"
           file "$archive" || true
+
+          if ! command -v unrar >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq unrar || true
+          fi
+          if ! command -v unrar >/dev/null 2>&1 && ! command -v 7zz >/dev/null 2>&1; then
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq 7zip || true
+          fi
+          if ! command -v unrar >/dev/null 2>&1 && ! command -v 7zz >/dev/null 2>&1 && ! command -v 7z >/dev/null 2>&1; then
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq p7zip-full || true
+          fi
+
           rm -rf "$root/extracted"
           mkdir -p "$root/extracted"
-          if command -v 7z >/dev/null 2>&1; then
+          if command -v unrar >/dev/null 2>&1; then
+            unrar x -o+ -idq "$archive" "$root/extracted/"
+          elif command -v 7zz >/dev/null 2>&1; then
+            7zz x -y -o"$root/extracted" "$archive" >/tmp/yuna-7zz.log
+          elif command -v 7z >/dev/null 2>&1; then
             7z x -y -o"$root/extracted" "$archive" >/tmp/yuna-7z.log
-          elif unzip -t "$archive" >/dev/null 2>&1; then
-            unzip -q "$archive" -d "$root/extracted"
           else
-            echo "No supported archive extractor / unknown format" >&2
+            echo "RAR5 extractor unavailable" >&2
             exit 2
           fi
+
           echo '=== TOP LEVEL ==='
-          find "$root/extracted" -maxdepth 2 -mindepth 1 -printf '%y %p %s bytes\n' | sort | head -250
+          find "$root/extracted" -maxdepth 2 -mindepth 1 -printf '%y %p %s bytes\n' | sort | head -300
           echo '=== IMPORTANT FILES ==='
-          find "$root/extracted" -type f \( -iname '*.exe' -o -iname '*.dll' -o -iname '*.wz' -o -iname '*.ini' -o -iname '*.json' -o -iname '*.cfg' -o -iname '*.txt' \) -printf '%p\t%s\n' | sort | head -500
+          find "$root/extracted" -type f \( -iname '*.exe' -o -iname '*.dll' -o -iname '*.wz' -o -iname '*.ini' -o -iname '*.json' -o -iname '*.cfg' -o -iname '*.txt' \) -printf '%p\t%s\n' | sort | head -700
           echo '=== HASHES: EXE DLL CONFIG ==='
           while IFS= read -r -d '' f; do sha256sum "$f"; done < <(find "$root/extracted" -type f \( -iname '*.exe' -o -iname '*.dll' -o -iname '*.ini' -o -iname '*.cfg' -o -iname '*.json' \) -print0) | sort
+          echo '=== WZ HASHES ==='
+          while IFS= read -r -d '' f; do sha256sum "$f"; done < <(find "$root/extracted" -maxdepth 3 -type f -iname '*.wz' -print0) | sort
           echo '=== SETTINGS / TEXT CONFIG ==='
           while IFS= read -r -d '' f; do
             echo "--- $f"
-            sed -n '1,220p' "$f" 2>/dev/null || true
+            sed -n '1,260p' "$f" 2>/dev/null || true
           done < <(find "$root/extracted" -type f \( -iname 'settings.ini' -o -iname 'config.ini' -o -iname '*.cfg' \) -print0)
           echo '=== NETWORK / BRAND STRINGS FROM SMALL BINARIES ==='
           while IFS= read -r -d '' f; do
             sz=$(stat -c%s "$f")
-            [ "$sz" -le 100000000 ] || continue
+            [ "$sz" -le 150000000 ] || continue
             echo "--- $f"
-            strings -a "$f" 2>/dev/null | grep -Eai 'yuna|yuna\.ms|127\.0\.0\.1|localhost|[0-9]{1,3}(\.[0-9]{1,3}){3}|8484|7575|resolution|width|height|window|fullscreen|discord|http' | head -160 || true
+            strings -a "$f" 2>/dev/null | grep -Eai 'yuna|yuna\.ms|127\.0\.0\.1|localhost|[0-9]{1,3}(\.[0-9]{1,3}){3}|8484|7575|resolution|width|height|window|fullscreen|discord|http|patch|launcher' | head -220 || true
           done < <(find "$root/extracted" -type f \( -iname '*.exe' -o -iname '*.dll' \) -print0)
           echo '=== LIVE EVERLEAF REFERENCE ==='
           for f in /opt/everleaf/patches/files/EverLeaf.exe /opt/everleaf/patches/files/dinput8.dll /opt/everleaf/patches/files/config.ini /opt/everleaf/patches/files/Map.wz /opt/everleaf/patches/files/UI.wz; do
