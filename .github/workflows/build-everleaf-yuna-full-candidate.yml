@@ -1,0 +1,155 @@
+name: Build full EverLeaf Yuna-based candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/build-everleaf-yuna-full-candidate.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Build full candidate on Oracle
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          donor=/home/ubuntu/everleaf-staging/yuna-client-current/extracted/YunaMS
+          live=/opt/everleaf/patches/files
+          root=/home/ubuntu/everleaf-staging/yuna-everleaf-full-candidate
+          downloads=/opt/everleaf/patches/downloads
+          rm -rf "$root"
+          mkdir -p "$root"
+
+          # 1) Start with Yuna's complete runtime stack.
+          while IFS= read -r -d '' f; do
+            name=$(basename "$f")
+            case "$name" in
+              *.wz) ;;
+              *) cp -a "$f" "$root/$name" ;;
+            esac
+          done < <(find "$donor" -maxdepth 1 -type f -print0)
+
+          # 2) Keep EverLeaf's known-good content baseline for every WZ except UI.wz.
+          #    UI.wz comes from Yuna because its runtime and HD UI were authored together.
+          for f in Base.wz Character.wz Effect.wz Etc.wz Item.wz List.wz Map.wz Mob.wz Morph.wz Npc.wz Quest.wz Reactor.wz Skill.wz Sound.wz String.wz TamingMob.wz; do
+            test -s "$live/$f"
+            cp -a "$live/$f" "$root/$f"
+          done
+          test -s "$donor/UI.wz"
+          cp -a "$donor/UI.wz" "$root/UI.wz"
+
+          # Preserve EverLeaf's custom overlay if present; the donor UI remains UI.wz.
+          [ -s "$live/EverLeaf_UI.wz" ] && cp -a "$live/EverLeaf_UI.wz" "$root/EverLeaf_UI.wz" || true
+
+          # 3) Configure Yuna runtime for EverLeaf. Keep donor executable filename for now
+          #    because the donor DLL contains explicit YunaMS.exe checks.
+          cat > "$root/settings.ini" <<'INI'
+          ; EverLeaf Yuna-based client candidate
+          [Settings]
+          resolution = 2
+          borderless_fullscreen_mode = 1
+          start_centered = 1
+          map_background = 1
+          wasd_remapping = 0
+          expanded_qs = 0
+          network_route = 0
+          fps_cap = 60
+          fast_boot = 1
+          auto_launch = 0
+          _hint_seen_count = 1
+          INI
+
+          # 4) Redirect donor network endpoints and same-length textual branding in runtime DLLs.
+          python3 - "$root" <<'PY'
+          import pathlib,sys,hashlib
+          root=pathlib.Path(sys.argv[1])
+          target=b'132.145.141.79'
+          primary=b'172.236.239.98'
+          fallback=b'172.236.156.117'
+          for name in ('yunams.dll','yunamsw.dll'):
+              p=root/name
+              b=bytearray(p.read_bytes())
+              assert b.count(primary)==1,(name,'primary endpoint not unique')
+              b=b.replace(primary,target)
+              if fallback in b:
+                  b=b.replace(fallback,target+b'\0'*(len(fallback)-len(target)))
+              # Preserve binary length. Internal registry token becomes EverLf; UI branding
+              # will be handled by WZ/assets, not by unsafe length-changing binary edits.
+              b=b.replace(b'YunaMS',b'EverLf')
+              b=b.replace(b'Yuna',b'Leaf')
+              p.write_bytes(b)
+              print('PATCHED',name,hashlib.sha256(b).hexdigest())
+          PY
+
+          # 5) Remove donor launcher/updater executables from the candidate; EverLeafLauncher owns updates.
+          rm -f "$root/YunaMSLauncher.exe" "$root/YunaPatcher.exe" "$root/Patcher.exe" "$root/Launcher.exe" || true
+
+          # 6) Generate a compatibility report and enforce EverLeaf preservation gates.
+          python3 - "$root" "$live" "$donor" <<'PY'
+          import pathlib,sys,hashlib,json,re,struct
+          root,live,donor=map(pathlib.Path,sys.argv[1:4])
+          def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
+          report={'candidate':{},'preserved':{},'donor':{}}
+          for name in ['YunaMS.exe','yunams.dll','yunamsw.dll','dinput8.dll','d3d8.dll','UI.wz','Item.wz','Mob.wz','Map.wz','String.wz']:
+              p=root/name
+              if p.exists(): report['candidate'][name]={'sha256':sha(p),'size':p.stat().st_size}
+          for name in ['Item.wz','Mob.wz','Map.wz','String.wz']:
+              a=root/name; b=live/name
+              assert sha(a)==sha(b),(name,'EverLeaf content changed')
+              report['preserved'][name]=sha(a)
+          assert sha(root/'UI.wz')==sha(donor/'UI.wz'),'Yuna UI.wz mismatch'
+          blob=(root/'yunams.dll').read_bytes()+(root/'yunamsw.dll').read_bytes()
+          assert b'172.236.239.98' not in blob
+          assert b'132.145.141.79' in blob
+          exe=(root/'YunaMS.exe').read_bytes()
+          peoff=struct.unpack_from('<I',exe,0x3c)[0]
+          chars=struct.unpack_from('<H',exe,peoff+22)[0]
+          report['exe_large_address_aware']=bool(chars&0x20)
+          assert report['exe_large_address_aware']
+          (root/'EVERLEAF-CANDIDATE.json').write_text(json.dumps(report,indent=2))
+          print(json.dumps(report,indent=2))
+          PY
+
+          # 7) Package the complete candidate so it can be tested without mutating the current client.
+          outfile="$downloads/EverLeaf-YunaClient-Candidate.zip"
+          tmp=/tmp/EverLeaf-YunaClient-Candidate.zip
+          rm -f "$tmp"
+          python3 - "$root" "$tmp" <<'PY'
+          import pathlib,sys,zipfile
+          root=pathlib.Path(sys.argv[1]); out=pathlib.Path(sys.argv[2])
+          with zipfile.ZipFile(out,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=6,allowZip64=True) as z:
+              for p in sorted(root.iterdir()):
+                  if p.is_file(): z.write(p,p.name)
+          print('PACKAGE_SIZE',out.stat().st_size)
+          PY
+          sudo install -m 0644 "$tmp" "$outfile.new"
+          sudo mv -f "$outfile.new" "$outfile"
+          echo "FULL_CANDIDATE_SHA256=$(sha256sum "$outfile"|awk '{print $1}')"
+          echo "FULL_CANDIDATE_SIZE=$(stat -c%s "$outfile")"
+          echo 'EVERLEAF_YUNA_FULL_CANDIDATE_OK'
+          REMOTE
