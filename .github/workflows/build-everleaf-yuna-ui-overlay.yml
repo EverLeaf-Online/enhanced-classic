@@ -1,0 +1,114 @@
+name: Build EverLeaf Yuna runtime UI overlay
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/build-everleaf-yuna-ui-overlay.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  overlay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Build overlay on Oracle
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          donor=/home/ubuntu/everleaf-staging/yuna-client-current/extracted/YunaMS
+          root=/home/ubuntu/everleaf-staging/yuna-everleaf-ui-overlay
+          out=/opt/everleaf/patches/downloads/EverLeaf-YunaUI-Overlay.zip
+          rm -rf "$root"
+          mkdir -p "$root"
+
+          runtime_files=(
+            YunaMS.exe Canvas.dll D3DCompiler_47_cor3.dll Gr2D_DX8.dll NameSpace.dll
+            PCOM.dll PenImc_cor3.dll PresentationNative_cor3.dll ResMan.dll Shape2D.dll
+            Sound_DX8.dll VCRUNTIME140.dll WzFlashRenderer.dll ZLZ.dll aossdk.dll bz32ex.dll
+            d3d8.dll dbghelp.dll dinput8.dll discord_game_sdk.dll ijl15.dll l3codeca.acm
+            mss32.dll msvcp110.dll msvcr110.dll nmcogame.dll nmconew.dll suipre.dll v3hunt.dll
+            vcruntime140_cor3.dll wpfgfx_cor3.dll yunams.dll yunamsw.dll version.data UI.wz
+          )
+          for f in "${runtime_files[@]}"; do test -s "$donor/$f" && cp -a "$donor/$f" "$root/$f"; done
+
+          cat > "$root/settings.ini" <<'INI'
+          ; EverLeaf client candidate using Yuna's v83 runtime/UI layer.
+          [Settings]
+          resolution = 2
+          borderless_fullscreen_mode = 1
+          start_centered = 1
+          map_background = 1
+          wasd_remapping = 0
+          expanded_qs = 0
+          network_route = 0
+          fps_cap = 60
+          fast_boot = 1
+          auto_launch = 0
+          _hint_seen_count = 1
+          INI
+
+          python3 - "$root" <<'PY'
+          import pathlib,sys,hashlib
+          root=pathlib.Path(sys.argv[1]); target=b'132.145.141.79'; primary=b'172.236.239.98'; fallback=b'172.236.156.117'
+          for name in ('yunams.dll','yunamsw.dll'):
+              p=root/name; b=bytearray(p.read_bytes())
+              assert b.count(primary)==1,(name,b.count(primary))
+              b=b.replace(primary,target)
+              if fallback in b: b=b.replace(fallback,target+b'\0'*(len(fallback)-len(target)))
+              # Same-length branding only; never shift PE sections.
+              b=b.replace(b'YunaMS',b'EverLf').replace(b'Yuna',b'Leaf')
+              p.write_bytes(b)
+              print(name,hashlib.sha256(b).hexdigest())
+          blob=(root/'yunams.dll').read_bytes()+(root/'yunamsw.dll').read_bytes()
+          assert b'172.236.239.98' not in blob
+          assert b'132.145.141.79' in blob
+          PY
+
+          # Include explicit instructions inside the archive so this remains an isolated test overlay.
+          cat > "$root/README-EVERLEAF.txt" <<'TXT'
+          EverLeaf Yuna-based client candidate.
+          Apply this overlay only to a COPY of an existing up-to-date EverLeaf client folder.
+          It intentionally does not include the unchanged EverLeaf WZ content files.
+          Launch YunaMS.exe for this compatibility test; the final EverLeaf launcher/executable naming is changed only after runtime validation.
+          TXT
+
+          (cd "$root" && sha256sum * 2>/dev/null | sort > SHA256SUMS.txt)
+          tmp=/tmp/EverLeaf-YunaUI-Overlay.zip
+          rm -f "$tmp"
+          python3 - "$root" "$tmp" <<'PY'
+          import pathlib,sys,zipfile
+          root=pathlib.Path(sys.argv[1]); out=pathlib.Path(sys.argv[2])
+          with zipfile.ZipFile(out,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=6,allowZip64=True) as z:
+              for p in sorted(root.iterdir()):
+                  if p.is_file(): z.write(p,p.name)
+          print('OVERLAY_BYTES',out.stat().st_size)
+          PY
+          sudo install -m 0644 "$tmp" "$out.new"
+          sudo mv -f "$out.new" "$out"
+          echo "YUNA_UI_OVERLAY_SHA256=$(sha256sum "$out"|awk '{print $1}')"
+          echo "YUNA_UI_OVERLAY_SIZE=$(stat -c%s "$out")"
+          echo 'EVERLEAF_YUNA_UI_OVERLAY_OK'
+          REMOTE
