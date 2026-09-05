@@ -2,12 +2,12 @@
 #include "AddyLocations.h"
 #include "codecaves.h"
 
-int Client::m_nGameHeight = 720;
-int Client::m_nGameWidth = 1280;
+int Client::m_nGameHeight = 600;
+int Client::m_nGameWidth = 800;
 int Client::MsgAmount = 26;
 bool Client::WindowedMode = true;
 bool Client::RemoveLogos = true;
-bool Client::ModernLoginUI = true;
+bool Client::ModernLoginUI = false;
 bool Client::ShowFutureClassCards = true;
 double Client::setDamageCap = 199999.0;
 bool Client::useTubi = false;

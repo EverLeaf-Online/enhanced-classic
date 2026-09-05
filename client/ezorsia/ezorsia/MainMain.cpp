@@ -98,19 +98,20 @@ MainMain::MainMain(std::function<void()> pPostMutexFunc)
 		}
 	}
 	//Memory::UseVirtuProtect = reader.GetBoolean("general", "UseVirtuProtect", true);//breaks without it so i removed the option, too many options anyway and this wasnt helping anyone
-	const int requestedWidth = reader.GetInteger("general", "width", 1280);
-	const int requestedHeight = reader.GetInteger("general", "height", 720);
+	const int requestedWidth = reader.GetInteger("general", "width", 800);
+	const int requestedHeight = reader.GetInteger("general", "height", 600);
 	const bool supportedResolution =
+		(requestedWidth == 800 && requestedHeight == 600) ||
 		(requestedWidth == 1024 && requestedHeight == 768) ||
 		(requestedWidth == 1280 && requestedHeight == 720) ||
 		(requestedWidth == 1366 && requestedHeight == 768) ||
 		(requestedWidth == 1600 && requestedHeight == 900) ||
 		(requestedWidth == 1920 && requestedHeight == 1080);
-	Client::m_nGameWidth = supportedResolution ? requestedWidth : 1280;
-	Client::m_nGameHeight = supportedResolution ? requestedHeight : 720;
+	Client::m_nGameWidth = supportedResolution ? requestedWidth : 800;
+	Client::m_nGameHeight = supportedResolution ? requestedHeight : 600;
 	Client::WindowedMode = reader.GetBoolean("general", "WindowedMode", true);
 	Client::RemoveLogos = reader.GetBoolean("general", "RemoveLogos", true);
-	Client::ModernLoginUI = reader.GetBoolean("general", "ModernLoginUI", true);
+	Client::ModernLoginUI = reader.GetBoolean("general", "ModernLoginUI", false);
 	Client::ShowFutureClassCards = reader.GetBoolean("general", "ShowFutureClassCards", true);
 
 	// Official gameplay and compatibility policy: not player-configurable.

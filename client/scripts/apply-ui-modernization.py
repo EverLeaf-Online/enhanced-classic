@@ -38,7 +38,7 @@ replace_once(
     "client/ezorsia/ezorsia/Client.cpp",
     "bool Client::RemoveLogos = true;\n",
     "bool Client::RemoveLogos = true;\n"
-    "bool Client::ModernLoginUI = true;\n"
+    "bool Client::ModernLoginUI = false;\n"
     "bool Client::ShowFutureClassCards = true;\n",
 )
 
@@ -46,7 +46,7 @@ replace_once(
     "client/ezorsia/ezorsia/MainMain.cpp",
     '\tClient::RemoveLogos = reader.GetBoolean("general", "RemoveLogos", true);\n',
     '\tClient::RemoveLogos = reader.GetBoolean("general", "RemoveLogos", true);\n'
-    '\tClient::ModernLoginUI = reader.GetBoolean("general", "ModernLoginUI", true);\n'
+    '\tClient::ModernLoginUI = reader.GetBoolean("general", "ModernLoginUI", false);\n'
     '\tClient::ShowFutureClassCards = reader.GetBoolean("general", "ShowFutureClassCards", true);\n',
 )
 
@@ -115,8 +115,8 @@ if "ModernLoginUI=" not in text:
     text = text.replace(
         marker,
         "RemoveLogos=true\n\n"
-        ";Use EverLeaf's refreshed classic login/world/character-selection layout.\n"
-        "ModernLoginUI=true\n\n"
+        ";Experimental login coordinate restyling; disabled until visual QA is green.\n"
+        "ModernLoginUI=false\n\n"
         ";Show future class-family cards as locked previews. The server independently\n"
         ";rejects unsupported creation types, so this never enables unfinished classes.\n"
         "ShowFutureClassCards=true\n",
