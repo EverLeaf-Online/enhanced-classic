@@ -1,0 +1,64 @@
+name: Detect Yuna UI WZ patch version
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths: ['.github/workflows/detect-yuna-ui-wz-version.yml']
+permissions:
+  contents: read
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+jobs:
+  detect:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with: {ref: release-dev}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '10.0.x'}
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $d=Join-Path $HOME '.ssh';New-Item -ItemType Directory -Force -Path $d|Out-Null;$k=Join-Path $d 'id_everleaf';[IO.File]::WriteAllText($k,($env:SSH_PRIVATE_KEY -replace "`r","")+"`n");$known=Join-Path $d 'known_hosts';if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}else{& 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known}
+      - name: Fetch UI and ZLZ
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop';$dir=Join-Path $env:RUNNER_TEMP 'yuna';New-Item -ItemType Directory -Force -Path $dir|Out-Null;$scp='C:\Program Files\Git\usr\bin\scp.exe';$key=Join-Path $HOME '.ssh/id_everleaf';foreach($f in @('UI.wz','ZLZ.dll')){& $scp -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/home/ubuntu/everleaf-staging/yuna-client-current/extracted/YunaMS/$f" (Join-Path $dir $f);if($LASTEXITCODE){throw "fetch failed $f"}}
+      - name: Probe patch versions
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/YunaVersionProbe';New-Item -ItemType Directory -Force -Path $tool|Out-Null
+          @'
+          using MapleLib.WzLib;
+          var file=args[0];
+          var winners=new List<(int ver,double score,string[] names)>();
+          for(short ver=1;ver<=300;ver++){
+            try{
+              using var wz=new WzFile(file,ver,WzMapleVersion.GETFROMZLZ);
+              var status=wz.ParseWzFile();if(status!=WzFileParseStatus.Success) continue;
+              var names=wz.WzDirectory.WzImages.Take(40).Select(x=>x.Name).ToArray();
+              if(names.Length==0) continue;
+              int total=names.Sum(n=>n.Length);int good=names.Sum(n=>n.Count(c=>(c>='A'&&c<='Z')||(c>='a'&&c<='z')||(c>='0'&&c<='9')||c=='.'||c=='_'||c=='-'));
+              double score=total==0?0:(double)good/total;
+              bool login=names.Any(n=>n.Equals("Login.img",StringComparison.OrdinalIgnoreCase));
+              bool normal=names.Count(n=>n.EndsWith(".img",StringComparison.OrdinalIgnoreCase))>=10;
+              if(login||normal||score>0.93) winners.Add((ver,score,names));
+            }catch{}
+          }
+          Console.WriteLine("WINNERS="+winners.Count);
+          foreach(var w in winners.OrderByDescending(x=>x.names.Any(n=>n.Equals("Login.img",StringComparison.OrdinalIgnoreCase))).ThenByDescending(x=>x.score).Take(30)){
+            Console.WriteLine($"VERSION {w.ver} score={w.score:F3} login={w.names.Any(n=>n.Equals("Login.img",StringComparison.OrdinalIgnoreCase))}");
+            Console.WriteLine("  "+string.Join(" | ",w.names));
+          }
+          if(!winners.Any(x=>x.names.Any(n=>n.Equals("Login.img",StringComparison.OrdinalIgnoreCase)))) Environment.ExitCode=3;
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup><ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup></Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'YunaVersionProbe.csproj')
+          dotnet run --project (Join-Path $tool 'YunaVersionProbe.csproj') -c Release -- (Join-Path $env:RUNNER_TEMP 'yuna/UI.wz')
