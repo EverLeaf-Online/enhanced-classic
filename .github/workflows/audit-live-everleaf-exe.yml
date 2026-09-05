@@ -1,0 +1,62 @@
+name: Audit live EverLeaf EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-live-everleaf-exe.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Audit exact live PE
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'python3 -' <<'PY'
+          import hashlib,struct,pathlib
+          p=pathlib.Path('/opt/everleaf/patches/files/EverLeaf.exe')
+          b=p.read_bytes()
+          assert b[:2]==b'MZ'
+          pe=struct.unpack_from('<I',b,0x3c)[0]
+          assert b[pe:pe+4]==b'PE\0\0'
+          coff=pe+4
+          machine,nsects,tstamp,ptrsym,nsym,optsz,chars=struct.unpack_from('<HHIIIHH',b,coff)
+          opt=coff+20
+          magic=struct.unpack_from('<H',b,opt)[0]
+          dllchars=struct.unpack_from('<H',b,opt+0x46)[0] if magic==0x10b else None
+          print('path',p)
+          print('size',len(b))
+          print('sha256',hashlib.sha256(b).hexdigest())
+          print(f'machine=0x{machine:04x}')
+          print(f'coff_characteristics=0x{chars:04x}')
+          print('large_address_aware',bool(chars & 0x20))
+          print(f'optional_magic=0x{magic:04x}')
+          print(f'dll_characteristics=0x{dllchars:04x}' if dllchars is not None else 'dll_characteristics=n/a')
+          print('dynamic_base',bool(dllchars & 0x40) if dllchars is not None else False)
+          print('nx_compat',bool(dllchars & 0x100) if dllchars is not None else False)
+          print('EXE_PE_AUDIT_OK')
+          PY
