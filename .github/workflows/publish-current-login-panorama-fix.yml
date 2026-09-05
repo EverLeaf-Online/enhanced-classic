@@ -1,0 +1,416 @@
+name: Publish current-live login and panorama correction
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - ".github/workflows/publish-current-login-panorama-fix.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-client-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_PUBLIC_HOST: everleafms.online
+  NATIVE_REF: client/everleaf-native-package-20260905
+  NATIVE_SHA: 60b4ad4bd314c74c9f9f5547ab6fc9399658d1b5
+  LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+  RELEASE_VERSION: client-login-panorama-align-20260905
+  EXPECTED_MAP_SHA: 8a84df5a4a6466b8022b6f4621987b83db1d0f6d864b23407e8a47eb6c78a755
+  EXPECTED_UI_SHA: 9ad7b1e508975faba19e89f7e5f95f9c498a3e6a504e4eaa795eed2b65eacab6
+  EXPECTED_DLL_SHA: 94d6f7124b95b7ad0b931abb4c0ce06ca8a4f6f8e74f5d1333c08b2ed8eb2e4e
+  EXPECTED_CONFIG_SHA: 586241beab47018900d61cdee48a70fc72eba4a59847e2616ad9a2bc13435297
+
+jobs:
+  build-native:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.NATIVE_SHA }}
+
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build EverLeaf Win32 release
+        shell: pwsh
+        run: |
+          msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+          $dll = "client/ezorsia/out/Release/dinput8.dll"
+          if (-not (Test-Path $dll)) { throw "Missing native client output: $dll" }
+          Get-FileHash $dll -Algorithm SHA256
+
+      - name: Verify requested native fixes are present
+        shell: pwsh
+        run: |
+          $layout = Get-Content "client/ezorsia/ezorsia/EverLeafLoginLayout.cpp" -Raw
+          $dllmain = Get-Content "client/ezorsia/ezorsia/dllmain.cpp" -Raw
+          $links = Get-Content "client/ezorsia/ezorsia/EverLeafWebLinks.cpp" -Raw
+          foreach ($needle in @('push 12','push 40','push 67','0xFF171B0E')) {
+            if (-not $layout.Contains($needle)) { throw "Missing login layout marker: $needle" }
+          }
+          if (-not $dllmain.Contains('EverLeafLoginLayout::Apply()')) { throw 'Login layout installer is not called' }
+          if (-not $dllmain.Contains('EverLeafWebLinks::Install()')) { throw 'EverLeaf web redirect installer is not called' }
+          foreach ($needle in @('/register','/help')) {
+            if (-not $links.Contains($needle)) { throw "Missing EverLeaf route marker: $needle" }
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: current-login-native
+          path: client/ezorsia/out/Release/dinput8.dll
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    needs: build-native
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: current-login-native
+          path: ${{ runner.temp }}/native
+
+      - name: Configure production SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          mkdir -p "$SSH_DIR" && chmod 700 "$SSH_DIR"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id_everleaf"
+          chmod 600 "$SSH_DIR/id_everleaf"
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$SSH_DIR/known_hosts"
+          fi
+          chmod 600 "$SSH_DIR/known_hosts"
+
+      - name: Assert and fetch current live client source-of-truth
+        run: |
+          set -euo pipefail
+          SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=10 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf")
+          ssh "${OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "MAP='$EXPECTED_MAP_SHA' UI='$EXPECTED_UI_SHA' DLL='$EXPECTED_DLL_SHA' CFG='$EXPECTED_CONFIG_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          F=/opt/everleaf/patches/files
+          test "$(sha256sum "$F/Map.wz" | awk '{print $1}')" = "$MAP"
+          test "$(sha256sum "$F/UI.wz" | awk '{print $1}')" = "$UI"
+          test "$(sha256sum "$F/dinput8.dll" | awk '{print $1}')" = "$DLL"
+          test "$(sha256sum "$F/config.ini" | awk '{print $1}')" = "$CFG"
+          grep -q '^Width=1280$' "$F/config.ini"
+          grep -q '^Height=720$' "$F/config.ini"
+          grep -q '^ModernLoginUI=true$' "$F/config.ini"
+          test -s /home/ubuntu/everleaf-staging/everleaf-login-art-user/background-master-1280x2160.png
+          test -s /home/ubuntu/everleaf-staging/everleaf-login-art-user/signboard.png
+          REMOTE
+          scp "${OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/Map.wz" "$RUNNER_TEMP/Map.wz.live"
+          scp "${OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/UI.wz" "$RUNNER_TEMP/UI.wz.live"
+          scp "${OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/home/ubuntu/everleaf-staging/everleaf-login-art-user/background-master-1280x2160.png" "$RUNNER_TEMP/background-master-1280x2160.png"
+          scp "${OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/home/ubuntu/everleaf-staging/everleaf-login-art-user/signboard.png" "$RUNNER_TEMP/signboard-live.png"
+
+      - name: Build corrected artwork from current live sources
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user --disable-pip-version-check pillow
+          mkdir -p "$RUNNER_TEMP/login-fix-art"
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageChops, ImageDraw, ImageFont
+          import os
+
+          root=Path(os.environ['RUNNER_TEMP'])
+          out=root/'login-fix-art'
+
+          # The current 3240 image was made by prepending a separate 1080px scene
+          # to the older continuous 2160px panorama. Expand the original continuous
+          # panorama itself instead, so the top is no longer a reused/spliced scene.
+          src=Image.open(root/'background-master-1280x2160.png').convert('RGB')
+          assert src.size==(1280,2160)
+          bg=src.resize((1280,3240), Image.Resampling.LANCZOS)
+          bg.save(out/'background.png','PNG',optimize=True)
+
+          def rounded_alpha(image, radius):
+              image=image.convert('RGBA')
+              scale=4
+              mask=Image.new('L',(image.width*scale,image.height*scale),0)
+              d=ImageDraw.Draw(mask)
+              d.rounded_rectangle((0,0,image.width*scale-1,image.height*scale-1),
+                                  radius=radius*scale,fill=255)
+              mask=mask.resize(image.size,Image.Resampling.LANCZOS)
+              alpha=ImageChops.multiply(image.getchannel('A'),mask)
+              image.putalpha(alpha)
+              return image
+
+          panel=Image.open(root/'signboard-live.png')
+          panel=rounded_alpha(panel,16)
+          panel.save(out/'signboard.png','PNG',optimize=True)
+
+          font_paths=['/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf']
+          def font(size):
+              for p in font_paths:
+                  if Path(p).is_file(): return ImageFont.truetype(p,size)
+              return ImageFont.load_default()
+          def centered(draw,box,text,f):
+              b=draw.textbbox((0,0),text,font=f,stroke_width=1)
+              x=box[0]+(box[2]-box[0]-(b[2]-b[0]))//2
+              y=box[1]+(box[3]-box[1]-(b[3]-b[1]))//2-b[1]
+              draw.text((x,y),text,font=f,fill=(247,245,222,255),stroke_width=1,stroke_fill=(18,38,11,255))
+          specs={
+            'login':((89,42),'LOG IN',14),
+            'save-id':((76,23),'SAVE ID',9),
+            'find-id':((82,23),'FIND ID',9),
+            'reset-password':((66,23),'RESET',9),
+            'register':((92,38),'REGISTER',11),
+            'homepage':((93,38),'HOMEPAGE',10),
+            'quit':((84,38),'QUIT',11),
+          }
+          palette={
+            'normal':((70,111,24,255),(151,183,58,255)),
+            'mouseOver':((91,136,31,255),(197,218,83,255)),
+            'pressed':((49,82,16,255),(121,153,42,255)),
+            'disabled':((63,75,54,255),(105,118,83,255)),
+          }
+          for name,(size,label,text_size) in specs.items():
+              for state,(fill,edge) in palette.items():
+                  w,h=size
+                  s=4
+                  canvas=Image.new('RGBA',(w*s,h*s),(0,0,0,0))
+                  d=ImageDraw.Draw(canvas)
+                  radius=max(4,h//6)*s
+                  d.rounded_rectangle((1*s,1*s,(w-2)*s,(h-2)*s),radius=radius,fill=fill,outline=(23,36,10,255),width=2*s)
+                  d.rounded_rectangle((4*s,4*s,(w-5)*s,(h-5)*s),radius=max(3,h//8)*s,outline=edge,width=s)
+                  canvas=canvas.resize((w,h),Image.Resampling.LANCZOS)
+                  d=ImageDraw.Draw(canvas)
+                  centered(d,(1,1,w-1,h-1),label,font(text_size))
+                  canvas.save(out/f'{name}-{state}.png','PNG',optimize=True)
+
+          assert Image.open(out/'background.png').size==(1280,3240)
+          assert Image.open(out/'signboard.png').size==(368,236)
+          for p in out.glob('*-normal.png'):
+              assert Image.open(p).mode=='RGBA'
+          print('CORRECTED_ART_READY', out)
+          PY
+
+      - name: Build source-pinned surgical WZ patcher
+        run: |
+          set -euo pipefail
+          git clone --recurse-submodules https://github.com/toyobayashi/libwz.git "$RUNNER_TEMP/libwz"
+          git -C "$RUNNER_TEMP/libwz" checkout "$LIBWZ_COMMIT"
+          git -C "$RUNNER_TEMP/libwz" submodule update --init --recursive
+          mkdir -p "$RUNNER_TEMP/surgical"
+          cat > "$RUNNER_TEMP/surgical/main.cpp" <<'CPP'
+          #include <filesystem>
+          #include <iostream>
+          #include <memory>
+          #include <string>
+          #include <vector>
+          #include "wz/Properties/WzCanvasProperty.h"
+          #include "wz/Properties/WzPngProperty.h"
+          #include "wz/Properties/WzSubProperty.h"
+          #include "wz/Properties/WzUOLProperty.h"
+          #include "wz/Properties/WzVectorProperty.h"
+          #include "wz/WzDirectory.h"
+          #include "wz/WzFile.h"
+          #include "wz/WzImage.h"
+          #include "wz/WzImageProperty.h"
+          #include "wz/WzObject.h"
+          namespace fs=std::filesystem;
+
+          static wz::WzDirectory* Dir(wz::WzDirectory* root,const char* a,const char* b){ if(!root)return nullptr; if(auto*d=root->GetDirectoryByName(a))return d; return root->GetDirectoryByName(b); }
+          static wz::WzImage* Login(wz::WzDirectory* d){ if(!d)return nullptr; if(auto*i=d->GetImageByName("login.img"))return i; return d->GetImageByName("Login.img"); }
+          static wz::WzImageProperty* Resolve(wz::WzUOLProperty* u){ if(!u)return nullptr; auto*o=u->LinkValue(); if(!o||o->ObjectType()!=wz::WzObjectType::Property)return nullptr; return static_cast<wz::WzImageProperty*>(o); }
+          static bool SetPng(wz::WzCanvasProperty*c,const fs::path&p){ auto r=wz::WzPngProperty::FromPngFile(p.string(),wz::WzPngFormat::Format2); if(!r)return false; c->SetPngProperty(std::move(r.value())); return true; }
+          static int Patch(wz::WzImageProperty*p,const fs::path&png,int depth=0){
+            if(!p||depth>28)return 0;
+            if(p->PropertyType()==wz::WzPropertyType::Canvas) return SetPng(static_cast<wz::WzCanvasProperty*>(p),png)?1:-1;
+            if(p->PropertyType()==wz::WzPropertyType::SubProperty){ int n=0; for(auto*c:*p->WzProperties()){int r=Patch(c,png,depth+1); if(r<0)return -1; n+=r;} return n; }
+            if(p->PropertyType()==wz::WzPropertyType::UOL){ auto*t=Resolve(static_cast<wz::WzUOLProperty*>(p)); return t&&t!=p?Patch(t,png,depth+1):0; }
+            return 0;
+          }
+          static bool PatchPath(wz::WzImage*i,const std::string&path,const fs::path&png){ auto*p=i?i->GetFromPath(path):nullptr; if(!p||!fs::is_regular_file(png))return false; int n=Patch(p,png); if(n<=0)return false; i->SetChanged(true); return true; }
+          static bool Parse(wz::WzImage*i){ if(!i)return false; auto r=i->ParseImage(); return r&&r.value(); }
+
+          int main(int argc,char**argv){
+            if(argc!=7){std::cerr<<"usage: fix Map.wz UI.wz art outMap outUI originX\n"; return 2;}
+            fs::path mapPath=argv[1],uiPath=argv[2],art=argv[3],outMap=argv[4],outUi=argv[5]; int originX=std::stoi(argv[6]);
+            wz::WzFile map(mapPath.string(),83,wz::WzMapleVersion::GMS); if(map.ParseWzFile()!=wz::WzFileParseStatus::Success)return 3;
+            auto*back=Login(Dir(map.GetWzDirectory(),"back","Back")); auto*obj=Login(Dir(map.GetWzDirectory(),"obj","Obj")); if(!Parse(back)||!Parse(obj))return 4;
+            if(!PatchPath(back,"back/11",art/"background.png"))return 5;
+            auto*origin=back->GetFromPath("back/11/origin"); if(!origin||origin->PropertyType()!=wz::WzPropertyType::Vector)return 6;
+            auto*v=static_cast<wz::WzVectorProperty*>(origin); if(!v->X||!v->Y)return 7;
+            if(v->X->Value()!=616||v->Y->Value()!=2880){std::cerr<<"unexpected live origin "<<v->X->Value()<<","<<v->Y->Value()<<"\n";return 8;}
+            v->X->SetValue(originX);
+            if(!PatchPath(obj,"Title/signboard",art/"signboard.png"))return 9;
+            auto sm=map.SaveToDisk(outMap.string(),false,wz::WzMapleVersion::GMS); if(!sm)return 10;
+
+            wz::WzFile ui(uiPath.string(),83,wz::WzMapleVersion::GMS); if(ui.ParseWzFile()!=wz::WzFileParseStatus::Success)return 11;
+            auto*uilogin=ui.GetWzDirectory()->GetImageByName("login.img"); if(!uilogin)uilogin=ui.GetWzDirectory()->GetImageByName("Login.img"); if(!Parse(uilogin))return 12;
+            const std::vector<std::pair<std::string,std::string>> controls={{"BtLogin","login"},{"BtLoginIDSave","save-id"},{"BtLoginIDLost","find-id"},{"BtPasswdLost","reset-password"},{"BtNew","register"},{"BtHomePage","homepage"},{"BtQuit","quit"}};
+            const std::vector<std::string> states={"normal","mouseOver","pressed","disabled"};
+            for(const auto& [node,asset]:controls) for(const auto& state:states) if(!PatchPath(uilogin,"Title/"+node+"/"+state,art/(asset+"-"+state+".png")))return 13;
+            auto su=ui.SaveToDisk(outUi.string(),false,wz::WzMapleVersion::GMS); if(!su)return 14;
+
+            wz::WzFile vm(outMap.string(),83,wz::WzMapleVersion::GMS); if(vm.ParseWzFile()!=wz::WzFileParseStatus::Success)return 15;
+            auto*vb=Login(Dir(vm.GetWzDirectory(),"back","Back")); if(!Parse(vb))return 16;
+            auto*vc=vb->GetFromPath("back/11"); auto*vo=vb->GetFromPath("back/11/origin"); if(!vc||vc->PropertyType()!=wz::WzPropertyType::Canvas||!vo||vo->PropertyType()!=wz::WzPropertyType::Vector)return 17;
+            auto*png=static_cast<wz::WzCanvasProperty*>(vc)->PngProperty(); auto*vv=static_cast<wz::WzVectorProperty*>(vo); if(!png||png->Width()!=1280||png->Height()!=3240||vv->X->Value()!=originX||vv->Y->Value()!=2880)return 18;
+            wz::WzFile vu(outUi.string(),83,wz::WzMapleVersion::GMS); if(vu.ParseWzFile()!=wz::WzFileParseStatus::Success)return 19;
+            std::cout<<"SURGICAL_WZ_FIX_OK origin="<<originX<<"\n"; return 0;
+          }
+          CPP
+          cat > "$RUNNER_TEMP/surgical/CMakeLists.txt" <<'CMAKE'
+          cmake_minimum_required(VERSION 3.20)
+          project(everleaf_surgical_login_fix LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 23)
+          add_subdirectory("$ENV{RUNNER_TEMP}/libwz" "$ENV{RUNNER_TEMP}/surgical-build/libwz" EXCLUDE_FROM_ALL)
+          add_executable(everleaf-surgical-login-fix main.cpp)
+          target_link_libraries(everleaf-surgical-login-fix PRIVATE wz)
+          CMAKE
+          cmake -S "$RUNNER_TEMP/surgical" -B "$RUNNER_TEMP/surgical-build" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/surgical-build" -j2
+
+      - name: Patch current live WZ candidates and verify hashes
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/surgical-build/everleaf-surgical-login-fix" \
+            "$RUNNER_TEMP/Map.wz.live" "$RUNNER_TEMP/UI.wz.live" "$RUNNER_TEMP/login-fix-art" \
+            "$RUNNER_TEMP/Map.wz.new" "$RUNNER_TEMP/UI.wz.new" 600
+          test -s "$RUNNER_TEMP/Map.wz.new"
+          test -s "$RUNNER_TEMP/UI.wz.new"
+          test -s "$RUNNER_TEMP/native/dinput8.dll"
+          sha256sum "$RUNNER_TEMP/Map.wz.new" | awk '{print $1}' > "$RUNNER_TEMP/map.new.sha"
+          sha256sum "$RUNNER_TEMP/UI.wz.new" | awk '{print $1}' > "$RUNNER_TEMP/ui.new.sha"
+          sha256sum "$RUNNER_TEMP/native/dinput8.dll" | awk '{print $1}' > "$RUNNER_TEMP/dll.new.sha"
+          stat -c '%s' "$RUNNER_TEMP/Map.wz.new" > "$RUNNER_TEMP/map.new.size"
+          stat -c '%s' "$RUNNER_TEMP/UI.wz.new" > "$RUNNER_TEMP/ui.new.size"
+          stat -c '%s' "$RUNNER_TEMP/native/dinput8.dll" > "$RUNNER_TEMP/dll.new.size"
+          test "$(cat "$RUNNER_TEMP/map.new.sha")" != "$EXPECTED_MAP_SHA"
+          test "$(cat "$RUNNER_TEMP/ui.new.sha")" != "$EXPECTED_UI_SHA"
+          test "$(cat "$RUNNER_TEMP/dll.new.sha")" != "$EXPECTED_DLL_SHA"
+          echo "MAP_NEW=$(cat "$RUNNER_TEMP/map.new.sha")"
+          echo "UI_NEW=$(cat "$RUNNER_TEMP/ui.new.sha")"
+          echo "DLL_NEW=$(cat "$RUNNER_TEMP/dll.new.sha")"
+
+      - name: Stage candidates on production VM
+        run: |
+          set -euo pipefail
+          SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=10 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf")
+          STAGE="/tmp/$RELEASE_VERSION-$GITHUB_SHA"
+          ssh "${OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$STAGE' && mkdir -p '$STAGE'"
+          scp "${OPTS[@]}" "$RUNNER_TEMP/Map.wz.new" "$RUNNER_TEMP/UI.wz.new" "$RUNNER_TEMP/native/dinput8.dll" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$STAGE/"
+
+      - name: Atomically publish live client patch with rollback snapshot
+        run: |
+          set -euo pipefail
+          SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          map_new="$(cat "$RUNNER_TEMP/map.new.sha")"; map_size="$(cat "$RUNNER_TEMP/map.new.size")"
+          ui_new="$(cat "$RUNNER_TEMP/ui.new.sha")"; ui_size="$(cat "$RUNNER_TEMP/ui.new.size")"
+          dll_new="$(cat "$RUNNER_TEMP/dll.new.sha")"; dll_size="$(cat "$RUNNER_TEMP/dll.new.size")"
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=10 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "VERSION='$RELEASE_VERSION' RUNSHA='$GITHUB_SHA' MAP_OLD='$EXPECTED_MAP_SHA' UI_OLD='$EXPECTED_UI_SHA' DLL_OLD='$EXPECTED_DLL_SHA' CFG_OLD='$EXPECTED_CONFIG_SHA' MAP_NEW='$map_new' MAP_SIZE='$map_size' UI_NEW='$ui_new' UI_SIZE='$ui_size' DLL_NEW='$dll_new' DLL_SIZE='$dll_size' bash -s" <<'REMOTE'
+          set -euo pipefail
+          ROOT=/opt/everleaf/patches
+          F="$ROOT/files"
+          STAGE="/tmp/$VERSION-$RUNSHA"
+          TS="$(date -u +%Y%m%dT%H%M%SZ)"
+          BACKUP="/opt/everleaf/backups/$VERSION-$TS"
+
+          test "$(sha256sum "$F/Map.wz" | awk '{print $1}')" = "$MAP_OLD"
+          test "$(sha256sum "$F/UI.wz" | awk '{print $1}')" = "$UI_OLD"
+          test "$(sha256sum "$F/dinput8.dll" | awk '{print $1}')" = "$DLL_OLD"
+          test "$(sha256sum "$F/config.ini" | awk '{print $1}')" = "$CFG_OLD"
+          test "$(sha256sum "$STAGE/Map.wz.new" | awk '{print $1}')" = "$MAP_NEW"
+          test "$(sha256sum "$STAGE/UI.wz.new" | awk '{print $1}')" = "$UI_NEW"
+          test "$(sha256sum "$STAGE/dinput8.dll" | awk '{print $1}')" = "$DLL_NEW"
+
+          sudo mkdir -p "$BACKUP"
+          sudo cp -a "$F/Map.wz" "$BACKUP/Map.wz"
+          sudo cp -a "$F/UI.wz" "$BACKUP/UI.wz"
+          sudo cp -a "$F/dinput8.dll" "$BACKUP/dinput8.dll"
+          sudo cp -a "$F/config.ini" "$BACKUP/config.ini"
+          sudo cp -a "$ROOT/manifest.json" "$BACKUP/manifest.json"
+
+          node - "$ROOT/manifest.json" "$STAGE/manifest.json" <<'NODE'
+          const fs=require('fs');
+          const [src,dst]=process.argv.slice(2);
+          const m=JSON.parse(fs.readFileSync(src,'utf8'));
+          if(!Array.isArray(m.files)) throw new Error('manifest files missing');
+          m.version=process.env.VERSION;
+          for(const [path,hash,size] of [
+            ['Map.wz',process.env.MAP_NEW,process.env.MAP_SIZE],
+            ['UI.wz',process.env.UI_NEW,process.env.UI_SIZE],
+            ['dinput8.dll',process.env.DLL_NEW,process.env.DLL_SIZE],
+          ]){
+            const f=m.files.find(x=>x.path===path); if(!f) throw new Error(`${path} missing from manifest`);
+            f.sha256=hash; f.size=Number(size);
+          }
+          fs.writeFileSync(dst,JSON.stringify(m,null,2)+'\n');
+          NODE
+
+          rollback(){
+            echo 'CLIENT_PUBLISH_FAILED_ROLLING_BACK' >&2
+            sudo cp -a "$BACKUP/Map.wz" "$F/Map.wz"
+            sudo cp -a "$BACKUP/UI.wz" "$F/UI.wz"
+            sudo cp -a "$BACKUP/dinput8.dll" "$F/dinput8.dll"
+            sudo cp -a "$BACKUP/manifest.json" "$ROOT/manifest.json"
+          }
+          trap rollback ERR
+
+          sudo install -m 644 "$STAGE/Map.wz.new" "$F/Map.wz.new"
+          sudo install -m 644 "$STAGE/UI.wz.new" "$F/UI.wz.new"
+          sudo install -m 644 "$STAGE/dinput8.dll" "$F/dinput8.dll.new"
+          sudo install -m 644 "$STAGE/manifest.json" "$ROOT/manifest.json.new"
+          sudo mv -f "$F/Map.wz.new" "$F/Map.wz"
+          sudo mv -f "$F/UI.wz.new" "$F/UI.wz"
+          sudo mv -f "$F/dinput8.dll.new" "$F/dinput8.dll"
+          sudo mv -f "$ROOT/manifest.json.new" "$ROOT/manifest.json"
+
+          test "$(sha256sum "$F/Map.wz" | awk '{print $1}')" = "$MAP_NEW"
+          test "$(sha256sum "$F/UI.wz" | awk '{print $1}')" = "$UI_NEW"
+          test "$(sha256sum "$F/dinput8.dll" | awk '{print $1}')" = "$DLL_NEW"
+          test "$(sha256sum "$F/config.ini" | awk '{print $1}')" = "$CFG_OLD"
+          node - "$ROOT/manifest.json" <<'NODE'
+          const fs=require('fs'); const m=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          if(m.version!==process.env.VERSION) throw new Error('manifest version mismatch');
+          for(const [path,hash] of [['Map.wz',process.env.MAP_NEW],['UI.wz',process.env.UI_NEW],['dinput8.dll',process.env.DLL_NEW]]){
+            const f=m.files.find(x=>x.path===path); if(!f||f.sha256!==hash) throw new Error(`${path} hash mismatch`);
+          }
+          NODE
+          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
+          trap - ERR
+          rm -rf "$STAGE"
+          echo "EVERLEAF_LOGIN_PANORAMA_PUBLISHED VERSION=$VERSION MAP=$MAP_NEW UI=$UI_NEW DLL=$DLL_NEW BACKUP=$BACKUP"
+          REMOTE
+
+      - name: Verify public patch endpoints
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 30 "https://$EVERLEAF_PUBLIC_HOST/patches/manifest.json" -o "$RUNNER_TEMP/public-manifest.json"
+          node - "$RUNNER_TEMP/public-manifest.json" <<'NODE'
+          const fs=require('fs'); const m=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          if(m.version!==process.env.RELEASE_VERSION) throw new Error(`public version is ${m.version}`);
+          console.log('PUBLIC_MANIFEST_OK',m.version);
+          NODE
+          curl -fsS --max-time 30 -r 0-1023 "https://$EVERLEAF_PUBLIC_HOST/patches/files/Map.wz" -o /dev/null
+          curl -fsS --max-time 30 -r 0-1023 "https://$EVERLEAF_PUBLIC_HOST/patches/files/UI.wz" -o /dev/null
+          curl -fsS --max-time 30 "https://$EVERLEAF_PUBLIC_HOST/patches/files/dinput8.dll" -o "$RUNNER_TEMP/public-dinput8.dll"
+          test "$(sha256sum "$RUNNER_TEMP/public-dinput8.dll" | awk '{print $1}')" = "$(cat "$RUNNER_TEMP/dll.new.sha")"
+          echo "PUBLIC_CLIENT_PATCH_VERIFIED $RELEASE_VERSION"
