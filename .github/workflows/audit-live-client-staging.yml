@@ -1,0 +1,88 @@
+name: Audit live client staging
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - ".github/workflows/audit-live-client-staging.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure production SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          mkdir -p "$SSH_DIR" && chmod 700 "$SSH_DIR"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id_everleaf"
+          chmod 600 "$SSH_DIR/id_everleaf"
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$SSH_DIR/known_hosts"
+          fi
+          chmod 600 "$SSH_DIR/known_hosts"
+
+      - name: Inventory current client staging and patch history
+        run: |
+          set -euo pipefail
+          SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
+          OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=5 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf")
+          ssh "${OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          echo '=== LIVE MANIFEST VERSION ==='
+          python3 - <<'PY'
+          import json
+          p='/opt/everleaf/patches/manifest.json'
+          m=json.load(open(p))
+          print(m.get('version'))
+          for name in ('Map.wz','UI.wz','dinput8.dll','EverLeaf.exe'):
+              f=next((x for x in m.get('files',[]) if x.get('path')==name),None)
+              print(name, f and f.get('sha256'), f and f.get('size'))
+          PY
+
+          echo '=== STAGING TOP LEVEL ==='
+          if [ -d /home/ubuntu/everleaf-staging ]; then
+            find /home/ubuntu/everleaf-staging -maxdepth 2 -mindepth 1 -printf '%TY-%Tm-%Td %TH:%TM %y %p\n' 2>/dev/null | sort -r | head -n 250
+          else
+            echo 'NO /home/ubuntu/everleaf-staging'
+          fi
+
+          echo '=== RELEVANT STAGING FILES ==='
+          if [ -d /home/ubuntu/everleaf-staging ]; then
+            find /home/ubuntu/everleaf-staging -maxdepth 6 -type f \
+              \( -iname '*panorama*' -o -iname '*background*' -o -iname '*login*' -o -iname '*origin*' -o -iname '*signboard*' -o -iname '*ui*fix*' -o -iname '*.cpp' -o -iname '*.py' -o -iname '*.sh' \) \
+              -printf '%TY-%Tm-%Td %TH:%TM %s %p\n' 2>/dev/null | sort -r | head -n 500
+          fi
+
+          echo '=== RECENT BACKUPS ==='
+          find /opt/everleaf/backups -maxdepth 2 -mindepth 1 -printf '%TY-%Tm-%Td %TH:%TM %y %p\n' 2>/dev/null | sort -r | head -n 250 || true
+
+          echo '=== LOGIN/PANORAMA SCRIPT MATCHES ==='
+          for root in /home/ubuntu/everleaf-staging /opt/everleaf; do
+            [ -d "$root" ] || continue
+            grep -RIlE 'panorama|3240|2160|login background|background origin|signboard|floating leaves|BtHomePage|BtLogin|passport\.nexon|nexon\.com/maplestory' "$root" \
+              --include='*.cpp' --include='*.h' --include='*.py' --include='*.sh' --include='*.ps1' --include='*.txt' --include='*.md' --include='*.ini' \
+              2>/dev/null | head -n 250 || true
+          done
+
+          echo '=== LIVE DLL URL STRINGS ==='
+          strings -a /opt/everleaf/patches/files/dinput8.dll 2>/dev/null | grep -Ei 'https?://|everleafms|passport\.nexon|maplestory' | head -n 120 || true
+          REMOTE
