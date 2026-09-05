@@ -67,17 +67,18 @@ jobs:
               return list(root.rglob(f'{content_id}.img.xml')) if root.exists() else []
 
           def xml_contains(family, content_id):
-              needle1 = f'name="{content_id}"'
-              needle2 = f'value="{content_id}"'
               root = wz / family
               if not root.exists(): return False
               for p in root.rglob('*.xml'):
                   try:
-                      text = p.read_text(errors='ignore')
+                      tree = ET.parse(p)
                   except Exception:
                       continue
-                  if needle1 in text or needle2 in text:
-                      return True
+                  for node in tree.getroot().iter():
+                      for attr in ('name','value'):
+                          raw = node.attrib.get(attr,'')
+                          if raw.isdigit() and int(raw) == content_id:
+                              return True
               return False
 
           all_maps = {}
@@ -153,7 +154,6 @@ jobs:
               }
           }
 
-          # Live DB evidence: content can exist in WZ while drops still need server-side wiring.
           def mysql(query):
               try:
                   return subprocess.check_output(['sudo','mysql','-NBe',query], text=True, stderr=subprocess.STDOUT).strip().splitlines()
@@ -165,8 +165,6 @@ jobs:
           }
 
           print(json.dumps(report, indent=2))
-
-          # Fail only on hard content/runtime blockers. Script/drop gaps remain visible findings for remediation.
           hard=[]
           if not report['service_active']: hard.append('everleaf.service inactive')
           if report['total_live_xml'] < 15000: hard.append(f"live XML tree unexpectedly small: {report['total_live_xml']}")
