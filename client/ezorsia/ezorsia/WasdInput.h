@@ -1,6 +1,7 @@
 #pragma once
 
 #include "INIReader.h"
+#include <cstddef>
 
 // Optional Client v2 WASD translation at Maple's own DirectInput message layer.
 // This deliberately does not install a global/window keyboard hook. Translation
@@ -29,7 +30,7 @@ struct InputMessage {
 };
 
 using GetISMessage_t = int(__fastcall*)(void* pThis, void* edx, InputMessage* pISMsg);
-using IsKindOf_t = int(__thiscall*)(void* pThis, const void* pRtti);
+using IsKindOf_t = int(__thiscall*)(void* pThis, void* pRtti);
 
 static GetISMessage_t gGetISMessageOriginal =
     reinterpret_cast<GetISMessage_t>(kGetISMessageAddress);
@@ -80,7 +81,7 @@ inline bool IsGameplayField() {
 
         return isKindOf(
             stageUi,
-            reinterpret_cast<const void*>(kFieldRttiAddress)) != 0;
+            reinterpret_cast<void*>(kFieldRttiAddress)) != 0;
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         // Unknown stage/layout: do not remap menu/login input.
@@ -108,7 +109,7 @@ inline bool IsEditControlFocused() {
 
         return isKindOf(
             focus,
-            reinterpret_cast<const void*>(kCtrlEditRttiAddress)) != 0;
+            reinterpret_cast<void*>(kCtrlEditRttiAddress)) != 0;
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         // Any version/layout mismatch disables translation for this message.
