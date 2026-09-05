@@ -1,0 +1,100 @@
+name: Audit live client v95 Ninja parity
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-live-client-v95-ninja-parity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  audit:
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          $key=Join-Path $sshDir 'id_everleaf'; [IO.File]::WriteAllText($key,($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}else{& 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known}
+
+      - name: Fetch exact live client Item and Mob WZ
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $raw=Join-Path $env:RUNNER_TEMP 'live-client'; New-Item -ItemType Directory -Force -Path $raw | Out-Null
+          $scp='C:\Program Files\Git\usr\bin\scp.exe'; $key=Join-Path $HOME '.ssh/id_everleaf'
+          foreach($name in @('Item.wz','Mob.wz')){
+            & $scp -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/patches/files/$name" (Join-Path $raw $name)
+            if($LASTEXITCODE -ne 0){throw "scp failed for live $name"}
+            Get-FileHash (Join-Path $raw $name) -Algorithm SHA256
+          }
+
+      - name: Build MapleLib exporter
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter'; New-Item -ItemType Directory -Force -Path $tool | Out-Null
+          Copy-Item 'tools/wz-donor/exporter/Program.cs' (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup>
+            <ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafWzExporter.csproj')
+          dotnet build (Join-Path $tool 'EverLeafWzExporter.csproj') -c Release
+
+      - name: Export live client and require Ninja closure
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $raw=Join-Path $env:RUNNER_TEMP 'live-client'; $out=Join-Path $env:RUNNER_TEMP 'live-xml'; New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $proj=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafWzExporter/EverLeafWzExporter.csproj'
+          # EverLeaf player WZ remains v83-format even when carrying backported v95 content.
+          dotnet run --project $proj -c Release --no-build -- $raw $out --patch-version=83 Item.wz Mob.wz
+          $report=New-Object System.Collections.Generic.List[string]
+          $mob=Get-ChildItem $out -Recurse -Filter '9400410.img.xml' -ErrorAction SilentlyContinue
+          $report.Add("9400410=" + $(if($mob){'PRESENT'}else{'ABSENT'}))
+          foreach($id in 4000337..4000346){
+            $found=$false
+            foreach($f in Get-ChildItem (Join-Path $out 'Item.wz') -Recurse -Filter '*.xml' -ErrorAction SilentlyContinue){
+              $xml=[xml](Get-Content -LiteralPath $f.FullName -Raw)
+              $nodes=$xml.SelectNodes('//*[@name]')
+              foreach($n in $nodes){$v=0;if([int]::TryParse($n.name,[ref]$v) -and $v -eq $id){$found=$true;break}}
+              if($found){break}
+            }
+            $report.Add("$id=" + $(if($found){'PRESENT'}else{'ABSENT'}))
+          }
+          $report | Tee-Object -FilePath live-client-v95-ninja-parity.txt
+          if(-not $mob){throw 'Live player Mob.wz is missing 9400410'}
+          $missing=$report | Where-Object {$_ -match '^4000\d+=ABSENT$'}
+          if($missing){throw "Live player Item.wz missing Ninja items: $($missing -join ', ')"}
+          Write-Host 'LIVE_CLIENT_V95_NINJA_PARITY_OK'
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-client-v95-ninja-parity-${{ github.run_id }}
+          path: live-client-v95-ninja-parity.txt
+          retention-days: 90
