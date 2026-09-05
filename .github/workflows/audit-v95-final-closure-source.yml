@@ -1,0 +1,123 @@
+name: Audit v95 final closure source
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-v95-final-closure-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh audit-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+
+      - name: Trace exact missing content across live/shared/private sources
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee audit-output/v95-source-trace.txt
+          set -euo pipefail
+          current=$(readlink -f /opt/everleaf/current)
+          echo "CURRENT=$current"
+          echo "SERVICE=$(systemctl is-active everleaf.service)"
+          echo "=== source locations ==="
+          for p in \
+            "$current/wz" \
+            /opt/everleaf/shared/wz-v95 \
+            /opt/everleaf/private/wz-donors/gms-v95-extracted.zip \
+            /opt/everleaf/private/wz-donors/gms-v95-core7.zip \
+            /opt/everleaf/backups/community-wholesale-test/LATEST; do
+            if [ -e "$p" ]; then echo "PRESENT $p"; else echo "MISSING $p"; fi
+          done
+
+          echo "=== 9400410 direct XML ==="
+          for root in "$current/wz" /opt/everleaf/shared/wz-v95; do
+            if [ -d "$root" ]; then
+              find "$root/Mob.wz" -type f -name '9400410.img.xml' -print 2>/dev/null || true
+            fi
+          done
+
+          echo "=== Ninja item references in live/shared ==="
+          for root in "$current/wz" /opt/everleaf/shared/wz-v95; do
+            [ -d "$root" ] || continue
+            echo "ROOT=$root"
+            for id in 4000337 4000338 4000339 4000340 4000341 4000342 4000343 4000344 4000345 4000346; do
+              hits=$(grep -RIl --include='*.xml' -E "(name|value)=\"$id\"" "$root/Item.wz" 2>/dev/null | head -5 || true)
+              if [ -n "$hits" ]; then printf '%s PRESENT\n%s\n' "$id" "$hits"; else echo "$id ABSENT"; fi
+            done
+          done
+
+          echo "=== private extracted donor ==="
+          zip=/opt/everleaf/private/wz-donors/gms-v95-extracted.zip
+          if [ -f "$zip" ]; then
+            sha256sum "$zip"
+            tmp=$(mktemp -d)
+            trap 'rm -rf "$tmp"' EXIT
+            unzip -q "$zip" -d "$tmp"
+            echo "DONOR_9400410=$(find "$tmp" -type f -name '9400410.img.xml' -print -quit)"
+            for id in 4000337 4000338 4000339 4000340 4000341 4000342 4000343 4000344 4000345 4000346; do
+              hits=$(grep -RIl --include='*.xml' -E "(name|value)=\"$id\"" "$tmp/Item.wz" 2>/dev/null | head -5 || true)
+              if [ -n "$hits" ]; then printf 'DONOR_%s PRESENT\n%s\n' "$id" "$hits"; else echo "DONOR_$id ABSENT"; fi
+            done
+          fi
+
+          echo "=== core7 donor archive names ==="
+          core=/opt/everleaf/private/wz-donors/gms-v95-core7.zip
+          if [ -f "$core" ]; then
+            sha256sum "$core"
+            unzip -Z1 "$core" | grep -E '(^|/)9400410\.img\.xml$' || true
+          fi
+
+          echo "=== community wholesale backup ==="
+          latest=/opt/everleaf/backups/community-wholesale-test/LATEST
+          if [ -f "$latest" ]; then
+            b=$(cat "$latest")
+            echo "BACKUP=$b"
+            if [ -d "$b/server-wz-xml" ]; then
+              find "$b/server-wz-xml/Mob.wz" -type f -name '9400410.img.xml' -print 2>/dev/null || true
+              for id in 4000337 4000338 4000339 4000340 4000341 4000342 4000343 4000344 4000345 4000346; do
+                hits=$(grep -RIl --include='*.xml' -E "(name|value)=\"$id\"" "$b/server-wz-xml/Item.wz" 2>/dev/null | head -3 || true)
+                if [ -n "$hits" ]; then echo "BACKUP_$id PRESENT"; else echo "BACKUP_$id ABSENT"; fi
+              done
+            fi
+          fi
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v95-final-closure-source-${{ github.run_id }}
+          path: audit-output/
+          retention-days: 90
