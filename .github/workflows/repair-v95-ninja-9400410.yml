@@ -1,0 +1,123 @@
+name: Repair v95 Ninja 9400410
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/repair-v95-ninja-9400410.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh repair-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+
+      - name: Promote exact donor mob into canonical and live v95 XML
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF' | tee repair-output/repair.txt
+          set -euo pipefail
+          donor=/opt/everleaf/private/wz-donors/gms-v95-extracted.zip
+          shared=/opt/everleaf/shared/wz-v95
+          current=$(readlink -f /opt/everleaf/current)
+          expected_zip=a76e22acb5387227bbe3b537190fa1b4a41f6452380611d98859489ca724e84d
+          test -f "$donor"
+          test -d "$shared/Mob.wz"
+          test -s "$shared/.everleaf-v95-baseline"
+          test -d "$current/wz/Mob.wz"
+          actual_zip=$(sha256sum "$donor" | awk '{print $1}')
+          test "$actual_zip" = "$expected_zip"
+
+          tmp=$(mktemp -d)
+          trap 'rm -rf "$tmp"' EXIT
+          unzip -q "$donor" 'Mob.wz/9400410.img.xml' -d "$tmp"
+          src="$tmp/Mob.wz/9400410.img.xml"
+          test -s "$src"
+          python3 - "$src" <<'PY'
+          import sys,xml.etree.ElementTree as ET
+          p=sys.argv[1]
+          root=ET.parse(p).getroot()
+          assert root is not None
+          print('DONOR_XML_OK',p)
+          PY
+          src_sha=$(sha256sum "$src" | awk '{print $1}')
+          echo "DONOR_XML_SHA256=$src_sha"
+
+          shared_target="$shared/Mob.wz/9400410.img.xml"
+          live_target="$current/wz/Mob.wz/9400410.img.xml"
+          stamp=$(date -u +%Y%m%dT%H%M%SZ)
+          backup="/opt/everleaf/backups/v95-ninja-9400410-$stamp"
+          mkdir -p "$backup/shared" "$backup/live"
+
+          for pair in "$shared_target:$backup/shared/9400410.img.xml" "$live_target:$backup/live/9400410.img.xml"; do
+            target=${pair%%:*}; save=${pair#*:}
+            if [ -e "$target" ]; then
+              old_sha=$(sha256sum "$target" | awk '{print $1}')
+              cp -a "$target" "$save"
+              if [ "$old_sha" != "$src_sha" ]; then
+                echo "Existing target differs; backed up before exact donor replacement: $target $old_sha"
+              fi
+            fi
+          done
+
+          install -m 0644 "$src" "$shared_target.tmp"
+          mv -f "$shared_target.tmp" "$shared_target"
+          install -m 0644 "$src" "$live_target.tmp"
+          mv -f "$live_target.tmp" "$live_target"
+
+          test "$(sha256sum "$shared_target" | awk '{print $1}')" = "$src_sha"
+          test "$(sha256sum "$live_target" | awk '{print $1}')" = "$src_sha"
+          python3 - "$shared_target" "$live_target" <<'PY'
+          import sys,xml.etree.ElementTree as ET
+          for p in sys.argv[1:]: ET.parse(p)
+          print('PROMOTED_XML_REPARSE_OK')
+          PY
+          echo "BACKUP=$backup"
+          echo "SHARED_XML_COUNT=$(find "$shared" -type f -name '*.xml' | wc -l)"
+          echo "LIVE_XML_COUNT=$(find "$current/wz" -type f -name '*.xml' | wc -l)"
+
+          sudo systemctl restart everleaf.service
+          for i in $(seq 1 60); do
+            if systemctl is-active --quiet everleaf.service && ss -ltn | grep -q ':8484 '; then break; fi
+            sleep 2
+          done
+          systemctl is-active --quiet everleaf.service
+          ss -ltn | grep ':8484 '
+          ss -ltn | grep ':7575 ' || true
+          echo 'V95_NINJA_9400410_REPAIR_OK'
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v95-ninja-9400410-repair-${{ github.run_id }}
+          path: repair-output/
+          retention-days: 90
