@@ -97,3 +97,179 @@ jobs:
           path: EverleafClient-source-built.zip
           if-no-files-found: error
           retention-days: 7
+
+  copycat-reference-inventory:
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'ops/copycat-reference-inventory-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout EverLeaf baseline metadata
+        uses: actions/checkout@v5
+
+      - name: Configure read-only SSH session
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts
+          fi
+          test -s ~/.ssh/known_hosts
+
+      - name: Inventory copycat client without executing or modifying it
+        env:
+          EVERLEAF_DEPLOY_HOST: 132.145.141.79
+          EVERLEAF_DEPLOY_USER: ubuntu
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/copycat_inventory.py" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          if not root.is_dir():
+              raise SystemExit(f"copycat directory not found: {root}")
+
+          safe_prefixes = (
+              "iniciar everleafms",
+              "instalar-parche",
+              "run fixes",
+              "fixmodifierkeys",
+              "readme",
+              "leeme - instrucciones",
+          )
+          safe_exact = {"settings.ini", "version.data"}
+          hash_exts = {".exe", ".dll", ".ini", ".bat", ".cmd", ".txt", ".data", ".manifest", ".acm"}
+          small_wz_limit = 256 * 1024 * 1024
+
+          def sha256(path: Path):
+              h = hashlib.sha256()
+              with path.open("rb") as f:
+                  for block in iter(lambda: f.read(1024 * 1024), b""):
+                      h.update(block)
+              return h.hexdigest()
+
+          def safe_text(path: Path):
+              raw = path.read_bytes()
+              if len(raw) > 1024 * 1024:
+                  return "<omitted: file exceeds 1 MiB>"
+              for enc in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+                  try:
+                      text = raw.decode(enc)
+                      return text.replace("\x00", "")
+                  except UnicodeDecodeError:
+                      pass
+              return "<unable to decode as text>"
+
+          rows = []
+          safe = {}
+          for path in sorted(root.rglob("*"), key=lambda p: str(p).lower()):
+              if not path.is_file():
+                  continue
+              st = path.stat()
+              rel = str(path.relative_to(root))
+              lower_name = path.name.lower()
+              ext = path.suffix.lower()
+              do_hash = ext in hash_exts or (ext == ".wz" and st.st_size <= small_wz_limit)
+              record = {
+                  "path": rel,
+                  "size": st.st_size,
+                  "mtimeUtc": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),
+                  "mode": oct(st.st_mode & 0o777),
+                  "sha256": sha256(path) if do_hash else None,
+                  "hashPolicy": "hashed" if do_hash else "metadata-only-large-wz-or-other",
+              }
+              rows.append(record)
+              if lower_name in safe_exact or lower_name.startswith(safe_prefixes):
+                  safe[rel] = safe_text(path)
+
+          payload = {
+              "schemaVersion": 1,
+              "root": str(root),
+              "readOnlyInventory": True,
+              "fileCount": len(rows),
+              "totalBytes": sum(r["size"] for r in rows),
+              "files": rows,
+              "safeTextFiles": safe,
+          }
+          print(json.dumps(payload, indent=2, ensure_ascii=False))
+          PY
+
+          ssh -i ~/.ssh/id_everleaf \
+            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            "python3 - '/home/ubuntu/everleafms copycat'" \
+            < "$RUNNER_TEMP/copycat_inventory.py" \
+            > "$RUNNER_TEMP/COPYCAT_REFERENCE_INVENTORY.json"
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          inv = json.loads((Path.home() / Path("unused")).read_text()) if False else json.loads(Path("/dev/stdin").read_text())
+          PY
+          < "$RUNNER_TEMP/COPYCAT_REFERENCE_INVENTORY.json" || true
+
+          python3 - "$RUNNER_TEMP/COPYCAT_REFERENCE_INVENTORY.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          inventory = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          baseline = json.loads(Path("client/managed-client-baseline.json").read_text(encoding="utf-8"))
+          copycat = {Path(row["path"]).name.lower(): row for row in inventory["files"]}
+          ours = {Path(item["path"]).name.lower(): item["path"] for item in baseline["managedFiles"]}
+
+          shared = sorted(set(copycat) & set(ours))
+          copycat_only = sorted(set(copycat) - set(ours))
+          ours_only = sorted(set(ours) - set(copycat))
+
+          lines = [
+              "# Copycat client reference inventory",
+              "",
+              f"Root: `{inventory['root']}`",
+              f"Files: **{inventory['fileCount']}**",
+              f"Total bytes: **{inventory['totalBytes']}**",
+              "",
+              "## Shared filenames with EverLeaf managed baseline",
+          ]
+          lines += [f"- `{ours[name]}` — copycat size {copycat[name]['size']:,} bytes" for name in shared]
+          lines += ["", "## Copycat-only filenames"]
+          lines += [f"- `{copycat[name]['path']}` — {copycat[name]['size']:,} bytes" for name in copycat_only]
+          lines += ["", "## EverLeaf-baseline-only filenames"]
+          lines += [f"- `{ours[name]}`" for name in ours_only]
+          lines += ["", "## Hashed high-value copycat files"]
+          for row in inventory["files"]:
+              if row["sha256"]:
+                  lines.append(f"- `{row['path']}` — `{row['sha256']}`")
+          lines += ["", "## Captured allowlisted text files"]
+          for name in sorted(inventory["safeTextFiles"]):
+              lines.append(f"### `{name}`")
+              lines.append("```text")
+              lines.append(inventory["safeTextFiles"][name].rstrip())
+              lines.append("```")
+          Path("/tmp/COPYCAT_REFERENCE_COMPARISON.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+          print(f"copycat files={inventory['fileCount']} shared={len(shared)} copycat_only={len(copycat_only)} ours_only={len(ours_only)}")
+          PY
+
+          cp /tmp/COPYCAT_REFERENCE_COMPARISON.md "$RUNNER_TEMP/COPYCAT_REFERENCE_COMPARISON.md"
+          cat "$RUNNER_TEMP/COPYCAT_REFERENCE_COMPARISON.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload read-only copycat reference evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: copycat-reference-inventory-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/COPYCAT_REFERENCE_INVENTORY.json
+            ${{ runner.temp }}/COPYCAT_REFERENCE_COMPARISON.md
+          retention-days: 7
+          if-no-files-found: error
