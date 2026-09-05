@@ -1,0 +1,36 @@
+name: Audit Yuna login runtime paths
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths: ['.github/workflows/audit-yuna-login-runtime-paths.yml']
+permissions:
+  contents: read
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+        with: {ref: release-dev}
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail; install -d -m 700 ~/.ssh; printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf; chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+      - name: Inspect login/UI references
+        run: |
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          d=/home/ubuntu/everleaf-staging/yuna-client-current/extracted/YunaMS
+          for f in YunaMS.exe yunams.dll yunamsw.dll dinput8.dll ijl15.dll; do
+            echo "=== $f LOGIN/UI PATHS ==="
+            strings -a "$d/$f" 2>/dev/null | grep -Eai 'MapLogin|Login\.img|WorldSelect|CharSelect|selectWorld|selectChar|UI/|Map/Back/login|Map/Obj/login|Modified_UI|logo|Title/' | head -500 || true
+          done
+          echo 'YUNA_LOGIN_RUNTIME_PATH_AUDIT_OK'
+          REMOTE
