@@ -1,0 +1,92 @@
+name: Verify v95 after game deploy
+
+on:
+  workflow_run:
+    workflows: ["Deploy EverLeaf Game Production"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+
+      - name: Verify canonical and current full-v95 invariants
+        run: |
+          set -euo pipefail
+          ssh everleaf-oracle 'bash -s' <<'EOF'
+          set -euo pipefail
+          current=$(readlink -f /opt/everleaf/current)
+          shared=/opt/everleaf/shared/wz-v95
+          systemctl is-active --quiet everleaf.service
+          ss -ltn | grep -q ':8484 '
+          ss -ltn | grep -q ':7575 '
+          test -s "$shared/.everleaf-v95-baseline"
+          for root in "$shared" "$current/wz"; do
+            count=$(find "$root" -type f -name '*.xml' | wc -l)
+            test "$count" -ge 44237
+            # Future Henesys / Empress representatives.
+            test -s "$root/Map.wz/Map/Map2/271000000.img.xml" || find "$root/Map.wz" -name '271000000.img.xml' -print -quit | grep -q .
+            find "$root/Mob.wz" -name '8850011.img.xml' -print -quit | grep -q .
+            # Ninja Castle closure, including the asset that previously regressed.
+            find "$root/Map.wz" -name '800040410.img.xml' -print -quit | grep -q .
+            find "$root/Mob.wz" -name '9400400.img.xml' -print -quit | grep -q .
+            find "$root/Mob.wz" -name '9400409.img.xml' -print -quit | grep -q .
+            find "$root/Mob.wz" -name '9400410.img.xml' -print -quit | grep -q .
+            find "$root/Npc.wz" -name '9110106.img.xml' -print -quit | grep -q .
+            python3 - "$root" <<'PY'
+          from pathlib import Path
+          import sys,xml.etree.ElementTree as ET
+          root=Path(sys.argv[1])
+          ids=set()
+          for p in (root/'Item.wz').rglob('*.xml'):
+              try:r=ET.parse(p).getroot()
+              except Exception:continue
+              for n in r.iter():
+                  raw=n.attrib.get('name','')
+                  if raw.isdigit(): ids.add(int(raw))
+          missing=[i for i in range(4000337,4000347) if i not in ids]
+          assert not missing,missing
+          qids=set()
+          for p in (root/'Quest.wz').rglob('*.xml'):
+              try:r=ET.parse(p).getroot()
+              except Exception:continue
+              for n in r.iter():
+                  raw=n.attrib.get('name','')
+                  if raw.isdigit(): qids.add(int(raw))
+          missingq=[i for i in range(8163,8172) if i not in qids]
+          assert not missingq,missingq
+          print('V95_TREE_OK',root)
+          PY
+          done
+          shared_sha=$(sha256sum "$shared/Mob.wz/9400410.img.xml" | awk '{print $1}')
+          live_sha=$(sha256sum "$current/wz/Mob.wz/9400410.img.xml" | awk '{print $1}')
+          test "$shared_sha" = 55897b333fab7a9d1ab7fc571a5699b5829921d4e0581efdf6a04961d6f48e70
+          test "$live_sha" = "$shared_sha"
+          echo "POST_DEPLOY_FULL_V95_OK current=$current xml=$(find "$current/wz" -type f -name '*.xml' | wc -l)"
+          EOF
