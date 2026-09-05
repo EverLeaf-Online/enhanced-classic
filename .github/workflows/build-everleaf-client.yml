@@ -132,7 +132,6 @@ jobs:
           cat > "$RUNNER_TEMP/copycat_inventory.py" <<'PY'
           import hashlib
           import json
-          import os
           import sys
           from datetime import datetime, timezone
           from pathlib import Path
@@ -166,8 +165,7 @@ jobs:
                   return "<omitted: file exceeds 1 MiB>"
               for enc in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
                   try:
-                      text = raw.decode(enc)
-                      return text.replace("\x00", "")
+                      return raw.decode(enc).replace("\x00", "")
                   except UnicodeDecodeError:
                       pass
               return "<unable to decode as text>"
@@ -182,19 +180,18 @@ jobs:
               lower_name = path.name.lower()
               ext = path.suffix.lower()
               do_hash = ext in hash_exts or (ext == ".wz" and st.st_size <= small_wz_limit)
-              record = {
+              rows.append({
                   "path": rel,
                   "size": st.st_size,
                   "mtimeUtc": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),
                   "mode": oct(st.st_mode & 0o777),
                   "sha256": sha256(path) if do_hash else None,
                   "hashPolicy": "hashed" if do_hash else "metadata-only-large-wz-or-other",
-              }
-              rows.append(record)
+              })
               if lower_name in safe_exact or lower_name.startswith(safe_prefixes):
                   safe[rel] = safe_text(path)
 
-          payload = {
+          print(json.dumps({
               "schemaVersion": 1,
               "root": str(root),
               "readOnlyInventory": True,
@@ -202,8 +199,7 @@ jobs:
               "totalBytes": sum(r["size"] for r in rows),
               "files": rows,
               "safeTextFiles": safe,
-          }
-          print(json.dumps(payload, indent=2, ensure_ascii=False))
+          }, indent=2, ensure_ascii=False))
           PY
 
           ssh -i ~/.ssh/id_everleaf \
@@ -211,13 +207,6 @@ jobs:
             "python3 - '/home/ubuntu/everleafms copycat'" \
             < "$RUNNER_TEMP/copycat_inventory.py" \
             > "$RUNNER_TEMP/COPYCAT_REFERENCE_INVENTORY.json"
-
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          inv = json.loads((Path.home() / Path("unused")).read_text()) if False else json.loads(Path("/dev/stdin").read_text())
-          PY
-          < "$RUNNER_TEMP/COPYCAT_REFERENCE_INVENTORY.json" || true
 
           python3 - "$RUNNER_TEMP/COPYCAT_REFERENCE_INVENTORY.json" <<'PY'
           import json
