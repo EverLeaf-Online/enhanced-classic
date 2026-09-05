@@ -1,4 +1,5 @@
 name: Audit live login layers
+# Manual refresh: 2026-09-05 panorama/login alignment audit
 
 on:
   push:
@@ -48,6 +49,8 @@ jobs:
           OPTS=(-o ServerAliveInterval=30 -o ServerAliveCountMax=10 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf")
           scp "${OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/Map.wz" "$RUNNER_TEMP/Map.wz"
           scp "${OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/opt/everleaf/patches/files/UI.wz" "$RUNNER_TEMP/UI.wz"
+          ssh "${OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+            'echo LIVE_MANIFEST; cat /opt/everleaf/patches/manifest.json; echo LIVE_HASHES; sha256sum /opt/everleaf/patches/files/Map.wz /opt/everleaf/patches/files/UI.wz'
 
       - name: Build login layer inspector
         run: |
