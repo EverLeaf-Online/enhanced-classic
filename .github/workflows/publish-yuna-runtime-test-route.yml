@@ -62,9 +62,18 @@ jobs:
           sudo install -m 0644 /tmp/everleaf-server-yuna-test.js "$LIVE"
           sudo systemctl restart everleaf-web.service
           systemctl is-active --quiet everleaf-web.service
+          ready=0
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 2 http://127.0.0.1:3000/v1/launcher/status >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = 1
           expected=$(sha256sum "$TEST"|awk '{print $1}')
-          localsha=$(curl -fsS http://127.0.0.1:3000/client-tests/yuna-runtime | sha256sum | awk '{print $1}')
-          publicsha=$(curl -fsS https://everleafms.online/client-tests/yuna-runtime | sha256sum | awk '{print $1}')
+          localsha=$(curl -fsS --retry 3 --retry-delay 1 http://127.0.0.1:3000/client-tests/yuna-runtime | sha256sum | awk '{print $1}')
+          publicsha=$(curl -fsS --retry 3 --retry-delay 1 https://everleafms.online/client-tests/yuna-runtime | sha256sum | awk '{print $1}')
           test "$localsha" = "$expected"
           test "$publicsha" = "$expected"
           rollback=0
