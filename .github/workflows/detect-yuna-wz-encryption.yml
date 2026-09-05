@@ -1,0 +1,52 @@
+name: Detect Yuna WZ encryption
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths: ['.github/workflows/detect-yuna-wz-encryption.yml']
+permissions:
+  contents: read
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+jobs:
+  detect:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with: {ref: release-dev}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '10.0.x'}
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $d=Join-Path $HOME '.ssh';New-Item -ItemType Directory -Force -Path $d|Out-Null;$k=Join-Path $d 'id_everleaf';[IO.File]::WriteAllText($k,($env:SSH_PRIVATE_KEY -replace "`r","")+"`n");$known=Join-Path $d 'known_hosts';if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}else{& 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known}
+      - name: Fetch UI
+        shell: pwsh
+        run: |
+          $scp='C:\Program Files\Git\usr\bin\scp.exe';$key=Join-Path $HOME '.ssh/id_everleaf';$out=Join-Path $env:RUNNER_TEMP 'UI.wz';& $scp -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/home/ubuntu/everleaf-staging/yuna-client-current/extracted/YunaMS/UI.wz" $out;if($LASTEXITCODE){throw 'fetch failed'}
+      - name: Detect encryption
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/DetectYuna';New-Item -ItemType Directory -Force -Path $tool|Out-Null
+          @'
+          using MapleLib.WzLib;
+          foreach(var enc in new[]{WzMapleVersion.GMS,WzMapleVersion.EMS,WzMapleVersion.BMS,WzMapleVersion.CLASSIC}){
+            try{
+              using var wz=new WzFile(args[0],83,enc);var status=wz.ParseWzFile();
+              var names=wz.WzDirectory.WzImages.Take(30).Select(x=>x.Name).ToArray();
+              int printable=names.Sum(n=>n.Count(c=>c>=32&&c<127));int total=names.Sum(n=>n.Length);bool login=names.Any(n=>n.Equals("Login.img",StringComparison.OrdinalIgnoreCase));
+              Console.WriteLine($"ENC {enc} status={status} count={names.Length} printable={(total==0?0:(double)printable/total):F3} login={login}");
+              foreach(var n in names) Console.WriteLine($"  {n}");
+            }catch(Exception ex){Console.WriteLine($"ENC {enc} ERROR {ex.GetType().Name}: {ex.Message}");}
+          }
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup><ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup></Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'DetectYuna.csproj')
+          dotnet run --project (Join-Path $tool 'DetectYuna.csproj') -c Release -- (Join-Path $env:RUNNER_TEMP 'UI.wz')
