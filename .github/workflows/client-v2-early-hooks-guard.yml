@@ -7,6 +7,7 @@ on:
       - "client/ezorsia/ezorsia/SafeEarlyHooks.h"
       - "client/ezorsia/ezorsia/dllmain.cpp"
       - "client/ezorsia/ezorsia/AutoTypes.h"
+      - "client/scripts/apply-client-v2-loader-cleanup.py"
       - ".github/workflows/client-v2-early-hooks-guard.yml"
   workflow_dispatch:
 
@@ -24,6 +25,7 @@ jobs:
           $safe = Get-Content "client/ezorsia/ezorsia/SafeEarlyHooks.h" -Raw
           $bootstrap = Get-Content "client/ezorsia/ezorsia/dllmain.cpp" -Raw
           $autoTypes = Get-Content "client/ezorsia/ezorsia/AutoTypes.h" -Raw
+          $loaderTransform = Get-Content "client/scripts/apply-client-v2-loader-cleanup.py" -Raw
 
           foreach ($required in @(
             'IS_INTRESOURCE(className)',
@@ -38,9 +40,10 @@ jobs:
             'HookCreateWindowExA',
             'HookWSPStartup',
             'gWSPStartupOriginal = nullptr',
-            'ResolveProviderEntryPoint()',
-            'GetModuleHandleA("MSWSOCK")',
-            'LoadLibraryA("MSWSOCK")'
+            'ResolveWSPStartupOnWorker()',
+            'GetModuleHandleA("mswsock.dll")',
+            'LoadLibraryA("mswsock.dll")',
+            'enable && !detail::ResolveWSPStartupOnWorker()'
           )) {
             if (-not $safe.Contains($required)) { throw "Missing safe early-hook invariant: $required" }
           }
@@ -81,13 +84,20 @@ jobs:
             throw "Bootstrap re-enabled inherited unsafe CreateWindowExA hook"
           }
 
-          # AutoTypes keeps the donor helper for provenance, but Client v2 must
-          # neutralize its LoadLibraryA call at compile time before ReplacementFuncs
-          # global pointers initialize. This assertion documents why the bridge is
-          # required and prevents a future helper rename from silently bypassing it.
+          # AutoTypes intentionally preserves the donor helper in source. The
+          # translation-unit bridge prevents it from loading modules even in a
+          # direct/manual build, while the deterministic build transform changes
+          # the helper itself to GetModuleHandleA for packaged CI builds.
           if (-not $autoTypes.Contains('DWORD GetFuncAddress(LPCSTR lpModule, LPCSTR lpFunc)')) {
             throw 'Legacy GetFuncAddress helper moved/changed; review Client v2 loader-safety bridge'
           }
           if (-not $autoTypes.Contains('HMODULE mod = LoadLibraryA(lpModule)')) {
-            throw 'Legacy GetFuncAddress no longer has the expected LoadLibraryA call; review/remove compatibility bridge deliberately'
+            throw 'Legacy GetFuncAddress source changed; review/remove loader compatibility bridge deliberately'
+          }
+          foreach ($required in @(
+            'HMODULE mod = LoadLibraryA(lpModule)',
+            'HMODULE mod = GetModuleHandleA(lpModule)',
+            'Client v2 loader cleanup'
+          )) {
+            if (-not $loaderTransform.Contains($required)) { throw "Loader transform missing invariant: $required" }
           }
