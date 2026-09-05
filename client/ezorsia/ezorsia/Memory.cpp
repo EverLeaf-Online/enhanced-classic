@@ -5,6 +5,124 @@
 bool Memory::UseVirtuProtect = true;
 
 namespace {
+    constexpr DWORD kScreenMsgLayoutXOperand = 0x0089B6F8;
+    constexpr DWORD kMalformedScreenMsgResetYWrite = 0x0089B797;
+    constexpr DWORD kScreenMsgResetYOperand = 0x0089B798;
+    constexpr DWORD kScreenMsgResetXOperand = 0x0089BA04;
+    constexpr int kStockScreenMsgResetY = 600 - 166;
+    constexpr int kStockScreenMsgResetX = 800 - 300;
+
+    bool BeginPatch(const DWORD address, const size_t size, DWORD& oldProtect) {
+        if (size == 0) {
+            return false;
+        }
+        if (!Memory::UseVirtuProtect) {
+            oldProtect = 0;
+            return true;
+        }
+        return VirtualProtect(
+            reinterpret_cast<LPVOID>(address),
+            size,
+            PAGE_EXECUTE_READWRITE,
+            &oldProtect
+        ) != FALSE;
+    }
+
+    void EndPatch(const DWORD address, const size_t size, const DWORD oldProtect) {
+        if (Memory::UseVirtuProtect) {
+            DWORD ignored = 0;
+            VirtualProtect(
+                reinterpret_cast<LPVOID>(address),
+                size,
+                oldProtect,
+                &ignored
+            );
+        }
+
+        // EverLeaf patches executable instructions after the packed v83 image
+        // has unpacked. Windows requires the instruction cache to be flushed after
+        // generated/modified code so all cores observe the new bytes reliably.
+        FlushInstructionCache(
+            GetCurrentProcess(),
+            reinterpret_cast<LPCVOID>(address),
+            size
+        );
+    }
+
+    template <typename T>
+    bool WritePatchedValue(const DWORD address, const T& value) {
+        DWORD oldProtect = 0;
+        if (!BeginPatch(address, sizeof(T), oldProtect)) {
+            return false;
+        }
+
+        *reinterpret_cast<T*>(address) = value;
+        EndPatch(address, sizeof(T), oldProtect);
+        return true;
+    }
+
+    bool ReadIntValue(const DWORD address, int& value) {
+        __try {
+            value = *reinterpret_cast<int*>(address);
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
+    }
+
+    bool HandleScreenMessageWrite(const DWORD address, const unsigned int value) {
+        if (address == kMalformedScreenMsgResetYWrite) {
+            // The inherited HD call points one byte before the real immediate and
+            // would corrupt the instruction before a later post-patch fix could run.
+            // Only redirect when the untouched v83 operand still has its stock value.
+            int currentResetY = 0;
+            if (!ReadIntValue(kScreenMsgResetYOperand, currentResetY) ||
+                currentResetY != kStockScreenMsgResetY) {
+                std::cout << "EverLeaf Client v2: skipped CUIScreenMsg reset-Y redirect; stock operand mismatch" << std::endl;
+                return true;
+            }
+
+            const int inheritedValue = static_cast<int>(value); // height - 18
+            const int inferredScreenHeight = inheritedValue + 18;
+            if (inferredScreenHeight < 600 || inferredScreenHeight > 2160) {
+                std::cout << "EverLeaf Client v2: skipped CUIScreenMsg reset-Y redirect; invalid inferred height" << std::endl;
+                return true;
+            }
+
+            const int correctedValue = inferredScreenHeight - 166;
+            WritePatchedValue(
+                kScreenMsgResetYOperand,
+                static_cast<unsigned int>(correctedValue)
+            );
+            std::cout << "EverLeaf Client v2: redirected CUIScreenMsg reset-Y to the correct immediate" << std::endl;
+            return true;
+        }
+
+        if (address == kScreenMsgLayoutXOperand) {
+            // Keep the active layout write, then mirror its final X coordinate into
+            // the separate MoveScrMsg/reset operand. Original MapleEzorsia patched
+            // both paths, and independent modern v83 work applies the same X
+            // translation to LayoutScrMsg and MoveScrMsg.
+            if (!WritePatchedValue(address, value)) {
+                return true;
+            }
+
+            int currentResetX = 0;
+            if (!ReadIntValue(kScreenMsgResetXOperand, currentResetX) ||
+                currentResetX != kStockScreenMsgResetX) {
+                std::cout << "EverLeaf Client v2: kept CUIScreenMsg layout-X but skipped reset-X; stock operand mismatch" << std::endl;
+                return true;
+            }
+
+            WritePatchedValue(kScreenMsgResetXOperand, value);
+            std::cout << "EverLeaf Client v2: synchronized CUIScreenMsg reset-X with layout-X" << std::endl;
+            return true;
+        }
+
+        return false;
+    }
+
     // Apply EverLeaf client-side combat QoL only after the packed v83 client has
     // unpacked and Client::UpdateGameStartup begins writing stable addresses.
     // Server-side combat/status validation remains authoritative.
@@ -71,86 +189,80 @@ bool Memory::SetHook(bool attach, void** ptrTarget, void* ptrDetour)
 }
 
 void Memory::FillBytes(const DWORD dwOriginAddress, const unsigned char ucValue, const int nCount) {
-    if (UseVirtuProtect) {
-        DWORD dwOldProtect;
-        VirtualProtect((LPVOID)dwOriginAddress, nCount, PAGE_EXECUTE_READWRITE, &dwOldProtect); //thanks colaMint, joo, and stelmo for informing me of using virtualprotect
-        memset((void*)dwOriginAddress, ucValue, nCount);
-        VirtualProtect((LPVOID)dwOriginAddress, nCount, dwOldProtect, &dwOldProtect);
+    if (nCount <= 0) {
+        return;
     }
-    else { memset((void*)dwOriginAddress, ucValue, nCount); }
+
+    const size_t size = static_cast<size_t>(nCount);
+    DWORD oldProtect = 0;
+    if (!BeginPatch(dwOriginAddress, size, oldProtect)) {
+        return;
+    }
+
+    memset(reinterpret_cast<void*>(dwOriginAddress), ucValue, size);
+    EndPatch(dwOriginAddress, size, oldProtect);
 }
 
 void Memory::WriteString(const DWORD dwOriginAddress, const char* sContent) {
-    const size_t nSize = strlen(sContent);
-    if (UseVirtuProtect) {
-        DWORD dwOldProtect;
-        VirtualProtect((LPVOID)dwOriginAddress, nSize, PAGE_EXECUTE_READWRITE, &dwOldProtect);
-        memcpy((void*)dwOriginAddress, sContent, nSize);
-        VirtualProtect((LPVOID)dwOriginAddress, nSize, dwOldProtect, &dwOldProtect);
+    if (!sContent) {
+        return;
     }
-    else { memcpy((void*)dwOriginAddress, sContent, nSize); }
+
+    const size_t nSize = strlen(sContent);
+    if (nSize == 0) {
+        return;
+    }
+
+    DWORD oldProtect = 0;
+    if (!BeginPatch(dwOriginAddress, nSize, oldProtect)) {
+        return;
+    }
+
+    memcpy(reinterpret_cast<void*>(dwOriginAddress), sContent, nSize);
+    EndPatch(dwOriginAddress, nSize, oldProtect);
 }
 
 void Memory::WriteByte(const DWORD dwOriginAddress, const unsigned char ucValue) {
-    if (UseVirtuProtect) {
-        DWORD dwOldProtect;
-        VirtualProtect((LPVOID)dwOriginAddress, sizeof(unsigned char), PAGE_EXECUTE_READWRITE, &dwOldProtect);
-        *(unsigned char*)dwOriginAddress = ucValue;
-        VirtualProtect((LPVOID)dwOriginAddress, sizeof(unsigned char), dwOldProtect, &dwOldProtect);
-    }
-    else { *(unsigned char*)dwOriginAddress = ucValue; }
+    WritePatchedValue(dwOriginAddress, ucValue);
 }
 
 void Memory::WriteShort(const DWORD dwOriginAddress, const unsigned short usValue) {
-    if (UseVirtuProtect) {
-        DWORD dwOldProtect;
-        VirtualProtect((LPVOID)dwOriginAddress, sizeof(unsigned short), PAGE_EXECUTE_READWRITE, &dwOldProtect);
-        *(unsigned short*)dwOriginAddress = usValue;
-        VirtualProtect((LPVOID)dwOriginAddress, sizeof(unsigned short), dwOldProtect, &dwOldProtect);
-    }
-    else { *(unsigned short*)dwOriginAddress = usValue; }
+    WritePatchedValue(dwOriginAddress, usValue);
 }
 
 void Memory::WriteInt(const DWORD dwOriginAddress, const unsigned int dwValue) {
-    if (UseVirtuProtect) {
-        DWORD dwOldProtect;
-        VirtualProtect((LPVOID)dwOriginAddress, sizeof(unsigned int), PAGE_EXECUTE_READWRITE, &dwOldProtect);
-        *(unsigned int*)dwOriginAddress = dwValue;
-        VirtualProtect((LPVOID)dwOriginAddress, sizeof(unsigned int), dwOldProtect, &dwOldProtect);
+    if (HandleScreenMessageWrite(dwOriginAddress, dwValue)) {
+        return;
     }
-    else { *(unsigned int*)dwOriginAddress = dwValue; }
+    WritePatchedValue(dwOriginAddress, dwValue);
 }
 
 void Memory::WriteDouble(const DWORD dwOriginAddress, const double dwValue) {
-    if (UseVirtuProtect) {
-        DWORD dwOldProtect;
-        VirtualProtect((LPVOID)dwOriginAddress, sizeof(double), PAGE_EXECUTE_READWRITE, &dwOldProtect);
-        *(double*)dwOriginAddress = dwValue;
-        VirtualProtect((LPVOID)dwOriginAddress, sizeof(double), dwOldProtect, &dwOldProtect);
-    }
-    else { *(double*)dwOriginAddress = dwValue; }
+    const bool written = WritePatchedValue(dwOriginAddress, dwValue);
 
     // Client::UpdateGameStartup writes the damage cap after unpacking, giving us
     // a stable one-time point to install the EverLeaf combat QoL patches.
-    if (dwOriginAddress == 0x00AFE8A0) {
+    if (written && dwOriginAddress == 0x00AFE8A0) {
         ApplyEverLeafCombatQolPatches();
     }
 }
 
 void Memory::WriteByteArray(const DWORD dwOriginAddress, unsigned char* ucValue, const int ucValueSize) {
-    const size_t nSize = sizeof(ucValue);
-    if (UseVirtuProtect) {
-        for (int i = 0; i < ucValueSize; i++) {
-            const DWORD newAddr = dwOriginAddress + i;
-            DWORD dwOldProtect;
-            VirtualProtect((LPVOID)newAddr, sizeof(unsigned char), PAGE_EXECUTE_READWRITE, &dwOldProtect);
-            *(unsigned char*)newAddr = ucValue[i];
-            VirtualProtect((LPVOID)newAddr, sizeof(unsigned char), dwOldProtect, &dwOldProtect);
-        }
+    if (!ucValue || ucValueSize <= 0) {
+        return;
     }
-    else {
-        for (int i = 0; i < ucValueSize; i++) { const DWORD newAddr = dwOriginAddress + i; *(unsigned char*)newAddr = ucValue[i]; }
+
+    const size_t size = static_cast<size_t>(ucValueSize);
+    DWORD oldProtect = 0;
+    if (!BeginPatch(dwOriginAddress, size, oldProtect)) {
+        return;
     }
+
+    // Patch the byte sequence as one protected region instead of changing page
+    // permissions and writing one byte at a time. This sharply reduces the window
+    // in which another thread could observe a partially protected patch region.
+    memcpy(reinterpret_cast<void*>(dwOriginAddress), ucValue, size);
+    EndPatch(dwOriginAddress, size, oldProtect);
 }
 
 void Memory::CodeCave(void* ptrCodeCave, const DWORD dwOriginAddress, const int nNOPCount) { //tested and working
