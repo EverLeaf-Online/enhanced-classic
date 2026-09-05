@@ -1,0 +1,102 @@
+name: Audit v95 final MySQL parity
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-v95-final-mysql.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh audit-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+      - name: Audit current live WZ to MySQL parity
+        run: |
+          set -euo pipefail
+          cat > /tmp/v95-final-mysql.py <<'PY'
+          from pathlib import Path
+          import subprocess,re,xml.etree.ElementTree as ET,json,os
+          repo=Path(os.path.realpath('/opt/everleaf/current'))
+          current=repo/'wz'
+          latest=Path('/opt/everleaf/backups/community-wholesale-test/LATEST')
+          backup=Path(latest.read_text().strip())/'server-wz-xml'
+          def file_ids(root,fam,minlen=4):
+              out=set(); base=root/fam
+              if not base.exists(): return out
+              for p in base.rglob('*.xml'):
+                  m=re.match(r'^(\d{%d,10})(?:\.img)?\.xml$'%minlen,p.name)
+                  if m: out.add(int(m.group(1)))
+              return out
+          def q(sql):
+              raw=subprocess.check_output(['sudo','mysql','-NBe',sql],text=True)
+              return [x for x in raw.splitlines() if x.strip()]
+          new_mobs=file_ids(current,'Mob.wz')-file_ids(backup,'Mob.wz')
+          new_npcs=file_ids(current,'Npc.wz')-file_ids(backup,'Npc.wz')
+          new_reactors=file_ids(current,'Reactor.wz')-file_ids(backup,'Reactor.wz')
+          placed_mobs=set(); placed_npcs=set(); placed_reactors=set()
+          for p in (current/'Map.wz').rglob('*.xml'):
+              try: root=ET.parse(p).getroot()
+              except Exception: continue
+              for life in root.iter():
+                  if life.attrib.get('name') not in ('life','reactor'): continue
+                  for entry in list(life):
+                      vals={c.attrib.get('name',''):c.attrib.get('value','') for c in list(entry)}
+                      v=vals.get('id','')
+                      if not v.isdigit(): continue
+                      x=int(v); typ=vals.get('type','')
+                      if typ=='m' and x in new_mobs: placed_mobs.add(x)
+                      elif typ=='n' and x in new_npcs: placed_npcs.add(x)
+                      elif life.attrib.get('name')=='reactor' and x in new_reactors: placed_reactors.add(x)
+          dropper_ids=set(map(int,q('SELECT DISTINCT dropperid FROM cosmic.drop_data')))
+          shop_npcs=set(map(int,q('SELECT DISTINCT npcid FROM cosmic.shops')))
+          reactor_ids=set(map(int,q('SELECT DISTINCT reactorid FROM cosmic.reactordrops')))
+          ninja=range(9400400,9400411); empress=range(8850000,8850012)
+          out={
+            'service_active':subprocess.run(['systemctl','is-active','--quiet','everleaf.service']).returncode==0,
+            'placed_new_mobs_without_drop_data':sorted(placed_mobs-dropper_ids),
+            'placed_new_npcs_without_shop_row':sorted(placed_npcs-shop_npcs),
+            'placed_new_reactors_without_reactordrops':sorted(placed_reactors-reactor_ids),
+            'ninja_drop_counts':q('SELECT CONCAT(dropperid,":",COUNT(*)) FROM cosmic.drop_data WHERE dropperid BETWEEN 9400400 AND 9400410 GROUP BY dropperid ORDER BY dropperid'),
+            'ninja_contract_item_rows':q('SELECT CONCAT(dropperid,":",itemid,":",questid,":",chance) FROM cosmic.drop_data WHERE itemid BETWEEN 4000337 AND 4000346 ORDER BY dropperid,itemid'),
+            'empress_drop_counts':q('SELECT CONCAT(dropperid,":",COUNT(*)) FROM cosmic.drop_data WHERE dropperid BETWEEN 8850000 AND 8850011 GROUP BY dropperid ORDER BY dropperid'),
+            'nonpositive_drop_rows':q('SELECT CONCAT(id,":",dropperid,":",itemid,":",chance) FROM cosmic.drop_data WHERE chance<=0 ORDER BY id'),
+            'duplicate_shop_groups':q('SELECT CONCAT(si.shopid,":",s.npcid,":",si.itemid,":",COUNT(*)) FROM cosmic.shopitems si JOIN cosmic.shops s ON s.shopid=si.shopid GROUP BY si.shopid,s.npcid,si.itemid HAVING COUNT(*)>1 ORDER BY si.shopid,si.itemid'),
+            'duplicate_reactor_groups':q('SELECT CONCAT(reactorid,":",itemid,":",questid,":",COUNT(*)) FROM cosmic.reactordrops GROUP BY reactorid,itemid,questid HAVING COUNT(*)>1 ORDER BY reactorid,itemid,questid'),
+          }
+          print(json.dumps(out,indent=2))
+          PY
+          scp /tmp/v95-final-mysql.py everleaf-oracle:/tmp/v95-final-mysql.py
+          ssh everleaf-oracle 'python3 /tmp/v95-final-mysql.py' | tee audit-output/v95-final-mysql.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v95-final-mysql-${{ github.run_id }}
+          path: audit-output/
+          retention-days: 90
