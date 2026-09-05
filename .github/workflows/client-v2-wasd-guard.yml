@@ -1,0 +1,91 @@
+name: Client v2 WASD input guard
+
+on:
+  pull_request:
+    branches: [release-dev, master]
+    paths:
+      - "client/ezorsia/ezorsia/WasdInput.h"
+      - "client/ezorsia/ezorsia/dinput8.cpp"
+      - "client/ezorsia/ezorsia/config.ini"
+      - ".github/workflows/client-v2-wasd-guard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wasd-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify focus-safe WASD invariants
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          wasd = Path('client/ezorsia/ezorsia/WasdInput.h').read_text(encoding='utf-8')
+          dinput = Path('client/ezorsia/ezorsia/dinput8.cpp').read_text(encoding='utf-8')
+          config = Path('client/ezorsia/ezorsia/config.ini').read_text(encoding='utf-8')
+
+          required = [
+              'kGetISMessageAddress = 0x0059A306',
+              'kWndManInstanceAddress = 0x00BEC20C',
+              'kWndManFocusOffset = 0x88',
+              'kCtrlEditRttiAddress = 0x00BED5EC',
+              'kWvsAppInstanceAddress = 0x00BE7B38',
+              'static_assert(sizeof(ISMSG) == 12',
+              'GetForegroundWindow() == app->m_hWnd',
+              'IsEditControlFocused()',
+              'vtable->IsKindOf',
+              'reinterpret_cast<CRTTI*>(kCtrlEditRttiAddress)',
+              "case 'W': return VK_UP;",
+              "case 'A': return VK_LEFT;",
+              "case 'S': return VK_DOWN;",
+              "case 'D': return VK_RIGHT;",
+              'pISMsg->message != WM_KEYDOWN',
+              'pISMsg->wParam = TranslateWasd(pISMsg->wParam)',
+              'WASDRemapping", false',
+              'Memory::SetHook(',
+          ]
+          for marker in required:
+              if marker not in wasd:
+                  raise SystemExit(f'Missing WASD safety marker: {marker}')
+
+          # If focus/vtable probing encounters an unknown client layout, the
+          # remapper must fail closed by treating it as text-entry focus.
+          if not re.search(r'if \(!vtable->IsKindOf\)\s*\{[^}]*return true;', wasd, re.S):
+              raise SystemExit('Unknown focus-handler layout does not fail closed')
+          if not re.search(r'__except \(EXCEPTION_EXECUTE_HANDLER\)\s*\{[^}]*return true;', wasd, re.S):
+              raise SystemExit('Focus probe exception path does not fail closed')
+
+          # Translation is allowed to mutate only wParam. lParam contains
+          # key-up/repeat/modifier state and must remain byte-for-byte intact.
+          if re.search(r'pISMsg->lParam\s*=', wasd):
+              raise SystemExit('WASD layer modifies ISMSG lParam')
+          if wasd.count('pISMsg->wParam =') != 1:
+              raise SystemExit('WASD layer must have exactly one ISMSG wParam assignment')
+
+          forbidden = [
+              'SetWindowsHookEx',
+              'GetAsyncKeyState',
+              'RegisterHotKey',
+              'WH_KEYBOARD',
+              'WH_KEYBOARD_LL',
+              'SendInput(',
+              'keybd_event(',
+          ]
+          for marker in forbidden:
+              if marker in wasd or marker in dinput:
+                  raise SystemExit(f'Global/synthetic keyboard API leaked into WASD path: {marker}')
+
+          if 'WASDRemapping=false' not in config:
+              raise SystemExit('WASD must remain disabled by default until runtime validation')
+          if '#include "WasdInput.h"' not in dinput:
+              raise SystemExit('dinput bootstrap does not include WASD layer')
+          if 'EverLeafWasdInput::Install(true)' not in dinput:
+              raise SystemExit('post-unpack dinput bootstrap does not install optional WASD layer')
+
+          print('Client v2 focus-safe WASD contract passed')
+          PY
