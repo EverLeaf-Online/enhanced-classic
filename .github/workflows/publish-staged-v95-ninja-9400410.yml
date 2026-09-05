@@ -1,0 +1,82 @@
+name: Publish staged v95 Ninja 9400410
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/publish-staged-v95-ninja-9400410.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Publish already validated candidate
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          PATCH=/opt/everleaf/patches
+          LIVE="$PATCH/files/Mob.wz"
+          CAND=/home/ubuntu/everleaf-staging/v95-client-9400410-33962078973/Mob.wz
+          EXPECT_OLD=498271db2858fb682ad75295bdde2890ebd74f05b2a9521786f1cbecc349e25b
+          EXPECT_NEW=eb0e2d34bdf35ca7183abe1c375ff21b2eb2d9eb8fb82588137bc20ea87ad8b2
+          test -s "$LIVE"; test -s "$CAND"; test -s "$PATCH/manifest.json"
+          test "$(sha256sum "$LIVE"|awk '{print $1}')" = "$EXPECT_OLD"
+          test "$(sha256sum "$CAND"|awk '{print $1}')" = "$EXPECT_NEW"
+          curl -fsS http://127.0.0.1:3000/patches/manifest.json | python3 -m json.tool >/dev/null
+          stamp=$(date -u +%Y%m%dT%H%M%SZ)
+          backup="/opt/everleaf/backups/client-v95-9400410-final-$stamp"
+          sudo mkdir -p "$backup"
+          sudo cp -a "$LIVE" "$backup/Mob.wz"
+          sudo cp -a "$PATCH/manifest.json" "$backup/manifest.json"
+          ROLLBACK=1
+          rollback(){
+            if [ "$ROLLBACK" = 1 ]; then
+              sudo cp -a "$backup/Mob.wz" "$LIVE"
+              sudo cp -a "$backup/manifest.json" "$PATCH/manifest.json"
+            fi
+          }
+          trap rollback ERR
+          sudo install -m 0644 "$CAND" "$LIVE.new"
+          sudo mv -f "$LIVE.new" "$LIVE"
+          test "$(sha256sum "$LIVE"|awk '{print $1}')" = "$EXPECT_NEW"
+          generated="/tmp/everleaf-manifest-$stamp.json"
+          LAUNCHER_PATCH_ROOT="$PATCH" LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" LAUNCHER_MANIFEST_PATH="$generated" LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" node /opt/everleaf/web/scripts/build-patch-manifest.js 'v95-9400410-final'
+          python3 -m json.tool "$generated" >/dev/null
+          sudo install -m 0644 "$generated" "$PATCH/manifest.json"
+          local_json=$(curl -fsS http://127.0.0.1:3000/patches/manifest.json)
+          public_json=$(curl -fsS https://everleafms.online/patches/manifest.json)
+          printf '%s' "$local_json" | python3 -m json.tool >/dev/null
+          printf '%s' "$public_json" | python3 -m json.tool >/dev/null
+          python3 - <<'PY'
+          import json
+          p='/opt/everleaf/patches/manifest.json'
+          d=json.load(open(p))
+          mob=next(x for x in d['files'] if x['path']=='Mob.wz')
+          assert mob['sha256'].lower()=='eb0e2d34bdf35ca7183abe1c375ff21b2eb2d9eb8fb82588137bc20ea87ad8b2',mob
+          print('MANIFEST_MOB_OK',mob['sha256'],mob['size'])
+          PY
+          ROLLBACK=0
+          trap - ERR
+          echo "LIVE_CLIENT_9400410_PUBLISHED_OK backup=$backup sha=$EXPECT_NEW"
+          REMOTE
