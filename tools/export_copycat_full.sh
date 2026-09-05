@@ -5,6 +5,7 @@ SRC="${1:-/home/ubuntu/everleafms copycat}"
 OUT="${2:-$HOME/copycat-export-$(date -u +%Y%m%d-%H%M%SZ)}"
 SPLIT_SIZE="${SPLIT_SIZE:-1G}"
 COMPRESS="${COMPRESS:-0}"
+RESERVE_BYTES=$((512 * 1024 * 1024))
 
 if [[ ! -d "$SRC" ]]; then
   echo "ERROR: source directory not found: $SRC" >&2
@@ -21,6 +22,24 @@ case "$OUT/" in
     exit 2
     ;;
 esac
+
+SOURCE_BYTES="$(du -sb --apparent-size "$SRC" | awk '{print $1}')"
+AVAILABLE_BYTES="$(df -PB1 "$OUT" | awk 'NR==2 {print $4}')"
+REQUIRED_BYTES=$((SOURCE_BYTES + RESERVE_BYTES))
+
+if [[ -z "$SOURCE_BYTES" || -z "$AVAILABLE_BYTES" ]]; then
+  echo "ERROR: unable to determine source size or destination free space" >&2
+  exit 2
+fi
+
+printf 'Source bytes:      %d\n' "$SOURCE_BYTES"
+printf 'Available bytes:   %d\n' "$AVAILABLE_BYTES"
+printf 'Required minimum:  %d\n' "$REQUIRED_BYTES"
+
+if (( AVAILABLE_BYTES < REQUIRED_BYTES )); then
+  echo "ERROR: destination does not have enough free space for a complete snapshot plus 512 MiB reserve" >&2
+  exit 3
+fi
 
 BASE="$(basename "$SRC")"
 PARENT="$(dirname "$SRC")"
@@ -54,7 +73,7 @@ fi
 
 TOTAL_BYTES=0
 for part in "${PARTS[@]}"; do
-  bytes=$(stat -c '%s' "$part")
+  bytes="$(stat -c '%s' "$part")"
   TOTAL_BYTES=$((TOTAL_BYTES + bytes))
 done
 
@@ -65,6 +84,7 @@ Source: $SRC
 Archive mode: $MODE
 Split size: $SPLIT_SIZE
 Parts: ${#PARTS[@]}
+Source bytes: $SOURCE_BYTES
 Total archive bytes: $TOTAL_BYTES
 
 Verify parts:
