@@ -11,43 +11,21 @@ permissions:
   contents: read
 
 jobs:
-  inventory:
-    runs-on: ubuntu-latest
+  inventory-self-hosted:
+    runs-on: self-hosted
     steps:
-      - name: Configure SSH
-        shell: bash
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
-          HOST: 132.145.141.79
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
-          chmod 600 ~/.ssh/id_everleaf
-          if [ -n "$SSH_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          else
-            ssh-keyscan -T 10 -H "$HOST" > ~/.ssh/known_hosts
-          fi
-          chmod 600 ~/.ssh/known_hosts
-
       - name: Inventory copycat folder
         shell: bash
         run: |
-          set -euo pipefail
-          ssh -o BatchMode=yes -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_everleaf ubuntu@132.145.141.79 'bash -s' <<'REMOTE'
           set -euo pipefail
           echo '=== HOST ==='
           hostname
           date -Is
           df -h / /opt /home 2>/dev/null || true
-          mapfile -d '' matches < <(find /opt /home/ubuntu -xdev -type d \( -iname '*everleafms*copycat*' -o -iname '*everleaf*copycat*' \) -print0 2>/dev/null)
+          mapfile -d '' matches < <(find /opt /home -xdev -type d \( -iname '*everleafms*copycat*' -o -iname '*everleaf*copycat*' \) -print0 2>/dev/null)
           if [ "${#matches[@]}" -eq 0 ]; then
             echo 'COPYCAT_FOLDER_NOT_FOUND'
-            echo '=== NEAR MATCHES ==='
-            find /opt /home/ubuntu -xdev -maxdepth 5 -type d \( -iname '*everleaf*' -o -iname '*copycat*' \) -print 2>/dev/null | head -200
+            find /opt /home -xdev -maxdepth 6 -type d \( -iname '*everleaf*' -o -iname '*copycat*' \) -print 2>/dev/null | head -200
             exit 2
           fi
           for target in "${matches[@]}"; do
@@ -65,4 +43,3 @@ jobs:
             echo '=== NESTED GIT REPOSITORIES ==='
             find "$target" -xdev -type d -name .git -print 2>/dev/null || true
           done
-          REMOTE
