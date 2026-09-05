@@ -2,8 +2,10 @@ name: Detect Yuna UI WZ patch version
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
-    paths: ['.github/workflows/detect-yuna-ui-wz-version.yml']
+    branches:
+      - release-dev
+    paths:
+      - '.github/workflows/detect-yuna-ui-wz-version.yml'
 permissions:
   contents: read
 env:
@@ -15,9 +17,11 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
-        with: {ref: release-dev}
+        with:
+          ref: release-dev
       - uses: actions/setup-dotnet@v4
-        with: {dotnet-version: '10.0.x'}
+        with:
+          dotnet-version: '10.0.x'
       - name: Configure SSH
         shell: pwsh
         env:
