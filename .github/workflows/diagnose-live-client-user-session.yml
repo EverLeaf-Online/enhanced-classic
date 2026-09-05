@@ -1,0 +1,48 @@
+name: Diagnose live client user session
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/diagnose-live-client-user-session.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Inspect real external login session
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          echo '=== external IP occurrences ==='
+          journalctl -u everleaf.service --since '2026-09-05 11:15:00' --until '2026-09-05 11:27:00' --no-pager | grep -n -C 30 '73\.13\.168\.64' || true
+          echo '=== all server lines around real external handoff ==='
+          journalctl -u everleaf.service --since '2026-09-05 11:21:40' --until '2026-09-05 11:23:20' --no-pager | tail -1200
+          echo '=== exceptions/errors in window ==='
+          journalctl -u everleaf.service --since '2026-09-05 11:21:40' --until '2026-09-05 11:23:20' --no-pager | grep -Ei 'exception|error|fail|invalid|disconnect|close|kick|session|already logged|loggedin|character|handoff|channel|login' || true
+          echo USER_SESSION_DIAG_COMPLETE
+          REMOTE
