@@ -205,6 +205,12 @@ public partial class MainWindow : Window
         // ticket is session state and must not affect folder writability or repair.
         LaunchTicket.CleanupStale(_gameDirectory);
 
+        var gameExecutable = Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable);
+        // The signed manifest describes the canonical v83 executable. Temporarily
+        // clear only the launcher-owned LAA bit before normal SHA-256 verification;
+        // corrupt/non-PE files are left untouched for PatchService to repair.
+        ExecutableHardening.NormalizeForSignedRepair(gameExecutable);
+
         var progress = new Progress<(double Percent, string Status)>(value =>
         {
             PatchProgress.Value = Math.Clamp(value.Percent, 0, 100);
@@ -213,6 +219,11 @@ public partial class MainWindow : Window
 
         using var patcher = new PatchService(_gameDirectory);
         await patcher.VerifyAndRepairAsync(progress, CancellationToken.None);
+
+        // Only harden the executable after signed repair succeeds. The next repair
+        // cycle normalizes this one PE flag again before hashing canonical bytes.
+        ExecutableHardening.EnsureLargeAddressAware(gameExecutable);
+
         PatchProgress.Value = 100;
         PatchStatusText.Text = _launcherReady
             ? "All 36 required EverLeaf game files verified."
