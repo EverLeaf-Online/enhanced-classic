@@ -7,6 +7,7 @@ int Client::m_nGameWidth = 1280;
 int Client::MsgAmount = 26;
 bool Client::WindowedMode = true;
 bool Client::RemoveLogos = true;
+bool Client::ModernLoginUI = true;
 double Client::setDamageCap = 199999.0;
 bool Client::useTubi = false;
 int Client::speedMovementCap = 140;

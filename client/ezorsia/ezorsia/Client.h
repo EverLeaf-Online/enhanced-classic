@@ -12,6 +12,7 @@ public:
 	static int MsgAmount;
 	static bool WindowedMode;
 	static bool RemoveLogos;
+	static bool ModernLoginUI;
 	static double setDamageCap;
 	static bool useTubi;
 	static int speedMovementCap;
