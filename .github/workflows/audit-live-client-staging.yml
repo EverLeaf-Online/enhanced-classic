@@ -40,13 +40,15 @@ jobs:
           fi
           chmod 600 "$SSH_DIR/known_hosts"
 
-      - name: Inventory current client staging and patch history
+      - name: Audit current client staging and live redirect strings
         run: |
           set -euo pipefail
           SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
           OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=5 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf")
           ssh "${OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
-          set -euo pipefail
+          set -eu
+          ROOT=/home/ubuntu/everleaf-staging/everleaf-login-art-user
+
           echo '=== LIVE MANIFEST VERSION ==='
           python3 - <<'PY'
           import json
@@ -58,31 +60,63 @@ jobs:
               print(name, f and f.get('sha256'), f and f.get('size'))
           PY
 
-          echo '=== STAGING TOP LEVEL ==='
-          if [ -d /home/ubuntu/everleaf-staging ]; then
-            find /home/ubuntu/everleaf-staging -maxdepth 2 -mindepth 1 -printf '%TY-%Tm-%Td %TH:%TM %y %p\n' 2>/dev/null | sort -r | head -n 250
-          else
-            echo 'NO /home/ubuntu/everleaf-staging'
-          fi
-
-          echo '=== RELEVANT STAGING FILES ==='
-          if [ -d /home/ubuntu/everleaf-staging ]; then
-            find /home/ubuntu/everleaf-staging -maxdepth 6 -type f \
-              \( -iname '*panorama*' -o -iname '*background*' -o -iname '*login*' -o -iname '*origin*' -o -iname '*signboard*' -o -iname '*ui*fix*' -o -iname '*.cpp' -o -iname '*.py' -o -iname '*.sh' \) \
-              -printf '%TY-%Tm-%Td %TH:%TM %s %p\n' 2>/dev/null | sort -r | head -n 500
-          fi
-
-          echo '=== RECENT BACKUPS ==='
-          find /opt/everleaf/backups -maxdepth 2 -mindepth 1 -printf '%TY-%Tm-%Td %TH:%TM %y %p\n' 2>/dev/null | sort -r | head -n 250 || true
-
-          echo '=== LOGIN/PANORAMA SCRIPT MATCHES ==='
-          for root in /home/ubuntu/everleaf-staging /opt/everleaf; do
-            [ -d "$root" ] || continue
-            grep -RIlE 'panorama|3240|2160|login background|background origin|signboard|floating leaves|BtHomePage|BtLogin|passport\.nexon|nexon\.com/maplestory' "$root" \
-              --include='*.cpp' --include='*.h' --include='*.py' --include='*.sh' --include='*.ps1' --include='*.txt' --include='*.md' --include='*.ini' \
-              2>/dev/null | head -n 250 || true
+          echo '=== PANORAMA MASTER HASHES ==='
+          for f in "$ROOT"/background-master-1280x2160.png "$ROOT"/background-master-1280x3240.png "$ROOT"/background.png "$ROOT"/signboard.png "$ROOT"/signboard-translucent.png; do
+            if [ -f "$f" ]; then sha256sum "$f"; stat -c '%s %y %n' "$f"; fi
           done
 
+          echo '=== PANORAMA IMAGE ANALYSIS ==='
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          try:
+              from PIL import Image, ImageChops, ImageStat
+          except Exception as e:
+              print('PIL_UNAVAILABLE', repr(e)); raise SystemExit(0)
+          root=Path('/home/ubuntu/everleaf-staging/everleaf-login-art-user')
+          names=['background-master-1280x2160.png','background-master-1280x3240.png','background.png','signboard.png','signboard-translucent.png']
+          imgs={}
+          for name in names:
+              p=root/name
+              if not p.exists(): continue
+              im=Image.open(p); imgs[name]=im.copy()
+              print(name, 'size=', im.size, 'mode=', im.mode, 'sha256=', hashlib.sha256(p.read_bytes()).hexdigest())
+              if 'A' in im.getbands():
+                  a=im.getchannel('A'); st=ImageStat.Stat(a)
+                  print(name, 'alpha_extrema=', a.getextrema(), 'alpha_mean=', round(st.mean[0],2))
+          def mad(a,b):
+              if a.size!=b.size: return None
+              d=ImageChops.difference(a.convert('RGB'),b.convert('RGB'))
+              return round(sum(ImageStat.Stat(d).mean)/3,4)
+          p2160=imgs.get('background-master-1280x2160.png')
+          p3240=imgs.get('background-master-1280x3240.png')
+          if p2160 and p3240:
+              print('MAD 3240[0:2160] vs 2160=',mad(p3240.crop((0,0,1280,2160)),p2160))
+              print('MAD 3240[1080:3240] vs 2160=',mad(p3240.crop((0,1080,1280,3240)),p2160))
+              print('MAD 3240[0:1080] vs 2160[0:1080]=',mad(p3240.crop((0,0,1280,1080)),p2160.crop((0,0,1280,1080))))
+              print('MAD 3240[0:1080] vs 2160[1080:2160]=',mad(p3240.crop((0,0,1280,1080)),p2160.crop((0,1080,1280,2160))))
+              print('MAD 3240[2160:3240] vs 2160[0:1080]=',mad(p3240.crop((0,2160,1280,3240)),p2160.crop((0,0,1280,1080))))
+              print('MAD 3240[2160:3240] vs 2160[1080:2160]=',mad(p3240.crop((0,2160,1280,3240)),p2160.crop((0,1080,1280,2160))))
+              for y1,y2 in [(0,720),(720,1440),(1440,2160),(2160,2880)]:
+                  for z1,z2 in [(0,720),(720,1440),(1440,2160),(2160,2880)]:
+                      if (y1,y2)>=(z1,z2): continue
+                      print(f'MAD 3240[{y1}:{y2}] vs [{z1}:{z2}]=',mad(p3240.crop((0,y1,1280,y2)),p3240.crop((0,z1,1280,z2))))
+          PY
+
+          echo '=== RELEVANT RECENT STAGING FILES ==='
+          find /home/ubuntu/everleaf-staging -maxdepth 7 -type f \
+            \( -iname '*panorama*' -o -iname '*background*' -o -iname '*login*' -o -iname '*origin*' -o -iname '*signboard*' -o -iname '*web*link*' -o -iname '*.cpp' -o -iname '*.py' \) \
+            -printf '%TY-%Tm-%Td %TH:%TM %s %p\n' 2>/dev/null | sort -r | sed -n '1,350p' || true
+
+          echo '=== LOGIN/PANORAMA SCRIPT MATCHES ==='
+          grep -RInE 'panorama|3240|2160|background origin|signboard|floating leaves|BtHomePage|BtLogin|passport\.nexon|nexon\.com/maplestory|everleafms\.online/(register|help)' \
+            /home/ubuntu/everleaf-staging \
+            --include='*.cpp' --include='*.h' --include='*.py' --include='*.sh' --include='*.ps1' --include='*.txt' --include='*.md' --include='*.ini' \
+            2>/dev/null | sed -n '1,450p' || true
+
           echo '=== LIVE DLL URL STRINGS ==='
-          strings -a /opt/everleaf/patches/files/dinput8.dll 2>/dev/null | grep -Ei 'https?://|everleafms|passport\.nexon|maplestory' | head -n 120 || true
+          strings -a /opt/everleaf/patches/files/dinput8.dll 2>/dev/null | grep -Ei 'https?://|everleafms|passport\.nexon|maplestory' | sed -n '1,160p' || true
+
+          echo '=== RECENT CLIENT BACKUPS ==='
+          find /opt/everleaf/backups -maxdepth 2 -mindepth 1 -printf '%TY-%Tm-%Td %TH:%TM %y %p\n' 2>/dev/null | sort -r | sed -n '1,200p' || true
           REMOTE
