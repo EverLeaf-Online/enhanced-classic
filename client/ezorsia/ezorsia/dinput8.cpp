@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "dinput8.h"
+#include "WasdInput.h"
 
 // System dinput8 forwarding targets. The exported naked stubs below can be
 // reached before the rest of the Maple client has finished unpacking, so these
@@ -107,6 +108,20 @@ void dinput8::CreateHook() {
 	// Eagerly resolve during the normal bootstrap path, while the exported stubs
 	// also call the same thread-safe resolver in case Maple reaches them first.
 	EnsureSystemDinput8();
+
+	// The gameplay remapper is installed only here, after Client v2 has verified
+	// the unpacked v83 image. When WASDRemapping=false (the default), Install()
+	// returns without creating any Detours hook and stock Maple input is untouched.
+	if (!EverLeafWasdInput::Install(true)) {
+		MessageBoxW(
+			nullptr,
+			L"EverLeaf could not initialize the optional WASD input layer.\n\n"
+			L"Please repair/update the client before enabling WASD movement.",
+			L"EverLeaf Client v2 input error",
+			MB_OK | MB_ICONERROR
+		);
+		ExitProcess(ERROR_DLL_INIT_FAILED);
+	}
 }
 
 extern "C" __declspec(dllexport) __declspec(naked) void DirectInput8Create()

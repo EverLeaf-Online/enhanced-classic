@@ -9,7 +9,10 @@ This document records the read-only full-folder audit of the client snapshot sup
 - Bytes hashed/scanned: 8,501,506,573
 - PE files parsed: 36
 - WZ files: 17
-- Full raw snapshot was preserved separately and all eight split archive parts passed SHA-256 verification.
+- Full raw snapshot is preserved as the immutable GitHub release
+  [`everleafms-copycat-2026-09-05`](https://github.com/EverLeaf-Online/enhanced-classic/releases/tag/everleafms-copycat-2026-09-05).
+  Use that release's `SHA256SUMS.txt`, `CONTENTS.tsv`, and `RESTORE.txt` when
+  restoring or selecting donor assets; all split archive parts passed SHA-256 verification.
 - `YunaMS.exe` SHA-256: `7e1bfc08d1cb4b066d7d0c9f6dc0f350a0d3358f1288068d437b88a7c38ae3df`
 - The separately supplied `EverleafMS.exe` is byte-identical to that `YunaMS.exe`.
 
@@ -56,7 +59,7 @@ EverLeaf's signed manifest, bounded download, repair validation and one-time lau
 - Local privacy-minimal crash/startup logging
 - Safe Win32/Winsock hook boundary
 - Race-safe dinput bootstrap
-- Focus-safe, field-only WASD remapping (opt-in, PR #359)
+- Focus-safe, field-only WASD remapping (opt-in; integrated into the Client v2 candidate in PR #354)
 - Widescreen UI correction work
 - Signed launcher/repair and one-time launch ticket
 
