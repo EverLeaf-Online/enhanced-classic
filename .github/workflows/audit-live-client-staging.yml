@@ -33,55 +33,62 @@ jobs:
           mkdir -p "$SSH_DIR" && chmod 700 "$SSH_DIR"
           printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id_everleaf"
           chmod 600 "$SSH_DIR/id_everleaf"
-          if [ -n "$SSH_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
-          else
-            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$SSH_DIR/known_hosts"
-          fi
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$SSH_DIR/known_hosts"; fi
           chmod 600 "$SSH_DIR/known_hosts"
 
-      - name: Inspect current live login hooks and redirect sources
+      - name: Trace live panorama and login positioning work
         run: |
           set -euo pipefail
           SSH_DIR="$RUNNER_TEMP/everleaf-ssh"
           OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=5 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf")
           ssh "${OPTS[@]}" "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
           set -eu
-          SRC=/home/ubuntu/everleaf-staging/native-client-source/client/ezorsia/ezorsia
+          STAGE=/home/ubuntu/everleaf-staging
+          SRC="$STAGE/native-client-source/client/ezorsia/ezorsia"
 
           echo '=== LIVE MANIFEST ==='
           python3 - <<'PY'
           import json
           m=json.load(open('/opt/everleaf/patches/manifest.json'))
           print('version',m.get('version'))
-          for name in ('Map.wz','UI.wz','dinput8.dll','EverLeaf.exe','config.ini'):
+          for name in ('Map.wz','UI.wz','dinput8.dll','config.ini'):
               f=next((x for x in m.get('files',[]) if x.get('path')==name),None)
               print(name, f and f.get('sha256'), f and f.get('size'))
           PY
 
-          for f in EverLeafLoginLayout.cpp EverLeafLoginLayout.h EverLeafWebLinks.cpp EverLeafWebLinks.h dllmain.cpp MainMain.cpp Client.cpp Client.h config.ini; do
-            if [ -f "$SRC/$f" ]; then
-              echo "=== FILE $f ==="
-              case "$f" in
-                Client.cpp|Client.h|dllmain.cpp|MainMain.cpp)
-                  grep -nE -C 8 'UpdateLogin|EverLeafLogin|WebLinks|Install|dwLogin|PositionLogin|ModernLogin|CustomLoginFrame|bigLoginFrame|m_nGameWidth|m_nGameHeight' "$SRC/$f" 2>/dev/null | sed -n '1,420p' || true
-                  ;;
-                *) sed -n '1,420p' "$SRC/$f" ;;
-              esac
-            fi
-          done
+          echo '=== ORIGIN/PANORAMA BUILD FILES ==='
+          find "$STAGE" -type f \( -iname '*origin*.cpp' -o -iname '*origin*.py' -o -iname '*panorama*.py' -o -iname '*panorama*.cpp' -o -iname '*background*.py' -o -iname '*background*.cpp' \) -printf '%TY-%Tm-%Td %TH:%TM:%TS %s %p\n' 2>/dev/null | sort -r | sed -n '1,160p'
 
-          echo '=== EXACT LOGIN SYMBOL REFERENCES ==='
-          grep -RInE 'dwLogin(CreateDlg|Username|Password|LoginBtn|FindPasswordBtn|QuitBtn|FindIDBtn|WebHomeBtn|WebRegisterBtn)|PositionLogin(Dlg|Username|Password)|UpdateLogin\(|EverLeafLoginLayout|EverLeafWebLinks|ShellExecute|BaseURL|/register|/help|FindPassword|FindID' "$SRC" 2>/dev/null | sed -n '1,500p' || true
+          echo '=== CONTENT OF SMALL RELEVANT SOURCES ==='
+          while IFS= read -r f; do
+            [ -f "$f" ] || continue
+            size=$(stat -c %s "$f")
+            [ "$size" -le 80000 ] || continue
+            echo "----- $f ($size bytes) -----"
+            sed -n '1,500p' "$f"
+          done < <(find "$STAGE" -type f \( -iname '*origin*.cpp' -o -iname '*origin*.py' -o -iname '*panorama*.py' -o -iname '*panorama*.cpp' -o -iname '*background*.py' -o -iname '*background*.cpp' \) 2>/dev/null | sort)
 
-          echo '=== LIVE DLL URL / ROUTE STRINGS ==='
-          strings -a /opt/everleaf/patches/files/dinput8.dll 2>/dev/null | grep -Ei 'https?://|everleafms|passport\.nexon|nexon\.com|register|forgot|help|homepage' | sed -n '1,240p' || true
+          echo '=== RECENT LOGIN ART FILES ==='
+          find "$STAGE/everleaf-login-art-user" -maxdepth 2 -type f -printf '%TY-%Tm-%Td %TH:%TM:%TS %s %p\n' 2>/dev/null | sort -r | sed -n '1,220p'
 
-          echo '=== LIVE EXE URL / ROUTE STRINGS ==='
-          strings -a /opt/everleaf/patches/files/EverLeaf.exe 2>/dev/null | grep -Ei 'https?://|passport\.nexon|nexon\.com/maplestory|registration|forgot' | sed -n '1,240p' || true
+          echo '=== NATIVE LOGIN ADDRESS BYTES / DISASSEMBLY ==='
+          BIN="$STAGE/native-login-code/login-code.bin"
+          if [ -f "$BIN" ]; then
+            for a in 0x005F5E90 0x005F6058 0x005F60A6 0x005F6280 0x005F6319 0x005F6371 0x005F63E2 0x005F642A 0x005F6472; do
+              echo "--- around $a ---"
+              start=$((a-0x5F0000-24)); [ "$start" -lt 0 ] && start=0
+              dd if="$BIN" bs=1 skip="$start" count=80 2>/dev/null | xxd -g1
+              if command -v objdump >/dev/null; then
+                objdump -D -b binary -mi386 --adjust-vma=0x5F0000 "$BIN" 2>/dev/null | awk -v x="$a" '
+                  BEGIN{target=strtonum(x); lo=target-40; hi=target+80}
+                  /^[[:space:]]*[0-9a-f]+:/ {gsub(":","",$1); addr=strtonum("0x"$1); if(addr>=lo && addr<=hi) print}
+                ' || true
+              fi
+            done
+          else
+            echo 'native-login-code/login-code.bin missing'
+          fi
 
-          echo '=== STAGING WZ CANDIDATE HASHES ==='
-          for f in /home/ubuntu/everleaf-staging/Map.wz.polished-v2 /home/ubuntu/everleaf-staging/Map.wz.polished-v2-base /home/ubuntu/everleaf-staging/UI.wz.polished-v2 /home/ubuntu/everleaf-staging/Map.wz.polished /home/ubuntu/everleaf-staging/UI.wz.polished; do
-            [ -f "$f" ] && sha256sum "$f"
-          done
+          echo '=== CURRENT LOGIN LAYOUT / WEB INSTALL CALLS ==='
+          grep -RInE 'EverLeafWebLinks::Install|EverLeafLoginLayout::Apply|UpdateLogin\(|dwLogin(LoginBtn|FindPasswordBtn|QuitBtn|FindIDBtn|WebHomeBtn|WebRegisterBtn)' "$SRC" 2>/dev/null | sed -n '1,260p' || true
           REMOTE
