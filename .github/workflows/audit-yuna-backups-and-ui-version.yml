@@ -1,0 +1,57 @@
+name: Audit Yuna backups and UI version
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-yuna-backups-and-ui-version.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Inspect donor backup and metadata
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          donor=/home/ubuntu/everleaf-staging/yuna-client-current/extracted/YunaMS
+          echo '=== README ==='
+          cat "$donor/README.txt" || true
+          echo '=== BACKUPS.RAR CONTENTS ==='
+          unrar lb "$donor/backups.rar" | head -500
+          echo '=== SMALL DONOR WZ HEX HEADERS ==='
+          for f in Base.wz List.wz TamingMob.wz UI.wz; do
+            printf '%s size=%s sha=%s header=' "$f" "$(stat -c%s "$donor/$f")" "$(sha256sum "$donor/$f"|awk '{print $1}')"
+            xxd -p -l 64 "$donor/$f" | tr -d '\n'; echo
+          done
+          echo '=== YUNA DLL VERSION/BUILD STRINGS ==='
+          for f in yunams.dll yunamsw.dll version.data; do
+            echo "--- $f"
+            strings -a "$donor/$f" 2>/dev/null | grep -Eai 'version|build|expire|202[0-9]|203[0-9]|YunaMS\.exe|DLL Expired|out of date' | head -300 || true
+          done
+          echo 'YUNA_BACKUP_UI_VERSION_AUDIT_OK'
+          REMOTE
