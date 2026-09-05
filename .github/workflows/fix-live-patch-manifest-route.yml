@@ -1,0 +1,69 @@
+name: Fix live patch manifest route
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - 'web/src/server.js'
+      - '.github/workflows/fix-live-patch-manifest-route.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Validate source
+        run: |
+          set -euo pipefail
+          node --check web/src/server.js
+          grep -q 'app.get("/patches/manifest.json"' web/src/server.js
+      - name: Back up and install live route fix
+        run: |
+          set -euo pipefail
+          stamp=$(date -u +%Y%m%dT%H%M%SZ)
+          backup="/opt/everleaf/backups/web-manifest-route-$stamp"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "sudo mkdir -p '$backup' && sudo cp -a /opt/everleaf/web/src/server.js '$backup/server.js'"
+          scp -i ~/.ssh/id_everleaf web/src/server.js "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:/tmp/everleaf-server.js"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "BACKUP='$backup' bash -s" <<'REMOTE'
+          set -euo pipefail
+          rollback(){
+            sudo cp -a "$BACKUP/server.js" /opt/everleaf/web/src/server.js
+            sudo systemctl restart everleaf-web.service || true
+          }
+          trap rollback ERR
+          node --check /tmp/everleaf-server.js
+          sudo install -m 0644 /tmp/everleaf-server.js /opt/everleaf/web/src/server.js
+          sudo systemctl restart everleaf-web.service
+          for i in $(seq 1 30); do
+            if systemctl is-active --quiet everleaf-web.service && curl -fsS http://127.0.0.1:3000/ >/dev/null; then break; fi
+            sleep 1
+          done
+          systemctl is-active --quiet everleaf-web.service
+          python3 -m json.tool /opt/everleaf/patches/manifest.json >/dev/null
+          curl -fsS http://127.0.0.1:3000/patches/manifest.json | python3 -m json.tool >/dev/null
+          curl -fsS https://everleafms.online/patches/manifest.json | python3 -m json.tool >/dev/null
+          trap - ERR
+          echo "PATCH_MANIFEST_ROUTE_FIXED backup=$BACKUP"
+          REMOTE
