@@ -9,9 +9,16 @@
 namespace {
 constexpr wchar_t kDiagnosticsFileName[] = L"EverLeafClient.log";
 constexpr wchar_t kCrashDumpFileName[] = L"EverLeafCrash.dmp";
+constexpr wchar_t kFreezeReportFileName[] = L"EverLeafFreeze.txt";
+constexpr DWORD kFreezeProbeIntervalMs = 5000;
+constexpr UINT kFreezeProbeTimeoutMs = 1500;
+constexpr int kFreezeTimeoutThreshold = 3;
+
 wchar_t gDiagnosticsPath[MAX_PATH] = L"EverLeafClient.log";
 wchar_t gCrashDumpPath[MAX_PATH] = L"EverLeafCrash.dmp";
+wchar_t gFreezeReportPath[MAX_PATH] = L"EverLeafFreeze.txt";
 std::atomic<const char*> gCurrentPhase{ "not-installed" };
+std::atomic<bool> gFreezeWatchdogStarted{ false };
 LPTOP_LEVEL_EXCEPTION_FILTER gPreviousExceptionFilter = nullptr;
 HMODULE gDbgHelpModule = nullptr;
 
@@ -52,6 +59,7 @@ bool ResolveSiblingPath(const wchar_t* fileName, wchar_t (&destination)[MAX_PATH
 void ResolveDiagnosticsPaths() {
     ResolveSiblingPath(kDiagnosticsFileName, gDiagnosticsPath);
     ResolveSiblingPath(kCrashDumpFileName, gCrashDumpPath);
+    ResolveSiblingPath(kFreezeReportFileName, gFreezeReportPath);
 }
 
 void AppendRaw(const char* text) {
@@ -166,6 +174,156 @@ bool WriteLocalMiniDump(EXCEPTION_POINTERS* exceptionInfo) {
     return success == TRUE;
 }
 
+struct WindowSearch {
+    DWORD processId;
+    HWND gameWindow;
+};
+
+BOOL CALLBACK FindEverLeafWindowCallback(HWND window, LPARAM param) {
+    auto* search = reinterpret_cast<WindowSearch*>(param);
+    if (!search) {
+        return FALSE;
+    }
+
+    DWORD processId = 0;
+    GetWindowThreadProcessId(window, &processId);
+    if (processId != search->processId) {
+        return TRUE;
+    }
+
+    char className[64] = {};
+    if (!GetClassNameA(window, className, static_cast<int>(sizeof(className)))) {
+        return TRUE;
+    }
+    if (strcmp(className, "MapleStoryClass") != 0) {
+        return TRUE;
+    }
+
+    search->gameWindow = window;
+    return FALSE;
+}
+
+HWND FindEverLeafGameWindow() {
+    WindowSearch search = { GetCurrentProcessId(), nullptr };
+    EnumWindows(FindEverLeafWindowCallback, reinterpret_cast<LPARAM>(&search));
+    return search.gameWindow;
+}
+
+void WriteFreezeReport(HWND gameWindow, int consecutiveTimeouts) {
+    HANDLE report = CreateFileW(
+        gFreezeReportPath,
+        GENERIC_WRITE,
+        FILE_SHARE_READ,
+        nullptr,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr
+    );
+    if (report == INVALID_HANDLE_VALUE) {
+        return;
+    }
+
+    SYSTEMTIME now = {};
+    GetLocalTime(&now);
+    DWORD windowProcessId = 0;
+    const DWORD windowThreadId = GetWindowThreadProcessId(gameWindow, &windowProcessId);
+    const char* phase = gCurrentPhase.load(std::memory_order_relaxed);
+
+    char text[1536] = {};
+    sprintf_s(
+        text,
+        "EverLeaf Client v2 local freeze evidence\r\n"
+        "No account, character, chat, or telemetry data is recorded or uploaded.\r\n"
+        "time=%04u-%02u-%02u %02u:%02u:%02u.%03u\r\n"
+        "phase=%s\r\n"
+        "pid=%lu window_tid=%lu\r\n"
+        "resolution=%dx%d windowed=%s\r\n"
+        "consecutive_window_timeouts=%d probe_timeout_ms=%u\r\n",
+        now.wYear,
+        now.wMonth,
+        now.wDay,
+        now.wHour,
+        now.wMinute,
+        now.wSecond,
+        now.wMilliseconds,
+        phase ? phase : "unknown",
+        GetCurrentProcessId(),
+        windowThreadId,
+        Client::m_nGameWidth,
+        Client::m_nGameHeight,
+        Client::WindowedMode ? "true" : "false",
+        consecutiveTimeouts,
+        kFreezeProbeTimeoutMs);
+
+    DWORD written = 0;
+    WriteFile(report, text, static_cast<DWORD>(strlen(text)), &written, nullptr);
+    FlushFileBuffers(report);
+    CloseHandle(report);
+}
+
+DWORD WINAPI FreezeWatchdogThread(void*) {
+    int consecutiveTimeouts = 0;
+    bool reportedCurrentFreeze = false;
+
+    for (;;) {
+        Sleep(kFreezeProbeIntervalMs);
+
+        HWND gameWindow = FindEverLeafGameWindow();
+        if (!gameWindow || !IsWindow(gameWindow)) {
+            consecutiveTimeouts = 0;
+            reportedCurrentFreeze = false;
+            continue;
+        }
+
+        DWORD_PTR ignoredResult = 0;
+        SetLastError(ERROR_SUCCESS);
+        const LRESULT responsive = SendMessageTimeoutW(
+            gameWindow,
+            WM_NULL,
+            0,
+            0,
+            SMTO_ABORTIFHUNG | SMTO_BLOCK,
+            kFreezeProbeTimeoutMs,
+            &ignoredResult);
+
+        if (responsive != 0 || GetLastError() != ERROR_TIMEOUT) {
+            if (reportedCurrentFreeze) {
+                AppendTimestamped("FREEZE", "window responsiveness recovered");
+            }
+            consecutiveTimeouts = 0;
+            reportedCurrentFreeze = false;
+            continue;
+        }
+
+        ++consecutiveTimeouts;
+        if (consecutiveTimeouts < kFreezeTimeoutThreshold || reportedCurrentFreeze) {
+            continue;
+        }
+
+        WriteFreezeReport(gameWindow, consecutiveTimeouts);
+        AppendTimestamped(
+            "FREEZE",
+            "EverLeaf window timed out on three bounded probes; local EverLeafFreeze.txt overwritten");
+        reportedCurrentFreeze = true;
+    }
+}
+
+void StartFreezeWatchdog() {
+    bool expected = false;
+    if (!gFreezeWatchdogStarted.compare_exchange_strong(expected, true)) {
+        return;
+    }
+
+    HANDLE thread = CreateThread(nullptr, 0, FreezeWatchdogThread, nullptr, 0, nullptr);
+    if (!thread) {
+        gFreezeWatchdogStarted.store(false, std::memory_order_relaxed);
+        AppendTimestamped("START", "freeze watchdog could not start");
+        return;
+    }
+    CloseHandle(thread);
+    AppendTimestamped("START", "bounded window-responsiveness freeze watchdog started");
+}
+
 LONG WINAPI EverLeafUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo) {
     const char* phase = gCurrentPhase.load(std::memory_order_relaxed);
     const DWORD code = exceptionInfo && exceptionInfo->ExceptionRecord
@@ -256,7 +414,8 @@ void CrashDiagnostics::Install() {
         const char header[] =
             "EverLeaf Client v2 local diagnostics\r\n"
             "No account, character, chat, or telemetry data is intentionally recorded or uploaded.\r\n"
-            "On an unhandled crash, one bounded EverLeafCrash.dmp may be overwritten locally; it is never transmitted automatically.\r\n";
+            "On an unhandled crash, one bounded EverLeafCrash.dmp may be overwritten locally; it is never transmitted automatically.\r\n"
+            "If the game window repeatedly stops responding, one bounded EverLeafFreeze.txt may be overwritten locally.\r\n";
         DWORD written = 0;
         WriteFile(file, header, static_cast<DWORD>(sizeof(header) - 1), &written, nullptr);
         FlushFileBuffers(file);
@@ -272,6 +431,7 @@ void CrashDiagnostics::Install() {
         dumpWriterReady
             ? "system dbghelp MiniDumpWriteDump ready; local bounded crash dump enabled"
             : "system dbghelp MiniDumpWriteDump unavailable; text crash diagnostics remain enabled");
+    StartFreezeWatchdog();
 }
 
 void CrashDiagnostics::SetPhase(const char* phase) {
