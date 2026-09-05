@@ -1,6 +1,12 @@
 #include "stdafx.h"
 #include "EvanRaceSelectPatch.h"
 #include <windowsx.h>
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
 #include "Memory.h"
 #include <algorithm>
 #include <array>

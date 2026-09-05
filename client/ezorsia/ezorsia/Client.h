@@ -13,6 +13,7 @@ public:
 	static bool WindowedMode;
 	static bool RemoveLogos;
 	static bool ModernLoginUI;
+	static bool ShowFutureClassCards;
 	static double setDamageCap;
 	static bool useTubi;
 	static int speedMovementCap;
