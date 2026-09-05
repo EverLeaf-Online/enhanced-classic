@@ -1,0 +1,151 @@
+name: Repair live client v95 Ninja 9400410
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/repair-live-client-v95-ninja-9400410.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  repair:
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          $key=Join-Path $sshDir 'id_everleaf'; [IO.File]::WriteAllText($key,($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}else{& 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known}
+
+      - name: Fetch exact live and donor Mob.wz
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $dir=Join-Path $env:RUNNER_TEMP 'wz'; New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $scp='C:\Program Files\Git\usr\bin\scp.exe'; $key=Join-Path $HOME '.ssh/id_everleaf'
+          & $scp -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/patches/files/Mob.wz" (Join-Path $dir 'live-Mob.wz')
+          if($LASTEXITCODE){throw 'failed to fetch live Mob.wz'}
+          & $scp -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/opt/everleaf/private/wz-donors/gms-v95-raw/Mob.wz" (Join-Path $dir 'donor-Mob.wz')
+          if($LASTEXITCODE){throw 'failed to fetch donor Mob.wz'}
+          $live=(Get-FileHash (Join-Path $dir 'live-Mob.wz') -Algorithm SHA256).Hash
+          $donor=(Get-FileHash (Join-Path $dir 'donor-Mob.wz') -Algorithm SHA256).Hash
+          Write-Host "LIVE=$live DONOR=$donor"
+          if($live -ne '498271DB2858FB682AD75295BDDE2890EBD74F05B2A9521786F1CBECC349E25B'){throw "live Mob.wz drifted: $live"}
+          if($donor -ne '7D9A3546FE8C3DBE6F26A5AC4430AF05B4698997F771215C32EAF4C76437ACC6'){throw "donor Mob.wz drifted: $donor"}
+
+      - name: Build single-image MapleLib patcher
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafSingleMobPatcher'; New-Item -ItemType Directory -Force -Path $tool | Out-Null
+          @'
+          using MapleLib.WzLib;
+          using System.Security.Cryptography;
+          if(args.Length!=3) throw new ArgumentException("target donor output");
+          string target=args[0], donor=args[1], output=args[2];
+          static WzFile OpenTarget(string p){var w=new WzFile(p,WzMapleVersion.GMS);var s=w.ParseWzFile();if(s!=WzFileParseStatus.Success){w.Dispose();throw new Exception($"target parse {s}");}return w;}
+          static WzFile OpenDonor(string p){var w=new WzFile(p,95,WzMapleVersion.GMS);var s=w.ParseWzFile();if(s!=WzFileParseStatus.Success){w.Dispose();throw new Exception($"donor parse {s}");}return w;}
+          static (WzImage image,List<string> dirs)? Find(WzDirectory root,string name){(WzImage,List<string>)? Walk(WzDirectory d,List<string> path){var i=d.GetImageByName(name);if(i!=null)return(i,path);foreach(var sub in d.WzDirectories){var r=Walk(sub,new List<string>(path){sub.Name});if(r!=null)return r;}return null;}return Walk(root,new List<string>());}
+          static WzDirectory Ensure(WzDirectory root,IEnumerable<string> dirs){var d=root;foreach(var n in dirs){var x=d.GetDirectoryByName(n);if(x==null){x=new WzDirectory(n);d.AddDirectory(x);}d=x;}return d;}
+          using(var t=OpenTarget(target)) using(var d=OpenDonor(donor)){
+            if(Find(t.WzDirectory,"9400410.img")!=null) throw new Exception("target already contains 9400410");
+            var hit=Find(d.WzDirectory,"9400410.img")??throw new Exception("donor missing 9400410");
+            Ensure(t.WzDirectory,hit.dirs).AddImage(hit.image.DeepClone());
+            t.SaveToDisk(output);
+          }
+          using(var o=OpenTarget(output)){if(Find(o.WzDirectory,"9400410.img")==null)throw new Exception("saved output missing 9400410");}
+          static string Sha(string p)=>Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p)));
+          Console.WriteLine("OUTPUT_SHA256="+Sha(output));
+          Console.WriteLine("LIVE_CLIENT_9400410_CANDIDATE_OK");
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup>
+            <ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafSingleMobPatcher.csproj')
+          dotnet build (Join-Path $tool 'EverLeafSingleMobPatcher.csproj') -c Release
+
+      - name: Build and reparse candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $dir=Join-Path $env:RUNNER_TEMP 'wz'; $out=Join-Path $dir 'Mob.wz'
+          $proj=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafSingleMobPatcher/EverLeafSingleMobPatcher.csproj'
+          dotnet run --project $proj -c Release --no-build -- (Join-Path $dir 'live-Mob.wz') (Join-Path $dir 'donor-Mob.wz') $out
+          if($LASTEXITCODE){throw 'candidate patch failed'}
+          Get-FileHash $out -Algorithm SHA256 | Format-List
+
+      - name: Upload and atomically publish live Mob.wz
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $key=Join-Path $HOME '.ssh/id_everleaf'; $scp='C:\Program Files\Git\usr\bin\scp.exe'; $ssh='C:\Program Files\Git\usr\bin\ssh.exe'
+          $candidate=Join-Path $env:RUNNER_TEMP 'wz/Mob.wz'
+          $stage="/home/ubuntu/everleaf-staging/v95-client-9400410-${{ github.run_id }}"
+          & $ssh -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "set -e; rm -rf '$stage'; mkdir -p '$stage'"
+          if($LASTEXITCODE){throw 'failed to prepare stage'}
+          & $scp -i $key $candidate "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$stage/Mob.wz"
+          if($LASTEXITCODE){throw 'candidate upload failed'}
+          $remote=@'
+          set -euo pipefail
+          STAGE=__STAGE__
+          PATCH=/opt/everleaf/patches
+          LIVE="$PATCH/files/Mob.wz"
+          CAND="$STAGE/Mob.wz"
+          test -s "$LIVE"; test -s "$CAND"; test -s "$PATCH/manifest.json"
+          test "$(sha256sum "$LIVE" | awk '{print toupper($1)}')" = '498271DB2858FB682AD75295BDDE2890EBD74F05B2A9521786F1CBECC349E25B'
+          stamp=$(date -u +%Y%m%dT%H%M%SZ)
+          backup="/opt/everleaf/backups/client-v95-9400410-$stamp"
+          sudo mkdir -p "$backup"
+          sudo cp -a "$LIVE" "$backup/Mob.wz"
+          sudo cp -a "$PATCH/manifest.json" "$backup/manifest.json"
+          ROLLBACK=1
+          rollback(){
+            if [ "$ROLLBACK" = 1 ]; then
+              echo 'CLIENT_WZ_REPAIR_FAILED_ROLLING_BACK' >&2
+              sudo cp -a "$backup/Mob.wz" "$LIVE"
+              sudo cp -a "$backup/manifest.json" "$PATCH/manifest.json"
+            fi
+          }
+          trap rollback ERR
+          sudo install -m 0644 "$CAND" "$LIVE.new"
+          sudo mv -f "$LIVE.new" "$LIVE"
+          GENERATED="$STAGE/manifest.json"
+          LAUNCHER_PATCH_ROOT="$PATCH" LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" LAUNCHER_MANIFEST_PATH="$GENERATED" LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" node /opt/everleaf/web/scripts/build-patch-manifest.js '__SHA__'
+          test -s "$GENERATED"
+          sudo install -m 0644 "$GENERATED" "$PATCH/manifest.json"
+          curl -fsS http://127.0.0.1:3000/patches/manifest.json >/dev/null
+          test -s "$LIVE"
+          ROLLBACK=0
+          trap - ERR
+          echo "CLIENT_V95_9400410_PUBLISHED backup=$backup sha=$(sha256sum "$LIVE" | awk '{print $1}')"
+          '@
+          $remote=$remote.Replace('__STAGE__',$stage).Replace('__SHA__','${{ github.sha }}')
+          $script=Join-Path $env:RUNNER_TEMP 'publish.sh'; [IO.File]::WriteAllText($script,($remote -replace "`r",''))
+          & $scp -i $key $script "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/tmp/publish-v95-client-9400410.sh"
+          if($LASTEXITCODE){throw 'publish script upload failed'}
+          & $ssh -i $key "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "bash /tmp/publish-v95-client-9400410.sh"
+          if($LASTEXITCODE){throw 'live publish failed'}
