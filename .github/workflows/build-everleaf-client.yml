@@ -164,8 +164,8 @@ jobs:
             if ($config -match [regex]::Escape($name)) { throw "Player config exposes forbidden setting: $name" }
           }
           if (-not ($config -match 'PreferCommunityUI=true')) { throw "Managed client does not default to Community UI" }
-          if (-not ($config -match '(?m)^width=800$') -or -not ($config -match '(?m)^height=600$')) { throw "Managed client must default to the native v83 login viewport until HD login assets pass visual QA" }
-          if (-not ($config -match '(?m)^ModernLoginUI=false$')) { throw "Unverified login coordinate restyling must remain disabled" }
+          if (-not ($config -match '(?m)^width=800\r?$') -or -not ($config -match '(?m)^height=600\r?$')) { throw "Managed client must default to the native v83 login viewport until HD login assets pass visual QA" }
+          if (-not ($config -match '(?m)^ModernLoginUI=false\r?$')) { throw "Unverified login coordinate restyling must remain disabled" }
           if (-not ($config -match 'WindowedMode=true')) { throw "Managed client must keep the safe windowed renderer by default" }
           if (-not ($config -match 'BorderlessWindow=false')) { throw "Managed client must expose borderless mode as opt-in until runtime validation is green" }
           if (-not ($config -match 'EnableAltEnterToggle=true')) { throw "Managed client must expose the reversible Alt+Enter borderless toggle" }
