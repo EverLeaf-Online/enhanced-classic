@@ -1,0 +1,163 @@
+name: Build EverLeaf Yuna-base client candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/build-everleaf-yuna-client-candidate.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Build isolated EverLeaf candidate and audit binary patchability
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          donor=/home/ubuntu/everleaf-staging/yuna-client-current/extracted/YunaMS
+          live=/opt/everleaf/patches/files
+          root=/home/ubuntu/everleaf-staging/yuna-everleaf-candidate-${GITHUB_RUN_ID:-manual}
+          rm -rf "$root"
+          mkdir -p "$root"
+
+          # Start from Yuna's executable/runtime DLL stack, but deliberately keep
+          # EverLeaf's known-good v83/v95-backported content files separate.
+          for f in YunaMS.exe Canvas.dll D3DCompiler_47_cor3.dll Gr2D_DX8.dll NameSpace.dll PCOM.dll PenImc_cor3.dll PresentationNative_cor3.dll ResMan.dll Shape2D.dll Sound_DX8.dll VCRUNTIME140.dll WzFlashRenderer.dll ZLZ.dll aossdk.dll bz32ex.dll d3d8.dll dbghelp.dll dinput8.dll discord_game_sdk.dll ijl15.dll mss32.dll msvcp110.dll msvcr110.dll nmcogame.dll nmconew.dll suipre.dll v3hunt.dll vcruntime140_cor3.dll wpfgfx_cor3.dll yunams.dll yunamsw.dll; do
+            [ -f "$donor/$f" ] && cp -a "$donor/$f" "$root/$f"
+          done
+          cp -a "$root/YunaMS.exe" "$root/EverLeaf-YunaBase.exe"
+
+          # Preserve EverLeaf's actual managed WZ/content baseline rather than
+          # importing Yuna game content, which would regress our v95 backports.
+          for f in Base.wz Character.wz Effect.wz Etc.wz Item.wz List.wz Map.wz Mob.wz Morph.wz Npc.wz Quest.wz Reactor.wz Skill.wz Sound.wz String.wz TamingMob.wz UI.wz; do
+            [ -f "$live/$f" ] && ln "$live/$f" "$root/$f" 2>/dev/null || { [ -f "$live/$f" ] && cp -a "$live/$f" "$root/$f"; }
+          done
+
+          cat > "$root/settings.ini" <<'INI'
+          ; EverLeaf Yuna-base candidate. Managed by the EverLeaf launcher.
+          [Settings]
+          resolution = 2
+          borderless_fullscreen_mode = 1
+          start_centered = 1
+          map_background = 1
+          wasd_remapping = 0
+          expanded_qs = 0
+          network_route = 0
+          fps_cap = 60
+          fast_boot = 1
+          auto_launch = 0
+          _hint_seen_count = 1
+          INI
+
+          python3 - "$root" <<'PY'
+          import pathlib,re,sys,json,struct,hashlib
+          root=pathlib.Path(sys.argv[1])
+          targets=['EverLeaf-YunaBase.exe','yunams.dll','yunamsw.dll','dinput8.dll','d3d8.dll']
+          needles=[
+            b'YunaMS',b'YunaMS.exe',b'Yuna',b'https://yuna.ms/',b'https://yuna.ms/vote',
+            b'SOFTWARE\\YunaMS',b'SOFTWARE\\Wizet\\YunaMS',
+            b'172.236.239.98',b'51.222.244.81',b'71.167.230.44',b'172.236.156.117',b'127.0.0.1',
+            b'Patcher',b'DLL Expired',b'Game Guard',b'out of date'
+          ]
+          report={}
+          for name in targets:
+            p=root/name
+            if not p.exists(): continue
+            b=p.read_bytes()
+            pe=None
+            if b[:2]==b'MZ':
+              off=struct.unpack_from('<I',b,0x3c)[0]
+              if b[off:off+4]==b'PE\0\0':
+                machine,sects,tstamp,ptr,nsym,opt,chars=struct.unpack_from('<HHIIIHH',b,off+4)
+                pe={'machine':hex(machine),'characteristics':hex(chars),'large_address_aware':bool(chars&0x20)}
+            hits=[]
+            for n in needles:
+              start=0
+              while True:
+                i=b.find(n,start)
+                if i<0: break
+                hits.append({'offset':i,'needle':n.decode('ascii','replace'),'length':len(n)})
+                start=i+1
+            ips=[]
+            for m in re.finditer(rb'(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)',b):
+              s=m.group().decode('ascii')
+              if all(0<=int(x)<=255 for x in s.split('.')):
+                ips.append({'offset':m.start(),'value':s,'length':len(s)})
+            report[name]={'sha256':hashlib.sha256(b).hexdigest(),'size':len(b),'pe':pe,'hits':hits,'ipv4':ips}
+          out=root/'binary-audit.json'; out.write_text(json.dumps(report,indent=2))
+          print(out.read_text())
+          PY
+
+          # Safe branding-only in-place replacements. Never change binary length.
+          # These do not touch network routing, expiry checks, or guard logic yet.
+          python3 - "$root" <<'PY'
+          import pathlib,sys
+          root=pathlib.Path(sys.argv[1])
+          replacements={
+            b'YunaMS': b'EverLf',       # equal 6 bytes; temporary internal brand token
+            b'Yuna': b'Leaf',           # equal 4 bytes
+          }
+          for name in ['EverLeaf-YunaBase.exe','yunams.dll','yunamsw.dll']:
+            p=root/name
+            if not p.exists(): continue
+            b=bytearray(p.read_bytes())
+            counts={}
+            for old,new in replacements.items():
+              assert len(old)==len(new)
+              c=b.count(old)
+              if c:
+                b=b.replace(old,new); counts[old.decode()]=c
+            p.write_bytes(b)
+            print('BRAND_PATCH',name,counts)
+          PY
+
+          # Preserve explicit donor copies so later network/expiry experiments never
+          # contaminate the pinned extracted Yuna package.
+          sha256sum "$root/EverLeaf-YunaBase.exe" "$root/yunams.dll" "$root/yunamsw.dll" "$root/settings.ini"
+
+          # Confirm EverLeaf content parity for the client-critical WZ files.
+          for f in Item.wz Mob.wz Map.wz UI.wz; do
+            test -f "$root/$f"
+            a=$(sha256sum "$root/$f"|awk '{print $1}')
+            b=$(sha256sum "$live/$f"|awk '{print $1}')
+            test "$a" = "$b"
+            echo "EVERLEAF_WZ_PRESERVED $f $a"
+          done
+
+          # Candidate must not be publishable yet while donor network/expiry hooks remain.
+          python3 - "$root" <<'PY'
+          import pathlib,sys
+          root=pathlib.Path(sys.argv[1])
+          blob=(root/'yunams.dll').read_bytes()+(root/'yunamsw.dll').read_bytes()
+          blockers=[b'172.236.239.98',b'51.222.244.81',b'71.167.230.44',b'172.236.156.117',b'DLL Expired',b'out of date']
+          found=[x.decode() for x in blockers if x in blob]
+          print('REMAINING_DONOR_BLOCKERS',found)
+          assert found, 'unexpected: safety gate expected donor-specific blockers'
+          (root/'NOT_FOR_LIVE').write_text('Yuna donor network/version hooks still require EverLeaf adaptation.\n')
+          PY
+          echo "YUNA_EVERLEAF_STAGED_CANDIDATE_OK path=$root"
+          REMOTE
