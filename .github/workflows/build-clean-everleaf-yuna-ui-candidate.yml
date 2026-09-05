@@ -1,0 +1,117 @@
+name: Build clean EverLeaf + Yuna UI candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/build-clean-everleaf-yuna-ui-candidate.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Build clean candidate from exact production client plus donor UI only
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          live=/opt/everleaf/patches/files
+          donor=/home/ubuntu/everleaf-staging/yuna-client-current/extracted/YunaMS
+          root=/home/ubuntu/everleaf-staging/everleaf-yuna-ui-clean
+          out=/opt/everleaf/patches/downloads/EverLeaf-YunaUI-CleanCandidate.zip
+          rm -rf "$root"
+          mkdir -p "$root"
+          cp -a "$live"/. "$root"/
+          test -s "$root/EverLeaf.exe"
+          test -s "$root/dinput8.dll"
+          test -s "$donor/UI.wz"
+          cp -a "$donor/UI.wz" "$root/UI.wz"
+
+          # Make sure no Yuna runtime binaries were introduced.
+          rm -f "$root/YunaMS.exe" "$root/yunams.dll" "$root/yunamsw.dll" "$root/settings.ini" "$root/version.data" "$root/d3d8.dll"
+
+          echo '=== CRITICAL HASHES ==='
+          sha256sum "$root/EverLeaf.exe" "$root/dinput8.dll" "$root/config.ini" "$root/UI.wz" "$root/Item.wz" "$root/Mob.wz" "$root/Map.wz"
+          test "$(sha256sum "$root/UI.wz" | awk '{print $1}')" = cf0c8c141287c9ea846ef23c752893be914dcf7e4b8137668cddfebd4ff99a61
+          test "$(sha256sum "$root/Item.wz" | awk '{print $1}')" = 737341e002a76aa8673eca48e7d1d3fbd8f3185c6cdf69f8faf2dddbb16f9f0b
+          test "$(sha256sum "$root/Mob.wz" | awk '{print $1}')" = eb0e2d34bdf35ca7183abe1c375ff21b2eb2d9eb8fb82588137bc20ea87ad8b2
+
+          echo '=== BRANDING STRING SCAN ==='
+          python3 - "$root" <<'PY'
+          import pathlib,re,sys
+          root=pathlib.Path(sys.argv[1])
+          terms=['yuna','yunams','ezorsia','mapleezorsia','redly','game guard','gameguard','madaragame','solomapling']
+          files=[]
+          for p in root.rglob('*'):
+              if not p.is_file(): continue
+              if p.stat().st_size>2_000_000_000: continue
+              files.append(p)
+          found=[]
+          for p in files:
+              b=p.read_bytes()
+              low=b.lower()
+              for t in terms:
+                  a=t.encode('ascii')
+                  if a in low:
+                      found.append((str(p.relative_to(root)),t,'ascii',low.count(a)))
+                  u=t.encode('utf-16le')
+                  if u in low:
+                      found.append((str(p.relative_to(root)),t,'utf16le',low.count(u)))
+          if found:
+              for row in found: print('BRAND_HIT',*row)
+          else:
+              print('NO_PLAINTEXT_DONOR_BRAND_HITS')
+          pathlib.Path('/tmp/everleaf-brand-scan.txt').write_text('\n'.join(' '.join(map(str,x)) for x in found) or 'NO_PLAINTEXT_DONOR_BRAND_HITS\n')
+          PY
+
+          echo '=== FILENAMES WITH DONOR TERMS ==='
+          find "$root" -type f -printf '%P\n' | grep -Eai 'yuna|ezorsia|redly|solomapling|madara' && exit 3 || true
+
+          # Verify exact production runtime binaries remain.
+          for f in EverLeaf.exe dinput8.dll config.ini; do
+            a=$(sha256sum "$root/$f"|awk '{print $1}')
+            b=$(sha256sum "$live/$f"|awk '{print $1}')
+            test "$a" = "$b"
+            echo "PRODUCTION_RUNTIME_PRESERVED $f $a"
+          done
+
+          # Build reproducible zip using Python only.
+          tmp=/tmp/EverLeaf-YunaUI-CleanCandidate.zip
+          rm -f "$tmp"
+          python3 - "$root" "$tmp" <<'PY'
+          import pathlib,sys,zipfile
+          root=pathlib.Path(sys.argv[1]); out=pathlib.Path(sys.argv[2])
+          with zipfile.ZipFile(out,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=6,allowZip64=True) as z:
+              for p in sorted(root.rglob('*')):
+                  if p.is_file(): z.write(p,p.relative_to(root).as_posix())
+          print('ZIP_SIZE',out.stat().st_size)
+          PY
+          sudo install -m 0644 "$tmp" "$out.new"
+          sudo mv -f "$out.new" "$out"
+          echo "CLEAN_CANDIDATE_SHA256=$(sha256sum "$out"|awk '{print $1}')"
+          echo "CLEAN_CANDIDATE_SIZE=$(stat -c%s "$out")"
+          echo 'CLEAN_EVERLEAF_YUNA_UI_CANDIDATE_OK'
+          REMOTE
