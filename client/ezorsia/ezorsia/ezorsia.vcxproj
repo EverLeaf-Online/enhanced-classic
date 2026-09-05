@@ -179,6 +179,9 @@
       <FileType>CppHeader</FileType>
     </ClInclude>
     <ClInclude Include="Client.h" />
+    <ClInclude Include="CrashDiagnostics.h" />
+    <ClInclude Include="DiscordPresence.h" />
+    <ClInclude Include="FrameLimiter.h" />
     <ClInclude Include="dinput8.h" />
     <ClInclude Include="MainMain.h" />
     <ClInclude Include="MapleClientCollectionTypes\winhook_types.h" />
@@ -214,6 +217,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Client.cpp" />
+    <ClCompile Include="CrashDiagnostics.cpp" />
+    <ClCompile Include="DiscordPresence.cpp" />
+    <ClCompile Include="FrameLimiter.cpp" />
     <ClCompile Include="dinput8.cpp" />
     <ClCompile Include="MainMain.cpp" />
     <ClCompile Include="ZAllocEx.cpp" />
