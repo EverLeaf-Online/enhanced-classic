@@ -9,6 +9,8 @@
 #include "WidescreenCorrections.h"
 #include "AddyLocations.h"
 #include "DiscordPresence.h"
+#include "EverLeafLoginLayout.h"
+#include "EverLeafWebLinks.h"
 
 #include <atomic>
 
@@ -171,8 +173,13 @@ void MainFunc() {
 
     if (Client::ModernLoginUI) {
         CrashDiagnostics::SetPhase("applying-login-ui");
-        std::cout << "EverLeaf Client v2: applying modern login UI" << std::endl;
-        Client::UpdateLogin();
+        std::cout << "EverLeaf Client v2: aligning native login controls with EverLeaf panel" << std::endl;
+        EverLeafLoginLayout::Apply();
+    }
+
+    CrashDiagnostics::SetPhase("installing-web-link-routing");
+    if (!EverLeafWebLinks::Install()) {
+        CrashDiagnostics::LogEvent("EverLeaf web-link routing unavailable; legacy links may remain");
     }
 
     CrashDiagnostics::SetPhase("initializing-dinput-proxy");
