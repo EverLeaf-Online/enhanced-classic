@@ -6,6 +6,7 @@ on:
     paths:
       - "client/ezorsia/ezorsia/SafeEarlyHooks.h"
       - "client/ezorsia/ezorsia/dllmain.cpp"
+      - "client/ezorsia/ezorsia/AutoTypes.h"
       - ".github/workflows/client-v2-early-hooks-guard.yml"
   workflow_dispatch:
 
@@ -17,11 +18,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Verify guarded Win32 and Winsock hook invariants
+      - name: Verify guarded Win32, Winsock, and loader invariants
         shell: pwsh
         run: |
           $safe = Get-Content "client/ezorsia/ezorsia/SafeEarlyHooks.h" -Raw
           $bootstrap = Get-Content "client/ezorsia/ezorsia/dllmain.cpp" -Raw
+          $autoTypes = Get-Content "client/ezorsia/ezorsia/AutoTypes.h" -Raw
 
           foreach ($required in @(
             'IS_INTRESOURCE(className)',
@@ -34,7 +36,11 @@ jobs:
             'gHaveOriginalGameEndpoint',
             'ZeroMemory(&gOriginalGameEndpoint',
             'HookCreateWindowExA',
-            'HookWSPStartup'
+            'HookWSPStartup',
+            'gWSPStartupOriginal = nullptr',
+            'ResolveProviderEntryPoint()',
+            'GetModuleHandleA("MSWSOCK")',
+            'LoadLibraryA("MSWSOCK")'
           )) {
             if (-not $safe.Contains($required)) { throw "Missing safe early-hook invariant: $required" }
           }
@@ -43,7 +49,8 @@ jobs:
             'WSAAddressToString',
             'strstr(szAddr',
             '"WSPStartup Error Code: " +',
-            'strstr(lpClassName'
+            'strstr(lpClassName',
+            'gWSPStartupOriginal = reinterpret_cast<WSPStartup_t>(GetFuncAddress'
           )) {
             if ($safe.Contains($forbidden)) { throw "Unsafe inherited hook pattern leaked into SafeEarlyHooks.h: $forbidden" }
           }
@@ -51,9 +58,20 @@ jobs:
           foreach ($required in @(
             '#include "SafeEarlyHooks.h"',
             'EverLeafEarlyHooks::HookWSPStartup',
-            'EverLeafEarlyHooks::HookCreateWindowExA'
+            'EverLeafEarlyHooks::HookCreateWindowExA',
+            '#define LoadLibraryA GetModuleHandleA',
+            '#include "AutoTypes.h"',
+            '#undef LoadLibraryA'
           )) {
-            if (-not $bootstrap.Contains($required)) { throw "Bootstrap is not using safe early hooks: $required" }
+            if (-not $bootstrap.Contains($required)) { throw "Bootstrap is missing a safe early-loader invariant: $required" }
+          }
+
+          $compatInclude = [regex]::Match(
+            $bootstrap,
+            '#define LoadLibraryA GetModuleHandleA\s*#include "AutoTypes\.h"\s*#undef LoadLibraryA'
+          )
+          if (-not $compatInclude.Success) {
+            throw 'AutoTypes legacy GetFuncAddress is not compiled under the loaded-module-only compatibility bridge'
           }
 
           if ($bootstrap.Contains('InstallEarlyHook("WSPStartup", Hook_WSPStartup')) {
@@ -61,4 +79,15 @@ jobs:
           }
           if ($bootstrap.Contains('InstallEarlyHook("CreateWindowExA", Hook_CreateWindowExA')) {
             throw "Bootstrap re-enabled inherited unsafe CreateWindowExA hook"
+          }
+
+          # AutoTypes keeps the donor helper for provenance, but Client v2 must
+          # neutralize its LoadLibraryA call at compile time before ReplacementFuncs
+          # global pointers initialize. This assertion documents why the bridge is
+          # required and prevents a future helper rename from silently bypassing it.
+          if (-not $autoTypes.Contains('DWORD GetFuncAddress(LPCSTR lpModule, LPCSTR lpFunc)')) {
+            throw 'Legacy GetFuncAddress helper moved/changed; review Client v2 loader-safety bridge'
+          }
+          if (-not $autoTypes.Contains('HMODULE mod = LoadLibraryA(lpModule)')) {
+            throw 'Legacy GetFuncAddress no longer has the expected LoadLibraryA call; review/remove compatibility bridge deliberately'
           }
