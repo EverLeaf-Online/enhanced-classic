@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Verify focus-safe WASD invariants
+      - name: Verify field-only focus-safe WASD invariants
         shell: bash
         run: |
           python3 - <<'PY'
@@ -35,16 +35,21 @@ jobs:
               'kWndManFocusOffset = 0x88',
               'kCtrlEditRttiAddress = 0x00BED5EC',
               'kWvsAppInstanceAddress = 0x00BE7B38',
+              'kStageInstanceAddress = 0x00BEDED4',
+              'kFieldRttiAddress = 0x00BED758',
               'static_assert(sizeof(ISMSG) == 12',
               'GetForegroundWindow() == app->m_hWnd',
+              'IsGameplayField()',
+              'static_cast<IUIMsgHandler*>(stage)',
+              'reinterpret_cast<CRTTI*>(kFieldRttiAddress)',
               'IsEditControlFocused()',
-              'vtable->IsKindOf',
               'reinterpret_cast<CRTTI*>(kCtrlEditRttiAddress)',
               "case 'W': return VK_UP;",
               "case 'A': return VK_LEFT;",
               "case 'S': return VK_DOWN;",
               "case 'D': return VK_RIGHT;",
               'pISMsg->message != WM_KEYDOWN',
+              '!IsGameplayField()',
               'pISMsg->wParam = TranslateWasd(pISMsg->wParam)',
               'WASDRemapping", false',
               'Memory::SetHook(',
@@ -53,12 +58,15 @@ jobs:
               if marker not in wasd:
                   raise SystemExit(f'Missing WASD safety marker: {marker}')
 
-          # If focus/vtable probing encounters an unknown client layout, the
-          # remapper must fail closed by treating it as text-entry focus.
-          if not re.search(r'if \(!vtable->IsKindOf\)\s*\{[^}]*return true;', wasd, re.S):
-              raise SystemExit('Unknown focus-handler layout does not fail closed')
-          if not re.search(r'__except \(EXCEPTION_EXECUTE_HANDLER\)\s*\{[^}]*return true;', wasd, re.S):
-              raise SystemExit('Focus probe exception path does not fail closed')
+          # Unknown field/stage state must disable translation, while unknown
+          # focus-handler state must be treated as text entry. These complementary
+          # fail-closed paths keep both menu navigation and typing untouched.
+          gameplay = re.search(r'inline bool IsGameplayField\(\)\s*\{(.*?)\n\}', wasd, re.S)
+          if not gameplay or '__except (EXCEPTION_EXECUTE_HANDLER)' not in gameplay.group(1) or 'return false;' not in gameplay.group(1):
+              raise SystemExit('Gameplay-field probe does not fail closed')
+          focus = re.search(r'inline bool IsEditControlFocused\(\)\s*\{(.*?)\n\}', wasd, re.S)
+          if not focus or '__except (EXCEPTION_EXECUTE_HANDLER)' not in focus.group(1) or 'return true;' not in focus.group(1):
+              raise SystemExit('Edit-focus probe does not fail closed')
 
           # Translation is allowed to mutate only wParam. lParam contains
           # key-up/repeat/modifier state and must remain byte-for-byte intact.
@@ -87,5 +95,5 @@ jobs:
           if 'EverLeafWasdInput::Install(true)' not in dinput:
               raise SystemExit('post-unpack dinput bootstrap does not install optional WASD layer')
 
-          print('Client v2 focus-safe WASD contract passed')
+          print('Client v2 field-only focus-safe WASD contract passed')
           PY
