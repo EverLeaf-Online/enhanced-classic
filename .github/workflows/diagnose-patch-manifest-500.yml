@@ -1,0 +1,66 @@
+name: Diagnose patch manifest 500
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/diagnose-patch-manifest-500.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Diagnose live patch endpoint
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -u
+          echo '=== manifest file ==='
+          ls -l /opt/everleaf/patches/manifest.json || true
+          stat /opt/everleaf/patches/manifest.json || true
+          python3 -m json.tool /opt/everleaf/patches/manifest.json >/tmp/manifest.pretty 2>/tmp/manifest.json.err || true
+          echo JSON_EXIT=$?
+          cat /tmp/manifest.json.err || true
+          head -40 /tmp/manifest.pretty || true
+          echo '=== endpoint ==='
+          curl -iS http://127.0.0.1:3000/patches/manifest.json || true
+          echo '=== listeners/processes ==='
+          ss -ltnp | grep ':3000' || true
+          ps aux | grep -E 'node|next|pm2' | grep -v grep || true
+          echo '=== services ==='
+          systemctl --no-pager --type=service --state=running | grep -Ei 'everleaf|web|node|next' || true
+          echo '=== candidate service logs ==='
+          for s in everleaf-web.service everleaf-website.service everleaf-site.service everleaf.service; do
+            if systemctl cat "$s" >/dev/null 2>&1; then
+              echo "--- $s ---"
+              systemctl status "$s" --no-pager -l || true
+              journalctl -u "$s" -n 120 --no-pager || true
+            fi
+          done
+          echo '=== web tree patch references ==='
+          grep -R -n --exclude-dir=node_modules --exclude-dir=.next -E 'patches|manifest\.json|PATCH' /opt/everleaf/web 2>/dev/null | head -200 || true
+          echo DIAG_PATCH_MANIFEST_500_COMPLETE
+          REMOTE
