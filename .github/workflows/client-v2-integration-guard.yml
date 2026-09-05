@@ -1,0 +1,141 @@
+name: Client v2 integration guard
+
+on:
+  pull_request:
+    branches: [release-dev, master]
+    paths:
+      - "client/ezorsia/ezorsia/**"
+      - ".github/workflows/client-v2-integration-guard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration-contract:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify combined Client v2 layers
+        shell: pwsh
+        run: |
+          $bootstrap = Get-Content "client/ezorsia/ezorsia/dllmain.cpp" -Raw
+          $safe = Get-Content "client/ezorsia/ezorsia/SafeEarlyHooks.h" -Raw
+          $display = Get-Content "client/ezorsia/ezorsia/DisplayMode.h" -Raw
+          $wide = Get-Content "client/ezorsia/ezorsia/WidescreenCorrections.h" -Raw
+          $frame = Get-Content "client/ezorsia/ezorsia/FrameLimiter.cpp" -Raw
+          $diagnostics = Get-Content "client/ezorsia/ezorsia/CrashDiagnostics.cpp" -Raw
+          $dinput = Get-Content "client/ezorsia/ezorsia/dinput8.cpp" -Raw
+          $memory = Get-Content "client/ezorsia/ezorsia/Memory.cpp" -Raw
+          $config = Get-Content "client/ezorsia/ezorsia/config.ini" -Raw
+
+          foreach ($required in @(
+            '#include "SafeEarlyHooks.h"',
+            '#include "DisplayMode.h"',
+            '#include "WidescreenCorrections.h"',
+            '#include "CrashDiagnostics.h"',
+            '#include "FrameLimiter.h"',
+            'EverLeafEarlyHooks::HookWSPStartup',
+            'EverLeafEarlyHooks::HookCreateWindowExA',
+            'DisplayMode::EnableSystemDpiAwareness()',
+            'DisplayMode::StartWorker()',
+            'WidescreenCorrections::Apply()',
+            'FrameLimiter::Install()',
+            'CrashDiagnostics::Install()',
+            'Memory::WriteInt(dwToolTipLimitVPos + 1, Client::m_nGameHeight - 1)'
+          )) {
+            if (-not $bootstrap.Contains($required)) { throw "Missing integrated bootstrap layer: $required" }
+          }
+
+          foreach ($required in @(
+            'IS_INTRESOURCE(className)',
+            'lstrcmpA(className, expected)',
+            'name->sa_family == AF_INET',
+            'redirected = *endpoint',
+            'forwardedName = reinterpret_cast<const sockaddr*>(&redirected)',
+            'WSPStartup error code: " << result'
+          )) {
+            if (-not $safe.Contains($required)) { throw "Missing safe early-hook contract: $required" }
+          }
+          foreach ($forbidden in @('WSAAddressToString', 'strstr(szAddr', 'strstr(lpClassName', '"WSPStartup Error Code: " +')) {
+            if ($safe.Contains($forbidden)) { throw "Unsafe early-hook pattern present: $forbidden" }
+          }
+
+          foreach ($required in @(
+            'GetWindowThreadProcessId',
+            'CaptureWindowedState',
+            'RestoreWindowedState',
+            'ToggleBorderlessWindow',
+            'WM_SYSKEYDOWN',
+            'WM_SYSCHAR',
+            'CallWindowProcA'
+          )) {
+            if (-not $display.Contains($required)) { throw "Missing display contract: $required" }
+          }
+
+          foreach ($required in @(
+            'kCWndHorizontalLowerBound = 0x009DFCF3',
+            'kCWndVerticalLowerBound = 0x009DFE6B',
+            'kLimitedViewDarkHeight = 0x0055B885',
+            'kHorizontalWidthOperand = 0x004D59B3',
+            'kLoginDialogVerticalAnimate = 0x0060F79C',
+            'kLoginDialogVerticalPosition = 0x0060F7A5',
+            'static_cast<unsigned int>(-Client::m_nGameWidth)',
+            'static_cast<unsigned int>(-Client::m_nGameHeight)',
+            '(Client::m_nGameHeight / 2) - 150',
+            '(Client::m_nGameHeight / 2) - 130'
+          )) {
+            if (-not $wide.Contains($required)) { throw "Missing widescreen correction contract: $required" }
+          }
+
+          foreach ($required in @(
+            'ForegroundFPSCap',
+            'BackgroundFPSCap',
+            'QueryPerformanceCounter',
+            'GetForegroundWindow'
+          )) {
+            if (-not $frame.Contains($required)) { throw "Missing frame limiter contract: $required" }
+          }
+          if ($frame.Contains('m_tUpdateTime')) { throw "Frame limiter touched Maple game logic timing" }
+
+          foreach ($required in @('SetUnhandledExceptionFilter', 'EXCEPTION_CONTINUE_SEARCH', 'EverLeafClient.log')) {
+            if (-not $diagnostics.Contains($required)) { throw "Missing diagnostics contract: $required" }
+          }
+
+          $createHookStart = $dinput.IndexOf('void dinput8::CreateHook() {')
+          $exportsStart = $dinput.IndexOf('extern "C"', $createHookStart)
+          if ($createHookStart -lt 0 -or $exportsStart -le $createHookStart) {
+            throw 'Could not locate bounded dinput bootstrap body'
+          }
+          $createHook = $dinput.Substring($createHookStart, $exportsStart - $createHookStart)
+          if (-not $createHook.Contains('RequireEverLeafLauncher();')) {
+            throw 'Post-unpack dinput bootstrap does not enforce the launcher ticket'
+          }
+          if (-not $dinput.Contains('InterlockedCompareExchange(&g_launcherTicketAccepted, 1, 1) == 1')) {
+            throw 'Launcher ticket consumption is not idempotent across bootstrap/export paths'
+          }
+
+          foreach ($required in @(
+            'FlushInstructionCache',
+            'WritePatchedValue',
+            'kMalformedScreenMsgResetYWrite = 0x0089B797',
+            'kScreenMsgResetYOperand = 0x0089B798',
+            'kScreenMsgResetXOperand = 0x0089BA04',
+            'kScreenMsgLayoutXOperand = 0x0089B6F8',
+            'HandleScreenMessageWrite'
+          )) {
+            if (-not $memory.Contains($required)) { throw "Missing memory/screen-message contract: $required" }
+          }
+
+          foreach ($required in @(
+            'WindowedMode=true',
+            'BorderlessWindow=false',
+            'EnableAltEnterToggle=true',
+            'CenterWindow=true',
+            'ForegroundFPSCap=60',
+            'LimitBackgroundFPS=true',
+            'BackgroundFPSCap=15',
+            'RemoveLogos=true'
+          )) {
+            if (-not $config.Contains($required)) { throw "Missing integrated packaged default: $required" }
+          }
