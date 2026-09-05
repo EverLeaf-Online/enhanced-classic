@@ -1,13 +1,72 @@
 #include "stdafx.h"
 #include "dinput8.h"
-//NOTE: this dll can also be used to remap the core functionality of keybinds, i.e. changing arrow keys in the game to WASD. but this would
-FARPROC DirectInput8Create_Proc; //require reinterpreting the functions of the dll instead of just redirecting as is done here (to dinput8.dll)
-FARPROC GetdfDIJoystick_Proc;
+#include "WasdInput.h"
+
+// System dinput8 forwarding targets. The exported naked stubs below can be
+// reached before the rest of the Maple client has finished unpacking, so these
+// pointers must be resolved lazily at the export boundary rather than assuming
+// MainFunc already ran.
+FARPROC DirectInput8Create_Proc = nullptr;
+FARPROC GetdfDIJoystick_Proc = nullptr;
 
 namespace {
 	volatile LONG g_launcherTicketAccepted = 0;
 	const char* kLauncherTicket = ".everleaf-launch";
 	const __int64 kTicketMaxAgeSeconds = 120;
+	INIT_ONCE g_dinputInitOnce = INIT_ONCE_STATIC_INIT;
+	HMODULE g_systemDinput8 = nullptr;
+
+	BOOL CALLBACK ResolveSystemDinput8(PINIT_ONCE, PVOID, PVOID*) {
+		char szPath[MAX_PATH] = { 0 };
+		const UINT systemPathLength = GetSystemDirectoryA(szPath, ARRAYSIZE(szPath));
+		if (systemPathLength == 0 || systemPathLength >= ARRAYSIZE(szPath)) {
+			SetLastError(ERROR_INSUFFICIENT_BUFFER);
+			return FALSE;
+		}
+
+		if (strcat_s(szPath, "\\dinput8.dll") != 0) {
+			SetLastError(ERROR_INSUFFICIENT_BUFFER);
+			return FALSE;
+		}
+
+		HMODULE module = LoadLibraryA(szPath);
+		if (!module) {
+			return FALSE;
+		}
+
+		FARPROC directInput = GetProcAddress(module, "DirectInput8Create");
+		FARPROC joystick = GetProcAddress(module, "GetdfDIJoystick");
+		if (!directInput || !joystick) {
+			FreeLibrary(module);
+			SetLastError(ERROR_PROC_NOT_FOUND);
+			return FALSE;
+		}
+
+		DirectInput8Create_Proc = directInput;
+		GetdfDIJoystick_Proc = joystick;
+		g_systemDinput8 = module;
+		return TRUE;
+	}
+
+	void EnsureSystemDinput8() {
+		PVOID context = nullptr;
+		if (InitOnceExecuteOnce(&g_dinputInitOnce, ResolveSystemDinput8, nullptr, &context)) {
+			return;
+		}
+
+		DWORD error = GetLastError();
+		if (error == ERROR_SUCCESS) {
+			error = ERROR_MOD_NOT_FOUND;
+		}
+		MessageBoxW(
+			nullptr,
+			L"EverLeaf could not load the Windows system dinput8.dll or one of its required exports.\n\n"
+			L"Repair Windows system files if this persists, then launch EverLeaf again.",
+			L"EverLeaf Client v2 input error",
+			MB_OK | MB_ICONERROR
+		);
+		ExitProcess(error);
+	}
 
 	bool ConsumeFreshLauncherTicket() {
 		if (InterlockedCompareExchange(&g_launcherTicketAccepted, 1, 1) == 1) return true;
@@ -46,26 +105,46 @@ namespace {
 }
 
 void dinput8::CreateHook() {
-	char szPath[MAX_PATH];
-	if (GetSystemDirectoryA(szPath, sizeof(szPath))) { strcat(szPath, "\\dinput8.dll"); }
-	else { Sleep(20); SuspendThread(MainMain::mainTHread); MessageBox(NULL, L"Failed to load original dinput8.dll from system location, make sure your directory path is not longer than " + MAX_PATH, L"systems directory inaccessible", 0); ExitProcess(0); }
-	HMODULE hModule = LoadLibraryA(szPath);
-	if (hModule) { 
-		DirectInput8Create_Proc = GetProcAddress(hModule, "DirectInput8Create"); 
-		GetdfDIJoystick_Proc = GetProcAddress(hModule, "GetdfDIJoystick");
+	// Eagerly resolve during the normal bootstrap path, while the exported stubs
+	// also call the same thread-safe resolver in case Maple reaches them first.
+	EnsureSystemDinput8();
+
+	// The gameplay remapper is installed only here, after Client v2 has verified
+	// the unpacked v83 image. When WASDRemapping=false (the default), Install()
+	// returns without creating any Detours hook and stock Maple input is untouched.
+	if (!EverLeafWasdInput::Install(true)) {
+		MessageBoxW(
+			nullptr,
+			L"EverLeaf could not initialize the optional WASD input layer.\n\n"
+			L"Please repair/update the client before enabling WASD movement.",
+			L"EverLeaf Client v2 input error",
+			MB_OK | MB_ICONERROR
+		);
+		ExitProcess(ERROR_DLL_INIT_FAILED);
 	}
-	else { Sleep(20); SuspendThread(MainMain::mainTHread); MessageBox(NULL, L"Failed to find original dinput8.dll, verify that a non-Ezorsia v2 dinput8.dll exists in your system directory", L"Missing file", 0); ExitProcess(0); }
 }
+
 extern "C" __declspec(dllexport) __declspec(naked) void DirectInput8Create()
 {
 	__asm {
+		pushfd
 		pushad
+		call EnsureSystemDinput8
 		call RequireEverLeafLauncher
 		popad
+		popfd
 		jmp dword ptr[DirectInput8Create_Proc]
 	}
 }
+
 extern "C" __declspec(dllexport) __declspec(naked) void GetdfDIJoystick()
 {
-	__asm	jmp dword ptr[GetdfDIJoystick_Proc]
+	__asm {
+		pushfd
+		pushad
+		call EnsureSystemDinput8
+		popad
+		popfd
+		jmp dword ptr[GetdfDIJoystick_Proc]
+	}
 }

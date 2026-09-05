@@ -1,0 +1,103 @@
+name: Client v2 early hooks guard
+
+on:
+  pull_request:
+    branches: [release-dev, master]
+    paths:
+      - "client/ezorsia/ezorsia/SafeEarlyHooks.h"
+      - "client/ezorsia/ezorsia/dllmain.cpp"
+      - "client/ezorsia/ezorsia/AutoTypes.h"
+      - "client/scripts/apply-client-v2-loader-cleanup.py"
+      - ".github/workflows/client-v2-early-hooks-guard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  early-hook-contract:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify guarded Win32, Winsock, and loader invariants
+        shell: pwsh
+        run: |
+          $safe = Get-Content "client/ezorsia/ezorsia/SafeEarlyHooks.h" -Raw
+          $bootstrap = Get-Content "client/ezorsia/ezorsia/dllmain.cpp" -Raw
+          $autoTypes = Get-Content "client/ezorsia/ezorsia/AutoTypes.h" -Raw
+          $loaderTransform = Get-Content "client/scripts/apply-client-v2-loader-cleanup.py" -Raw
+
+          foreach ($required in @(
+            'IS_INTRESOURCE(className)',
+            'lstrcmpA(className, expected)',
+            'IsLegacyLoginAddress',
+            'name->sa_family == AF_INET',
+            'redirected = *endpoint',
+            'forwardedName = reinterpret_cast<const sockaddr*>(&redirected)',
+            'WSPStartup error code: " << result',
+            'gHaveOriginalGameEndpoint',
+            'ZeroMemory(&gOriginalGameEndpoint',
+            'HookCreateWindowExA',
+            'HookWSPStartup',
+            'gWSPStartupOriginal = nullptr',
+            'ResolveWSPStartupOnWorker()',
+            'GetModuleHandleA("mswsock.dll")',
+            'LoadLibraryA("mswsock.dll")',
+            'enable && !detail::ResolveWSPStartupOnWorker()'
+          )) {
+            if (-not $safe.Contains($required)) { throw "Missing safe early-hook invariant: $required" }
+          }
+
+          foreach ($forbidden in @(
+            'WSAAddressToString',
+            'strstr(szAddr',
+            '"WSPStartup Error Code: " +',
+            'strstr(lpClassName',
+            'gWSPStartupOriginal = reinterpret_cast<WSPStartup_t>(GetFuncAddress'
+          )) {
+            if ($safe.Contains($forbidden)) { throw "Unsafe inherited hook pattern leaked into SafeEarlyHooks.h: $forbidden" }
+          }
+
+          foreach ($required in @(
+            '#include "SafeEarlyHooks.h"',
+            'EverLeafEarlyHooks::HookWSPStartup',
+            'EverLeafEarlyHooks::HookCreateWindowExA',
+            '#define LoadLibraryA GetModuleHandleA',
+            '#include "AutoTypes.h"',
+            '#undef LoadLibraryA'
+          )) {
+            if (-not $bootstrap.Contains($required)) { throw "Bootstrap is missing a safe early-loader invariant: $required" }
+          }
+
+          $compatInclude = [regex]::Match(
+            $bootstrap,
+            '#define LoadLibraryA GetModuleHandleA\s*#include "AutoTypes\.h"\s*#undef LoadLibraryA'
+          )
+          if (-not $compatInclude.Success) {
+            throw 'AutoTypes legacy GetFuncAddress is not compiled under the loaded-module-only compatibility bridge'
+          }
+
+          if ($bootstrap.Contains('InstallEarlyHook("WSPStartup", Hook_WSPStartup')) {
+            throw "Bootstrap re-enabled inherited unsafe WSPStartup hook"
+          }
+          if ($bootstrap.Contains('InstallEarlyHook("CreateWindowExA", Hook_CreateWindowExA')) {
+            throw "Bootstrap re-enabled inherited unsafe CreateWindowExA hook"
+          }
+
+          # AutoTypes intentionally preserves the donor helper in source. The
+          # translation-unit bridge prevents it from loading modules even in a
+          # direct/manual build, while the deterministic build transform changes
+          # the helper itself to GetModuleHandleA for packaged CI builds.
+          if (-not $autoTypes.Contains('DWORD GetFuncAddress(LPCSTR lpModule, LPCSTR lpFunc)')) {
+            throw 'Legacy GetFuncAddress helper moved/changed; review Client v2 loader-safety bridge'
+          }
+          if (-not $autoTypes.Contains('HMODULE mod = LoadLibraryA(lpModule)')) {
+            throw 'Legacy GetFuncAddress source changed; review/remove loader compatibility bridge deliberately'
+          }
+          foreach ($required in @(
+            'HMODULE mod = LoadLibraryA(lpModule)',
+            'HMODULE mod = GetModuleHandleA(lpModule)',
+            'Client v2 loader cleanup'
+          )) {
+            if (-not $loaderTransform.Contains($required)) { throw "Loader transform missing invariant: $required" }
+          }
