@@ -98,8 +98,8 @@ jobs:
           if ($bootstrap.Contains('Hook_sub_44E88E(true)')) {
             throw "Obsolete MyGetProcAddress pass-through hook was re-enabled"
           }
-          if ($bootstrap.Contains('Hook_sub_9F5C50(true)')) {
-            throw "Client v2 must keep stock v83 CWvsApp::Run exception dispatch semantics"
+          if (-not $bootstrap.Contains('Hook_sub_9F5C50(true)')) {
+            throw "Client v2 must keep the proven EverLeaf v83 Run compatibility loop"
           }
           $attachBlock = [regex]::Match($bootstrap, 'case DLL_PROCESS_ATTACH:[\s\S]*?break;').Value
           foreach ($pattern in @('Hook_CreateMutexA(', 'Hook_WSPStartup(', 'Hook_CreateWindowExA(', 'Hook_FindFirstFileA(', 'Hook_GetACP(', 'Hook_GetModuleFileNameW(')) {

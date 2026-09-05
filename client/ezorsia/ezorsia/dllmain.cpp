@@ -128,6 +128,12 @@ void MainFunc() {
     requiredHook("CRC update", Hook_sub_9F4E54(true));
     requiredHook("CWvsApp::ctor", Hook_sub_9F4FDA(true));
     requiredHook("CWvsApp::SetUp", Hook_sub_9F5239(true));
+    // EverLeaf's v83 server path depends on the established private-server Run
+    // compatibility loop. Leaving the retail Run implementation active survives
+    // an offline smoke test, but exits cleanly as soon as the live endpoint sends
+    // its first disconnect/transition code. This is the substantive difference
+    // from the previously working live client, so keep the proven replacement.
+    requiredHook("CWvsApp::Run compatibility", Hook_sub_9F5C50(true));
     requiredHook("CWvsApp::InitializeInput", Hook_sub_9F7CE1(true));
     requiredHook("CWvsApp::CallUpdate", Hook_sub_9F84D0(true));
     requiredHook("Dir_BackSlashToSlash", HookCWvsApp__Dir_BackSlashToSlash(true));
