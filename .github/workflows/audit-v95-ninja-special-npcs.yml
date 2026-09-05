@@ -1,0 +1,96 @@
+name: Audit v95 Ninja special NPCs
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/audit-v95-ninja-special-npcs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh audit-output
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 10
+            ConnectTimeout 20
+          EOF
+      - name: Inspect special NPC placement and quest coupling
+        run: |
+          set -euo pipefail
+          cat > /tmp/ninja-special.py <<'PY'
+          from pathlib import Path
+          import os,json,re,xml.etree.ElementTree as ET
+          root=Path(os.path.realpath('/opt/everleaf/current'))
+          wz=root/'wz'
+          special={9110105:'ninja_maze',9110107:'goNinja',9110109:'mission_9110109'}
+          placements={n:[] for n in special}
+          for p in (wz/'Map.wz').rglob('*.img.xml'):
+              m=re.match(r'^(\d+)\.img\.xml$',p.name)
+              if not m: continue
+              try:r=ET.parse(p).getroot()
+              except Exception:continue
+              for sec in r.iter():
+                  if sec.attrib.get('name')!='life':continue
+                  for life in list(sec):
+                      d={c.attrib.get('name',''):c.attrib.get('value','') for c in list(life)}
+                      if d.get('type')=='n' and d.get('id','').isdigit() and int(d['id']) in special:
+                          placements[int(d['id'])].append(int(m.group(1)))
+          def quest_refs(npc):
+              out=[]
+              for p in (wz/'Quest.wz').rglob('*.xml'):
+                  try:r=ET.parse(p).getroot()
+                  except Exception:continue
+                  for q in r.iter():
+                      raw=q.attrib.get('name','')
+                      if not raw.isdigit(): continue
+                      qid=int(raw)
+                      if qid>1000000: continue
+                      found=False
+                      for x in q.iter():
+                          if x.attrib.get('name','').lower()=='npc' and x.attrib.get('value','').isdigit() and int(x.attrib['value'])==npc:
+                              found=True; break
+                      if found: out.append([qid,str(p.relative_to(wz))])
+              return sorted(set(tuple(x) for x in out))
+          rows=[]
+          for npc,script in special.items():
+              rows.append({'npc':npc,'wz_script':script,'script_exists':(root/'scripts'/'npc'/f'{script}.js').exists(),'placements':sorted(set(placements[npc])),'quest_refs':[list(x) for x in quest_refs(npc)]})
+          # Explicitly check the known Sai quest from later GMS references.
+          q5363=[]
+          for p in (wz/'Quest.wz').rglob('*.xml'):
+              try:r=ET.parse(p).getroot()
+              except Exception:continue
+              if any(n.attrib.get('name','').isdigit() and int(n.attrib['name'])==5363 for n in r.iter()): q5363.append(str(p.relative_to(wz)))
+          print(json.dumps({'special':rows,'quest_5363_files':sorted(set(q5363))},indent=2))
+          PY
+          scp /tmp/ninja-special.py everleaf-oracle:/tmp/ninja-special.py
+          ssh everleaf-oracle 'python3 /tmp/ninja-special.py' | tee audit-output/ninja-special.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v95-ninja-special-${{ github.run_id }}
+          path: audit-output/
+          retention-days: 90
