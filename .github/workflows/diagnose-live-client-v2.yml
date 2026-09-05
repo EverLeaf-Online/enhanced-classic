@@ -1,0 +1,73 @@
+name: Diagnose live Client v2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/diagnose-live-client-v2.yml'
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release-dev
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inspect live client and login handoff
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          PATCH=/opt/everleaf/patches
+          echo '=== managed live files ==='
+          for f in EverLeaf.exe dinput8.dll config.ini Base.wz Canvas.dll Character.wz Item.wz Mob.wz UI.wz EverLeaf_UI.wz; do
+            p="$PATCH/files/$f"
+            if [ -f "$p" ]; then printf '%-20s ' "$f"; stat -c 'size=%s mtime=%y' "$p"; sha256sum "$p"; else echo "MISSING $f"; fi
+          done
+          echo '=== manifest entries ==='
+          python3 - <<'PY'
+          import json,os
+          p='/opt/everleaf/patches/manifest.json'
+          d=json.load(open(p))
+          wanted={'EverLeaf.exe','dinput8.dll','config.ini','Base.wz','Canvas.dll','Character.wz','Item.wz','Mob.wz','UI.wz','EverLeaf_UI.wz'}
+          print('version=',d.get('version'))
+          for x in d.get('files',[]):
+              if x.get('path') in wanted: print(x)
+          PY
+          echo '=== config ==='
+          sed -n '1,140p' "$PATCH/files/config.ini" || true
+          echo '=== patch endpoints ==='
+          curl -fsS http://127.0.0.1:3000/patches/manifest.json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("version"),len(d.get("files",[])))'
+          curl -fsS https://everleafms.online/patches/manifest.json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("version"),len(d.get("files",[])))'
+          echo '=== services / ports ==='
+          systemctl is-active everleaf.service
+          systemctl is-active everleaf-web.service
+          ss -ltn | grep -E ':(8484|7575|7576|7577|7578|7579|7580|7581|7582|7583|7584|7585|7586|7587|7588|7589|7590|7591|7592|7593|7594)\b' | head -30
+          echo '=== recent login/channel logs ==='
+          journalctl -u everleaf.service --since '2 hours ago' --no-pager | grep -Ei 'login|character|channel|select|handoff|session|disconnect|exception|error|client' | tail -400 || true
+          echo '=== web/launcher errors ==='
+          journalctl -u everleaf-web.service --since '2 hours ago' --no-pager | grep -Ei 'launcher|patch|manifest|error|exception' | tail -200 || true
+          echo LIVE_CLIENT_V2_DIAG_COMPLETE
+          REMOTE
