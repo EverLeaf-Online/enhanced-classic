@@ -104,9 +104,10 @@ std::array<RECT, 8> CardRects(const RECT& rc) {
     const int left = 12;
     const int right = w - 12;
     const int top = 52;
-    const int topHeight = std::min(246, std::max(212, (rc.bottom - rc.top) / 2 - 42));
+    const int availableHeight = static_cast<int>(rc.bottom - rc.top);
+    const int topHeight = std::min(246, std::max(212, availableHeight / 2 - 42));
     const int smallTop = top + topHeight + 12;
-    const int smallHeight = std::max(132, (rc.bottom - rc.top) - smallTop - 14);
+    const int smallHeight = std::max(132, availableHeight - smallTop - 14);
     std::array<RECT, 8> cards{};
     const int topWidth = (right - left - gap * 2) / 3;
     for (int i = 0; i < 3; ++i) {
