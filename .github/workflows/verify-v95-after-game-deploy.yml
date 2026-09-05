@@ -1,6 +1,10 @@
 name: Verify v95 after game deploy
 
 on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/verify-v95-after-game-deploy.yml'
   workflow_run:
     workflows: ["Deploy EverLeaf Game Production"]
     types: [completed]
@@ -11,7 +15,7 @@ permissions:
 
 jobs:
   verify:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -50,10 +54,8 @@ jobs:
           for root in "$shared" "$current/wz"; do
             count=$(find "$root" -type f -name '*.xml' | wc -l)
             test "$count" -ge 44237
-            # Future Henesys / Empress representatives.
             test -s "$root/Map.wz/Map/Map2/271000000.img.xml" || find "$root/Map.wz" -name '271000000.img.xml' -print -quit | grep -q .
             find "$root/Mob.wz" -name '8850011.img.xml' -print -quit | grep -q .
-            # Ninja Castle closure, including the asset that previously regressed.
             find "$root/Map.wz" -name '800040410.img.xml' -print -quit | grep -q .
             find "$root/Mob.wz" -name '9400400.img.xml' -print -quit | grep -q .
             find "$root/Mob.wz" -name '9400409.img.xml' -print -quit | grep -q .
