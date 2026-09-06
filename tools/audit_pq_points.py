@@ -84,6 +84,13 @@ def main() -> None:
     if "PqPointClearHook.onEventCleared(em.getName(), name, getPlayers())" not in transform:
         fail("PQ Point build transform is not wired to the centralized event clear path")
 
+    # The centralized clear transition must be idempotent. Without this guard,
+    # duplicate script callbacks can award legacy Quest Points multiple times
+    # even though the PQ Point ledger itself rejects duplicate reason keys.
+    for token in ["synchronized (this)", "if (eventCleared)", "return;", "eventCleared = true;"]:
+        if token not in transform:
+            fail(f"PQ clear transform is missing idempotency guard: {token}")
+
     for token in ["clearAward(eventName)", "awardClear(", '"duplicate_reason"']:
         if token not in hook:
             fail(f"PQ Point clear hook missing guard: {token}")
@@ -121,7 +128,7 @@ def main() -> None:
     print(f"       whitelisted_pqs={len(parsed)}")
     print(f"       clear_award_range={min(parsed.values())}-{max(parsed.values())}")
     print(f"       shop_costs={shop_costs}")
-    print("       duplicate clear protection=unique account/reason ledger key")
+    print("       duplicate clear protection=event transition + unique account/reason ledger key")
     print("       boss-only events excluded from automatic PQ currency")
     print("       White Scroll cost >= 4x Chaos Scroll cost")
 
