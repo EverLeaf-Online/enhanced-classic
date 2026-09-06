@@ -114,3 +114,7 @@ void ApplyEverLeafLoginLayout() {
     Memory::WriteByte(0x620a12,53);
     CrashDiagnostics::LogEvent("centered native login layout applied");
 }
+
+namespace EverLeafLoginLayout {
+void Apply() { ApplyEverLeafLoginLayout(); }
+}
