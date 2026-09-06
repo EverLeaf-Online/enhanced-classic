@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static readiness checks for EverLeaf PQ Points."""
+"""Static readiness checks for EverLeaf PQ Points and legacy event rewards."""
 
 from pathlib import Path
 import re
@@ -91,6 +91,21 @@ def main() -> None:
         if token not in transform:
             fail(f"PQ clear transform is missing idempotency guard: {token}")
 
+    # Legacy randomized event rewards used by PQ completion NPCs must also be
+    # exactly-once per character/reward level. Inventory-full failures must be
+    # retryable and therefore must not reserve a claim.
+    reward_guard_tokens = [
+        "eventRewardClaims",
+        "rewardClaimKey",
+        "eventRewardClaims.contains(rewardClaimKey)",
+        "eventRewardClaims.add(rewardClaimKey)",
+        "if (!hasRewardSlot(player, eventLevel))",
+        "return false;",
+    ]
+    for token in reward_guard_tokens:
+        if token not in transform:
+            fail(f"Legacy event reward transform is missing exactly-once guard: {token}")
+
     for token in ["clearAward(eventName)", "awardClear(", '"duplicate_reason"']:
         if token not in hook:
             fail(f"PQ Point clear hook missing guard: {token}")
@@ -129,6 +144,7 @@ def main() -> None:
     print(f"       clear_award_range={min(parsed.values())}-{max(parsed.values())}")
     print(f"       shop_costs={shop_costs}")
     print("       duplicate clear protection=event transition + unique account/reason ledger key")
+    print("       legacy event reward protection=per-character/per-level claim guard")
     print("       boss-only events excluded from automatic PQ currency")
     print("       White Scroll cost >= 4x Chaos Scroll cost")
 
