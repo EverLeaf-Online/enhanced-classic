@@ -234,4 +234,16 @@ class AssignAPProcessorTest {
                 () -> assertEquals(2255, f.apply(Job.THUNDERBREAKER4, cygnus_max_level))
         );
     }
+
+    @Test
+    void resetHpFloorHonorsEverLeafSurvivabilityTargets() {
+        assertAll(
+                () -> assertEquals(19_000, AssignAPProcessor.getResetMinHp(Job.HERO, 200)),
+                () -> assertEquals(9_000, AssignAPProcessor.getResetMinHp(Job.BOWMASTER, 200)),
+                () -> assertEquals(7_000, AssignAPProcessor.getResetMinHp(Job.BISHOP, 200)),
+                () -> assertEquals(7_000, AssignAPProcessor.getResetMinHp(Job.EVAN10, 200)),
+                () -> assertEquals(7_500, AssignAPProcessor.getResetMinHp(Job.BEGINNER, 200)),
+                () -> assertEquals(27_000, AssignAPProcessor.getResetMinHp(Job.HERO, 250))
+        );
+    }
 }
