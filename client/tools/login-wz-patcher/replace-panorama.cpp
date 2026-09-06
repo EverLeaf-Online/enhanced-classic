@@ -27,9 +27,8 @@ int main(int argc,char**argv) {
  auto png=WzPngProperty::FromPngFile(argv[2],WzPngFormat::Format2);
  if(!png || png.value()->Width()!=1320 || png.value()->Height()!=3240) return 7;
  c->SetPngProperty(std::move(png.value()));
- // 40px horizontal overscan: retain the left edge and shift the scene right
- // by 20px relative to a centered crop of the wider artwork.
- // Origin is inspected and preserved; only the backing artwork is replaced.
+ // Canvas origins subtract from drawing coordinates: smaller X moves right.
+ v->X->SetValue(596);
  i->SetChanged(true);
  auto result=f.SaveToDisk(argv[3],false,WzMapleVersion::GMS);
  if(!result) {std::cerr<<result.error().message()<<std::endl;return 8;}
