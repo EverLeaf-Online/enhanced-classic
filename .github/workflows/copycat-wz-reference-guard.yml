@@ -1,0 +1,22 @@
+name: Copycat WZ reference guard
+
+on:
+  pull_request:
+    branches: [release-dev, master]
+    paths:
+      - "client/copycat-wz-reference.json"
+      - "client/cosmic-wz-baseline.json"
+      - "client/scripts/compare-copycat-wz-reference.py"
+      - ".github/workflows/copycat-wz-reference-guard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  metadata-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate metadata-only donor comparison
+        run: python client/scripts/compare-copycat-wz-reference.py

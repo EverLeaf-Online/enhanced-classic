@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "source": "owner-supplied copycat client full-folder audit 2026-09-05",
+  "distributionPolicy": "metadata-only; raw donor WZ files are not committed or published",
+  "auditBytes": 8501506573,
+  "files": [
+    { "path": "Base.wz", "size": 6540, "mtime_utc": "2022-09-24T07:37:43+00:00", "sha256": "bd8e8b20e00c3903b06874201282ae4b5767184aa20a42310d5f1c1607856d31" },
+    { "path": "Character.wz", "size": 2099231493, "mtime_utc": "2026-07-14T16:01:13+00:00", "sha256": "7c415cfaf7e6c06274a110b139e560d4c952b7bbba6de922111dc5e90a1e44ac" },
+    { "path": "Effect.wz", "size": 153700328, "mtime_utc": "2026-07-01T14:11:45+00:00", "sha256": "ebe35c0b4fbb7d22399dea7a2070ed5f690a4ab8f5a33493242e815e4b8c23ad" },
+    { "path": "Etc.wz", "size": 2185199, "mtime_utc": "2026-08-11T13:41:48+00:00", "sha256": "19ac43904fdb091dc85b2b97ac70996e10581dac6b3d9c22aaa26bc54fe38606" },
+    { "path": "Item.wz", "size": 359768199, "mtime_utc": "2026-08-11T13:42:30+00:00", "sha256": "77a838fa84e1c44d735a8a27f96e34a4421c7f76d2d61fc8e0620c48889f4c43" },
+    { "path": "List.wz", "size": 44, "mtime_utc": "2022-08-23T00:04:50+00:00", "sha256": "0033984e93ec6a03e1654a3771e4ff286c5b6417b1d9c8ba3b1cd0aaa491f1ee" },
+    { "path": "Map.wz", "size": 2121837009, "mtime_utc": "2026-09-03T00:48:04+00:00", "sha256": "c835a1940f6b075ef47010cd0b560e429673910b4194e764b081c560a938c45b" },
+    { "path": "Mob.wz", "size": 1627265345, "mtime_utc": "2026-08-11T16:20:58+00:00", "sha256": "2b3604f5211493205798733c62fe3316da3b2ad2625d55a861a3946489e1fcbb" },
+    { "path": "Morph.wz", "size": 10069003, "mtime_utc": "2022-11-11T04:42:52+00:00", "sha256": "bfbd0cfbae4bccee1605995f529fa6e3431c3b27367bcfcf1278c39e7c9c5c23" },
+    { "path": "Npc.wz", "size": 110656254, "mtime_utc": "2025-10-09T23:09:56+00:00", "sha256": "2c001924a291e7e212af942c1995189f8012055d7761b95e2dd356603dd294f3" },
+    { "path": "Quest.wz", "size": 6313526, "mtime_utc": "2026-08-11T14:01:15+00:00", "sha256": "409d1952ae11b3140f3448fc47bb8a3b41e618e5b5a12e09952bc22228740947" },
+    { "path": "Reactor.wz", "size": 64550107, "mtime_utc": "2026-08-11T14:01:18+00:00", "sha256": "39404c2892533af9abddceadf88391bdc3ade32b761617c29002b5f821701176" },
+    { "path": "Skill.wz", "size": 128023821, "mtime_utc": "2026-07-14T15:56:21+00:00", "sha256": "6e58f52847146c716e29fcdf96e0daa31b3c891595852ceeaf99e71ec4542905" },
+    { "path": "Sound.wz", "size": 1727589670, "mtime_utc": "2026-07-14T15:56:30+00:00", "sha256": "d8a5de4f924b54769a9337fc7d8142b28a0674f8113b8e190e6e609523893e48" },
+    { "path": "String.wz", "size": 9972546, "mtime_utc": "2026-08-11T14:01:20+00:00", "sha256": "a81b0cdd6cafa48613a433efe06b00ef674404a1c134dafa7ac71faee51dff11" },
+    { "path": "TamingMob.wz", "size": 915, "mtime_utc": "2025-01-10T22:30:37+00:00", "sha256": "4742f81c1607c8f79d95ce5cdcc23b8b5ae6e7c55a2e2e1df0fe6e44cef47c51" },
+    { "path": "UI.wz", "size": 37470637, "mtime_utc": "2026-08-11T14:01:21+00:00", "sha256": "cf0c8c141287c9ea846ef23c752893be914dcf7e4b8137668cddfebd4ff99a61" }
+  ]
+}
