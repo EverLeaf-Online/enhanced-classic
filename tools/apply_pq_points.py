@@ -19,7 +19,16 @@ OLD = """    public final void setEventCleared() {
         scriptLock.lock();
 """
 NEW = """    public final void setEventCleared() {
-        eventCleared = true;
+        // Event scripts can legitimately converge on the same clear path from
+        // more than one callback (for example a final reactor plus a stage
+        // completion callback). Treat clear as a one-way transition so legacy
+        // Quest Points and EverLeaf PQ Points cannot be paid twice.
+        synchronized (this) {
+            if (eventCleared) {
+                return;
+            }
+            eventCleared = true;
+        }
 
         for (Character chr : getPlayers()) {
             chr.awardQuestPoint(YamlConfig.config.server.QUEST_POINT_PER_EVENT_CLEAR);
@@ -35,6 +44,6 @@ if NEW in text:
     print("EverLeaf PQ Point event-clear hook already applied.")
 elif OLD in text:
     PATH.write_text(text.replace(OLD, NEW, 1), encoding="utf-8")
-    print("EverLeaf PQ Point event-clear hook applied.")
+    print("EverLeaf PQ Point event-clear hook applied with idempotent clear transition.")
 else:
     raise SystemExit("Expected EventInstanceManager.setEventCleared source shape not found")
