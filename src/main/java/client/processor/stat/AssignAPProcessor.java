@@ -41,6 +41,7 @@ import constants.skills.Magician;
 import constants.skills.ThunderBreaker;
 import constants.skills.Warrior;
 import net.packet.InPacket;
+import service.enhanced.SurvivabilityPolicy;
 import tools.PacketCreator;
 import tools.Randomizer;
 
@@ -53,6 +54,8 @@ import java.util.List;
  * @author RonanLana - synchronization of AP transaction modules
  */
 public class AssignAPProcessor {
+
+    private static final int HP_MP_CAP = 30000;
 
     public static void APAutoAssignAction(InPacket inPacket, Client c) {
         Character chr = c.getPlayer();
@@ -103,7 +106,6 @@ public class AssignAPProcessor {
                     }
                     luk += nEquip.getLuk();
 
-                    //if(nEquip.getInt() > 0) eqpIntList.add(nEquip.getInt()); //not needed...
                     int_ += nEquip.getInt();
                 }
 
@@ -116,14 +118,9 @@ public class AssignAPProcessor {
                 eqpDexList.sort(Collections.reverseOrder());
                 eqpLukList.sort(Collections.reverseOrder());
 
-                //Autoassigner looks up the 1st/2nd placed equips for their stats to calculate the optimal upgrade.
                 int eqpStr = getNthHighestStat(eqpStrList, (short) 0) + getNthHighestStat(eqpStrList, (short) 1);
                 int eqpDex = getNthHighestStat(eqpDexList, (short) 0) + getNthHighestStat(eqpDexList, (short) 1);
                 int eqpLuk = getNthHighestStat(eqpLukList, (short) 0) + getNthHighestStat(eqpLukList, (short) 1);
-
-                //c.getPlayer().message("----------------------------------------");
-                //c.getPlayer().message("SDL: s" + eqpStr + " d" + eqpDex + " l" + eqpLuk + " BASE STATS --> STR: " + chr.getStr() + " DEX: " + chr.getDex() + " INT: " + chr.getInt() + " LUK: " + chr.getLuk());
-                //c.getPlayer().message("SUM EQUIP STATS -> STR: " + str + " DEX: " + dex + " LUK: " + luk + " INT: " + int_);
 
                 Job stance = c.getPlayer().getJobStyle(opt);
                 int prStat = 0, scStat = 0, trStat = 0, temp, tempAp = remainingAp, CAP;
@@ -162,7 +159,6 @@ public class AssignAPProcessor {
                         primary = Stat.INT;
                         secondary = Stat.LUK;
                         tertiary = Stat.DEX;
-
                         break;
 
                     case BOWMAN:
@@ -193,7 +189,6 @@ public class AssignAPProcessor {
 
                         primary = Stat.DEX;
                         secondary = Stat.STR;
-
                         break;
 
                     case GUNSLINGER:
@@ -225,7 +220,6 @@ public class AssignAPProcessor {
 
                         primary = Stat.DEX;
                         secondary = Stat.STR;
-
                         break;
 
                     case THIEF:
@@ -251,7 +245,6 @@ public class AssignAPProcessor {
                         scStat += temp;
                         tempAp -= temp;
 
-                        // thieves will upgrade STR as well only if a level-based threshold is reached.
                         if (chr.getStr() >= Math.max(13, (int) (0.4 * chr.getLevel()))) {
                             if (chr.getStr() < 50) {
                                 trStat = (chr.getLevel() - 10) - (chr.getStr() + str - eqpStr);
@@ -293,14 +286,13 @@ public class AssignAPProcessor {
                         primary = Stat.LUK;
                         secondary = Stat.DEX;
                         tertiary = Stat.STR;
-
                         break;
 
                     case BRAWLER:
-                    default:    //warrior, beginner, ...
+                    default:
                         CAP = 300;
 
-                        boolean highDex = false;    // thanks lucasziron & Vcoc for finding out DEX autoassigning poorly for STR-based characters
+                        boolean highDex = false;
                         if (chr.getLevel() < 40) {
                             if (chr.getDex() >= (2 * chr.getLevel()) + 2) {
                                 highDex = true;
@@ -311,7 +303,6 @@ public class AssignAPProcessor {
                             }
                         }
 
-                        // other classes will start favoring more DEX only if a level-based threshold is reached.
                         if (!highDex) {
                             scStat = 0;
                             if (chr.getDex() < 80) {
@@ -370,15 +361,13 @@ public class AssignAPProcessor {
                         secondary = Stat.DEX;
                 }
 
-                //-------------------------------------------------------------------------------------
-
                 int extras = 0;
 
                 extras = gainStatByType(primary, statGain, prStat + extras, statUpdate);
                 extras = gainStatByType(secondary, statGain, scStat + extras, statUpdate);
                 extras = gainStatByType(tertiary, statGain, trStat + extras, statUpdate);
 
-                if (extras > 0) {    //redistribute surplus in priority order
+                if (extras > 0) {
                     extras = gainStatByType(primary, statGain, extras, statUpdate);
                     extras = gainStatByType(secondary, statGain, extras, statUpdate);
                     extras = gainStatByType(tertiary, statGain, extras, statUpdate);
@@ -387,8 +376,6 @@ public class AssignAPProcessor {
 
                 chr.assignStrDexIntLuk(statGain[0], statGain[1], statGain[3], statGain[2]);
                 c.sendPacket(PacketCreator.enableActions());
-
-                //----------------------------------------------------------------------------------------
 
                 c.sendPacket(PacketCreator.serverNotice(1, "Better AP applications detected:\r\nSTR: +" + statGain[0] + "\r\nDEX: +" + statGain[1] + "\r\nINT: +" + statGain[3] + "\r\nLUK: +" + statGain[2]));
             } else {
@@ -417,7 +404,7 @@ public class AssignAPProcessor {
         }
     }
 
-    private static int getNthHighestStat(List<Short> statList, short rank) {    // ranks from 0
+    private static int getNthHighestStat(List<Short> statList, short rank) {
         return (statList.size() <= rank ? 0 : statList.get(rank));
     }
 
@@ -488,8 +475,16 @@ public class AssignAPProcessor {
         try {
             Character player = c.getPlayer();
 
+            if (APFrom == APTo || !canReceiveResetAp(player, APTo)) {
+                player.message("That AP Reset target cannot receive another point.");
+                c.sendPacket(PacketCreator.enableActions());
+                return false;
+            }
+
+            int removedHp = 0;
+            int removedMp = 0;
             switch (APFrom) {
-                case 64: // str
+                case 64:
                     if (player.getStr() < 5) {
                         player.message("You don't have the minimum STR required to swap.");
                         c.sendPacket(PacketCreator.enableActions());
@@ -501,7 +496,7 @@ public class AssignAPProcessor {
                         return false;
                     }
                     break;
-                case 128: // dex
+                case 128:
                     if (player.getDex() < 5) {
                         player.message("You don't have the minimum DEX required to swap.");
                         c.sendPacket(PacketCreator.enableActions());
@@ -513,7 +508,7 @@ public class AssignAPProcessor {
                         return false;
                     }
                     break;
-                case 256: // int
+                case 256:
                     if (player.getInt() < 5) {
                         player.message("You don't have the minimum INT required to swap.");
                         c.sendPacket(PacketCreator.enableActions());
@@ -525,7 +520,7 @@ public class AssignAPProcessor {
                         return false;
                     }
                     break;
-                case 512: // luk
+                case 512:
                     if (player.getLuk() < 5) {
                         player.message("You don't have the minimum LUK required to swap.");
                         c.sendPacket(PacketCreator.enableActions());
@@ -537,13 +532,11 @@ public class AssignAPProcessor {
                         return false;
                     }
                     break;
-                case 2048: // HP
-                    if (YamlConfig.config.server.USE_ENFORCE_HPMP_SWAP) {
-                        if (APTo != 8192) {
-                            player.message("You can only swap HP ability points to MP.");
-                            c.sendPacket(PacketCreator.enableActions());
-                            return false;
-                        }
+                case 2048:
+                    if (YamlConfig.config.server.USE_ENFORCE_HPMP_SWAP && APTo != 8192) {
+                        player.message("You can only swap HP ability points to MP.");
+                        c.sendPacket(PacketCreator.enableActions());
+                        return false;
                     }
 
                     if (player.getHpMpApUsed() < 1) {
@@ -552,27 +545,24 @@ public class AssignAPProcessor {
                         return false;
                     }
 
-                    int hplose = -takeHp(player.getJob());
-                    if (player.getMaxHp() + hplose < getMinHp(player.getJob(), player.getLevel())) {
-                        player.message("You don't have the minimum HP pool required to swap.");
+                    removedHp = -takeHp(player.getJob());
+                    if (player.getMaxHp() + removedHp < getResetMinHp(player.getJob(), player.getLevel())) {
+                        player.message("You cannot reset HP below EverLeaf's progression survivability floor.");
                         c.sendPacket(PacketCreator.enableActions());
                         return false;
                     }
 
-                    int curHp = player.getHp();
-                    player.assignHP(hplose, -1);
-                    if (!YamlConfig.config.server.USE_FIXED_RATIO_HPMP_UPDATE) {
-                        player.updateHp(Math.max(1, curHp + hplose));
+                    if (!player.assignHP(removedHp, -1)) {
+                        player.message("Couldn't execute AP reset operation.");
+                        c.sendPacket(PacketCreator.enableActions());
+                        return false;
                     }
-
                     break;
-                case 8192: // MP
-                    if (YamlConfig.config.server.USE_ENFORCE_HPMP_SWAP) {
-                        if (APTo != 2048) {
-                            player.message("You can only swap MP ability points to HP.");
-                            c.sendPacket(PacketCreator.enableActions());
-                            return false;
-                        }
+                case 8192:
+                    if (YamlConfig.config.server.USE_ENFORCE_HPMP_SWAP && APTo != 2048) {
+                        player.message("You can only swap MP ability points to HP.");
+                        c.sendPacket(PacketCreator.enableActions());
+                        return false;
                     }
 
                     if (player.getHpMpApUsed() < 1) {
@@ -581,17 +571,17 @@ public class AssignAPProcessor {
                         return false;
                     }
 
-                    int mplose = -takeMp(player.getJob());
-                    if (player.getMaxMp() + mplose < getMinMp(player.getJob(), player.getLevel())) {
+                    removedMp = -takeMp(player.getJob());
+                    if (player.getMaxMp() + removedMp < getMinMp(player.getJob(), player.getLevel())) {
                         player.message("You don't have the minimum MP pool required to swap.");
                         c.sendPacket(PacketCreator.enableActions());
                         return false;
                     }
 
-                    int curMp = player.getMp();
-                    player.assignMP(mplose, -1);
-                    if (!YamlConfig.config.server.USE_FIXED_RATIO_HPMP_UPDATE) {
-                        player.updateMp(Math.max(0, curMp + mplose));
+                    if (!player.assignMP(removedMp, -1)) {
+                        player.message("Couldn't execute AP reset operation.");
+                        c.sendPacket(PacketCreator.enableActions());
+                        return false;
                     }
                     break;
                 default:
@@ -599,10 +589,57 @@ public class AssignAPProcessor {
                     return false;
             }
 
-            addStat(player, APTo, true);
+            if (!addStat(player, APTo, true)) {
+                rollbackResetSource(player, APFrom, removedHp, removedMp);
+                player.message("The AP Reset was rolled back because the target stat could not be updated.");
+                c.sendPacket(PacketCreator.enableActions());
+                return false;
+            }
+
+            if (!YamlConfig.config.server.USE_FIXED_RATIO_HPMP_UPDATE) {
+                if (removedHp != 0) {
+                    player.updateHp(Math.max(1, player.getHp() + removedHp));
+                }
+                if (removedMp != 0) {
+                    player.updateMp(Math.max(0, player.getMp() + removedMp));
+                }
+            }
             return true;
         } finally {
             c.unlockClient();
+        }
+    }
+
+    static int getResetMinHp(Job job, int level) {
+        return Math.max(getMinHp(job, level), SurvivabilityPolicy.minimumMaxHp(job, level));
+    }
+
+    private static boolean canReceiveResetAp(Character player, int apTo) {
+        return switch (apTo) {
+            case 64 -> player.getStr() < YamlConfig.config.server.MAX_AP;
+            case 128 -> player.getDex() < YamlConfig.config.server.MAX_AP;
+            case 256 -> player.getInt() < YamlConfig.config.server.MAX_AP;
+            case 512 -> player.getLuk() < YamlConfig.config.server.MAX_AP;
+            case 2048 -> player.getMaxHp() < HP_MP_CAP
+                    && player.getMaxHp() + calcHpChange(player, true) <= HP_MP_CAP;
+            case 8192 -> player.getMaxMp() < HP_MP_CAP
+                    && player.getMaxMp() + calcMpChange(player, true) <= HP_MP_CAP;
+            default -> false;
+        };
+    }
+
+    private static void rollbackResetSource(Character player, int apFrom, int removedHp, int removedMp) {
+        boolean restored = switch (apFrom) {
+            case 64 -> player.assignStr(1);
+            case 128 -> player.assignDex(1);
+            case 256 -> player.assignInt(1);
+            case 512 -> player.assignLuk(1);
+            case 2048 -> player.assignHP(-removedHp, 1);
+            case 8192 -> player.assignMP(-removedMp, 1);
+            default -> false;
+        };
+        if (!restored) {
+            player.message("Critical AP Reset rollback failure. Please contact staff before using another reset.");
         }
     }
 
@@ -624,21 +661,21 @@ public class AssignAPProcessor {
                     return false;
                 }
                 break;
-            case 128: // Dex
+            case 128:
                 if (!chr.assignDex(1)) {
                     chr.message("Couldn't execute AP assign operation.");
                     chr.sendPacket(PacketCreator.enableActions());
                     return false;
                 }
                 break;
-            case 256: // Int
+            case 256:
                 if (!chr.assignInt(1)) {
                     chr.message("Couldn't execute AP assign operation.");
                     chr.sendPacket(PacketCreator.enableActions());
                     return false;
                 }
                 break;
-            case 512: // Luk
+            case 512:
                 if (!chr.assignLuk(1)) {
                     chr.message("Couldn't execute AP assign operation.");
                     chr.sendPacket(PacketCreator.enableActions());
