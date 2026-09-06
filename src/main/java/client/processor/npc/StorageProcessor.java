@@ -87,28 +87,42 @@ public class StorageProcessor {
                         if (chr.getMeso() < takeoutFee) {
                             c.sendPacket(PacketCreator.getStorageError((byte) 0x0B));
                             return;
-                        } else {
-                            chr.gainMeso(-takeoutFee, false);
                         }
 
-                        if (InventoryManipulator.checkSpace(c, item.getItemId(), item.getQuantity(), item.getOwner())) {
-                            if (storage.takeOut(item)) {
-                                chr.setUsedStorage();
-
-                                KarmaManipulator.toggleKarmaFlagToUntradeable(item);
-                                InventoryManipulator.addFromDrop(c, item, false);
-
-                                String itemName = ii.getName(item.getItemId());
-                                log.debug("Chr {} took out {}x {} ({})", c.getPlayer().getName(), item.getQuantity(), itemName, item.getItemId());
-
-                                storage.sendTakenOut(c, item.getInventoryType());
-                            } else {
-                                c.sendPacket(PacketCreator.enableActions());
-                                return;
-                            }
-                        } else {
+                        if (!InventoryManipulator.checkSpace(c, item.getItemId(), item.getQuantity(), item.getOwner())) {
                             c.sendPacket(PacketCreator.getStorageError((byte) 0x0A));
+                            return;
                         }
+
+                        // Keep the original storage object untouched until the inventory
+                        // transfer succeeds. Withdrawal-only karma changes apply to a copy
+                        // so a failed add can restore the exact original item.
+                        Item transferItem = item.copy();
+                        KarmaManipulator.toggleKarmaFlagToUntradeable(transferItem);
+
+                        if (!storage.takeOut(item)) {
+                            c.sendPacket(PacketCreator.enableActions());
+                            return;
+                        }
+
+                        if (!InventoryManipulator.addFromDrop(c, transferItem, false)) {
+                            // Space was checked above, but another inventory mutation or an
+                            // unexpected add failure must not delete the storage item.
+                            if (!storage.store(item)) {
+                                log.error("CRITICAL: failed to restore storage item {} for chr {} after inventory add failure",
+                                        item.getItemId(), chr.getName());
+                            }
+                            c.sendPacket(PacketCreator.enableActions());
+                            return;
+                        }
+
+                        chr.gainMeso(-takeoutFee, false);
+                        chr.setUsedStorage();
+
+                        String itemName = ii.getName(item.getItemId());
+                        log.debug("Chr {} took out {}x {} ({})", c.getPlayer().getName(), item.getQuantity(), itemName, item.getItemId());
+
+                        storage.sendTakenOut(c, item.getInventoryType());
                     }
                     break;
                 }
@@ -172,12 +186,23 @@ public class StorageProcessor {
                             inv.unlockInventory();
                         }
 
-                        chr.gainMeso(-storeFee, false, true, false);
-
-                        KarmaManipulator.toggleKarmaFlagToUntradeable(item);
                         item.setQuantity(quantity);
+                        Item rollbackItem = item.copy();
+                        KarmaManipulator.toggleKarmaFlagToUntradeable(item);
 
-                        storage.store(item); // inside a critical section, "!(storage.isFull())" is still in effect...
+                        if (!storage.store(item)) {
+                            // The storage can become full between the optimistic pre-check
+                            // and the locked store operation. Restore the removed inventory
+                            // item instead of silently deleting it, and do not charge a fee.
+                            if (!InventoryManipulator.addFromDrop(c, rollbackItem, false)) {
+                                log.error("CRITICAL: failed to restore inventory item {} for chr {} after storage store race",
+                                        rollbackItem.getItemId(), chr.getName());
+                            }
+                            c.sendPacket(PacketCreator.getStorageError((byte) 0x11));
+                            return;
+                        }
+
+                        chr.gainMeso(-storeFee, false, true, false);
                         chr.setUsedStorage();
 
                         String itemName = ii.getName(item.getItemId());
