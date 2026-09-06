@@ -60,6 +60,21 @@ jobs:
             if (-not $main.Contains($pattern)) { throw "Missing Community UI preference marker: $pattern" }
           }
 
+
+      - name: Test Discord IPC frames and acknowledgements
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          $vcvars = Join-Path $vs "VC\Auxiliary\Build\vcvarsall.bat"
+          $batch = "@echo off`r`ncall `"$vcvars`" x86 >nul`r`ncl /nologo /EHsc /std:c++17 client\scripts\test-discord-presence.cpp /Fe:presence-test.exe`r`nif errorlevel 1 exit /b 1`r`npresence-test.exe > presence-payload.json`r`n"
+          $batch | Set-Content "$env:RUNNER_TEMP\presence-test.cmd"
+          & cmd /c "$env:RUNNER_TEMP\presence-test.cmd"
+          if ($LASTEXITCODE -ne 0) { throw "Discord IPC tests failed" }
+          $payload = Get-Content presence-payload.json -Raw | ConvertFrom-Json
+          if ($payload.cmd -ne "SET_ACTIVITY" -or $payload.nonce -ne "test-nonce") { throw "Malformed activity envelope" }
+          if ($payload.args.activity.details -ne "Playing `"EverLeaf`"`nwith friends") { throw "Incorrect JSON escaping" }
+          if ($payload.args.activity.buttons.Count -ne 2) { throw "Missing presence buttons" }
+
       - name: Build managed client package
         shell: pwsh
         run: |
