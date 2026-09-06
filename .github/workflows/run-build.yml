@@ -187,6 +187,8 @@ jobs:
         run: python3 tools/audit_playershop_snapshot_consistency.py
       - name: Audit boss and PQ event-manager links
         run: python3 tools/audit_event_manager_links.py
+      - name: Audit event and minigame inventory
+        run: python3 tools/audit_event_inventory.py
       - name: Audit world data integrity
         run: python3 tools/audit_world_integrity.py
       - name: Audit release-facing NPC and portal integrity
