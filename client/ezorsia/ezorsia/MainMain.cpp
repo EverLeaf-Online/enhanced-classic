@@ -110,6 +110,7 @@ MainMain::MainMain(std::function<void()> pPostMutexFunc)
 	Client::m_nGameHeight = supportedResolution ? requestedHeight : 720;
 	Client::WindowedMode = reader.GetBoolean("general", "WindowedMode", true);
 	Client::RemoveLogos = reader.GetBoolean("general", "RemoveLogos", true);
+	Client::ModernLoginUI = reader.GetBoolean("general", "ModernLoginUI", false);
 
 	// Official gameplay and compatibility policy: not player-configurable.
 	Client::MsgAmount = 26;
