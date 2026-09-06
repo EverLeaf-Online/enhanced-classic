@@ -57,7 +57,7 @@ __declspec(naked) void RegisterPosition() {
     __asm {
         push 0
         push 140
-        push 22
+        push 58
         jmp dword ptr [RegisterReturn]
     }
 }
@@ -66,7 +66,7 @@ __declspec(naked) void HomePosition() {
     __asm {
         push 0
         push 140
-        push 126
+        push 162
         jmp dword ptr [HomeReturn]
     }
 }
@@ -75,7 +75,7 @@ __declspec(naked) void QuitPosition() {
     __asm {
         push 0
         push 140
-        push 232
+        push 268
         jmp dword ptr [QuitReturn]
     }
 }
@@ -109,9 +109,15 @@ void ApplyEverLeafLoginLayout() {
     const unsigned char userBytes[] = {0x6a,0x0f,0x68,0x84,0,0,0,0x6a,0x0c,0x6a,0x43};
     const unsigned char passBytes[] = {0x6a,0x0f,0x6a,0x78,0x6a,0x28,0x6a,0x43};
     if (std::memcmp(reinterpret_cast<void*>(0x6209a6),userBytes,sizeof(userBytes)) || std::memcmp(reinterpret_cast<void*>(0x620a0d),passBytes,sizeof(passBytes))) return;
+    if (*reinterpret_cast<const unsigned char*>(0x6210e4)!=0x6a || *reinterpret_cast<const unsigned char*>(0x6210e5)!=74 || *reinterpret_cast<const unsigned char*>(0x6210e7)!=0x6a || *reinterpret_cast<const unsigned char*>(0x6210e8)!=18) return;
     for (const auto& p : patches) Memory::CodeCave(p.hook,p.address,p.length);
-    Memory::WriteByte(0x6209ae,18);
-    Memory::WriteByte(0x620a12,53);
+    Memory::WriteByte(0x6209ae,6);
+    Memory::WriteByte(0x6209b0,95);
+    Memory::WriteByte(0x620a12,41);
+    Memory::WriteByte(0x620a14,95);
+    // Save ID checkbox is a canvas drawn separately from the native button.
+    Memory::WriteByte(0x6210e5,90);
+    Memory::WriteByte(0x6210e8,72);
     CrashDiagnostics::LogEvent("centered native login layout applied");
 }
 
