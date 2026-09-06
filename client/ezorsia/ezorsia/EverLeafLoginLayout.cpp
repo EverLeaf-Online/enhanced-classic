@@ -117,7 +117,7 @@ void ApplyEverLeafLoginLayout() {
     Memory::WriteByte(0x620a14,95);
     // Save ID checkbox is a canvas drawn separately from the native button.
     Memory::WriteByte(0x6210e5,90);
-    Memory::WriteByte(0x6210e8,72);
+    Memory::WriteByte(0x6210e8,64);
     CrashDiagnostics::LogEvent("centered native login layout applied");
 }
 
