@@ -67,3 +67,14 @@ test("adds safe official navigation buttons to the status post", () => {
   assert.deepEqual(components.map((button) => button.label), ["Website", "Download", "Account", "Vote"]);
   assert.ok(components.every((button) => button.style === 5 && button.url.startsWith("https://everleafms.online")));
 });
+
+test("status fetch retries transient failures and parses the successful body", async () => {
+  const {readStatus}=require("./discord-status-bot");
+  let attempts=0;
+  const result=await readStatus("http://localhost/status",async()=>{
+    if(++attempts===1)throw new Error("transient timeout");
+    return {ok:true,json:async()=>({channels:20})};
+  });
+  assert.equal(attempts,2);
+  assert.equal(result.channels,20);
+});

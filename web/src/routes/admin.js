@@ -17,6 +17,7 @@ router.post("/login",async(req,res)=>{
   const admin=db.prepare("SELECT * FROM admins WHERE username=?").get(String(req.body.username||""));
   if(!admin || !(await bcrypt.compare(String(req.body.password||""),admin.password_hash)))
     return res.status(401).render("admin-login",{error:"Invalid credentials.",settings:settings()});
+  await new Promise((resolve,reject)=>req.session.regenerate(error=>error?reject(error):resolve()));
   req.session.admin={id:admin.id,username:admin.username};
   res.redirect("/admin");
 });
