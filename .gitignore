@@ -18,9 +18,79 @@
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
 
-# Database
+# Database runtime data
 database/docker-db-data
 database/docker-pg-db-data
+
+# Secrets and environment files
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.crt
+*.cer
+id_rsa
+id_rsa.*
+*.kdbx
+
+# Database exports / production data
+*.sql
+*.sql.gz
+*.dump
+*.dump.gz
+*.bak
+*.backup
+*.sqlite
+*.sqlite3
+
+# Runtime logs, crash dumps, and incident artifacts
+*.log
+*.log.*
+*.dmp
+*.core
+*.pid
+crashdumps/
+incident-*/
+incidents/
+
+# Production backups and local snapshots
+backups/
+backup/
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.zip
+
+# Generated client/package binaries
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.obj
+*.lib
+*.exp
+*.wz
+*.wz.bak
+*.patch
+*.manifest.tmp
+client/build/
+client/dist/
+client/artifacts/
+client/package/
+
+# Local runtime/config overrides
+config.local.*
+*.local.ini
+*.local.json
+*.local.yml
+*.local.yaml
 
 # macOS files
 .DS_Store

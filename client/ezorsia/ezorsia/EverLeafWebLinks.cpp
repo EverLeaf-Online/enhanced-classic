@@ -3,6 +3,7 @@
 #include "INIReader.h"
 #include <shellapi.h>
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <string>
 
@@ -14,6 +15,7 @@ namespace {
 
     ShellExecuteA_t gShellExecuteA = ::ShellExecuteA;
     ShellExecuteW_t gShellExecuteW = ::ShellExecuteW;
+    std::atomic<bool> gInstalled{false};
 
     std::string GetBaseUrl() {
         INIReader config("config.ini");
@@ -53,7 +55,8 @@ namespace {
         const std::string base = GetBaseUrl();
         if (url.find("register") != std::string::npos ||
             url.find("signup") != std::string::npos ||
-            url.find("sign-up") != std::string::npos) {
+            url.find("sign-up") != std::string::npos ||
+            url.find("registration") != std::string::npos) {
             return base + "/register";
         }
 
@@ -113,20 +116,20 @@ namespace {
 }
 
 bool EverLeafWebLinks::Install() {
-    bool ok = true;
-    ok &= Memory::SetHook(true, reinterpret_cast<void**>(&gShellExecuteA), reinterpret_cast<void*>(&ShellExecuteA_Hook));
-    ok &= Memory::SetHook(true, reinterpret_cast<void**>(&gShellExecuteW), reinterpret_cast<void*>(&ShellExecuteW_Hook));
-    return ok;
-}
-
-namespace {
-    // This translation unit is included by stdafx.cpp so it remains part of the
-    // existing Visual Studio project without requiring users to repair project files.
-    // The DLL already installs Windows API detours during process attach; doing the
-    // same here makes the legacy login web buttons available before the login UI runs.
-    struct EverLeafWebLinkBootstrap {
-        EverLeafWebLinkBootstrap() {
-            EverLeafWebLinks::Install();
-        }
-    } gEverLeafWebLinkBootstrap;
+    if (gInstalled.load(std::memory_order_acquire)) {
+        return true;
+    }
+    const bool installedA = Memory::SetHook(true, reinterpret_cast<void**>(&gShellExecuteA), reinterpret_cast<void*>(&ShellExecuteA_Hook));
+    const bool installedW = Memory::SetHook(true, reinterpret_cast<void**>(&gShellExecuteW), reinterpret_cast<void*>(&ShellExecuteW_Hook));
+    if (installedA && installedW) {
+        gInstalled.store(true, std::memory_order_release);
+        return true;
+    }
+    if (installedA) {
+        Memory::SetHook(false, reinterpret_cast<void**>(&gShellExecuteA), reinterpret_cast<void*>(&ShellExecuteA_Hook));
+    }
+    if (installedW) {
+        Memory::SetHook(false, reinterpret_cast<void**>(&gShellExecuteW), reinterpret_cast<void*>(&ShellExecuteW_Hook));
+    }
+    return false;
 }

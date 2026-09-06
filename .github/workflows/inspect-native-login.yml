@@ -1,0 +1,63 @@
+name: Inspect native login code
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/inspect-native-login.yml'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect known client image without accounts or game data
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'everleaf-code-inspection'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $exe = Join-Path $dir 'EverLeaf.exe'
+          Invoke-WebRequest https://everleafms.online/patches/EverLeaf.exe -OutFile $exe
+          if ((Get-FileHash $exe -Algorithm SHA256).Hash.ToLower() -ne '766a9485532aa20d054278f3430ab8246d8337cf36a035906c9bc503ea357e18') { throw 'Unexpected executable' }
+          $manifest = Invoke-RestMethod https://everleafms.online/patches/manifest.json
+          foreach ($file in $manifest.files | Where-Object { $_.path -match '\.(dll|acm)$' -and $_.path -ne 'dinput8.dll' }) {
+            $target = Join-Path $dir $file.path
+            Invoke-WebRequest ('https://everleafms.online'+$file.url) -OutFile $target
+            if ((Get-FileHash $target -Algorithm SHA256).Hash.ToLower() -ne $file.sha256) { throw 'Dependency hash mismatch' }
+          }
+          Add-Type @'
+          using System;
+          using System.Runtime.InteropServices;
+          public static class CodeRead {
+            [DllImport("kernel32.dll", SetLastError=true)] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+            [DllImport("kernel32.dll", SetLastError=true)] public static extern bool ReadProcessMemory(IntPtr h, IntPtr addr, byte[] data, int size, out IntPtr count);
+            [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
+          }
+          '@
+          $proc = Start-Process -FilePath $exe -WorkingDirectory $dir -WindowStyle Hidden -PassThru
+          try {
+            $h = [CodeRead]::OpenProcess(0x410, $false, $proc.Id)
+            if ($h -eq [IntPtr]::Zero) { throw 'Cannot inspect runner child process' }
+            try {
+              $ready = $false
+              for ($i=0; $i -lt 100; $i++) {
+                $probe = New-Object byte[] 10
+                $count = [IntPtr]::Zero
+                $ok = [CodeRead]::ReadProcessMemory($h, [IntPtr]0x5F569D, $probe, 10, [ref]$count)
+                if ($ok -and [Convert]::ToHexString($probe) -eq 'C7861402000001000000') { $ready=$true; break }
+                Start-Sleep -Milliseconds 200
+              }
+              if (!$ready) { Write-Host ('Probe: '+[Convert]::ToHexString($probe)+'; exited: '+$proc.HasExited+'; title: '+$proc.MainWindowTitle); throw 'Client did not reach expected unpacked signature' }
+              foreach ($region in @(@(0x5F0000,0x10000,'login-code.bin'),@(0x620000,0x2000,'login-dialog-code.bin'))) {
+                $bytes = New-Object byte[] $region[1]
+                $count = [IntPtr]::Zero
+                if (![CodeRead]::ReadProcessMemory($h,[IntPtr]$region[0],$bytes,$bytes.Length,[ref]$count) -or $count.ToInt64() -ne $bytes.Length) { throw 'Incomplete code region' }
+                [IO.File]::WriteAllBytes((Join-Path $dir $region[2]),$bytes)
+              }
+            } finally { [CodeRead]::CloseHandle($h) | Out-Null }
+          } finally { if (!$proc.HasExited) { Stop-Process -Id $proc.Id -Force } }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-login-code
+          path: ${{ runner.temp }}/everleaf-code-inspection/*-code.bin
+          if-no-files-found: error
+          retention-days: 3
