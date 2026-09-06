@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
-"""Inject EverLeaf PQ/reward/economy hardening into shared legacy sources.
+"""Inject EverLeaf PQ/reward hardening into the legacy event manager.
 
-Kept as deterministic build transforms while large upstream classes are still
-shared with Cosmic. Every transform is idempotent and fails loudly if an
+Kept as deterministic build transforms while the large upstream event class is
+still shared with Cosmic. Every transform is idempotent and fails loudly if an
 upstream method shape changes.
 """
 
 from pathlib import Path
 
-EVENT_PATH = Path("src/main/java/scripting/event/EventInstanceManager.java")
-HIRED_MERCHANT_PATH = Path("src/main/java/server/maps/HiredMerchant.java")
-PLAYER_SHOP_PATH = Path("src/main/java/server/maps/PlayerShop.java")
+PATH = Path("src/main/java/scripting/event/EventInstanceManager.java")
 
 CLEAR_OLD = """    public final void setEventCleared() {
         eventCleared = true;
@@ -163,109 +161,19 @@ REWARD_METHOD_NEW = """    //gives out EXP & a random item in a similar fashion 
     }
 """
 
-MERCHANT_BUY_OLD = """            Item newItem = pItem.getItem().copy();
 
-            newItem.setQuantity((short) ((pItem.getItem().getQuantity() * quantity)));
-            if (quantity < 1 || !pItem.isExist() || pItem.getBundles() < quantity) {
-                c.sendPacket(PacketCreator.enableActions());
-                return;
-            } else if (newItem.getInventoryType().equals(InventoryType.EQUIP) && newItem.getQuantity() > 1) {
-                c.sendPacket(PacketCreator.enableActions());
-                return;
-            }
-
-            KarmaManipulator.toggleKarmaFlagToUntradeable(newItem);
-
-            int price = (int) Math.min((float) pItem.getPrice() * quantity, Integer.MAX_VALUE);
-"""
-MERCHANT_BUY_NEW = """            Item newItem = pItem.getItem().copy();
-
-            long requestedUnits = (long) pItem.getItem().getQuantity() * quantity;
-            if (quantity < 1 || !pItem.isExist() || pItem.getBundles() < quantity
-                    || requestedUnits < 1 || requestedUnits > Short.MAX_VALUE) {
-                c.sendPacket(PacketCreator.enableActions());
-                return;
-            }
-            newItem.setQuantity((short) requestedUnits);
-            if (newItem.getInventoryType().equals(InventoryType.EQUIP) && newItem.getQuantity() > 1) {
-                c.sendPacket(PacketCreator.enableActions());
-                return;
-            }
-
-            KarmaManipulator.toggleKarmaFlagToUntradeable(newItem);
-
-            long requestedPrice = (long) pItem.getPrice() * quantity;
-            if (requestedPrice < 0) {
-                c.sendPacket(PacketCreator.enableActions());
-                return;
-            }
-            int price = (int) Math.min(requestedPrice, Integer.MAX_VALUE);
-"""
-
-PLAYER_SHOP_BUY_OLD = """                Item newItem = pItem.getItem().copy();
-
-                newItem.setQuantity((short) ((pItem.getItem().getQuantity() * quantity)));
-                if (quantity < 1 || !pItem.isExist() || pItem.getBundles() < quantity) {
-                    c.sendPacket(PacketCreator.enableActions());
-                    return false;
-                } else if (newItem.getInventoryType().equals(InventoryType.EQUIP) && newItem.getQuantity() > 1) {
-                    c.sendPacket(PacketCreator.enableActions());
-                    return false;
-                }
-
-                KarmaManipulator.toggleKarmaFlagToUntradeable(newItem);
-
-                visitorLock.lock();
-                try {
-                    int price = (int) Math.min((float) pItem.getPrice() * quantity, Integer.MAX_VALUE);
-"""
-PLAYER_SHOP_BUY_NEW = """                Item newItem = pItem.getItem().copy();
-
-                long requestedUnits = (long) pItem.getItem().getQuantity() * quantity;
-                if (quantity < 1 || !pItem.isExist() || pItem.getBundles() < quantity
-                        || requestedUnits < 1 || requestedUnits > Short.MAX_VALUE) {
-                    c.sendPacket(PacketCreator.enableActions());
-                    return false;
-                }
-                newItem.setQuantity((short) requestedUnits);
-                if (newItem.getInventoryType().equals(InventoryType.EQUIP) && newItem.getQuantity() > 1) {
-                    c.sendPacket(PacketCreator.enableActions());
-                    return false;
-                }
-
-                KarmaManipulator.toggleKarmaFlagToUntradeable(newItem);
-
-                visitorLock.lock();
-                try {
-                    long requestedPrice = (long) pItem.getPrice() * quantity;
-                    if (requestedPrice < 0) {
-                        c.sendPacket(PacketCreator.enableActions());
-                        return false;
-                    }
-                    int price = (int) Math.min(requestedPrice, Integer.MAX_VALUE);
-"""
-
-
-def replace_idempotent(text: str, old: str, new: str, label: str, source: str) -> str:
+def replace_idempotent(text: str, old: str, new: str, label: str) -> str:
     if new in text:
         print(f"EverLeaf {label} already applied.")
         return text
     if old not in text:
-        raise SystemExit(f"Expected {source} source shape not found for {label}")
+        raise SystemExit(f"Expected EventInstanceManager source shape not found for {label}")
     print(f"EverLeaf {label} applied.")
     return text.replace(old, new, 1)
 
 
-event_text = EVENT_PATH.read_text(encoding="utf-8")
-event_text = replace_idempotent(event_text, REWARD_FIELD_OLD, REWARD_FIELD_NEW, "event-reward claim state", "EventInstanceManager")
-event_text = replace_idempotent(event_text, REWARD_METHOD_OLD, REWARD_METHOD_NEW, "event-reward exactly-once guard", "EventInstanceManager")
-event_text = replace_idempotent(event_text, CLEAR_OLD, CLEAR_NEW, "PQ Point idempotent event-clear hook", "EventInstanceManager")
-EVENT_PATH.write_text(event_text, encoding="utf-8")
-
-merchant_text = HIRED_MERCHANT_PATH.read_text(encoding="utf-8")
-merchant_text = replace_idempotent(merchant_text, MERCHANT_BUY_OLD, MERCHANT_BUY_NEW, "hired-merchant quantity/price overflow guard", "HiredMerchant")
-HIRED_MERCHANT_PATH.write_text(merchant_text, encoding="utf-8")
-
-shop_text = PLAYER_SHOP_PATH.read_text(encoding="utf-8")
-shop_text = replace_idempotent(shop_text, PLAYER_SHOP_BUY_OLD, PLAYER_SHOP_BUY_NEW, "player-shop quantity/price overflow guard", "PlayerShop")
-PLAYER_SHOP_PATH.write_text(shop_text, encoding="utf-8")
+text = PATH.read_text(encoding="utf-8")
+text = replace_idempotent(text, REWARD_FIELD_OLD, REWARD_FIELD_NEW, "event-reward claim state")
+text = replace_idempotent(text, REWARD_METHOD_OLD, REWARD_METHOD_NEW, "event-reward exactly-once guard")
+text = replace_idempotent(text, CLEAR_OLD, CLEAR_NEW, "PQ Point idempotent event-clear hook")
+PATH.write_text(text, encoding="utf-8")
