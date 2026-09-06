@@ -5,7 +5,7 @@
 #include <string>
 struct INIReader { explicit INIReader(const char*) {} bool GetBoolean(const char*,const char*,bool v) { return v; } };
 namespace CrashDiagnostics { void LogEvent(const char*) {} }
-#include "../ezorsia/ezorsia/DiscordPresence.cpp"
+#include "discord-presence-test-source.inc"
 using namespace DiscordPresence;
 std::vector<BYTE> Frame(Opcode opcode,const std::string& body) {
  FrameHeader h{static_cast<std::uint32_t>(opcode),static_cast<std::uint32_t>(body.size())};

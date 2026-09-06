@@ -1,10 +1,8 @@
-#ifndef EVERLEAF_PRESENCE_TEST
 #include "stdafx.h"
+#ifndef EVERLEAF_PRESENCE_TEST
 #include "DiscordPresence.h"
 #include "INIReader.h"
 #include "CrashDiagnostics.h"
-#else
-#include <windows.h>
 #endif
 
 #include <atomic>

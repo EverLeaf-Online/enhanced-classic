@@ -64,6 +64,8 @@ jobs:
       - name: Test Discord IPC frames and acknowledgements
         shell: pwsh
         run: |
+          $source = Get-Content "client/ezorsia/ezorsia/DiscordPresence.cpp" -Raw
+          $source.Replace('#include "stdafx.h"','#include <windows.h>') | Set-Content "client/scripts/discord-presence-test-source.inc"
           $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
           $vcvars = Join-Path $vs "VC\Auxiliary\Build\vcvarsall.bat"
           $batch = "@echo off`r`ncall `"$vcvars`" x86 >nul`r`ncl /nologo /EHsc /std:c++17 client\scripts\test-discord-presence.cpp /Fe:presence-test.exe`r`nif errorlevel 1 exit /b 1`r`npresence-test.exe > presence-payload.json`r`n"
