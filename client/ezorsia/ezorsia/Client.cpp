@@ -641,15 +641,8 @@ void Client::EnableNewIGCipher() {//??not called //no idea what cipher is
 	Memory::WriteInt(dwIGCipherDecryptStr + 3, nCipherHash);
 }
 
+void ApplyEverLeafLoginLayout();
+
 void Client::UpdateLogin() {
-	// EverLeaf modern-classic login pass. Keep MapleStory's native controls and
-	// event flow; only reposition the stable login dialog/input controls and
-	// restyle their text fields. This makes the change reversible and keeps
-	// world/character-select protocol behavior untouched while the broader UI
-	// backport is screenshot-tested.
-	Memory::CodeCave(PositionLoginDlg, dwLoginCreateDlg, 14);
-	Memory::CodeCave(PositionLoginUsername, dwLoginUsername, 11);
-	Memory::CodeCave(PositionLoginPassword, dwLoginPassword, 8);
-	Memory::WriteInt(dwLoginInputBackgroundColor + 3, 0xFFF4F8F1);
-	Memory::WriteByte(dwLoginInputFontColor + 3, 1);
+    ApplyEverLeafLoginLayout();
 }
