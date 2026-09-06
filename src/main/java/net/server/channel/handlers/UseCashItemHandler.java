@@ -174,59 +174,77 @@ public final class UseCashItemHandler extends AbstractPacketHandler {
                 return;
             }
 
+            boolean resetSucceeded;
             if (itemId > ItemId.AP_RESET) {
                 int SPTo = p.readInt();
-                if (!AssignSPProcessor.canSPAssign(c, SPTo)) {  // exploit found thanks to Arnah
+                int SPFrom = p.readInt();
+
+                if (SPTo == SPFrom || !AssignSPProcessor.canSPAssign(c, SPTo) || !AssignSPProcessor.canSPAssign(c, SPFrom)) {
+                    c.sendPacket(PacketCreator.enableActions());
                     return;
                 }
 
-                int SPFrom = p.readInt();
                 Skill skillSPTo = SkillFactory.getSkill(SPTo);
                 Skill skillSPFrom = SkillFactory.getSkill(SPFrom);
+                if (skillSPTo == null || skillSPFrom == null) {
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+
                 byte curLevel = player.getSkillLevel(skillSPTo);
                 byte curLevelSPFrom = player.getSkillLevel(skillSPFrom);
-                if ((curLevel < skillSPTo.getMaxLevel()) && curLevelSPFrom > 0) {
-                    player.changeSkillLevel(skillSPFrom, (byte) (curLevelSPFrom - 1), player.getMasterLevel(skillSPFrom), -1);
-                    player.changeSkillLevel(skillSPTo, (byte) (curLevel + 1), player.getMasterLevel(skillSPTo), -1);
+                int targetCap = skillSPTo.isFourthJob() ? player.getMasterLevel(skillSPTo) : skillSPTo.getMaxLevel();
+                if (curLevelSPFrom <= 0 || targetCap <= 0 || curLevel >= targetCap) {
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
 
-                    // update macros, thanks to Arnah
-                    if ((curLevelSPFrom - 1) == 0) {
-                        boolean updated = false;
-                        for (SkillMacro macro : player.getMacros()) {
-                            if (macro == null) {
-                                continue;
-                            }
+                player.changeSkillLevel(skillSPFrom, (byte) (curLevelSPFrom - 1), player.getMasterLevel(skillSPFrom), -1);
+                player.changeSkillLevel(skillSPTo, (byte) (curLevel + 1), player.getMasterLevel(skillSPTo), -1);
+                resetSucceeded = true;
 
-                            boolean update = false;// cleaner?
-                            if (macro.getSkill1() == SPFrom) {
-                                update = true;
-                                macro.setSkill1(0);
-                            }
-                            if (macro.getSkill2() == SPFrom) {
-                                update = true;
-                                macro.setSkill2(0);
-                            }
-                            if (macro.getSkill3() == SPFrom) {
-                                update = true;
-                                macro.setSkill3(0);
-                            }
-                            if (update) {
-                                updated = true;
-                                player.updateMacros(macro.getPosition(), macro);
-                            }
+                // update macros, thanks to Arnah
+                if ((curLevelSPFrom - 1) == 0) {
+                    boolean updated = false;
+                    for (SkillMacro macro : player.getMacros()) {
+                        if (macro == null) {
+                            continue;
                         }
-                        if (updated) {
-                            player.sendMacros();
+
+                        boolean update = false;
+                        if (macro.getSkill1() == SPFrom) {
+                            update = true;
+                            macro.setSkill1(0);
                         }
+                        if (macro.getSkill2() == SPFrom) {
+                            update = true;
+                            macro.setSkill2(0);
+                        }
+                        if (macro.getSkill3() == SPFrom) {
+                            update = true;
+                            macro.setSkill3(0);
+                        }
+                        if (update) {
+                            updated = true;
+                            player.updateMacros(macro.getPosition(), macro);
+                        }
+                    }
+                    if (updated) {
+                        player.sendMacros();
                     }
                 }
             } else {
                 int APTo = p.readInt();
                 int APFrom = p.readInt();
+                resetSucceeded = AssignAPProcessor.APResetAction(c, APFrom, APTo);
+            }
 
-                if (!AssignAPProcessor.APResetAction(c, APFrom, APTo)) {
-                    return;
-                }
+            // A failed reset must never consume the cash item. This also keeps the
+            // mutation and item debit aligned as one logical transaction while the
+            // client handler is serialized.
+            if (!resetSucceeded) {
+                c.sendPacket(PacketCreator.enableActions());
+                return;
             }
             remove(c, position, itemId);
         } else if (itemType == 506) {
@@ -241,7 +259,8 @@ public final class UseCashItemHandler extends AbstractPacketHandler {
             } else if (itemId == 5060001 || itemId == 5061000 || itemId == 5061001 || itemId == 5061002 || itemId == 5061003) { // Sealing lock
                 InventoryType type = InventoryType.getByType((byte) p.readInt());
                 eq = player.getInventory(type).getItem((short) p.readInt());
-                if (eq == null) { //Check if the type is EQUIPMENT?
+                if (eq == null) //Check if the type is EQUIPMENT?
+                {
                     return;
                 }
                 short flag = eq.getFlag();

@@ -48,7 +48,7 @@ public final class SkillBookHandler extends AbstractPacketHandler {
         short slot = p.readShort();
         int itemId = p.readInt();
 
-        boolean canuse;
+        boolean canuse = false;
         boolean success = false;
         int skill = 0;
         int maxlevel = 0;
@@ -56,23 +56,36 @@ public final class SkillBookHandler extends AbstractPacketHandler {
         Character player = c.getPlayer();
         if (c.tryacquireClient()) {
             try {
-                Inventory inv = c.getPlayer().getInventory(InventoryType.USE);
+                Inventory inv = player.getInventory(InventoryType.USE);
                 Item toUse = inv.getItem(slot);
-                if (toUse == null || toUse.getItemId() != itemId) {
+                if (toUse == null || toUse.getItemId() != itemId || toUse.getQuantity() < 1) {
+                    c.sendPacket(PacketCreator.enableActions());
                     return;
                 }
-                Map<String, Integer> skilldata = ItemInformationProvider.getInstance().getSkillStats(toUse.getItemId(), c.getPlayer().getJob().getId());
+
+                Map<String, Integer> skilldata = ItemInformationProvider.getInstance()
+                        .getSkillStats(toUse.getItemId(), player.getJob().getId());
                 if (skilldata == null) {
+                    c.sendPacket(PacketCreator.enableActions());
                     return;
                 }
-                Skill skill2 = SkillFactory.getSkill(skilldata.get("skillid"));
-                if (skilldata.get("skillid") == 0) {
-                    canuse = false;
-                } else if ((player.getSkillLevel(skill2) >= skilldata.get("reqSkillLevel") || skilldata.get("reqSkillLevel") == 0) && player.getMasterLevel(skill2) < skilldata.get("masterLevel")) {
+
+                skill = skilldata.getOrDefault("skillid", 0);
+                maxlevel = skilldata.getOrDefault("masterLevel", 0);
+                Skill skill2 = SkillFactory.getSkill(skill);
+                if (skill == 0 || skill2 == null) {
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+
+                int requiredSkillLevel = skilldata.getOrDefault("reqSkillLevel", 0);
+                if ((player.getSkillLevel(skill2) >= requiredSkillLevel || requiredSkillLevel == 0)
+                        && player.getMasterLevel(skill2) < maxlevel) {
                     inv.lockInventory();
                     try {
                         Item used = inv.getItem(slot);
-                        if (used != toUse || toUse.getQuantity() < 1) {    // thanks ClouD for noticing skillbooks not being usable when stacked
+                        if (used != toUse || used.getQuantity() < 1 || used.getItemId() != itemId) {
+                            c.sendPacket(PacketCreator.enableActions());
                             return;
                         }
 
@@ -82,21 +95,23 @@ public final class SkillBookHandler extends AbstractPacketHandler {
                     }
 
                     canuse = true;
-                    if (ItemInformationProvider.rollSuccessChance(skilldata.get("success"))) {
+                    if (ItemInformationProvider.rollSuccessChance(skilldata.getOrDefault("success", 0))) {
                         success = true;
-                        player.changeSkillLevel(skill2, player.getSkillLevel(skill2), Math.max(skilldata.get("masterLevel"), player.getMasterLevel(skill2)), -1);
-                    } else {
-                        success = false;
-                        //player.dropMessage("The skill book lights up, but the skill winds up as if nothing happened.");
+                        player.changeSkillLevel(
+                                skill2,
+                                player.getSkillLevel(skill2),
+                                Math.max(maxlevel, player.getMasterLevel(skill2)),
+                                -1
+                        );
                     }
-                } else {
-                    canuse = false;
                 }
             } finally {
                 c.releaseClient();
             }
 
-            // thanks Vcoc for noting skill book result not showing for all in area
+            // The client uses the actual skill id and resulting mastery cap to render
+            // the nearby mastery-book result animation. Historically these were left
+            // at zero, which produced an invalid result packet even when the book worked.
             player.getMap().broadcastMessage(PacketCreator.skillBookResult(player, skill, maxlevel, canuse, success));
         }
     }
