@@ -32,6 +32,7 @@ import net.packet.InPacket;
 import net.server.Server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scripting.event.EventInstanceManager;
 import server.Trade;
 import server.maps.MapleMap;
 import server.maps.Portal;
@@ -88,20 +89,36 @@ public final class ChangeMapHandler extends AbstractPacketHandler {
             if (targetMapId != -1) {
                 if (!chr.isAlive()) {
                     MapleMap map = chr.getMap();
-                    if (wheel && chr.haveItemWithId(ItemId.WHEEL_OF_FORTUNE, false)) {
-                        // thanks lucasziron (lziron) for showing revivePlayer() triggering by Wheel
+                    EventInstanceManager event = chr.getEventInstance();
+                    boolean executeStandardPath = true;
 
-                        InventoryManipulator.removeById(c, InventoryType.CASH, ItemId.WHEEL_OF_FORTUNE, 1, true, false);
-                        chr.sendPacket(PacketCreator.showWheelsLeft(chr.getItemQuantity(ItemId.WHEEL_OF_FORTUNE, false)));
+                    // The event revive hook owns PQ/boss death semantics. It must
+                    // run even when the client requests a Wheel of Fortune; the
+                    // old wheel-first branch let the item bypass event scripts
+                    // that eject dead players or end an undersized expedition.
+                    if (event != null) {
+                        executeStandardPath = event.revivePlayer(chr);
+                    }
 
-                        chr.updateHp(50);
-                        chr.changeMap(map, map.findClosestPlayerSpawnpoint(chr.getPosition()));
-                    } else {
-                        boolean executeStandardPath = true;
-                        if (chr.getEventInstance() != null) {
-                            executeStandardPath = chr.getEventInstance().revivePlayer(chr);
-                        }
-                        if (executeStandardPath) {
+                    if (executeStandardPath) {
+                        // A revive callback may unregister/eject the character.
+                        // In that case do not consume a Wheel and resurrect them
+                        // back inside a now-unowned event map.
+                        boolean eventStillOwnsPlayer = event != null && chr.getEventInstance() == event;
+                        boolean useWheel = DeathRevivePolicy.canUseWheel(
+                                true,
+                                wheel,
+                                chr.haveItemWithId(ItemId.WHEEL_OF_FORTUNE, false),
+                                event != null,
+                                eventStillOwnsPlayer);
+
+                        if (useWheel) {
+                            InventoryManipulator.removeById(c, InventoryType.CASH, ItemId.WHEEL_OF_FORTUNE, 1, true, false);
+                            chr.sendPacket(PacketCreator.showWheelsLeft(chr.getItemQuantity(ItemId.WHEEL_OF_FORTUNE, false)));
+
+                            chr.updateHp(50);
+                            chr.changeMap(map, map.findClosestPlayerSpawnpoint(chr.getPosition()));
+                        } else {
                             chr.respawn(map.getReturnMapId());
                         }
                     }
