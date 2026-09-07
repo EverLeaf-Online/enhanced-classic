@@ -1,4 +1,5 @@
 # Production deployment: preserve the validated full-v95 server XML baseline.
+# Manual production deploy trigger: gameplay hardening through PR #373 (2026-09-07).
 name: Deploy EverLeaf Game Production
 
 on:
