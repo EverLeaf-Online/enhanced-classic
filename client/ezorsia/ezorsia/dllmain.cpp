@@ -8,7 +8,6 @@
 #include "DisplayMode.h"
 #include "WidescreenCorrections.h"
 #include "AddyLocations.h"
-#include "DiscordPresence.h"
 #include "EverLeafLoginLayout.h"
 #include "EverLeafWebLinks.h"
 
@@ -95,18 +94,11 @@ bool InstallEarlyHooks() {
 }
 
 DWORD WINAPI BootstrapWatchdog(LPVOID) {
-    if (!gBootstrapComplete) {
-        return 0;
-    }
-
+    if (!gBootstrapComplete) return 0;
     const DWORD result = WaitForSingleObject(gBootstrapComplete, kClientBootstrapTimeoutMs);
     if (result == WAIT_TIMEOUT && !gBootstrapFailed.load()) {
         CrashDiagnostics::SetPhase("bootstrap-watchdog-timeout");
-        FailBootstrap(
-            L"EverLeaf could not finish initializing the v83 client.\n\n"
-            L"The client build or unpacked memory layout did not match the expected EverLeaf baseline. "
-            L"The game will close instead of remaining stuck on startup."
-        );
+        FailBootstrap(L"EverLeaf could not finish initializing the v83 client.\n\nThe client build or unpacked memory layout did not match the expected EverLeaf baseline. The game will close instead of remaining stuck on startup.");
         ExitProcess(ERROR_TIMEOUT);
     }
     return 0;
@@ -115,7 +107,6 @@ DWORD WINAPI BootstrapWatchdog(LPVOID) {
 
 void MainFunc() {
     CrashDiagnostics::SetPhase("installing-client-hooks");
-
     bool hooksOk = true;
     const auto requiredHook = [&hooksOk](const char* name, bool result) {
         if (!result) {
@@ -143,66 +134,40 @@ void MainFunc() {
 
     if (!hooksOk) {
         CrashDiagnostics::SetPhase("client-hook-mismatch");
-        FailBootstrap(
-            L"EverLeaf detected a client hook mismatch.\n\n"
-            L"Please repair/update the client before launching again. No live-server changes were made."
-        );
+        FailBootstrap(L"EverLeaf detected a client hook mismatch.\n\nPlease repair/update the client before launching again. No live-server changes were made.");
         ExitProcess(ERROR_BAD_EXE_FORMAT);
     }
 
     CrashDiagnostics::SetPhase("applying-startup-patches");
-    std::cout << "EverLeaf Client v2: applying startup routines" << std::endl;
     Client::UpdateGameStartup();
-
     CrashDiagnostics::SetPhase("applying-resolution-patches");
-    std::cout << "EverLeaf Client v2: applying resolution "
-              << Client::m_nGameWidth << "x" << Client::m_nGameHeight << std::endl;
     Client::UpdateResolution();
-
     Memory::WriteInt(dwToolTipLimitVPos + 1, Client::m_nGameHeight - 1);
 
     CrashDiagnostics::SetPhase("applying-widescreen-corrections");
-    if (!WidescreenCorrections::Apply()) {
-        CrashDiagnostics::LogEvent("owner-backed widescreen corrections unavailable; continuing without them");
-    }
+    if (!WidescreenCorrections::Apply()) CrashDiagnostics::LogEvent("owner-backed widescreen corrections unavailable; continuing without them");
 
     if (Client::ModernLoginUI) {
         CrashDiagnostics::SetPhase("applying-login-ui");
-        std::cout << "EverLeaf Client v2: aligning native login controls with EverLeaf panel" << std::endl;
         EverLeafLoginLayout::Apply();
     }
 
     CrashDiagnostics::SetPhase("installing-web-link-routing");
-    if (!EverLeafWebLinks::Install()) {
-        CrashDiagnostics::LogEvent("EverLeaf web-link routing unavailable; legacy links may remain");
-    }
+    if (!EverLeafWebLinks::Install()) CrashDiagnostics::LogEvent("EverLeaf web-link routing unavailable; legacy links may remain");
 
     CrashDiagnostics::SetPhase("initializing-dinput-proxy");
     dinput8::CreateHook();
-    std::cout << "EverLeaf Client v2: dinput8 proxy hook initialized" << std::endl;
-
     CrashDiagnostics::SetPhase("installing-frame-limiter");
-    if (!FrameLimiter::Install()) {
-        CrashDiagnostics::LogEvent("frame limiter unavailable; continuing with stock presentation timing");
-    }
-
-    CrashDiagnostics::SetPhase("starting-discord-presence");
-    DiscordPresence::Start();
-    std::cout << "EverLeaf Client v2: Discord Rich Presence worker started" << std::endl;
-
+    if (!FrameLimiter::Install()) CrashDiagnostics::LogEvent("frame limiter unavailable; continuing with stock presentation timing");
     CrashDiagnostics::SetPhase("client-hooks-ready");
 }
 
 DWORD WINAPI MainProc(LPVOID) {
     CrashDiagnostics::Install();
     CrashDiagnostics::SetPhase("installing-early-hooks");
-
     if (!InstallEarlyHooks()) {
         CrashDiagnostics::SetPhase("early-hook-failure");
-        FailBootstrap(
-            L"EverLeaf could not initialize the network/client compatibility layer.\n\n"
-            L"Please repair/update the client and try again."
-        );
+        FailBootstrap(L"EverLeaf could not initialize the network/client compatibility layer.\n\nPlease repair/update the client and try again.");
         if (gBootstrapComplete) SetEvent(gBootstrapComplete);
         ExitProcess(ERROR_DLL_INIT_FAILED);
         return ERROR_DLL_INIT_FAILED;
@@ -211,11 +176,7 @@ DWORD WINAPI MainProc(LPVOID) {
     CrashDiagnostics::SetPhase("waiting-for-v83-unpack");
     if (!WaitForClientImage()) {
         CrashDiagnostics::SetPhase("v83-unpack-mismatch");
-        FailBootstrap(
-            L"EverLeaf did not recognize the unpacked v83 client image.\n\n"
-            L"This usually means the executable does not match the EverLeaf Client v2 baseline. "
-            L"The client will close instead of hanging indefinitely."
-        );
+        FailBootstrap(L"EverLeaf did not recognize the unpacked v83 client image.\n\nThis usually means the executable does not match the EverLeaf Client v2 baseline. The client will close instead of hanging indefinitely.");
         if (gBootstrapComplete) SetEvent(gBootstrapComplete);
         ExitProcess(ERROR_BAD_EXE_FORMAT);
         return ERROR_BAD_EXE_FORMAT;
@@ -223,13 +184,10 @@ DWORD WINAPI MainProc(LPVOID) {
 
     CrashDiagnostics::SetPhase("enabling-dpi-awareness");
     DisplayMode::EnableSystemDpiAwareness();
-
     CrashDiagnostics::SetPhase("creating-client-runtime");
     MainMain::CreateInstance(MainFunc);
-
     CrashDiagnostics::SetPhase("starting-display-worker");
     DisplayMode::StartWorker();
-
     CrashDiagnostics::SetPhase("bootstrap-complete");
     if (gBootstrapComplete) SetEvent(gBootstrapComplete);
     return 0;
@@ -239,28 +197,16 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     switch (ul_reason_for_call) {
     case DLL_PROCESS_ATTACH: {
         DisableThreadLibraryCalls(hModule);
-
-        MainMain::mainTHread = OpenThread(
-            THREAD_SUSPEND_RESUME | THREAD_QUERY_INFORMATION,
-            FALSE,
-            GetCurrentThreadId()
-        );
-
+        MainMain::mainTHread = OpenThread(THREAD_SUSPEND_RESUME | THREAD_QUERY_INFORMATION, FALSE, GetCurrentThreadId());
         gBootstrapComplete = CreateEventW(nullptr, TRUE, FALSE, nullptr);
         HANDLE bootstrap = CreateThread(nullptr, 0, MainProc, nullptr, 0, nullptr);
-        if (!bootstrap) {
-            return FALSE;
-        }
+        if (!bootstrap) return FALSE;
         CloseHandle(bootstrap);
-
         HANDLE watchdog = CreateThread(nullptr, 0, BootstrapWatchdog, nullptr, 0, nullptr);
-        if (watchdog) {
-            CloseHandle(watchdog);
-        }
+        if (watchdog) CloseHandle(watchdog);
         break;
     }
     case DLL_PROCESS_DETACH:
-        DiscordPresence::Stop();
         if (lpReserved == nullptr && gBootstrapComplete) {
             CloseHandle(gBootstrapComplete);
             gBootstrapComplete = nullptr;
