@@ -54,6 +54,12 @@ main = replace_all_required(
     "EverLeaf_UI.img",
     "IMG runtime filename",
 )
+main = replace_all_required(
+    main,
+    '"132.145.141.79"',
+    '"129.159.114.146"',
+    "relay bootstrap address",
+)
 MAIN.write_text(main, encoding="utf-8", newline="\n")
 
 replacements = REPLACEMENTS.read_text(encoding="utf-8")
@@ -100,6 +106,12 @@ for forbidden in (
     if forbidden in client:
         raise SystemExit(f"Dead process-creation runtime patch survived Client v2 transform: {forbidden}")
 
+client = replace_all_required(
+    client,
+    '"132.145.141.79"',
+    '"129.159.114.146"',
+    "relay login address",
+)
 CLIENT.write_text(client, encoding="utf-8", newline="\n")
 
-print("EverLeaf Client v2 rebrand/startup-policy transform applied")
+print("EverLeaf Client v2 rebrand/startup-policy/relay transform applied")
