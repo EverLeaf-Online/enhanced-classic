@@ -5,12 +5,14 @@ on:
     branches: [release-dev]
     paths:
       - "launcher/**"
+      - "client/branding/everleaf-app-icon.ico.gz.b64"
       - "tools/apply_launcher_integrity_fixes.py"
       - ".github/workflows/publish-everleaf-launcher.yml"
   pull_request:
     branches: [release-dev]
     paths:
       - "launcher/**"
+      - "client/branding/everleaf-app-icon.ico.gz.b64"
       - "tools/apply_launcher_integrity_fixes.py"
       - ".github/workflows/publish-everleaf-launcher.yml"
   workflow_dispatch:
@@ -34,6 +36,29 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'release-dev' }}
+
+      - name: Materialize EverLeaf app icon
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $encodedPath = 'client/branding/everleaf-app-icon.ico.gz.b64'
+          $iconPath = 'launcher/assets/everleaf-icon.ico'
+          if (-not (Test-Path -LiteralPath $encodedPath)) { throw 'EverLeaf icon source is missing.' }
+          New-Item -ItemType Directory -Path (Split-Path -Parent $iconPath) -Force | Out-Null
+          $compressed = [Convert]::FromBase64String((Get-Content -LiteralPath $encodedPath -Raw).Trim())
+          $input = [IO.MemoryStream]::new($compressed)
+          try {
+            $gzip = [IO.Compression.GZipStream]::new($input, [IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output = [IO.File]::Create((Join-Path $PWD $iconPath))
+              try { $gzip.CopyTo($output) } finally { $output.Dispose() }
+            } finally { $gzip.Dispose() }
+          } finally { $input.Dispose() }
+          $hash = (Get-FileHash -LiteralPath $iconPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne 'b5aaa689bc617b518d04ca8506b3db556fda719fae2e97c742d608827e5ffef9') {
+            throw "EverLeaf icon SHA-256 mismatch: $hash"
+          }
+          Write-Host "EverLeaf app icon ready: $hash"
 
       - name: Apply launcher integrity fixes
         run: python tools/apply_launcher_integrity_fixes.py
