@@ -124,30 +124,27 @@ jobs:
         run: |
           set -euo pipefail
           SSH_DIR="$GITHUB_WORKSPACE/.everleaf-ssh"
-          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+          ssh -tt -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "RELEASE_SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
-          set -euo pipefail
+          set -euxo pipefail
           PATCH_ROOT=/opt/everleaf/patches
           FILES="$PATCH_ROOT/files"
           STAGE="/tmp/everleaf-client-$RELEASE_SHA"
           PAYLOAD="$STAGE/payload"
           BACKUP="$STAGE/backup"
           GENERATED="$STAGE/manifest.json"
+          echo '[publish] unpacking payload'
           mkdir -p "$PAYLOAD" "$BACKUP"
-          unzip -q "$STAGE/EverleafClient-overlay.zip" -d "$PAYLOAD"
-
+          unzip -qo "$STAGE/EverleafClient-overlay.zip" -d "$PAYLOAD"
+          echo '[publish] validating payload'
           for f in config.ini dinput8.dll EverLeaf_UI.wz managed-client-baseline.json; do test -s "$PAYLOAD/$f"; done
           test "$(find "$PAYLOAD" -type f | wc -l)" -eq 4
           grep -q '^ModernLoginUI=true$' "$PAYLOAD/config.ini"
-          node - "$PAYLOAD/managed-client-baseline.json" <<'NODE'
-          const fs=require('fs'); const b=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
-          if(!Array.isArray(b.managedFiles) || b.managedFiles.length!==36) throw new Error(`Expected 36 managed baseline files, got ${b.managedFiles?.length}`);
-          NODE
-
+          node -e "const b=require(process.argv[1]); if(!Array.isArray(b.managedFiles)||b.managedFiles.length!==36) process.exit(1)" "$PAYLOAD/managed-client-baseline.json"
+          echo '[publish] creating rollback backup'
           cp "$PATCH_ROOT/manifest.json" "$BACKUP/manifest.json"
           cp "$PATCH_ROOT/managed-client-baseline.json" "$BACKUP/managed-client-baseline.json"
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do cp "$FILES/$f" "$BACKUP/$f"; done
-
           rollback() {
             echo 'Client publish verification failed; rolling back overlay.' >&2
             for f in config.ini dinput8.dll EverLeaf_UI.wz; do sudo install -m 644 "$BACKUP/$f" "$FILES/$f"; done
@@ -155,29 +152,24 @@ jobs:
             sudo install -m 644 "$BACKUP/manifest.json" "$PATCH_ROOT/manifest.json"
           }
           trap rollback ERR
-
+          echo '[publish] installing overlay'
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do
             sudo install -m 644 "$PAYLOAD/$f" "$FILES/$f.new"
             sudo mv -f "$FILES/$f.new" "$FILES/$f"
           done
           sudo install -m 644 "$PAYLOAD/managed-client-baseline.json" "$PATCH_ROOT/managed-client-baseline.json.new"
           sudo mv -f "$PATCH_ROOT/managed-client-baseline.json.new" "$PATCH_ROOT/managed-client-baseline.json"
-
+          echo '[publish] rebuilding manifest'
           LAUNCHER_PATCH_ROOT="$PATCH_ROOT" \
           LAUNCHER_BASELINE_PATH="$PATCH_ROOT/managed-client-baseline.json" \
           LAUNCHER_MANIFEST_PATH="$GENERATED" \
           LAUNCHER_PORTABLE_PATH="$PATCH_ROOT/downloads/EverLeafLauncher-portable.zip" \
           LAUNCHER_VERSION_PATH="$PATCH_ROOT/downloads/EverLeafLauncher-version.txt" \
           node /opt/everleaf/web/scripts/build-patch-manifest.js "$RELEASE_SHA"
-
-          node - "$GENERATED" <<'NODE'
-          const fs=require('fs'); const m=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
-          if(m.version!==process.env.RELEASE_SHA) throw new Error(`Client manifest version mismatch: ${m.version}`);
-          if(m.files.length!==36) throw new Error(`Expected 36 managed files, got ${m.files.length}`);
-          NODE
+          node -e "const m=require(process.argv[1]); if(m.version!==process.env.RELEASE_SHA||m.files.length!==36) process.exit(1)" "$GENERATED"
           sudo install -m 644 "$GENERATED" "$PATCH_ROOT/manifest.json.new"
           sudo mv -f "$PATCH_ROOT/manifest.json.new" "$PATCH_ROOT/manifest.json"
-
+          echo '[publish] verifying local web endpoints'
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do
             expected="$(sha256sum "$FILES/$f" | awk '{print $1}')"
             curl -fsS "http://127.0.0.1:3000/patches/$f" -o "$STAGE/live-$f"
@@ -188,6 +180,7 @@ jobs:
           trap - ERR
           echo "EverLeaf client overlay published: $RELEASE_SHA"
           rm -rf "$STAGE"
+          exit
           REMOTE
 
       - name: Verify public patch endpoints
