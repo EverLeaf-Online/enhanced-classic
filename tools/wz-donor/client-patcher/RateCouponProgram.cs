@@ -49,6 +49,7 @@ using (var target = OpenWz(targetPath))
 {
     var commodity = target.WzDirectory.GetImageByName("Commodity.img")
         ?? throw new InvalidDataException("Missing Commodity.img");
+    commodity.ParseImage();
 
     foreach (var entry in commodity.WzProperties)
     {
@@ -63,6 +64,7 @@ using (var target = OpenWz(targetPath))
             if (onSaleInt.Value != 0)
             {
                 onSaleInt.Value = 0;
+                commodity.Changed = true;
             }
         }
         else if (onSale != null)
@@ -88,6 +90,7 @@ using (var check = OpenWz(outputPath))
 {
     var commodity = check.WzDirectory.GetImageByName("Commodity.img")
         ?? throw new InvalidDataException("Patched Etc.wz lost Commodity.img");
+    commodity.ParseImage();
     foreach (var entry in commodity.WzProperties)
     {
         var itemIdProp = entry["ItemId"];
