@@ -8,6 +8,9 @@
 #include "DisplayMode.h"
 #include "WidescreenCorrections.h"
 #include "AddyLocations.h"
+#include "DiscordPresence.h"
+#include "EverLeafLoginLayout.h"
+#include "EverLeafWebLinks.h"
 
 #include <atomic>
 
@@ -128,11 +131,6 @@ void MainFunc() {
     requiredHook("CRC update", Hook_sub_9F4E54(true));
     requiredHook("CWvsApp::ctor", Hook_sub_9F4FDA(true));
     requiredHook("CWvsApp::SetUp", Hook_sub_9F5239(true));
-    // EverLeaf's v83 server path depends on the established private-server Run
-    // compatibility loop. Leaving the retail Run implementation active survives
-    // an offline smoke test, but exits cleanly as soon as the live endpoint sends
-    // its first disconnect/transition code. This is the substantive difference
-    // from the previously working live client, so keep the proven replacement.
     requiredHook("CWvsApp::Run compatibility", Hook_sub_9F5C50(true));
     requiredHook("CWvsApp::InitializeInput", Hook_sub_9F7CE1(true));
     requiredHook("CWvsApp::CallUpdate", Hook_sub_9F84D0(true));
@@ -170,8 +168,13 @@ void MainFunc() {
 
     if (Client::ModernLoginUI) {
         CrashDiagnostics::SetPhase("applying-login-ui");
-        std::cout << "EverLeaf Client v2: applying modern login UI" << std::endl;
-        Client::UpdateLogin();
+        std::cout << "EverLeaf Client v2: aligning native login controls with EverLeaf panel" << std::endl;
+        EverLeafLoginLayout::Apply();
+    }
+
+    CrashDiagnostics::SetPhase("installing-web-link-routing");
+    if (!EverLeafWebLinks::Install()) {
+        CrashDiagnostics::LogEvent("EverLeaf web-link routing unavailable; legacy links may remain");
     }
 
     CrashDiagnostics::SetPhase("initializing-dinput-proxy");
@@ -182,6 +185,10 @@ void MainFunc() {
     if (!FrameLimiter::Install()) {
         CrashDiagnostics::LogEvent("frame limiter unavailable; continuing with stock presentation timing");
     }
+
+    CrashDiagnostics::SetPhase("starting-discord-presence");
+    DiscordPresence::Start();
+    std::cout << "EverLeaf Client v2: Discord Rich Presence worker started" << std::endl;
 
     CrashDiagnostics::SetPhase("client-hooks-ready");
 }
@@ -253,6 +260,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         break;
     }
     case DLL_PROCESS_DETACH:
+        DiscordPresence::Stop();
         if (lpReserved == nullptr && gBootstrapComplete) {
             CloseHandle(gBootstrapComplete);
             gBootstrapComplete = nullptr;
