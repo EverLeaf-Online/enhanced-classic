@@ -145,7 +145,11 @@ jobs:
           fi
           test -d /opt/everleaf/shared/wz-v95
           rm -rf "$RELEASE_DIR/wz"
-          cp -al /opt/everleaf/shared/wz-v95 "$RELEASE_DIR/wz"
+          if ! cp -al /opt/everleaf/shared/wz-v95 "$RELEASE_DIR/wz"; then
+            echo 'Hard-link WZ staging was blocked by source ownership; falling back to a regular/reflink-capable copy.'
+            rm -rf "$RELEASE_DIR/wz"
+            cp -a --reflink=auto /opt/everleaf/shared/wz-v95 "$RELEASE_DIR/wz"
+          fi
           test "$(find "$RELEASE_DIR/wz" -type f -name '*.xml' | wc -l)" -ge 44000
           WZROOT="$RELEASE_DIR/wz" python3 - <<'PY'
           from pathlib import Path
