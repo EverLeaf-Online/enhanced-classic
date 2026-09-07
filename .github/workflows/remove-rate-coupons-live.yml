@@ -1,0 +1,159 @@
+name: Remove Cash Shop rate coupons live
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - '.github/workflows/remove-rate-coupons-live.yml'
+      - 'tools/wz-donor/client-patcher/RateCouponProgram.cs'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-rate-coupon-live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+
+jobs:
+  deploy:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout release-dev
+        uses: actions/checkout@v4
+        with:
+          ref: release-dev
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if ($env:SSH_KNOWN_HOSTS) { [IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n") }
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 15
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+          ssh everleaf-oracle 'echo EverLeaf Oracle SSH OK'
+          if($LASTEXITCODE){throw 'Oracle SSH preflight failed'}
+
+      - name: Verify no-P2W server policy and fetch live Etc.wz
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'everleaf-rate-coupons'; New-Item -ItemType Directory -Force -Path $root | Out-Null
+          ssh everleaf-oracle "set -e; CURRENT=\$(readlink -f /opt/everleaf/current); grep -Eq '^\s*USE_SUPPLY_RATE_COUPONS:\s*false(\s|$)' \"\$CURRENT/config.yaml\"; test -s /opt/everleaf/patches/files/Etc.wz; echo RATE_COUPON_SERVER_POLICY_OK"
+          if($LASTEXITCODE){throw 'Server rate-coupon policy is not disabled; refusing client-only catalog change'}
+          scp 'everleaf-oracle:/opt/everleaf/patches/files/Etc.wz' (Join-Path $root 'Etc.wz')
+          if($LASTEXITCODE){throw 'Live Etc.wz copy failed'}
+
+      - name: Build MapleLib patcher
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $patchDir=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafRateCouponPatcher'; New-Item -ItemType Directory -Force -Path $patchDir | Out-Null
+          Copy-Item tools/wz-donor/client-patcher/RateCouponProgram.cs (Join-Path $patchDir 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup><ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup></Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $patchDir 'EverLeafRateCouponPatcher.csproj')
+          dotnet build (Join-Path $patchDir 'EverLeafRateCouponPatcher.csproj') -c Release
+
+      - name: Build and verify rate-coupon-free Etc.wz
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'everleaf-rate-coupons'; $out=Join-Path $root 'candidate'; New-Item -ItemType Directory -Force -Path $out | Out-Null
+          dotnet run --project "$env:RUNNER_TEMP/MapleLib/EverLeafRateCouponPatcher/EverLeafRateCouponPatcher.csproj" -c Release --no-build -- (Join-Path $root 'Etc.wz') $out
+          if($LASTEXITCODE){throw 'Rate-coupon WZ patch failed'}
+          $manifest=Get-Content (Join-Path $out 'RATE_COUPON_PATCH_MANIFEST.json') -Raw | ConvertFrom-Json
+          if([int]$manifest.validation.disabledCount -lt 1){throw 'Patch manifest reports zero disabled rate coupons'}
+          "Disabled rate-coupon commodity entries: $($manifest.validation.disabledCount)" | Add-Content $env:GITHUB_STEP_SUMMARY
+          Get-Content (Join-Path $out 'RATE_COUPON_PATCH_MANIFEST.json') | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload candidate to Oracle staging
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'everleaf-rate-coupons'; $remote="/tmp/everleaf-rate-coupons-${{ github.run_id }}"
+          ssh everleaf-oracle "rm -rf '$remote' && mkdir -p '$remote'"
+          scp (Join-Path $root 'candidate/Etc.wz') "everleaf-oracle`:$remote/Etc.wz"
+          scp (Join-Path $root 'candidate/RATE_COUPON_PATCH_MANIFEST.json') "everleaf-oracle`:$remote/RATE_COUPON_PATCH_MANIFEST.json"
+          if($LASTEXITCODE){throw 'Candidate upload failed'}
+
+      - name: Publish Etc.wz and patch manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $remote="/tmp/everleaf-rate-coupons-${{ github.run_id }}"
+          $script=@'
+          set -euo pipefail
+          PATCH=/opt/everleaf/patches
+          FILES="$PATCH/files"
+          STAGE=__REMOTE__
+          BACKUP="$STAGE/backup"
+          mkdir -p "$BACKUP"
+          test -s "$STAGE/Etc.wz"
+          test -s "$STAGE/RATE_COUPON_PATCH_MANIFEST.json"
+          test -s "$FILES/Etc.wz"
+          cp "$FILES/Etc.wz" "$BACKUP/Etc.wz"
+          cp "$PATCH/manifest.json" "$BACKUP/manifest.json"
+          rollback(){
+            echo 'Rate-coupon Cash Shop publish failed; rolling back.' >&2
+            sudo install -m 644 "$BACKUP/Etc.wz" "$FILES/Etc.wz"
+            sudo install -m 644 "$BACKUP/manifest.json" "$PATCH/manifest.json"
+          }
+          trap rollback ERR
+          sudo install -m 644 "$STAGE/Etc.wz" "$FILES/Etc.wz.new"
+          sudo mv -f "$FILES/Etc.wz.new" "$FILES/Etc.wz"
+          GENERATED="$STAGE/manifest.json"
+          LAUNCHER_PATCH_ROOT="$PATCH" LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" LAUNCHER_MANIFEST_PATH="$GENERATED" LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" node /opt/everleaf/web/scripts/build-patch-manifest.js '__SHA__'
+          sudo install -m 644 "$GENERATED" "$PATCH/manifest.json"
+          expected="$(sha256sum "$FILES/Etc.wz" | awk '{print $1}')"
+          curl -fsS 'http://127.0.0.1:3000/patches/Etc.wz' -o "$STAGE/live-Etc.wz"
+          actual="$(sha256sum "$STAGE/live-Etc.wz" | awk '{print $1}')"
+          test "$actual" = "$expected"
+          grep -q 'Etc.wz' "$PATCH/manifest.json"
+          cp "$STAGE/RATE_COUPON_PATCH_MANIFEST.json" "$PATCH/rate-coupon-policy.json"
+          trap - ERR
+          echo "RATE_COUPON_CLIENT_PATCH_LIVE sha256=$expected"
+          '@
+          $script=$script.Replace('__REMOTE__',$remote).Replace('__SHA__','${{ github.sha }}')
+          $local=Join-Path $env:RUNNER_TEMP 'publish-rate-coupons.sh'; [IO.File]::WriteAllText($local,($script -replace "`r",''))
+          scp $local 'everleaf-oracle:/tmp/publish-rate-coupons.sh'
+          ssh everleaf-oracle 'bash /tmp/publish-rate-coupons.sh'
+          if($LASTEXITCODE){throw 'Live rate-coupon publish failed'}
+
+      - name: Verify public patch endpoint
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'everleaf-rate-coupons'
+          $expected=(Get-FileHash (Join-Path $root 'candidate/Etc.wz') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $public=Join-Path $root 'public-Etc.wz'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://everleafms.online/patches/Etc.wz' -OutFile $public
+          $actual=(Get-FileHash $public -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($actual -ne $expected){throw "Public Etc.wz hash mismatch expected=$expected actual=$actual"}
+          Write-Host "PUBLIC_RATE_COUPON_PATCH_OK $actual"
