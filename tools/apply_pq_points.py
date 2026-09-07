@@ -162,6 +162,61 @@ REWARD_METHOD_NEW = """    //gives out EXP & a random item in a similar fashion 
     }
 """
 
+UNREGISTER_OLD = """    public void unregisterPlayer(final Character chr) {
+        try {
+            invokeScriptFunction(\"playerUnregistered\", EventInstanceManager.this, chr);
+        } catch (ScriptException | NoSuchMethodException ex) {
+            log.error(\"Event script {} does not implement the playerUnregistered function\", em.getName(), ex);
+        }
+
+        writeLock.lock();
+        try {
+            chars.remove(chr.getId());
+            chr.setEventInstance(null);
+        } finally {
+            writeLock.unlock();
+        }
+
+        gridRemove(chr);
+        dropExclusiveItems(chr);
+    }
+"""
+UNREGISTER_NEW = """    public synchronized void unregisterPlayer(final Character chr) {
+        if (chr == null) {
+            return;
+        }
+
+        // Exit/disconnect/map-change paths can converge on unregister. Only the
+        // first call for an actively registered player may invoke script-side
+        // completion/quest/reward callbacks or drop event-exclusive items.
+        readLock.lock();
+        try {
+            if (!chars.containsKey(chr.getId())) {
+                return;
+            }
+        } finally {
+            readLock.unlock();
+        }
+
+        try {
+            invokeScriptFunction(\"playerUnregistered\", EventInstanceManager.this, chr);
+        } catch (ScriptException | NoSuchMethodException ex) {
+            log.error(\"Event script {} does not implement the playerUnregistered function\", em.getName(), ex);
+        }
+
+        writeLock.lock();
+        try {
+            chars.remove(chr.getId());
+            chr.setEventInstance(null);
+        } finally {
+            writeLock.unlock();
+        }
+
+        gridRemove(chr);
+        dropExclusiveItems(chr);
+    }
+"""
+
 PARTY_FAMILY_REP_OLD = """        for (Character mc : expMembers) {
             distributePlayerExperience(mc, participationExp, partyBonusMod, totalPartyLevel, mc == participationMvp, isWhiteExpGain(mc, personalRatio, sdevRatio), hasPartySharers);
             giveFamilyRep(mc.getFamilyEntry());
@@ -189,6 +244,7 @@ event_text = EVENT_PATH.read_text(encoding="utf-8")
 event_text = replace_idempotent(event_text, REWARD_FIELD_OLD, REWARD_FIELD_NEW, "event-reward claim state", "EventInstanceManager")
 event_text = replace_idempotent(event_text, REWARD_METHOD_OLD, REWARD_METHOD_NEW, "event-reward exactly-once guard", "EventInstanceManager")
 event_text = replace_idempotent(event_text, CLEAR_OLD, CLEAR_NEW, "PQ Point idempotent event-clear hook", "EventInstanceManager")
+event_text = replace_idempotent(event_text, UNREGISTER_OLD, UNREGISTER_NEW, "event unregister single-callback guard", "EventInstanceManager")
 EVENT_PATH.write_text(event_text, encoding="utf-8")
 
 monster_text = MONSTER_PATH.read_text(encoding="utf-8")
