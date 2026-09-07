@@ -119,9 +119,13 @@ def main() -> None:
     text = force_primary_world_channels(text, 20)
 
     # Channel.java advertises server.HOST back to the MapleStory client after
-    # world/channel selection. Loopback here makes remote players reconnect to
-    # their own PC, so production must advertise EverLeaf's public IPv4 address.
-    text = replace_once(text, "    HOST: 127.0.0.1", "    HOST: 132.145.141.79")
+    # world/channel selection. Production must advertise the public relay,
+    # while deployment/SSH continues to target the origin host directly.
+    text = replace_first_of(
+        text,
+        ("    HOST: 127.0.0.1", "    HOST: 132.145.141.79"),
+        "    HOST: 129.159.114.146",
+    )
 
     replacements = [
         ("    exp_rate: 10", "    exp_rate: 5"),
@@ -160,7 +164,7 @@ def main() -> None:
     subprocess.run(["python3", "tools/apply_solomapling_combat_hooks.py"], check=True)
     subprocess.run(["python3", "tools/audit_solomapling_qa.py"], check=True)
 
-    print("EverLeaf development configuration applied (20 channels; public channel host; website registration required).")
+    print("EverLeaf development configuration applied (20 channels; relay channel host; website registration required).")
 
 
 if __name__ == "__main__":
