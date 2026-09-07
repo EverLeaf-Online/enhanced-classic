@@ -139,7 +139,7 @@ jobs:
           echo '[publish] validating payload'
           for f in config.ini dinput8.dll EverLeaf_UI.wz managed-client-baseline.json; do test -s "$PAYLOAD/$f"; done
           test "$(find "$PAYLOAD" -type f | wc -l)" -eq 4
-          grep -q '^ModernLoginUI=true$' "$PAYLOAD/config.ini"
+          tr -d '\r' < "$PAYLOAD/config.ini" | grep -q '^ModernLoginUI=true$'
           node -e "const b=require(process.argv[1]); if(!Array.isArray(b.managedFiles)||b.managedFiles.length!==36) process.exit(1)" "$PAYLOAD/managed-client-baseline.json"
           echo '[publish] creating rollback backup'
           cp "$PATCH_ROOT/manifest.json" "$BACKUP/manifest.json"
