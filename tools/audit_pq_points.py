@@ -11,6 +11,7 @@ TRANSFORM = ROOT / "tools/apply_pq_points.py"
 HOOK = ROOT / "src/main/java/everleaf/progression/PqPointClearHook.java"
 SHOP = ROOT / "scripts/npc/9030100.js"
 MONSTER = ROOT / "src/main/java/server/life/Monster.java"
+EVENT_MANAGER = ROOT / "src/main/java/scripting/event/EventInstanceManager.java"
 
 EXPECTED = {
     "HenesysPQ": 1,
@@ -61,6 +62,7 @@ def main() -> None:
     hook = read(HOOK)
     shop = read(SHOP)
     monster = read(MONSTER)
+    event_manager = read(EVENT_MANAGER)
 
     parsed = {
         name: int(points)
@@ -112,6 +114,17 @@ def main() -> None:
         if token not in transform:
             fail(f"Party family-reputation transform is missing duplicate-award protection: {token}")
 
+    unregister_tokens = [
+        "UNREGISTER_OLD",
+        "UNREGISTER_NEW",
+        "event unregister single-callback guard",
+        "public synchronized void unregisterPlayer",
+        "if (!chars.containsKey(chr.getId()))",
+    ]
+    for token in unregister_tokens:
+        if token not in transform:
+            fail(f"Event unregister transform is missing replay protection: {token}")
+
     # The audit runs after source transforms in release CI. Each party member
     # must receive family reputation only through distributePlayerExperience;
     # a second call in the party loop doubles the senior reputation reward.
@@ -126,6 +139,22 @@ def main() -> None:
         fail("Party EXP loop no longer delegates through distributePlayerExperience")
     if "giveFamilyRep(mc.getFamilyEntry())" in party_loop.group("body"):
         fail("Party EXP loop still grants duplicate family reputation")
+
+    unregister = re.search(
+        r"public synchronized void unregisterPlayer\(final Character chr\) \{(?P<body>.*?)\n    \}",
+        event_manager,
+        re.DOTALL,
+    )
+    if not unregister:
+        fail("Event unregister path is not synchronized/single-entry")
+    unregister_body = unregister.group("body")
+    membership_guard = unregister_body.find("if (!chars.containsKey(chr.getId()))")
+    callback = unregister_body.find('invokeScriptFunction("playerUnregistered"')
+    removal = unregister_body.find("chars.remove(chr.getId())")
+    if membership_guard < 0 or callback < 0 or removal < 0:
+        fail("Event unregister path is missing membership guard/callback/removal")
+    if not membership_guard < callback < removal:
+        fail("Event unregister guard must run before playerUnregistered and removal")
 
     for token in ["clearAward(eventName)", "awardClear(", '"duplicate_reason"']:
         if token not in hook:
@@ -165,6 +194,7 @@ def main() -> None:
     print("       duplicate clear protection=event transition + unique account/reason ledger key")
     print("       legacy event reward protection=per-character/per-level claim guard")
     print("       party family reputation=single award through distributePlayerExperience")
+    print("       event unregister=single callback for registered members only")
     print("       merchant/shop arithmetic hardening remains owned by dedicated transforms")
     print("       boss-only events excluded from automatic PQ currency")
     print("       White Scroll cost >= 4x Chaos Scroll cost")
