@@ -18,7 +18,7 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
-  EVERLEAF_PUBLIC_HOST: everleafms.duckdns.org
+  EVERLEAF_PUBLIC_HOST: everleafms.online
 
 jobs:
   build-and-publish:
@@ -36,6 +36,20 @@ jobs:
       - name: Apply EverLeaf Client v2 rebrand and startup policy
         shell: pwsh
         run: python client/scripts/apply-client-v2-rebrand.py
+
+      - name: Verify relay bootstrap and login layout source
+        shell: pwsh
+        run: |
+          $main = Get-Content "client/ezorsia/ezorsia/MainMain.cpp" -Raw
+          $client = Get-Content "client/ezorsia/ezorsia/Client.cpp" -Raw
+          $layout = Get-Content "client/ezorsia/ezorsia/EverLeafLoginLayout.cpp" -Raw
+          foreach ($src in @($main, $client)) {
+            if (-not $src.Contains('129.159.114.146')) { throw 'Relay bootstrap IP missing after transform' }
+            if ($src.Contains('132.145.141.79')) { throw 'Origin game IP survived client transform' }
+          }
+          foreach ($needle in @('DialogPosition','LoginPosition','SavePosition','FindPosition','ResetPosition','RegisterPosition','HomePosition','QuitPosition','centered native login layout applied')) {
+            if (-not $layout.Contains($needle)) { throw "Missing tested login layout marker: $needle" }
+          }
 
       - name: Configure MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -60,7 +74,7 @@ jobs:
           $config = Get-Content "$package/config.ini" -Raw
           if (-not ($config -match 'PreferCommunityUI=true')) { throw "Managed client does not default to Community UI" }
           if (-not ($config -match '(?m)^width=1280\r?$') -or -not ($config -match '(?m)^height=720\r?$')) { throw "Managed client must default to the aligned 1280x720 Client v2 viewport" }
-          if (-not ($config -match '(?m)^ModernLoginUI=false\r?$')) { throw "Coordinate-only login restyling must remain disabled so native controls stay aligned with WZ fields" }
+          if (-not ($config -match '(?m)^ModernLoginUI=true\r?$')) { throw "EverLeaf HD login package requires the tested native login alignment hooks" }
           Compress-Archive -Path "$package/*" -DestinationPath "EverleafClient-overlay.zip"
           Get-FileHash "EverleafClient-overlay.zip" -Algorithm SHA256
 
@@ -88,6 +102,7 @@ jobs:
           else
             ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$SSH_DIR/known_hosts"
           fi
+          chmod 600 ~/.ssh/known_hosts 2>/dev/null || true
           chmod 600 "$SSH_DIR/known_hosts"
           ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
@@ -124,6 +139,7 @@ jobs:
           cmp -s "$PAYLOAD/managed-client-baseline.json" "$PATCH_ROOT/managed-client-baseline.json"
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do test -s "$PAYLOAD/$f"; done
           test "$(find "$PAYLOAD" -type f | wc -l)" -eq 4
+          grep -q '^ModernLoginUI=true$' "$PAYLOAD/config.ini"
 
           cp "$PATCH_ROOT/manifest.json" "$BACKUP/manifest.json"
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do cp "$FILES/$f" "$BACKUP/$f"; done
