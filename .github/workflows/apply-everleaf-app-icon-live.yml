@@ -1,0 +1,194 @@
+name: Apply EverLeaf app icon live
+
+on:
+  push:
+    branches: [release-dev]
+    paths:
+      - 'client/branding/everleaf-app-icon.ico.gz.b64'
+      - '.github/workflows/apply-everleaf-app-icon-live.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-app-icon-live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  EVERLEAF_DEPLOY_USER: ubuntu
+  RCEDIT_URL: https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe
+  ICON_SHA256: b5aaa689bc617b518d04ca8506b3db556fda719fae2e97c742d608827e5ffef9
+
+jobs:
+  deploy-client-icon:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Checkout release-dev
+        uses: actions/checkout@v4
+        with:
+          ref: release-dev
+
+      - name: Materialize EverLeaf icon
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'; New-Item -ItemType Directory -Force -Path $root | Out-Null
+          $encoded='client/branding/everleaf-app-icon.ico.gz.b64'
+          $icon=Join-Path $root 'everleaf-icon.ico'
+          $compressed=[Convert]::FromBase64String((Get-Content -LiteralPath $encoded -Raw).Trim())
+          $input=[IO.MemoryStream]::new($compressed)
+          try {
+            $gzip=[IO.Compression.GZipStream]::new($input,[IO.Compression.CompressionMode]::Decompress)
+            try {
+              $output=[IO.File]::Create($icon)
+              try { $gzip.CopyTo($output) } finally { $output.Dispose() }
+            } finally { $gzip.Dispose() }
+          } finally { $input.Dispose() }
+          $hash=(Get-FileHash $icon -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($hash -ne $env:ICON_SHA256){throw "Icon SHA-256 mismatch expected=$env:ICON_SHA256 actual=$hash"}
+          if((Get-Item $icon).Length -lt 10000){throw 'Decoded icon is unexpectedly small'}
+          Write-Host "EVERLEAF_ICON_READY $hash"
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 15
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+          ssh everleaf-oracle 'set -e; test -s /opt/everleaf/patches/files/EverLeaf.exe; test -s /opt/everleaf/patches/manifest.json; test -s /opt/everleaf/patches/managed-client-baseline.json; echo EVERLEAF_CLIENT_ICON_SSH_OK'
+          if($LASTEXITCODE){throw 'Oracle/client preflight failed'}
+
+      - name: Fetch live client executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'
+          scp 'everleaf-oracle:/opt/everleaf/patches/files/EverLeaf.exe' (Join-Path $root 'EverLeaf.original.exe')
+          if($LASTEXITCODE){throw 'Live EverLeaf.exe fetch failed'}
+          Copy-Item (Join-Path $root 'EverLeaf.original.exe') (Join-Path $root 'EverLeaf.exe')
+          $before=(Get-FileHash (Join-Path $root 'EverLeaf.original.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+          "Original EverLeaf.exe SHA-256: $before" | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Patch and validate client icon
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'
+          $rcedit=Join-Path $root 'rcedit-x64.exe'
+          Invoke-WebRequest -UseBasicParsing -Uri $env:RCEDIT_URL -OutFile $rcedit
+          if((Get-Item $rcedit).Length -lt 1000000){throw 'rcedit download is unexpectedly small'}
+          $candidate=Join-Path $root 'EverLeaf.exe'
+          & $rcedit $candidate '--set-icon' (Join-Path $root 'everleaf-icon.ico')
+          if($LASTEXITCODE){throw "rcedit failed with exit code $LASTEXITCODE"}
+          $before=(Get-FileHash (Join-Path $root 'EverLeaf.original.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $after=(Get-FileHash $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($after -eq $before){throw 'Client executable hash did not change after icon patch'}
+          if((Get-Item $candidate).Length -lt 1000000){throw 'Patched EverLeaf.exe is unexpectedly small'}
+          Add-Type -AssemblyName System.Drawing
+          $icon=[System.Drawing.Icon]::ExtractAssociatedIcon($candidate)
+          if($null -eq $icon){throw 'Windows could not extract an icon from patched EverLeaf.exe'}
+          try {
+            if($icon.Width -lt 16 -or $icon.Height -lt 16){throw 'Patched client icon dimensions are invalid'}
+          } finally { $icon.Dispose() }
+          $version=(Get-Item $candidate).VersionInfo
+          if($null -eq $version){throw 'Windows could not parse patched executable version resources'}
+          "Patched EverLeaf.exe SHA-256: $after" | Add-Content $env:GITHUB_STEP_SUMMARY
+          Write-Host "EVERLEAF_CLIENT_ICON_PATCH_OK $after"
+
+      - name: Upload candidate to Oracle staging
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'
+          $remote="/tmp/everleaf-app-icon-${{ github.run_id }}"
+          ssh everleaf-oracle "rm -rf '$remote' && mkdir -p '$remote'"
+          scp (Join-Path $root 'EverLeaf.exe') "everleaf-oracle`:$remote/EverLeaf.exe"
+          if($LASTEXITCODE){throw 'Patched client upload failed'}
+
+      - name: Publish client executable and regenerate patch manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $remote="/tmp/everleaf-app-icon-${{ github.run_id }}"
+          $script=@'
+          set -euo pipefail
+          PATCH=/opt/everleaf/patches
+          FILES="$PATCH/files"
+          STAGE=__REMOTE__
+          CANDIDATE="$STAGE/EverLeaf.exe"
+          CURRENT="$FILES/EverLeaf.exe"
+          test -s "$CANDIDATE"
+          test -s "$CURRENT"
+          BEFORE="$(sha256sum "$CURRENT" | awk '{print $1}')"
+          AFTER="$(sha256sum "$CANDIDATE" | awk '{print $1}')"
+          test "$BEFORE" != "$AFTER"
+          BACKUP_ROOT=/opt/everleaf/backups/client-icon
+          BACKUP="$BACKUP_ROOT/${BEFORE}-EverLeaf.exe"
+          sudo install -d -m 700 "$BACKUP_ROOT"
+          if [ ! -e "$BACKUP" ]; then sudo install -m 600 "$CURRENT" "$BACKUP"; fi
+          cp "$PATCH/manifest.json" "$STAGE/manifest.before.json"
+          rollback(){
+            echo 'EverLeaf client icon publish failed; rolling back.' >&2
+            sudo install -m 644 "$BACKUP" "$CURRENT"
+            sudo install -m 644 "$STAGE/manifest.before.json" "$PATCH/manifest.json"
+          }
+          trap rollback ERR
+          sudo install -m 644 "$CANDIDATE" "$CURRENT.new"
+          sudo mv -f "$CURRENT.new" "$CURRENT"
+          GENERATED="$STAGE/manifest.json"
+          LAUNCHER_PATCH_ROOT="$PATCH" \
+          LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" \
+          LAUNCHER_MANIFEST_PATH="$GENERATED" \
+          LAUNCHER_PORTABLE_PATH="$PATCH/downloads/EverLeafLauncher-portable.zip" \
+          LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" \
+          node /opt/everleaf/web/scripts/build-patch-manifest.js '__SHA__'
+          sudo install -m 644 "$GENERATED" "$PATCH/manifest.json"
+          expected="$(sha256sum "$CURRENT" | awk '{print $1}')"
+          test "$expected" = "$AFTER"
+          curl -fsS 'http://127.0.0.1:3000/patches/EverLeaf.exe' -o "$STAGE/live-EverLeaf.exe"
+          actual="$(sha256sum "$STAGE/live-EverLeaf.exe" | awk '{print $1}')"
+          test "$actual" = "$expected"
+          grep -q 'EverLeaf.exe' "$PATCH/manifest.json"
+          trap - ERR
+          echo "EVERLEAF_CLIENT_ICON_LIVE before=$BEFORE after=$AFTER"
+          '@
+          $script=$script.Replace('__REMOTE__',$remote).Replace('__SHA__','${{ github.sha }}')
+          $local=Join-Path $env:RUNNER_TEMP 'publish-everleaf-icon.sh'; [IO.File]::WriteAllText($local,($script -replace "`r",''))
+          scp $local 'everleaf-oracle:/tmp/publish-everleaf-icon.sh'
+          ssh everleaf-oracle 'bash /tmp/publish-everleaf-icon.sh'
+          if($LASTEXITCODE){throw 'Live client icon publish failed'}
+
+      - name: Verify public client executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'
+          $expected=(Get-FileHash (Join-Path $root 'EverLeaf.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $public=Join-Path $root 'public-EverLeaf.exe'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://everleafms.online/patches/EverLeaf.exe' -OutFile $public
+          $actual=(Get-FileHash $public -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($actual -ne $expected){throw "Public EverLeaf.exe hash mismatch expected=$expected actual=$actual"}
+          Add-Type -AssemblyName System.Drawing
+          $icon=[System.Drawing.Icon]::ExtractAssociatedIcon($public)
+          if($null -eq $icon){throw 'Public EverLeaf.exe has no extractable icon'}
+          $icon.Dispose()
+          Write-Host "PUBLIC_EVERLEAF_CLIENT_ICON_OK $actual"
