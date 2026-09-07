@@ -14,6 +14,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=..\..\launcher-installer
 OutputBaseFilename=EverLeafLauncherSetup
+SetupIconFile=..\assets\everleaf-icon.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
