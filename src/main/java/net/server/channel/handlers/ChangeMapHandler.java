@@ -104,8 +104,15 @@ public final class ChangeMapHandler extends AbstractPacketHandler {
                         // A revive callback may unregister/eject the character.
                         // In that case do not consume a Wheel and resurrect them
                         // back inside a now-unowned event map.
-                        boolean eventAllowsSameMapRevive = event == null || chr.getEventInstance() == event;
-                        if (wheel && eventAllowsSameMapRevive && chr.haveItemWithId(ItemId.WHEEL_OF_FORTUNE, false)) {
+                        boolean eventStillOwnsPlayer = event != null && chr.getEventInstance() == event;
+                        boolean useWheel = DeathRevivePolicy.canUseWheel(
+                                true,
+                                wheel,
+                                chr.haveItemWithId(ItemId.WHEEL_OF_FORTUNE, false),
+                                event != null,
+                                eventStillOwnsPlayer);
+
+                        if (useWheel) {
                             InventoryManipulator.removeById(c, InventoryType.CASH, ItemId.WHEEL_OF_FORTUNE, 1, true, false);
                             chr.sendPacket(PacketCreator.showWheelsLeft(chr.getItemQuantity(ItemId.WHEEL_OF_FORTUNE, false)));
 
