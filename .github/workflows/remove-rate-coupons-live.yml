@@ -64,7 +64,7 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $root=Join-Path $env:RUNNER_TEMP 'everleaf-rate-coupons'; New-Item -ItemType Directory -Force -Path $root | Out-Null
-          ssh everleaf-oracle "set -e; CURRENT=\$(readlink -f /opt/everleaf/current); grep -Eq '^\s*USE_SUPPLY_RATE_COUPONS:\s*false(\s|$)' \"\$CURRENT/config.yaml\"; test -s /opt/everleaf/patches/files/Etc.wz; echo RATE_COUPON_SERVER_POLICY_OK"
+          ssh everleaf-oracle "set -e; CURRENT=\$(readlink -f /opt/everleaf/current); grep -Eq '^[[:space:]]*USE_SUPPLY_RATE_COUPONS:[[:space:]]*false([[:space:]]|$)' \"\$CURRENT/config.yaml\"; test -s /opt/everleaf/patches/files/Etc.wz; echo RATE_COUPON_SERVER_POLICY_OK"
           if($LASTEXITCODE){throw 'Server rate-coupon policy is not disabled; refusing client-only catalog change'}
           scp 'everleaf-oracle:/opt/everleaf/patches/files/Etc.wz' (Join-Path $root 'Etc.wz')
           if($LASTEXITCODE){throw 'Live Etc.wz copy failed'}
