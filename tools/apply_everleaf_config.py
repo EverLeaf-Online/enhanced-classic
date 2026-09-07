@@ -118,13 +118,19 @@ def main() -> None:
     # global search so preserved production config cannot silently stay at 8.
     text = force_primary_world_channels(text, 20)
 
-    # Channel.java advertises server.HOST back to the MapleStory client after
-    # world/channel selection. Production must advertise the public relay,
-    # while deployment/SSH continues to target the origin host directly.
+    # Channel.java advertises server.HOST back to normal remote clients.
+    # Connections arriving through the relay originate from 10.0.0.9 and are
+    # classified as LAN by Server#getInetSocket, so LANHOST must advertise the
+    # same public relay or character-select handoff would send 127.0.0.1.
     text = replace_first_of(
         text,
         ("    HOST: 127.0.0.1", "    HOST: 132.145.141.79"),
         "    HOST: 129.159.114.146",
+    )
+    text = replace_first_of(
+        text,
+        ("    LANHOST: 127.0.0.1", "    LANHOST: 132.145.141.79"),
+        "    LANHOST: 129.159.114.146",
     )
 
     replacements = [
