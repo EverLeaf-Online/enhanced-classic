@@ -1,5 +1,5 @@
 # Production deployment: preserve the validated full-v95 server XML baseline.
-# Manual production deploy trigger: gameplay hardening through PR #373 (2026-09-07).
+# Relay cutover: deployment SSH stays on origin; player-facing game traffic uses relay.
 name: Deploy EverLeaf Game Production
 
 on:
@@ -19,6 +19,7 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
+  EVERLEAF_GAME_PUBLIC_HOST: 129.159.114.146
 
 jobs:
   deploy:
@@ -44,6 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/apply_everleaf_config.py
+          grep -q 'HOST: 129.159.114.146' config.yaml
           python3 tools/apply_level_cap_250.py
           python3 tools/apply_pq_points.py
           python3 tools/apply_evan_skill_data.py
@@ -114,32 +116,19 @@ jobs:
         run: |
           set -euo pipefail
           RELEASE_DIR="/opt/everleaf/releases/$RELEASE_SLOT"
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "mkdir -p '$RELEASE_DIR'"
-          rsync -az --delete \
-            --exclude='.git/' \
-            --exclude='target/' \
-            --exclude='database/docker-db-data/' \
-            --exclude='web/node_modules/' \
-            --exclude='/client/' \
-            --exclude='/launcher/' \
-            --exclude='/wz/' \
-            -e 'ssh -i ~/.ssh/id_everleaf' \
-            ./ "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$RELEASE_DIR/"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "mkdir -p '$RELEASE_DIR'"
+          rsync -az --delete --exclude='.git/' --exclude='target/' --exclude='database/docker-db-data/' --exclude='web/node_modules/' --exclude='/client/' --exclude='/launcher/' --exclude='/wz/' -e 'ssh -i ~/.ssh/id_everleaf' ./ "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$RELEASE_DIR/"
 
       - name: Preserve production configuration and inject canonical v95 WZ
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "RELEASE_DIR='/opt/everleaf/releases/$RELEASE_SLOT' bash -s" <<'REMOTE'
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "RELEASE_DIR='/opt/everleaf/releases/$RELEASE_SLOT' bash -s" <<'REMOTE'
           set -euo pipefail
           CURRENT_RELEASE="$(readlink -f /opt/everleaf/current)"
           if [ "$CURRENT_RELEASE" != "$RELEASE_DIR" ]; then
             cp -p "$CURRENT_RELEASE/config.yaml" "$RELEASE_DIR/config.yaml"
-            if [ -f "$CURRENT_RELEASE/.env" ]; then
-              cp -p "$CURRENT_RELEASE/.env" "$RELEASE_DIR/.env"
-            fi
+            if [ -f "$CURRENT_RELEASE/.env" ]; then cp -p "$CURRENT_RELEASE/.env" "$RELEASE_DIR/.env"; fi
           else
             echo 'Candidate is already current; preserving configuration in place.'
           fi
@@ -162,12 +151,12 @@ jobs:
           for mob in (8850000,8850011,9400400,9400408,9400409): assert list((root/'Mob.wz').rglob(f'{mob}.img.xml')),mob
           for npc in (9110100,9110106,9110114): assert list((root/'Npc.wz').rglob(f'{npc}.img.xml')),npc
           quest='\n'.join(p.read_text(errors='ignore') for p in (root/'Quest.wz').rglob('*.xml'))
-          for qid in range(8163,8172):
-              assert f'name="{qid}"' in quest or f'value="{qid}"' in quest,qid
+          for qid in range(8163,8172): assert f'name="{qid}"' in quest or f'value="{qid}"' in quest,qid
           print('DEPLOY_V95_WZ_OK',len(future))
           PY
           cd "$RELEASE_DIR"
           python3 tools/apply_everleaf_config.py
+          grep -q 'HOST: 129.159.114.146' config.yaml
           python3 tools/apply_evan_skill_data.py
           python3 tools/apply_evan_behavior_fixes.py
           python3 tools/apply_evan_dragon_fury_fixes.py
@@ -207,15 +196,13 @@ jobs:
           echo "Backup before: $BEFORE"
           echo "Backup after:  $AFTER"
           test -n "$AFTER"
-          echo 'Production backup service completed successfully.'
           REMOTE
 
       - name: Switch release and restart
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "RELEASE_DIR='/opt/everleaf/releases/$RELEASE_SLOT' bash -s" <<'REMOTE'
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "RELEASE_DIR='/opt/everleaf/releases/$RELEASE_SLOT' bash -s" <<'REMOTE'
           set -euo pipefail
           OLD_RELEASE="$(readlink -f /opt/everleaf/current)"
           printf '%s\n' "$OLD_RELEASE" > /opt/everleaf/.previous-release
@@ -234,33 +221,23 @@ jobs:
           NEW_RELEASE="$(readlink -f /opt/everleaf/current)"
           OLD_RELEASE="$(cat /opt/everleaf/.previous-release 2>/dev/null || true)"
           HEALTHY=1
-
           for attempt in $(seq 1 30); do
-            if systemctl is-active --quiet everleaf.service && \
-               python3 "$NEW_RELEASE/tools/verify_channel_runtime.py" --config "$NEW_RELEASE/config.yaml" --host 127.0.0.1 >/tmp/everleaf-channel-health.json 2>&1; then
-              HEALTHY=0
-              break
-            fi
+            if systemctl is-active --quiet everleaf.service && python3 "$NEW_RELEASE/tools/verify_channel_runtime.py" --config "$NEW_RELEASE/config.yaml" --host 127.0.0.1 >/tmp/everleaf-channel-health.json 2>&1; then HEALTHY=0; break; fi
             sleep 2
           done
-
           if [ "$HEALTHY" -eq 0 ]; then
             cat /tmp/everleaf-channel-health.json
+            grep -q 'HOST: 129.159.114.146' "$NEW_RELEASE/config.yaml" || HEALTHY=1
             XML_COUNT="$(find "$NEW_RELEASE/wz" -type f -name '*.xml' | wc -l)"
             test "$XML_COUNT" -ge 44000 || HEALTHY=1
             test -n "$(find "$NEW_RELEASE/wz/Map.wz" -name '800040410.img.xml' -print -quit)" || HEALTHY=1
             test -n "$(find "$NEW_RELEASE/wz/Mob.wz" -name '9400409.img.xml' -print -quit)" || HEALTHY=1
             test -n "$(find "$NEW_RELEASE/wz/Mob.wz" -name '8850011.img.xml' -print -quit)" || HEALTHY=1
-            if [ "$HEALTHY" -eq 0 ]; then
-              echo "EverLeaf production deployment healthy with canonical v95 WZ: $NEW_RELEASE xml=$XML_COUNT"
-              exit 0
-            fi
+            if [ "$HEALTHY" -eq 0 ]; then echo "EverLeaf production deployment healthy with relay handoff: $NEW_RELEASE xml=$XML_COUNT"; exit 0; fi
           fi
-
           echo 'New release failed health or v95 content validation.' >&2
           cat /tmp/everleaf-channel-health.json >&2 2>/dev/null || true
           sudo journalctl -u everleaf.service -n 120 --no-pager >&2 || true
-
           if [ -n "$OLD_RELEASE" ] && [ -d "$OLD_RELEASE" ]; then
             echo "Rolling back to $OLD_RELEASE" >&2
             ln -sfn "$OLD_RELEASE" /opt/everleaf/current.rollback
@@ -272,29 +249,26 @@ jobs:
           exit 1
           REMOTE
 
-      - name: Verify public game ports
+      - name: Verify relay game ports
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import socket
-          host = '132.145.141.79'
-          ports = [8484, *range(7575, 7595)]
-          missing = []
+          import os,socket
+          host=os.environ['EVERLEAF_GAME_PUBLIC_HOST']
+          ports=[8484,*range(7575,7595)]
+          missing=[]
           for port in ports:
               try:
-                  with socket.create_connection((host, port), timeout=5):
-                      print(f'OK {host}:{port}')
+                  with socket.create_connection((host,port),timeout=5): print(f'OK {host}:{port}')
               except OSError as exc:
                   print(f'FAIL {host}:{port}: {exc}')
                   missing.append(port)
-          if missing:
-              raise SystemExit(f'Public game ports unavailable: {missing}')
+          if missing: raise SystemExit(f'Relay game ports unavailable: {missing}')
           PY
 
       - name: Record deployed release
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "printf '%s %s\n' '$RELEASE_SHA' '$(date -u +%FT%TZ)' > /opt/everleaf/.deployed-release"
+          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "printf '%s %s\n' '$RELEASE_SHA' '$(date -u +%FT%TZ)' > /opt/everleaf/.deployed-release"
