@@ -46,6 +46,7 @@ jobs:
           set -euo pipefail
           python3 tools/apply_everleaf_config.py
           grep -q 'HOST: 129.159.114.146' config.yaml
+          grep -q 'LANHOST: 129.159.114.146' config.yaml
           python3 tools/apply_level_cap_250.py
           python3 tools/apply_pq_points.py
           python3 tools/apply_evan_skill_data.py
@@ -157,6 +158,7 @@ jobs:
           cd "$RELEASE_DIR"
           python3 tools/apply_everleaf_config.py
           grep -q 'HOST: 129.159.114.146' config.yaml
+          grep -q 'LANHOST: 129.159.114.146' config.yaml
           python3 tools/apply_evan_skill_data.py
           python3 tools/apply_evan_behavior_fixes.py
           python3 tools/apply_evan_dragon_fury_fixes.py
@@ -228,6 +230,7 @@ jobs:
           if [ "$HEALTHY" -eq 0 ]; then
             cat /tmp/everleaf-channel-health.json
             grep -q 'HOST: 129.159.114.146' "$NEW_RELEASE/config.yaml" || HEALTHY=1
+            grep -q 'LANHOST: 129.159.114.146' "$NEW_RELEASE/config.yaml" || HEALTHY=1
             XML_COUNT="$(find "$NEW_RELEASE/wz" -type f -name '*.xml' | wc -l)"
             test "$XML_COUNT" -ge 44000 || HEALTHY=1
             test -n "$(find "$NEW_RELEASE/wz/Map.wz" -name '800040410.img.xml' -print -quit)" || HEALTHY=1
