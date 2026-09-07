@@ -136,17 +136,22 @@ jobs:
           mkdir -p "$PAYLOAD" "$BACKUP"
           unzip -q "$STAGE/EverleafClient-overlay.zip" -d "$PAYLOAD"
 
-          cmp -s "$PAYLOAD/managed-client-baseline.json" "$PATCH_ROOT/managed-client-baseline.json"
-          for f in config.ini dinput8.dll EverLeaf_UI.wz; do test -s "$PAYLOAD/$f"; done
+          for f in config.ini dinput8.dll EverLeaf_UI.wz managed-client-baseline.json; do test -s "$PAYLOAD/$f"; done
           test "$(find "$PAYLOAD" -type f | wc -l)" -eq 4
           grep -q '^ModernLoginUI=true$' "$PAYLOAD/config.ini"
+          node - "$PAYLOAD/managed-client-baseline.json" <<'NODE'
+          const fs=require('fs'); const b=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          if(!Array.isArray(b.managedFiles) || b.managedFiles.length!==36) throw new Error(`Expected 36 managed baseline files, got ${b.managedFiles?.length}`);
+          NODE
 
           cp "$PATCH_ROOT/manifest.json" "$BACKUP/manifest.json"
+          cp "$PATCH_ROOT/managed-client-baseline.json" "$BACKUP/managed-client-baseline.json"
           for f in config.ini dinput8.dll EverLeaf_UI.wz; do cp "$FILES/$f" "$BACKUP/$f"; done
 
           rollback() {
             echo 'Client publish verification failed; rolling back overlay.' >&2
             for f in config.ini dinput8.dll EverLeaf_UI.wz; do sudo install -m 644 "$BACKUP/$f" "$FILES/$f"; done
+            sudo install -m 644 "$BACKUP/managed-client-baseline.json" "$PATCH_ROOT/managed-client-baseline.json"
             sudo install -m 644 "$BACKUP/manifest.json" "$PATCH_ROOT/manifest.json"
           }
           trap rollback ERR
@@ -155,6 +160,8 @@ jobs:
             sudo install -m 644 "$PAYLOAD/$f" "$FILES/$f.new"
             sudo mv -f "$FILES/$f.new" "$FILES/$f"
           done
+          sudo install -m 644 "$PAYLOAD/managed-client-baseline.json" "$PATCH_ROOT/managed-client-baseline.json.new"
+          sudo mv -f "$PATCH_ROOT/managed-client-baseline.json.new" "$PATCH_ROOT/managed-client-baseline.json"
 
           LAUNCHER_PATCH_ROOT="$PATCH_ROOT" \
           LAUNCHER_BASELINE_PATH="$PATCH_ROOT/managed-client-baseline.json" \
