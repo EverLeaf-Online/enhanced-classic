@@ -124,7 +124,7 @@ jobs:
         run: |
           set -euo pipefail
           SSH_DIR="$GITHUB_WORKSPACE/.everleaf-ssh"
-          ssh -tt -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
+          ssh -T -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "RELEASE_SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
           set -euxo pipefail
           PATCH_ROOT=/opt/everleaf/patches
@@ -180,7 +180,6 @@ jobs:
           trap - ERR
           echo "EverLeaf client overlay published: $RELEASE_SHA"
           rm -rf "$STAGE"
-          exit
           REMOTE
 
       - name: Verify public patch endpoints
