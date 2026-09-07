@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static readiness checks for EverLeaf PQ Points."""
+"""Static readiness checks for EverLeaf PQ Points and legacy event rewards."""
 
 from pathlib import Path
 import re
@@ -84,6 +84,22 @@ def main() -> None:
     if "PqPointClearHook.onEventCleared(em.getName(), name, getPlayers())" not in transform:
         fail("PQ Point build transform is not wired to the centralized event clear path")
 
+    for token in ["synchronized (this)", "if (eventCleared)", "return;", "eventCleared = true;"]:
+        if token not in transform:
+            fail(f"PQ clear transform is missing idempotency guard: {token}")
+
+    reward_guard_tokens = [
+        "eventRewardClaims",
+        "rewardClaimKey",
+        "eventRewardClaims.contains(rewardClaimKey)",
+        "eventRewardClaims.add(rewardClaimKey)",
+        "if (!hasRewardSlot(player, eventLevel))",
+        "return false;",
+    ]
+    for token in reward_guard_tokens:
+        if token not in transform:
+            fail(f"Legacy event reward transform is missing exactly-once guard: {token}")
+
     for token in ["clearAward(eventName)", "awardClear(", '"duplicate_reason"']:
         if token not in hook:
             fail(f"PQ Point clear hook missing guard: {token}")
@@ -110,8 +126,6 @@ def main() -> None:
         if required not in pq_section:
             fail(f"PQ Point shop is missing expected controlled reward: {required}")
 
-    # Keep direct equipment out of the PQ currency shop. Cosmetic chairs are
-    # the only Setup equipment-like IDs permitted in this section.
     numeric_ids = [int(v) for v in re.findall(r"\b\d{7}\b", pq_section)]
     direct_equips = [item for item in numeric_ids if 1000000 <= item < 2000000]
     if direct_equips:
@@ -121,7 +135,9 @@ def main() -> None:
     print(f"       whitelisted_pqs={len(parsed)}")
     print(f"       clear_award_range={min(parsed.values())}-{max(parsed.values())}")
     print(f"       shop_costs={shop_costs}")
-    print("       duplicate clear protection=unique account/reason ledger key")
+    print("       duplicate clear protection=event transition + unique account/reason ledger key")
+    print("       legacy event reward protection=per-character/per-level claim guard")
+    print("       merchant/shop arithmetic hardening remains owned by dedicated transforms")
     print("       boss-only events excluded from automatic PQ currency")
     print("       White Scroll cost >= 4x Chaos Scroll cost")
 
