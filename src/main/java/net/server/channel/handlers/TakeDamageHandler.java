@@ -240,13 +240,13 @@ public final class TakeDamageHandler extends AbstractPacketHandler {
                     achilles = chr.getSkillLevel(achilles1);
                 }
                 if (achilles != 0 && achilles1 != null) {
-                    damage *= (achilles1.getEffect(achilles).getX() / 1000.0);
+                    damage = server.PassiveDamageReduction.apply(damage, achilles1.getEffect(achilles).getX());
                 }
 
                 Skill highDef = SkillFactory.getSkill(Aran.HIGH_DEFENSE);
-                int hdLevel = chr.getSkillLevel(highDef);
+                int hdLevel = highDef == null ? 0 : chr.getSkillLevel(highDef);
                 if (highDef != null && hdLevel > 0) {
-                    damage *= Math.ceil(highDef.getEffect(hdLevel).getX() / 1000.0);
+                    damage = server.PassiveDamageReduction.apply(damage, highDef.getEffect(hdLevel).getX());
                 }
             }
 
