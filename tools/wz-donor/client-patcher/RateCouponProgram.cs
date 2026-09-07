@@ -65,11 +65,7 @@ using (var target = OpenWz(targetPath))
                 onSaleInt.Value = 0;
             }
         }
-        else if (onSale == null)
-        {
-            entry.AddProperty(new WzIntProperty("OnSale", 0));
-        }
-        else
+        else if (onSale != null)
         {
             throw new InvalidDataException($"Unexpected OnSale property type for SN {entry.Name}, item {itemId}: {onSale.GetType().Name}");
         }
@@ -99,7 +95,7 @@ using (var check = OpenWz(outputPath))
         var itemId = itemIdProp.GetInt();
         if (!IsRateCoupon(itemId)) continue;
         var onSale = entry["OnSale"];
-        if (onSale == null || onSale.GetInt() != 0)
+        if (onSale != null && onSale.GetInt() != 0)
             throw new InvalidDataException($"Rate coupon still on sale after patch: SN {entry.Name}, item {itemId}");
     }
 }
@@ -108,7 +104,7 @@ var manifest = new
 {
     schemaVersion = 1,
     kind = "everleaf-disable-rate-coupons",
-    policy = new { itemTypes = new[] { 5211, 5360 }, effect = "OnSale=0" },
+    policy = new { itemTypes = new[] { 5211, 5360 }, effect = "OnSale=0-or-absent" },
     disabled = disabled.OrderBy(x => x.sn).Select(x => new { sn = x.sn, itemId = x.itemId }).ToArray(),
     source = new { etcSha256 = sourceHash },
     output = new { etcSha256 = Sha256(outputPath) },
