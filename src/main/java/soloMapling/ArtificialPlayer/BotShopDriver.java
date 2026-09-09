@@ -176,7 +176,20 @@ public final class BotShopDriver {
         ItemInformationProvider ii = ItemInformationProvider.getInstance();
         for (Item item : bot.getInventory(InventoryType.USE).list()) {
             if (item == null || item.getQuantity() <= 0) continue;
-            StatEffect effect = safeItemEffect(ii, item.getItemId());
+            int itemId = item.getItemId();
+
+            // Deterministic SoloMapling baseline supplies. These are the exact v83
+            // Red/Blue Potions provisioned by BotQaFleet.
+            if (itemId == 2000000) {
+                hp += item.getQuantity();
+                continue;
+            }
+            if (itemId == 2000001) {
+                mp += item.getQuantity();
+                continue;
+            }
+
+            StatEffect effect = safeItemEffect(ii, itemId);
             if (effect != null) {
                 if (effect.getHp() > 0 || effect.getHpRate() > 0.0) hp += item.getQuantity();
                 if (effect.getMp() > 0 || effect.getMpRate() > 0.0) mp += item.getQuantity();
