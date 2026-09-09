@@ -8273,6 +8273,12 @@ public class Character extends AbstractCharacterObject {
     }
 
     public void saveCharToDB() {
+        // SoloMapling QA characters are synthetic, in-memory clones with IDs in
+        // the reserved bot range. They must never enter normal DB persistence.
+        if (soloMapling.ArtificialPlayer.BotHelpers.isBot(this)) {
+            return;
+        }
+
         if (YamlConfig.config.server.USE_AUTOSAVE) {
             Runnable r = new Runnable() {
                 @Override
@@ -8290,6 +8296,11 @@ public class Character extends AbstractCharacterObject {
 
     //ItemFactory saveItems and monsterbook.saveCards are the most time consuming here.
     public synchronized void saveCharToDB(boolean notAutosave) {
+        // Defense-in-depth for callers that bypass the autosave wrapper.
+        if (soloMapling.ArtificialPlayer.BotHelpers.isBot(this)) {
+            return;
+        }
+
         if (!loggedIn) {
             return;
         }
