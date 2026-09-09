@@ -17,10 +17,39 @@ router.post("/login",async(req,res)=>{
   const admin=db.prepare("SELECT * FROM admins WHERE username=?").get(String(req.body.username||""));
   if(!admin || !(await bcrypt.compare(String(req.body.password||""),admin.password_hash)))
     return res.status(401).render("admin-login",{error:"Invalid credentials.",settings:settings()});
+  await new Promise((resolve,reject)=>req.session.regenerate(error=>error?reject(error):resolve()));
   req.session.admin={id:admin.id,username:admin.username};
   res.redirect("/admin");
 });
 router.post("/logout",(req,res)=>req.session.destroy(()=>res.redirect("/admin/login")));
+
+router.get("/from-account", async (req, res) => {
+  const player = req.session?.player;
+
+  if (!player) {
+    return res.redirect("/login");
+  }
+
+  try {
+    const allowed = await game.isWebAdmin(player.id);
+
+    if (!allowed) {
+      return res.status(403).send("Web admin access denied.");
+    }
+
+    req.session.admin = {
+      id: null,
+      username: player.name,
+      source: "player",
+      playerId: player.id
+    };
+
+    return res.redirect("/admin");
+  } catch (error) {
+    console.error("Web admin elevation failed:", error);
+    return res.status(503).send("Admin authorization is temporarily unavailable.");
+  }
+});
 
 router.get("/supporters",requireAdmin,(req,res)=>{
   const filters={status:String(req.query.status||""),provider:String(req.query.provider||""),search:String(req.query.search||""),roleStatus:String(req.query.roleStatus||""),page:Number(req.query.page||1)};

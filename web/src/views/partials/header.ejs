@@ -14,15 +14,19 @@
     const isHome=canonicalPath==='/';
     const routeKey=isHome?'home':(canonicalPath.split('/').filter(Boolean)[0]||'page').replace(/[^a-z0-9-]/gi,'').toLowerCase();
     const hasPlayer=(typeof sessionPlayer!=='undefined'&&Boolean(sessionPlayer));
+    const isWebAdmin=hasPlayer&&Number(sessionPlayer.webadmin||0)===1;
   %>
+
   <title><%=pageTitle%></title>
   <meta name="description" content="<%=pageDescription%>">
   <meta name="theme-color" content="#12130f">
   <meta name="color-scheme" content="dark">
   <meta name="application-name" content="<%=brand.name%>">
   <meta name="robots" content="<%=isAdminPath?'noindex,nofollow':'index,follow'%>">
+
   <link rel="canonical" href="<%=canonicalUrl%>">
   <link rel="icon" href="/assets/everleaf-remaster.svg" type="image/svg+xml">
+
   <% if(isHome){ %>
     <link rel="preload" as="image" href="/assets/hero-forest.webp" type="image/webp">
     <link rel="preload" as="image" href="/assets/hero-right.webp" type="image/webp">
@@ -36,10 +40,6 @@
   <meta property="og:url" content="<%=canonicalUrl%>">
   <meta property="og:image" content="<%=baseSiteUrl%>/assets/hero-forest.webp">
   <meta property="og:image:alt" content="EverLeaf Enhanced Classic Maple World">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="<%=pageTitle%>">
-  <meta name="twitter:description" content="<%=pageDescription%>">
-  <meta name="twitter:image" content="<%=baseSiteUrl%>/assets/hero-forest.webp">
 
   <link rel="stylesheet" href="/css/maple-remaster.css">
   <link rel="stylesheet" href="/css/maple-remaster-pages.css">
@@ -54,10 +54,12 @@
   <link rel="stylesheet" href="/css/wiki-player-2026.css?v=1">
   <link rel="stylesheet" href="/css/wiki-data.css?v=1">
   <link rel="stylesheet" href="/css/wiki-cleanup-2026.css?v=1">
+
   <% if(isAdminPath){ %>
     <link rel="stylesheet" href="/css/maple-remaster-admin.css">
     <link rel="stylesheet" href="/css/cms-knowledge.css">
   <% } %>
+
   <link rel="stylesheet" href="/css/uiux-2026.css?v=2">
   <link rel="stylesheet" href="/css/site-polish-2026.css?v=1">
   <link rel="stylesheet" href="/css/refero-everleaf-2026.css?v=3">
@@ -65,31 +67,60 @@
   <link rel="stylesheet" href="/css/inner-app-clean-2026.css?v=1">
   <link rel="stylesheet" href="/css/app-frame-v2-2026.css?v=1">
   <link rel="stylesheet" href="/css/wiki-app-assets-2026.css?v=1">
+
   <% if(routeKey==='wiki'){ %>
     <link rel="stylesheet" href="/css/wiki-art-fix-2026.css?v=1">
     <script src="/js/wiki-art.js?v=1" defer></script>
   <% } %>
+
   <link rel="stylesheet" href="/css/public-polish-2026.css?v=1">
   <link rel="stylesheet" href="/css/public-correction-sep5.css?v=1">
+
   <script src="/js/site.js?v=2" defer></script>
 </head>
+
 <body class="siteRoute route-<%=routeKey%><%=isAdminPath?' route-admin':''%>">
+
 <a class="skipLink" href="#main-content">Skip to content</a>
+
 <%
   const maintenance=(typeof settings!=='undefined'&&settings&&String(settings.maintenance_message||'').trim())||'';
   const fallbackAnnouncement=(typeof settings!=='undefined'&&settings&&String(settings.announcement||'').trim())||'';
 %>
+
 <% if(maintenance){ %>
-  <div role="status" class="siteBanner maintenanceBanner"><div class="wrap"><strong>MAINTENANCE</strong><span><%=maintenance%></span></div></div>
+  <div role="status" class="siteBanner maintenanceBanner">
+    <div class="wrap">
+      <strong>MAINTENANCE</strong>
+      <span><%=maintenance%></span>
+    </div>
+  </div>
 <% } else if(typeof activeAnnouncement!=='undefined'&&activeAnnouncement){ %>
-  <div role="status" class="siteBanner announcementBanner"><div class="wrap"><strong><%=activeAnnouncement.title%></strong><% if(activeAnnouncement.body){ %><span><%=activeAnnouncement.body%></span><% } %></div></div>
+  <div role="status" class="siteBanner announcementBanner">
+    <div class="wrap">
+      <strong><%=activeAnnouncement.title%></strong>
+      <% if(activeAnnouncement.body){ %>
+        <span><%=activeAnnouncement.body%></span>
+      <% } %>
+    </div>
+  </div>
 <% } else if(fallbackAnnouncement){ %>
-  <div role="status" class="siteBanner announcementBanner"><div class="wrap"><span><%=fallbackAnnouncement%></span></div></div>
+  <div role="status" class="siteBanner announcementBanner">
+    <div class="wrap">
+      <span><%=fallbackAnnouncement%></span>
+    </div>
+  </div>
 <% } %>
+
 <% if(!isHome&&!isAdminPath){ %>
   <nav class="publicChrome" aria-label="EverLeaf website navigation">
     <div class="wrap publicChromeInner">
-      <a class="publicChromeBrand" href="/" aria-label="EverLeaf home"><img src="/assets/everleaf-remaster.svg" alt=""><span>EverLeaf</span></a>
+
+      <a class="publicChromeBrand" href="/" aria-label="EverLeaf home">
+        <img src="/assets/everleaf-remaster.svg" alt="">
+        <span>EverLeaf</span>
+      </a>
+
       <div class="publicChromeLinks">
         <a href="/">Home</a>
         <a class="<%=routeKey==='news'?'active':''%>" href="/news">News</a>
@@ -97,9 +128,21 @@
         <a class="<%=routeKey==='rankings'?'active':''%>" href="/rankings">Rankings</a>
         <a class="<%=routeKey==='wiki'?'active':''%>" href="/wiki">Wiki</a>
         <a class="<%=routeKey==='help'?'active':''%>" href="/help">Help</a>
-        <a class="publicChromeAccount <%=routeKey==='account'||routeKey==='login'||routeKey==='register'||routeKey==='recover'?'active':''%>" href="<%=hasPlayer?'/account':'/login'%>"><%=hasPlayer?'Account':'Sign in'%></a>
+
+        <% if(isWebAdmin){ %>
+          <a href="/admin/from-account">Admin</a>
+        <% } %>
+
+        <a
+          class="publicChromeAccount <%=routeKey==='account'||routeKey==='login'||routeKey==='register'||routeKey==='recover'?'active':''%>"
+          href="<%=hasPlayer?'/account':'/login'%>"
+        >
+          <%=hasPlayer?'Account':'Sign in'%>
+        </a>
       </div>
+
     </div>
   </nav>
 <% } %>
+
 <div id="main-content" class="siteContent" tabindex="-1">

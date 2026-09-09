@@ -1,5 +1,7 @@
 const express=require("express");
 const session=require("express-session");
+const SqliteSessionStore=require("./utils/sqliteSessionStore");
+const csrf=require("./middleware/csrf");
 const helmet=require("helmet");
 const compression=require("compression");
 const rateLimit=require("express-rate-limit");
@@ -54,6 +56,12 @@ const authLimiter=rateLimit({
 app.use(["/login","/register","/recover","/admin/login"],authLimiter);
 
 app.use("/v1/launcher",require("./routes/launcher"));
+app.get("/patches/manifest.json",(req,res,next)=>{
+  res.setHeader("Cache-Control","no-cache");
+  res.sendFile(env.launcher.manifestPath,error=>{
+    if(error) next(error);
+  });
+});
 app.use("/patches",express.static(env.launcher.filesRoot,{
   fallthrough:false,
   index:false,
@@ -68,7 +76,19 @@ app.get("/launcher/download",(req,res)=>{
   res.download(env.launcher.portablePath,"EverLeafLauncher-portable.zip");
 });
 
+// Isolated compatibility package for the Yuna-based EverLeaf client migration.
+// Keep this outside the signed production patch manifest until Windows runtime QA
+// proves login -> world -> character -> channel -> map on the EverLeaf server.
+app.get("/client-tests/yuna-runtime",(req,res)=>{
+  const testPackage=path.join(path.dirname(env.launcher.portablePath),"EverLeaf-YunaRuntime-Test.zip");
+  if(!fs.existsSync(testPackage))
+    return res.status(503).send("EverLeaf Yuna runtime test package is not published yet.");
+  res.set("Cache-Control","no-cache");
+  res.download(testPackage,"EverLeaf-YunaRuntime-Test.zip");
+});
+
 app.use(session({
+  store:new SqliteSessionStore(path.join(path.dirname(env.cmsDbPath),"sessions.sqlite")),
   secret:env.sessionSecret,
   resave:false,
   saveUninitialized:false,
@@ -79,6 +99,8 @@ app.use(session({
     maxAge:1000*60*60*12
   }
 }));
+
+app.use(csrf);
 
 app.use((req,res,next)=>{
   const sensitive=req.path==="/login"||req.path==="/register"||req.path==="/recover"||req.path.startsWith("/account")||req.path.startsWith("/admin");
@@ -108,4 +130,4 @@ app.use((error,req,res,next)=>{
   res.status(500).render("500",{settings:settings()});
 });
 
-app.listen(env.port,()=>console.log(`EverLeaf web running on port ${env.port}`));
+app.listen(env.port,"127.0.0.1",()=>console.log(`EverLeaf web running on port ${env.port}`));
