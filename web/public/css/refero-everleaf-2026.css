@@ -458,9 +458,9 @@ input::placeholder,textarea::placeholder{color:var(--terminal-dim)!important}
 .alert.error,.notice.error{border-color:rgba(229,167,167,.42)!important;color:var(--terminal-danger)!important}
 
 .accountHero,.rankingsHero,.wikiHero{background:var(--terminal-bg)!important;border-bottom:1px solid var(--terminal-line)!important;box-shadow:none!important}
-.characterCard,.characterTile,.rewardCard,.securityCard,.accountModule{border:1px solid var(--terminal-line)!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
-.characterCard:hover,.characterTile:hover{transform:none!important;background:var(--terminal-panel)!important}
-.characterCard img,.characterTile img{filter:saturate(.85) contrast(1.02)}
+
+
+
 
 /* rankings */
 .rankingsShell,.rankingsLayout,.rankingShell{background:var(--terminal-bg)!important}

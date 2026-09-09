@@ -398,3 +398,407 @@ body.siteRoute .terminalFooter{border-top:1px solid var(--ut-line)!important;bac
   body.route-news .newsList{grid-template-columns:1fr!important}
   body.route-rankings .rankingsIntro{grid-template-columns:1fr!important}
 }
+
+/* ===== EVERLEAF ACCOUNT CANONICAL START ===== */
+
+/*
+   /account canonical styling
+   This is the single source of truth for the player account portal.
+*/
+
+body.route-account .accountPage {
+  padding-top: 42px !important;
+  padding-bottom: 80px !important;
+  background: var(--ut-bg) !important;
+  color: var(--ut-text) !important;
+}
+
+
+/* Quick actions */
+
+body.route-account .accountQuick {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 9px !important;
+  margin: 24px 0 18px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+
+/* Account metrics */
+
+body.route-account .accountStats {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  margin: 18px 0 24px !important;
+}
+
+body.route-account .accountStats .stat {
+  min-height: 92px !important;
+  padding: 16px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-end !important;
+
+  border: 1px solid var(--ut-line) !important;
+  border-radius: 0 !important;
+
+  background: var(--ut-bg-soft) !important;
+  color: var(--ut-muted) !important;
+
+  box-shadow: none !important;
+}
+
+body.route-account .accountStats .statNum {
+  margin-bottom: 5px !important;
+
+  color: var(--ut-good) !important;
+
+  font-family:
+    "Arial Narrow",
+    "Roboto Condensed",
+    "Helvetica Neue",
+    Arial,
+    sans-serif !important;
+
+  font-size: 27px !important;
+  font-weight: 600 !important;
+
+  text-transform: none !important;
+}
+
+
+/* Main account layout */
+
+body.route-account .accountShell {
+  display: grid !important;
+  grid-template-columns:
+    minmax(0, 1.45fr)
+    minmax(300px, .55fr) !important;
+
+  gap: 18px !important;
+
+  margin-top: 28px !important;
+  padding: 0 0 70px !important;
+}
+
+
+/* Shared account panels */
+
+body.route-account .featurePanel,
+body.route-account .paperCard {
+  border: 1px solid var(--ut-line) !important;
+  border-radius: 0 !important;
+
+  background: var(--ut-bg-soft) !important;
+  color: var(--ut-text) !important;
+
+  box-shadow: none !important;
+}
+
+body.route-account .paperCard {
+  padding: 22px !important;
+}
+
+body.route-account .featurePanel h2,
+body.route-account .paperCard h2,
+body.route-account .paperCard h3 {
+  color: var(--ut-text) !important;
+
+  font-family:
+    "Arial Narrow",
+    "Roboto Condensed",
+    "Helvetica Neue",
+    Arial,
+    sans-serif !important;
+
+  font-weight: 400 !important;
+  letter-spacing: -.045em !important;
+}
+
+body.route-account .paperCard p,
+body.route-account .muted {
+  color: var(--ut-muted) !important;
+}
+
+
+/* Character roster */
+
+body.route-account .characterRoster {
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+body.route-account .rosterHead {
+  display: flex !important;
+  align-items: end !important;
+  justify-content: space-between !important;
+
+  gap: 16px !important;
+
+  padding: 20px 22px !important;
+
+  border-bottom: 1px solid var(--ut-line) !important;
+
+  background: var(--ut-bg-soft) !important;
+}
+
+body.route-account .rosterHead h2 {
+  margin: 4px 0 0 !important;
+
+  color: var(--ut-text) !important;
+
+  font-family:
+    "Arial Narrow",
+    "Roboto Condensed",
+    "Helvetica Neue",
+    Arial,
+    sans-serif !important;
+
+  font-size: 27px !important;
+  font-weight: 400 !important;
+}
+
+
+/* Character cards */
+
+body.route-account .characterCards {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+
+  gap: 1px !important;
+
+  background: var(--ut-line) !important;
+}
+
+body.route-account .characterCard {
+  min-height: 106px !important;
+
+  padding: 15px 17px !important;
+
+  display: grid !important;
+
+  grid-template-columns: 62px 1fr auto !important;
+  grid-template-rows: 1fr auto !important;
+
+  gap: 5px 12px !important;
+  align-items: center !important;
+
+  border: 0 !important;
+  border-radius: 0 !important;
+
+  background: var(--ut-bg) !important;
+  color: var(--ut-text) !important;
+
+  box-shadow: none !important;
+}
+
+body.route-account .characterCard:hover {
+  background: var(--ut-panel) !important;
+}
+
+body.route-account .characterCard:only-child {
+  grid-column: 1 / -1 !important;
+}
+
+body.route-account .characterJobIcon {
+  grid-row: 1 / 3 !important;
+
+  width: 58px !important;
+  height: 58px !important;
+
+  object-fit: contain !important;
+}
+
+body.route-account .characterCardMain strong {
+  display: block !important;
+
+  color: var(--ut-text) !important;
+
+  font-family:
+    "Arial Narrow",
+    "Roboto Condensed",
+    "Helvetica Neue",
+    Arial,
+    sans-serif !important;
+
+  font-size: 18px !important;
+  font-weight: 500 !important;
+}
+
+body.route-account .characterCardMain span {
+  display: block !important;
+
+  margin-top: 3px !important;
+
+  color: var(--ut-muted) !important;
+  font-size: 10px !important;
+}
+
+body.route-account .characterLevel {
+  align-self: end !important;
+
+  color: var(--ut-good) !important;
+  font-weight: 900 !important;
+}
+
+body.route-account .characterFame {
+  align-self: start !important;
+
+  color: var(--ut-muted) !important;
+  font-size: 9px !important;
+}
+
+body.route-account .characterFame strong {
+  color: var(--ut-text) !important;
+}
+
+
+/* Empty roster */
+
+body.route-account .emptyAdventure {
+  display: flex !important;
+  align-items: center !important;
+
+  gap: 18px !important;
+
+  padding: 28px !important;
+
+  background: var(--ut-bg) !important;
+}
+
+body.route-account .emptyAdventure img {
+  width: 80px !important;
+  height: 80px !important;
+}
+
+body.route-account .emptyAdventure h3 {
+  margin: 0 0 5px !important;
+
+  color: var(--ut-text) !important;
+
+  font-family:
+    "Arial Narrow",
+    "Roboto Condensed",
+    "Helvetica Neue",
+    Arial,
+    sans-serif !important;
+
+  font-size: 22px !important;
+  font-weight: 400 !important;
+}
+
+
+/* Sidebar */
+
+body.route-account .accountSidebar {
+  display: grid !important;
+
+  gap: 14px !important;
+
+  align-content: start !important;
+}
+
+body.route-account .accountSidebar .paperCard {
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+body.route-account .accountSidebar .paperCard::before {
+  display: none !important;
+  content: none !important;
+}
+
+
+/* Forms */
+
+body.route-account .securityCard form {
+  display: grid !important;
+  gap: 7px !important;
+}
+
+body.route-account .accountSidebar form label {
+  display: block !important;
+
+  margin: 10px 0 4px !important;
+
+  color: var(--ut-muted) !important;
+
+  font-size: 9px !important;
+  font-weight: 900 !important;
+
+  text-transform: uppercase !important;
+}
+
+body.route-account .accountSidebar input {
+  width: 100% !important;
+
+  margin-bottom: 3px !important;
+
+  border: 1px solid var(--ut-line) !important;
+  border-radius: 0 !important;
+
+  background: var(--ut-bg) !important;
+  color: var(--ut-text) !important;
+
+  box-shadow: none !important;
+}
+
+body.route-account .securityCard .btn {
+  margin-top: 4px !important;
+}
+
+
+/* Responsive */
+
+@media (max-width: 900px) {
+
+  body.route-account .accountShell {
+    grid-template-columns: 1fr !important;
+  }
+
+  body.route-account .accountStats {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+}
+
+@media (max-width: 600px) {
+
+  body.route-account .characterCards {
+    grid-template-columns: 1fr !important;
+  }
+
+  body.route-account .rosterHead {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+
+  body.route-account .characterCard {
+    grid-template-columns: 52px 1fr auto !important;
+  }
+
+  body.route-account .characterJobIcon {
+    width: 48px !important;
+    height: 48px !important;
+  }
+
+}
+
+@media (max-width: 560px) {
+
+  body.route-account .accountStats {
+    grid-template-columns: 1fr !important;
+  }
+
+  body.route-account .accountQuick .btn {
+    flex: 1 1 calc(50% - 8px) !important;
+  }
+
+}
+
+/* ===== EVERLEAF ACCOUNT CANONICAL END ===== */

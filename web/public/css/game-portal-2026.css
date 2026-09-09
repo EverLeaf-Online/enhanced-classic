@@ -277,7 +277,11 @@ body.homeRoute .mapleHomeBody{
     radial-gradient(circle at 91% 22%,rgba(215,193,101,.10),transparent 22rem),
     linear-gradient(180deg,#fafbf1 0,#f3f3e6 42%,#eef2e1 100%)!important;
 }
-body.homeRoute .mapleHomeBody>.wrap{width:min(1240px,calc(100% - 38px))!important}
+body.homeRoute .mapleHomeBody>.wrap{
+  width:calc(100% - clamp(24px,3vw,64px))!important;
+  max-width:none!important;
+  margin-inline:auto!important;
+}
 body.homeRoute .sectionHead{
   margin-bottom:24px!important;padding-bottom:13px!important;border-bottom:0!important;
 }
