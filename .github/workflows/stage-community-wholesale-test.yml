@@ -2,7 +2,7 @@ name: Stage full community WZ/XML replacement test
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/stage-community-wholesale-test.yml'
   workflow_dispatch:

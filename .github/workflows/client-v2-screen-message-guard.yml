@@ -2,7 +2,7 @@ name: Client v2 screen-message guard
 
 on:
   pull_request:
-    branches: [release-dev, master]
+    branches: [master]
     paths:
       - "client/ezorsia/ezorsia/Memory.cpp"
       - "client/ezorsia/ezorsia/Client.cpp"

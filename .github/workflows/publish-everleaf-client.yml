@@ -3,7 +3,7 @@ name: Publish EverLeaf client
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - "client/**"
       - ".github/workflows/publish-everleaf-client.yml"
@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
 
       - name: Apply Community UI preference
         shell: pwsh

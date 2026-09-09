@@ -2,7 +2,7 @@ name: Client v2 integration guard
 
 on:
   pull_request:
-    branches: [release-dev, master]
+    branches: [master]
     paths:
       - "client/ezorsia/ezorsia/**"
       - ".github/workflows/client-v2-integration-guard.yml"

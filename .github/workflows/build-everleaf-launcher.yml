@@ -2,12 +2,12 @@ name: Build EverLeaf launcher
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - "launcher/**"
       - ".github/workflows/build-everleaf-launcher.yml"
   pull_request:
-    branches: [release-dev, master]
+    branches: [master]
     paths:
       - "launcher/**"
       - ".github/workflows/build-everleaf-launcher.yml"

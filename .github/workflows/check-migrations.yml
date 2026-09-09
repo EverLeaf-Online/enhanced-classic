@@ -2,13 +2,13 @@ name: Check EverLeaf Migrations
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - "database/sql/migration/**"
       - "tools/test_everleaf_migrations.sh"
       - ".github/workflows/check-migrations.yml"
   pull_request:
-    branches: [release-dev, master]
+    branches: [master]
     paths:
       - "database/sql/migration/**"
       - "tools/test_everleaf_migrations.sh"

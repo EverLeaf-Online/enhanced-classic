@@ -2,7 +2,7 @@ name: Client v2 WASD input guard
 
 on:
   pull_request:
-    branches: [release-dev, master]
+    branches: [master]
     paths:
       - "client/ezorsia/ezorsia/WasdInput.h"
       - "client/ezorsia/ezorsia/dinput8.cpp"

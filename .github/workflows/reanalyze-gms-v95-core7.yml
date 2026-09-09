@@ -3,7 +3,7 @@ name: Reanalyze GMS v95 core7 donor
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - 'tools/wz-donor/wz_diff.py'
       - 'tools/wz-donor/build_import_manifest.py'

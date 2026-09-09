@@ -2,7 +2,7 @@ name: Inventory community chairs
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/inventory-community-chairs.yml'
   workflow_dispatch:
@@ -22,7 +22,7 @@ jobs:
       - name: Checkout EverLeaf
         uses: actions/checkout@v4
         with:
-          ref: release-dev
+          ref: master
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4

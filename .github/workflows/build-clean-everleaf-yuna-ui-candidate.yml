@@ -3,7 +3,7 @@ name: Build clean EverLeaf + Yuna UI candidate
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/build-clean-everleaf-yuna-ui-candidate.yml'
 
@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}

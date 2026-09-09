@@ -2,7 +2,7 @@ name: Client v2 startup policy guard
 
 on:
   pull_request:
-    branches: [release-dev, master]
+    branches: [master]
     paths:
       - "client/ezorsia/ezorsia/Client.cpp"
       - "client/scripts/apply-client-v2-rebrand.py"

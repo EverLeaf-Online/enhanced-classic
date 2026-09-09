@@ -2,7 +2,7 @@ name: Restore full v95 server XML
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/repair-live-v95-server-xml.yml'
   workflow_dispatch:
@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
 
       - name: Configure SSH
         env:

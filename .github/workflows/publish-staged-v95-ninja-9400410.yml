@@ -2,7 +2,7 @@ name: Publish staged v95 Ninja 9400410
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/publish-staged-v95-ninja-9400410.yml'
   workflow_dispatch:

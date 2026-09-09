@@ -3,7 +3,7 @@ name: Analyze community WZ pack
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/analyze-community-wz-pack.yml'
       - 'tools/wz-donor/inventory_community_wz.sh'

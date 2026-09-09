@@ -2,7 +2,7 @@ name: Deploy verified community chairs live
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/deploy-community-chair-staged-live.yml'
   workflow_dispatch:

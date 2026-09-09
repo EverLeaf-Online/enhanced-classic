@@ -3,7 +3,7 @@ name: Extract GMS v95 Evan profile
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/extract-gms-v95-evan.yml'
       - 'tools/wz-donor/extract_evan_profile.py'

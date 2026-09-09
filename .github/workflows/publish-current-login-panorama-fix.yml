@@ -2,7 +2,7 @@ name: Publish current-live login and panorama correction
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - ".github/workflows/publish-current-login-panorama-fix.yml"
   workflow_dispatch:
@@ -75,7 +75,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
 
       - uses: actions/download-artifact@v4
         with:

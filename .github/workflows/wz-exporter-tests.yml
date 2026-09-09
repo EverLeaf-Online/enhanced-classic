@@ -3,7 +3,7 @@ name: WZ headless exporter tests
 on:
   pull_request:
     branches:
-      - release-dev
+      - master
     paths:
       - 'tools/wz-donor/exporter/**'
       - '.github/workflows/export-gms-v95-donor.yml'

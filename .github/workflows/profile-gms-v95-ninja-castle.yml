@@ -3,7 +3,7 @@ name: Profile GMS v95 Ninja Castle cluster
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/profile-gms-v95-ninja-castle.yml'
       - 'tools/wz-donor/profile_region_cluster.py'

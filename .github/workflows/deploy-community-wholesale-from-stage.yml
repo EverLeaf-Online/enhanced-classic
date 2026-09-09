@@ -3,7 +3,7 @@ name: Resume full community WZ + fresh XML live test
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/deploy-community-wholesale-from-stage.yml'
   workflow_dispatch:
@@ -28,7 +28,7 @@ jobs:
       - name: Checkout EverLeaf
         uses: actions/checkout@v4
         with:
-          ref: release-dev
+          ref: master
 
       - name: Configure SSH
         shell: pwsh

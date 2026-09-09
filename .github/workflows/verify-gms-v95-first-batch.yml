@@ -3,7 +3,7 @@ name: Verify GMS v95 first consume batch
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/verify-gms-v95-first-batch.yml'
       - 'tools/wz-donor/batches/gms-v95-consume-batch-001.json'

@@ -3,7 +3,7 @@ name: Publish Yuna runtime test route
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - 'web/src/server.js'
       - '.github/workflows/publish-yuna-runtime-test-route.yml'
@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
       - name: Validate server source
         run: node --check web/src/server.js
       - name: Configure SSH

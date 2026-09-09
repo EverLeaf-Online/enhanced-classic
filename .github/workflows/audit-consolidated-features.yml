@@ -2,7 +2,7 @@ name: Audit canonical non-Empress features
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - 'tools/audit_consolidated_features.py'
       - '.github/workflows/audit-consolidated-features.yml'
@@ -24,7 +24,6 @@ jobs:
       - name: Fetch canonical branches
         run: |
           git fetch origin \
-            '+refs/heads/release-dev:refs/remotes/origin/release-dev' \
             '+refs/heads/master:refs/remotes/origin/master' \
             '+refs/heads/client-dev:refs/remotes/origin/client-dev'
       - name: Verify canonical feature ledger

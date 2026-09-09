@@ -2,7 +2,7 @@ name: Test WZ path patcher
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - 'client/tools/wz-path-patcher/**'
       - '.github/workflows/test-wz-path-patcher.yml'
@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
       - name: Build pinned libwz patcher
         shell: bash
         run: |

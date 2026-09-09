@@ -3,7 +3,7 @@ name: Stage GMS v95 first consume batch
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/stage-gms-v95-first-batch.yml'
       - 'tools/wz-donor/stage_batch_patch.py'

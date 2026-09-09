@@ -3,7 +3,7 @@ name: Recover EverLeaf Game Production
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/recover-game-production.yml'
 

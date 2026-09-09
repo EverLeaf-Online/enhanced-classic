@@ -2,7 +2,7 @@ name: Fix live patch manifest route
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - 'web/src/server.js'
       - '.github/workflows/fix-live-patch-manifest-route.yml'
@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}

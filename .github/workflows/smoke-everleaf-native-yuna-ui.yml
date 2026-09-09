@@ -2,7 +2,7 @@ name: Smoke EverLeaf native runtime with Yuna UI
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths: ['.github/workflows/smoke-everleaf-native-yuna-ui.yml']
 permissions:
   contents: read
@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v5
-        with: {ref: release-dev}
+        with: {ref: master}
       - name: Configure SSH
         shell: pwsh
         env:

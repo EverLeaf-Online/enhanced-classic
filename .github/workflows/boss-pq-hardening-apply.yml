@@ -3,17 +3,17 @@ name: Apply Boss PQ Hardening
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - 'tools/apply_boss_pq_hardening.py'
       - 'tools/apply_boss_pq_failed_setup_cleanup.py'
       - '.github/workflows/boss-pq-hardening-apply.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: boss-pq-hardening-release-dev
+  group: boss-pq-hardening-master
   cancel-in-progress: false
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
           fetch-depth: 0
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -72,4 +72,4 @@ jobs:
             exit 0
           fi
           git commit -m 'fix(events): harden boss and PQ lifecycle'
-          git push origin HEAD:release-dev
+          echo 'Direct push to canonical master disabled; review generated changes manually.'

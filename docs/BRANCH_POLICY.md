@@ -4,13 +4,12 @@ EverLeaf keeps a deliberately small set of long-lived branches so active develop
 
 ## Long-lived branches
 
-- `master` — stable/default repository mainline and maintained website/CMS/Discord operations history. It is reconciled by behavior, not by force-updating it from another branch.
-- `release-dev` — authoritative game-server/content/release integration line and the source used by the production game deployment.
-- `client-dev` — maintained client-specific development line while unique client-source work is reconciled.
+- `master` — canonical EverLeaf production/mainline branch for website/CMS/Discord operations, game-server/content integration, release history, and production deployment.
+- `client-dev` — maintained client-specific development line while unique client-source work is reconciled into `master`.
 
 ## Canonical production content
 
-`release-dev` now contains the active Future Henesys / Empress runtime work and the production deployment contract for the canonical full-v95 WZ baseline. Ninja Castle is also consumed through that full-v95 baseline. These are no longer deferred regional imports.
+`master` now contains the active Future Henesys / Empress runtime work and the production deployment contract for the canonical full-v95 WZ baseline. Ninja Castle is also consumed through that full-v95 baseline. These are no longer deferred regional imports.
 
 The production WZ source of truth is the validated shared baseline at `/opt/everleaf/shared/wz-v95`, reconstructed from the live managed v95 client and guarded by the production deployment workflow. Selective Empress/Ninja staging branches are not deployment sources.
 
@@ -30,13 +29,13 @@ After their pull request is merged or superseded and the replacement behavior is
 
 Do **not** prune generic donor/tooling work merely because it has a `wz/` prefix. Preserve reusable pipelines and reference evidence such as donor extraction, exporters, profilers, and cross-version diagnostics.
 
-Region-specific `wz/v95-ninja-*` staging/review/contract branches are different: after the full-v95 baseline is live, verified, and no open PR uses them, they are superseded cleanup candidates. The same rule applies to obsolete Empress-only integration branches after Empress is represented on `release-dev` and verified live.
+Region-specific `wz/v95-ninja-*` staging/review/contract branches are different: after the full-v95 baseline is live, verified, and no open PR uses them, they are superseded cleanup candidates. The same rule applies to obsolete Empress-only integration branches after Empress is represented on `master` and verified live.
 
 ## Safe-retirement rule
 
 A branch may be retired/collapsed only when all of the following are true:
 
-1. It is not `master`, `release-dev`, `client-dev`, or `Community-files`.
+1. It is not `master`, `client-dev`, or `Community-files`.
 2. No open PR currently uses the branch as its head.
 3. Its intended production behavior is merged, patch-equivalent, or explicitly superseded by a stronger canonical implementation.
 4. Any required live content has passed production verification after the replacement landed.
@@ -55,4 +54,6 @@ The September 4, 2026 production verification established:
 
 ## Mainline reconciliation rule
 
-Do not force-update `master` from `release-dev` while `master` contains independently maintained web/ops behavior. Reconcile those surfaces semantically, then use a focused promotion when the unique-behavior ledger is exhausted. Production game deployment remains sourced from `release-dev` until that promotion is intentionally completed.
+`master` is the canonical production branch. New game, web, CMS, launcher, client-release, and operational work should be reconciled into `master` through focused commits or reviewed feature branches rather than creating another long-lived production branch.
+
+Do not recreate the old split between website operations and game-server release history.

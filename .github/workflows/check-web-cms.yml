@@ -3,12 +3,12 @@ name: Check EverLeaf Web CMS
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - "web/**"
       - ".github/workflows/check-web-cms.yml"
   pull_request:
-    branches: [release-dev, master]
+    branches: [master]
     paths:
       - "web/**"
       - ".github/workflows/check-web-cms.yml"

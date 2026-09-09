@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - feature/solomapling-autonomous-e2e
-      - release-dev
+      - master
     paths:
       - 'src/main/java/soloMapling/**'
       - 'src/main/java/client/BotClient.java'
@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
 
 # Controlled deploys always build/test and switch the exact branch head.
-# The feature branch is the live-validation lane; release-dev is the canonical deployed lane after merge.
+# The feature branch is the live-validation lane; master is the canonical deployed lane after merge.
 concurrency:
   group: everleaf-game-production
   cancel-in-progress: false
@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$GITHUB_REF_NAME" in
-            feature/solomapling-autonomous-e2e|release-dev) ;;
+            feature/solomapling-autonomous-e2e|master) ;;
             *) echo "Refusing SoloMapling live deployment from branch: $GITHUB_REF_NAME" >&2; exit 1 ;;
           esac
           echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"

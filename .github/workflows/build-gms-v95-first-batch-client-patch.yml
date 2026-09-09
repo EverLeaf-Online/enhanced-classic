@@ -3,7 +3,7 @@ name: Build GMS v95 first batch client WZ candidate
 on:
   pull_request:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/build-gms-v95-first-batch-client-patch.yml'
       - 'tools/wz-donor/client-patcher/Program.cs'
@@ -11,7 +11,7 @@ on:
       - 'tools/wz-donor/batches/gms-v95-consume-batch-001-parity.json'
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/build-gms-v95-first-batch-client-patch.yml'
       - 'tools/wz-donor/client-patcher/Program.cs'

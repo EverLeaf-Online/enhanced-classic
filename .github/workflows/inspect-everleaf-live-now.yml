@@ -2,7 +2,7 @@ name: Inspect EverLeaf live now
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/inspect-everleaf-live-now.yml'
   workflow_dispatch:

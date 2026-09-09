@@ -2,7 +2,7 @@ name: Inventory live Evan WZ paths
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - "client/tools/evan-wz-inventory/**"
       - ".github/workflows/inventory-evan-live-wz.yml"
@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
       - name: Build pinned WZ inventory tool
         run: |
           set -euo pipefail

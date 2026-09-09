@@ -2,7 +2,7 @@ name: Production hardening 2026-09-03
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/production-hardening-20260903.yml'
   workflow_dispatch:
@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
 
       - name: Configure SSH
         env:

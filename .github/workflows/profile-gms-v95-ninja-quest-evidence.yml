@@ -3,7 +3,7 @@ name: Profile GMS v95 Ninja Castle quest evidence
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/profile-gms-v95-ninja-quest-evidence.yml'
       - 'tools/wz-donor/extract_region_quest_evidence.py'

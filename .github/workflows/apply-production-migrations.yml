@@ -3,7 +3,7 @@ name: Apply EverLeaf Production Migrations
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/apply-production-migrations.yml'
 
@@ -23,10 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout release-dev
+      - name: Checkout master
         uses: actions/checkout@v4
         with:
-          ref: release-dev
+          ref: master
           fetch-depth: 1
 
       - name: Configure SSH

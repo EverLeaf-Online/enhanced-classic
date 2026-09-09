@@ -2,7 +2,7 @@ name: Client v2 diagnostics guard
 
 on:
   pull_request:
-    branches: [release-dev, master]
+    branches: [master]
     paths:
       - "client/ezorsia/ezorsia/CrashDiagnostics.*"
       - "client/ezorsia/ezorsia/dllmain.cpp"

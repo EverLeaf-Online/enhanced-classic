@@ -2,7 +2,7 @@ name: Deploy staged 25-chair batch preserving live 13
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/deploy-community-chair-25-from-verified-stage-live.yml'
   workflow_dispatch:

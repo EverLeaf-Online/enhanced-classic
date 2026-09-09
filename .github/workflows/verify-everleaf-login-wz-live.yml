@@ -2,7 +2,7 @@ name: Verify EverLeaf login WZ live
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - ".github/workflows/verify-everleaf-login-wz-live.yml"
   workflow_dispatch:
@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
 
       - name: Configure production SSH
         env:

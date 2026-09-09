@@ -2,7 +2,7 @@ name: Audit EverLeaf login stringpool hook
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths: ['.github/workflows/audit-everleaf-stringpool-login-hook.yml']
 permissions:
   contents: read
@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
-        with: {ref: release-dev}
+        with: {ref: master}
       - name: Print login stringpool logic
         run: |
           set -euo pipefail

@@ -3,7 +3,7 @@ name: Profile narrow GMS v95 Hoblin Rex cluster
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/profile-gms-v95-hoblin-rex-narrow.yml'
       - 'tools/wz-donor/profile_region_cluster.py'

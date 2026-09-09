@@ -11,7 +11,7 @@ on:
       - 'scripts/reactor/**'
       - '.github/workflows/audit-world-content-completeness.yml'
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - 'tools/audit_world_content_completeness.py'
       - 'wz/Map.wz/Map/**'

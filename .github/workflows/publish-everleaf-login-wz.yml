@@ -4,7 +4,7 @@ name: Publish EverLeaf login and UI WZ
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - "client/branding/login/**"
       - "client/tools/login-wz-patcher/**"
@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
 
       - name: Generate borderless EverLeaf login artwork
         run: |

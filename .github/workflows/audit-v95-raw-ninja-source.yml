@@ -2,7 +2,7 @@ name: Audit raw v95 Ninja source nodes
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/audit-v95-raw-ninja-source.yml'
   workflow_dispatch:
@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'

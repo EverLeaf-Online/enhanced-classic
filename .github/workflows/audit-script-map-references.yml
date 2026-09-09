@@ -2,14 +2,14 @@ name: Audit script map references
 
 on:
   pull_request:
-    branches: [release-dev, master]
+    branches: [master]
     paths:
       - 'scripts/**'
       - 'wz/Map.wz/**'
       - 'tools/audit_script_map_refs.py'
       - '.github/workflows/audit-script-map-references.yml'
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - 'scripts/**'
       - 'wz/Map.wz/**'

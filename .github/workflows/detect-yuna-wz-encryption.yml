@@ -2,7 +2,7 @@ name: Detect Yuna WZ encryption
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths: ['.github/workflows/detect-yuna-wz-encryption.yml']
 permissions:
   contents: read
@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
-        with: {ref: release-dev}
+        with: {ref: master}
       - uses: actions/setup-dotnet@v4
         with: {dotnet-version: '10.0.x'}
       - name: Configure SSH

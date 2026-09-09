@@ -2,7 +2,7 @@ name: Audit Yuna login runtime paths
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths: ['.github/workflows/audit-yuna-login-runtime-paths.yml']
 permissions:
   contents: read
@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v5
-        with: {ref: release-dev}
+        with: {ref: master}
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}

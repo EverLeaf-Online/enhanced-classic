@@ -3,7 +3,7 @@ name: Smoke GMS v95 first consume batch on server
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/smoke-gms-v95-first-batch-server.yml'
       - 'src/test/java/server/WzDonorStagingItemSmokeTest.java'
@@ -17,7 +17,7 @@ on:
       - 'tools/wz-donor/build_import_manifest.py'
   pull_request:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/smoke-gms-v95-first-batch-server.yml'
       - 'src/test/java/server/WzDonorStagingItemSmokeTest.java'

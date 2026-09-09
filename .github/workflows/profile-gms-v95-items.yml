@@ -3,7 +3,7 @@ name: Profile GMS v95 item candidates
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/profile-gms-v95-items.yml'
       - 'tools/wz-donor/profile_item_candidates.py'

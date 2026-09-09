@@ -3,7 +3,7 @@ name: Stage complete v95.4 client on Oracle
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - .github/workflows/stage-v95-wz-binaries.yml
 

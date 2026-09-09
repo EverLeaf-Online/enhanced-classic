@@ -4,12 +4,12 @@ name: Verify EverLeaf Live Release
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/verify-live-release.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
 
       - name: Configure SSH
         env:
@@ -130,4 +130,4 @@ jobs:
           git config user.email 173628847+iampolicy@users.noreply.github.com
           git add docs/LIVE_RELEASE_STATUS.md
           git commit -m 'ops: record live EverLeaf release status' || exit 0
-          git push origin HEAD:release-dev
+          echo 'Direct push to canonical master disabled; review generated changes manually.'

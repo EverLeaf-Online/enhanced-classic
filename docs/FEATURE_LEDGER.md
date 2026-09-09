@@ -100,7 +100,7 @@ The automated subset is enforced by `tools/audit_consolidated_features.py` and `
 
 ## Consolidation invariants
 
-- [x] `master`, `release-dev`, and `client-dev` are canonical maintained lines for their respective surfaces.
+- [x] `master` is the canonical production line; `client-dev` remains the maintained client-development line while unique work is reconciled.
 - [x] `content-dev` is reconciliation-only and must not be wholesale-merged over newer policy.
 - [x] `empress-dev` is excluded from the current release.
 - [x] `Community-files` is excluded.

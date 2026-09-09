@@ -8,13 +8,13 @@ on:
       - master
       - enhanced-dev
       - progression-dev
-      - release-dev
+      - master
   pull_request:
     branches:
       - master
       - enhanced-dev
       - progression-dev
-      - release-dev
+      - master
 
 jobs:
   build:

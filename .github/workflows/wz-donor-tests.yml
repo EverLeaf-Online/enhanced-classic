@@ -3,7 +3,7 @@ name: WZ donor pipeline tests
 on:
   pull_request:
     branches:
-      - release-dev
+      - master
     paths:
       - 'tools/wz-donor/**'
       - '.github/workflows/wz-donor-tests.yml'

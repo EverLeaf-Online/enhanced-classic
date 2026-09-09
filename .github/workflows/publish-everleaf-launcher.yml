@@ -2,14 +2,14 @@ name: Publish EverLeaf launcher
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - "launcher/**"
       - "client/branding/everleaf-app-icon.ico.gz.b64"
       - "tools/apply_launcher_integrity_fixes.py"
       - ".github/workflows/publish-everleaf-launcher.yml"
   pull_request:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - "launcher/**"
       - "client/branding/everleaf-app-icon.ico.gz.b64"
@@ -35,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'release-dev' }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'master' }}
 
       - name: Materialize EverLeaf app icon
         shell: pwsh

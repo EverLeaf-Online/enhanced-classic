@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - feature/solomapling-disposable-suite-20260904
-      - release-dev
+      - master
     paths:
       - 'src/main/java/soloMapling/**'
       - 'tools/apply_solomapling_*.py'
@@ -76,7 +76,7 @@ jobs:
           base=/opt/everleaf/qa-agent-hub
           work=/opt/everleaf/qa-solomapling-suite
           case "$TARGET_BRANCH" in
-            release-dev|feature/solomapling-disposable-suite-20260904) ;;
+            master|feature/solomapling-disposable-suite-20260904) ;;
             *) echo 'Refusing unexpected QA target branch.' >&2; exit 2;;
           esac
           git -C "$base" fetch --no-tags origin "$TARGET_BRANCH"

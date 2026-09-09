@@ -2,7 +2,7 @@ name: Remove Cash Shop rate coupons live
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/remove-rate-coupons-live.yml'
       - 'tools/wz-donor/client-patcher/RateCouponProgram.cs'
@@ -24,10 +24,10 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 45
     steps:
-      - name: Checkout release-dev
+      - name: Checkout master
         uses: actions/checkout@v4
         with:
-          ref: release-dev
+          ref: master
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4

@@ -3,7 +3,7 @@ name: Test EverLeaf login WZ tooling
 on:
   workflow_dispatch:
   pull_request:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - "client/branding/login/**"
       - "client/tools/login-wz-patcher/**"

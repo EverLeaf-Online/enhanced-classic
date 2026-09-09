@@ -3,7 +3,7 @@ name: Audit live login layers
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - ".github/workflows/audit-live-login-layers.yml"
   workflow_dispatch:
@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
 
       - name: Configure production SSH
         env:

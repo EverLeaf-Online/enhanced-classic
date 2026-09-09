@@ -6,11 +6,11 @@ Last synchronized: **2026-09-07** after production deployment run #58, gameplay 
 
 ## Current production baseline
 
-- Active server release branch: `release-dev`
-- Current production/release-dev SHA: `ec8733f36bbe2b0f9a33ea71484e302bfedcf71e`
+- Active server release branch: `master`
+- Current running game release source SHA: `beaa14d314bcc7c28d046e98d847e2fdd212f574`
 - Production deployment: **Deploy EverLeaf Game Production #58 — SUCCESS**
 - Production deployment validates build, backup, release switch, server restart, channel runtime, canonical v95 WZ, public ports, and rollback on failure.
-- `master` is still behind the active production release line and should not be treated as the canonical gameplay/server state until release consolidation is performed.
+- `master` is the canonical repository production line after the September 9 branch consolidation. The currently running game release remains the previously deployed release until the next guarded deployment from consolidated `master`.
 - Maintained client work remains on the dedicated client line/branches; do not blindly merge historical stacked client PRs.
 
 ## Status legend
@@ -27,7 +27,7 @@ Last synchronized: **2026-09-07** after production deployment run #58, gameplay 
 # 1. Repository / Release Management
 
 - ✅ Primary repository: `EverLeaf-Online/enhanced-classic`.
-- ✅ `release-dev` is the active server release line.
+- ✅ `master` is the active server release line.
 - ✅ Production deploy workflow exists and is guarded.
 - ✅ Automatic rollback path exists if new production health validation fails.
 - ✅ Full Maven compile/test/package gating exists.
@@ -36,7 +36,7 @@ Last synchronized: **2026-09-07** after production deployment run #58, gameplay 
 - ✅ Production WZ staging hardlink failure from deploy #57 was corrected in PR #375.
 - 🟢 Production deploy #58 succeeded at `ec8733f36bbe2b0f9a33ea71484e302bfedcf71e`.
 - 🟡 Reconcile historical useful branches only when still intentionally unconsumed.
-- 🟡 Final `release-dev` → `master` consolidation after runtime validation.
+- ✅ Game/server and website production histories consolidated into canonical `master`.
 - 🟡 Reconcile/close superseded historical client and website PRs instead of mass-merging them.
 
 # 2. Core Server / Infrastructure
@@ -741,7 +741,7 @@ Main remaining blockers:
 # 47. Public Launch Readiness
 
 - 🟡 Critical/high-severity issues closed or consciously accepted.
-- 🟡 `release-dev` consolidated/promoted to `master` after runtime validation.
+- ✅ Former game release line consolidated into canonical `master`.
 - 🟡 Server/client/launcher artifacts reproducible from source/workflows.
 - 🟡 Client/server assets verified from clean install.
 - 🟡 Live channel count/config verified with actual client channel switching.
@@ -786,7 +786,7 @@ Main remaining blockers:
 7. **Website/account/launcher integration validation**.
 8. **Security packet/admin/web pass**.
 9. **Performance/soak/load testing**.
-10. **Release consolidation** — reconcile stale PRs and promote approved `release-dev` toward `master` only after runtime confidence is sufficient.
+10. **Release consolidation** — reconcile stale PRs and promote approved feature/release work into `master` only after runtime confidence is sufficient.
 
 # Current Completion Assessment
 

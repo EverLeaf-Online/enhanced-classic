@@ -3,7 +3,7 @@ name: Build GMS v95 first batch patch artifact
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/build-gms-v95-first-batch-patch.yml'
       - 'tools/wz-donor/build_batch_patch.py'

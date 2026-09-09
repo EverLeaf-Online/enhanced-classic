@@ -3,12 +3,12 @@ name: Inspect EverLeaf Production Runtime
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/inspect-production-runtime.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
@@ -22,7 +22,7 @@ jobs:
       - name: Checkout release branch
         uses: actions/checkout@v4
         with:
-          ref: release-dev
+          ref: master
 
       - name: Configure SSH
         shell: bash
@@ -175,4 +175,4 @@ jobs:
           git add docs/PRODUCTION_RUNTIME_SNAPSHOT.md
           git diff --cached --quiet && exit 0
           git commit -m 'ops: refresh production runtime snapshot'
-          git push origin HEAD:release-dev
+          echo 'Direct push to canonical master disabled; review generated changes manually.'

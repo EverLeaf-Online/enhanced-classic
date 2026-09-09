@@ -3,7 +3,7 @@ name: Audit live Community MySQL parity
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/audit-live-community-mysql-parity.yml'
 
@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
 
       - name: Configure SSH
         env:

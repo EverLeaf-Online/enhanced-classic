@@ -2,7 +2,7 @@ name: Maintenance branch consolidation audit
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/maintenance-branch-consolidation-audit.yml'
   workflow_dispatch:
@@ -27,7 +27,7 @@ jobs:
           import json, re, subprocess
           from pathlib import Path
 
-          canonical = ['master', 'release-dev', 'client-dev']
+          canonical = ['master', 'client-dev']
           explicit_excluded = {'Community-files', 'empress-dev'}
           protected_workspaces = {'consolidation/master-promotion'}
           protected_prefixes = ('wz/',)

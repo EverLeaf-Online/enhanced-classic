@@ -2,7 +2,7 @@ name: Fix community chair String XML live
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/fix-community-chair-string-live.yml'
   workflow_dispatch:

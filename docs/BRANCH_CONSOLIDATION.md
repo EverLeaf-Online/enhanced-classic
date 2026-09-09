@@ -6,9 +6,8 @@ EverLeaf uses a small set of long-lived canonical branches. Feature, staging, re
 
 | Branch | Purpose |
 | --- | --- |
-| `master` | Stable/default branch and maintained website/CMS/Discord operations history. |
-| `release-dev` | Authoritative game-server/content/release integration line and production game deployment source. |
-| `client-dev` | Maintained client-specific development line while unique client work is reconciled. |
+| `master` | Canonical production/mainline branch for website, CMS, Discord operations, game server, content, client release integration, and production deployment. |
+| `client-dev` | Maintained client-specific development line while unique client work is reconciled into `master`. |
 
 `Community-files` remains reference/donor material rather than a production branch.
 
@@ -29,8 +28,8 @@ The exact game release verified live for this landing is `b639d7ee796da8c7b305f0
 
 Consequences:
 
-1. `release-dev` is the canonical active line for Empress runtime behavior and full-v95 game content.
-2. `empress-dev`, `content/empress-2026`, and `integrate/empress-runtime-20260904` are no longer production sources once their intended behavior is represented on `release-dev`.
+1. `master` is the canonical active line for Empress runtime behavior and full-v95 game content.
+2. `empress-dev`, `content/empress-2026`, and `integrate/empress-runtime-20260904` are no longer production sources once their intended behavior is represented on `master`.
 3. Region-specific `wz/v95-ninja-*` staging/review/contract branches are superseded by the full-v95 baseline once no open PR uses them.
 4. Generic v95 donor/exporter/profiler/tool branches remain valuable and are **not** blanket cleanup targets.
 5. The old selective Ninja live normalization/publish one-shot workflows were retired after the canonical client and server baselines were verified.
@@ -67,9 +66,11 @@ The maintained release line includes:
 - canonical full-v95 WZ content checks;
 - signed launcher/client manifest verification.
 
-## `master` vs `release-dev`
+## Canonical mainline
 
-Do not force-update `master` from `release-dev`. `master` has independently maintained web/CMS/Discord operations history, while production game deployment currently sources `release-dev`. Reconcile remaining master-only behavior deliberately, then use a focused promotion when the behavior ledger is exhausted.
+As of the September 9, 2026 consolidation, `master` is the single canonical EverLeaf production/mainline branch.
+
+The previously separate website/CMS history and game/server release history were reconciled deliberately rather than force-updated. Future production work should land on `master`, with temporary feature branches used for review and testing as needed.
 
 ## Cleanup rule going forward
 

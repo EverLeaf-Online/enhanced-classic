@@ -2,7 +2,7 @@ name: Audit live client staging
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - ".github/workflows/audit-live-client-staging.yml"
   workflow_dispatch:
@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
 
       - name: Configure production SSH
         env:

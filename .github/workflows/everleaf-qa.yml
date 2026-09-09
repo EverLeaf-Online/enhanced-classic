@@ -21,7 +21,7 @@ on:
       - content-dev
       - progression-dev
       - qa-agent-hub
-      - release-dev
+      - master
     paths:
       - 'scripts/**'
       - 'database/**'

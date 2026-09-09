@@ -2,7 +2,7 @@ name: Audit quest actions
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - 'wz/Quest.wz/**'
       - 'wz/Skill.wz/**'
@@ -12,7 +12,7 @@ on:
       - 'tools/audit_quest_actions.py'
       - '.github/workflows/audit-quest-actions.yml'
   pull_request:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - 'wz/Quest.wz/**'
       - 'wz/Skill.wz/**'

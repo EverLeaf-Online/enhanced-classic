@@ -2,7 +2,7 @@ name: Export Evan client WZ baseline
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - ".github/workflows/export-evan-client-baseline.yml"
   workflow_dispatch:

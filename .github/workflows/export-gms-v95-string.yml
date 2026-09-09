@@ -3,7 +3,7 @@ name: Export GMS v95 String donor
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/export-gms-v95-string.yml'
       - 'tools/wz-donor/exporter/**'

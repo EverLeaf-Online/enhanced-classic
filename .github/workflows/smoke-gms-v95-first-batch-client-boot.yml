@@ -3,7 +3,7 @@ name: Smoke GMS v95 first consume batch in client
 on:
   pull_request:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/smoke-gms-v95-first-batch-client-boot.yml'
       - 'client/managed-client-baseline.json'

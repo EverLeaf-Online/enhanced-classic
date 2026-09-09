@@ -2,7 +2,7 @@ name: Repair live client v95 Ninja 9400410
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/repair-live-client-v95-ninja-9400410.yml'
   workflow_dispatch:
@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'

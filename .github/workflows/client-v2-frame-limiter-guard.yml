@@ -2,7 +2,7 @@ name: Client v2 frame limiter guard
 
 on:
   pull_request:
-    branches: [release-dev, master]
+    branches: [master]
     paths:
       - "client/ezorsia/ezorsia/FrameLimiter.*"
       - "client/ezorsia/ezorsia/config.ini"

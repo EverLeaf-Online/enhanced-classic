@@ -3,7 +3,7 @@ name: Export community WZ core donor
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/export-community-wz-core.yml'
       - 'tools/wz-donor/exporter/Program.cs'

@@ -2,7 +2,7 @@ name: Cleanup wholesale stale storage
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/cleanup-wholesale-stale-storage.yml'
   workflow_dispatch:

@@ -3,7 +3,7 @@ name: Preview GMS v95 Ninja Castle production drops
 on:
   workflow_dispatch:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - 'tools/wz-donor/clusters/gms-v95-ninja-castle-quest-drops.json'
       - 'tools/wz-donor/preview_drop_contract.py'

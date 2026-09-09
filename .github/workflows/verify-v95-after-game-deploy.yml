@@ -2,7 +2,7 @@ name: Verify v95 after game deploy
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/verify-v95-after-game-deploy.yml'
   workflow_run:

@@ -3,7 +3,7 @@ name: Analyze community item donor test
 on:
   push:
     branches:
-      - release-dev
+      - master
     paths:
       - '.github/workflows/analyze-community-item-test.yml'
       - 'tools/wz-donor/exporter/Program.cs'

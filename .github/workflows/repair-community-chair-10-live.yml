@@ -2,7 +2,7 @@ name: Repair community 10-chair server XML live
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/repair-community-chair-10-live.yml'
   workflow_dispatch:

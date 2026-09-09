@@ -2,7 +2,7 @@ name: Analyze Evan donor archive
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - ".github/workflows/analyze-evan-donor.yml"
   workflow_dispatch:

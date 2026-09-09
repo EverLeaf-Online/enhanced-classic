@@ -2,7 +2,7 @@ name: Build Evan v84 Map donor
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/build-evan-v84-map-donor.yml'
   workflow_dispatch:
@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
 
       - uses: actions/setup-dotnet@v5
         with:

@@ -2,7 +2,7 @@ name: Rebuild server WZ from canonical live v95 client
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/rebuild-server-wz-from-live-v95-client.yml'
   workflow_dispatch:
@@ -23,10 +23,10 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 180
     steps:
-      - name: Checkout release-dev
+      - name: Checkout master
         uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4

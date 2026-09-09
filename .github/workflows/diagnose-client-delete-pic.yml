@@ -2,7 +2,7 @@ name: Diagnose client delete PIC gate
 
 on:
   push:
-    branches: [release-dev]
+    branches: [master]
     paths:
       - '.github/workflows/diagnose-client-delete-pic.yml'
   workflow_dispatch:
@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: release-dev
+          ref: master
       - name: Configure SSH
         env:
           KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
