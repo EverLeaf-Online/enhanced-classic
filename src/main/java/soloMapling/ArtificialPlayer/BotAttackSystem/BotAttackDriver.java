@@ -115,7 +115,7 @@ public final class BotAttackDriver {
         if (choice == Choice.AOE && aoe == null) return AttackResult.miss("no AoE attack");
         if (choice == Choice.ULTIMATE && ultimate == null) return AttackResult.miss("no ultimate attack");
 
-        Monster nearest = nearestMob(bot);
+        Monster nearest = nearestAttackableMob(bot);
         if (nearest == null) return AttackResult.miss("no targetable mobs within " + SEEK_RANGE + "px");
         boolean facingLeft = nearest.getPosition().x < bot.getPosition().x;
         if (GCMovement.isEnabled(bot)) GCMovement.face(bot, facingLeft);
@@ -235,7 +235,7 @@ public final class BotAttackDriver {
         return new Rectangle(left, box.y, Math.max(0, box.x + box.width - left), box.height);
     }
 
-    private static Monster nearestMob(Character bot) {
+    public static Monster nearestAttackableMob(Character bot) {
         Point p = bot.getPosition();
         Monster nearest = null;
         double best = Double.MAX_VALUE;
