@@ -346,26 +346,33 @@ public class Storage {
     }
 
     public int getStoreFee() {
-        Integer fee = trunkPutCache.get(currentNpcid);
-        return fee == null ? 0 : fee;
+        return getStorageFee(currentNpcid, false);
     }
 
     public int getTakeOutFee() {
-        Integer fee = trunkGetCache.get(currentNpcid);
-        return fee == null ? 0 : fee;
+        return getStorageFee(currentNpcid, true);
     }
 
-    public static void loadStorageFee() {
-        DataProvider npcProvider = DataProviderFactory.getDataProvider(WZFiles.NPC);
-        Data trunkData = npcProvider.getData("Trunk.img");
-        if (trunkData == null) {
-            return;
+    private static int getStorageFee(int npcId, boolean takeOut) {
+        if (npcId < 0) {
+            return 0;
         }
 
-        for (Data npc : trunkData.getChildren()) {
-            int npcId = Integer.parseInt(npc.getName());
-            trunkGetCache.put(npcId, DataTool.getInt("get", npc, 0));
-            trunkPutCache.put(npcId, DataTool.getInt("put", npc, 0));
+        Map<Integer, Integer> cache = takeOut ? trunkGetCache : trunkPutCache;
+        Integer cached = cache.get(npcId);
+        if (cached != null) {
+            return cached;
         }
+
+        DataProvider npcProvider = DataProviderFactory.getDataProvider(WZFiles.NPC);
+        Data npcData = npcProvider.getData(String.format("%07d.img", npcId));
+        if (npcData == null) {
+            cache.put(npcId, 0);
+            return 0;
+        }
+
+        int fee = DataTool.getInt(takeOut ? "info/trunkGet" : "info/trunkPut", npcData, 0);
+        cache.put(npcId, fee);
+        return fee;
     }
 }

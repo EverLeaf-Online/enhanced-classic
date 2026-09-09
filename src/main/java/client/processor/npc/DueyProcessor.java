@@ -116,6 +116,10 @@ public class DueyProcessor {
     }
 
     private static void showDueyNotification(Client c, Character player) {
+        if (!YamlConfig.config.server.USE_DUEY) {
+            return;
+        }
+
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement("SELECT SenderName, Type FROM dueypackages WHERE ReceiverId = ? AND Checked = 1 ORDER BY Type DESC")) {
 
@@ -453,6 +457,12 @@ public class DueyProcessor {
     }
 
     public static void dueySendTalk(Client c, boolean quickDelivery) {
+        if (!YamlConfig.config.server.USE_DUEY) {
+            c.getPlayer().dropMessage(5, "Package delivery is currently unavailable.");
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+
         if (c.tryacquireClient()) {
             try {
                 long timeNow = System.currentTimeMillis();

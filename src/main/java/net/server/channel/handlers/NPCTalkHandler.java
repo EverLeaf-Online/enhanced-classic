@@ -71,7 +71,12 @@ public final class NPCTalkHandler extends AbstractPacketHandler {
                 }
 
                 if (npc.getId() == NpcId.DUEY) {
-                    DueyProcessor.dueySendTalk(c, false);
+                    if (!YamlConfig.config.server.USE_DUEY) {
+                        c.getPlayer().dropMessage(5, "Package delivery is currently unavailable.");
+                        c.sendPacket(PacketCreator.enableActions());
+                    } else {
+                        DueyProcessor.dueySendTalk(c, false);
+                    }
                 } else {
                     if (c.getCM() != null || c.getQM() != null) {
                         c.sendPacket(PacketCreator.enableActions());

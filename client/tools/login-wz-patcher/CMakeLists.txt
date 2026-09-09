@@ -18,3 +18,6 @@ target_link_libraries(everleaf-remove-map-login-frame PRIVATE wz)
 
 add_executable(everleaf-remove-map-neocity remove-map-neocity.cpp)
 target_link_libraries(everleaf-remove-map-neocity PRIVATE wz)
+
+add_executable(everleaf-patch-fm-cashshop patch-fm-cashshop.cpp)
+target_link_libraries(everleaf-patch-fm-cashshop PRIVATE wz)
