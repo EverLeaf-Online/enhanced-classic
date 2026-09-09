@@ -13,6 +13,7 @@ import soloMapling.ArtificialPlayer.BareBotPortal;
 import soloMapling.ArtificialPlayer.BotLootDriver;
 import soloMapling.ArtificialPlayer.BotNpcDriver;
 import soloMapling.ArtificialPlayer.BotQaProfile;
+import soloMapling.ArtificialPlayer.BotQaFleet;
 import soloMapling.ArtificialPlayer.BotShopDriver;
 import soloMapling.ArtificialPlayer.BotAttackSystem.BotAttackDriver;
 import soloMapling.ArtificialPlayer.GCMoveSystem.GCMovement;
@@ -74,11 +75,31 @@ public class QaBotCommand extends Command {
             stopAll(previous);
             BareBotFactory.removeBareBot(previous);
         }
+
+        Character bot = null;
         try {
-            Character bot = BareBotFactory.createBareBot(gmId, c.getPlayer().getPosition(), c.getPlayer().getMap());
+            bot = BareBotFactory.createBareBot(
+                    gmId,
+                    c.getPlayer().getPosition(),
+                    c.getPlayer().getMap());
+
+            BotQaFleet.normalize(
+                    bot,
+                    c.getPlayer().getJob().getId(),
+                    c.getPlayer().getLevel(),
+                    1_000_000);
+
             spawnedByGm.put(gmId, bot);
-            c.getPlayer().yellowMessage("Spawned SoloMapling QA bot " + bot.getName() + " (" + bot.getId() + ").");
+            c.getPlayer().yellowMessage(
+                    "Spawned SoloMapling QA bot " + bot.getName()
+                            + " (" + bot.getId() + ").");
         } catch (SQLException | RuntimeException e) {
+            if (bot != null) {
+                try {
+                    BareBotFactory.removeBareBot(bot);
+                } catch (RuntimeException ignored) {
+                }
+            }
             c.getPlayer().yellowMessage("QA bot spawn failed: " + e.getMessage());
         }
     }

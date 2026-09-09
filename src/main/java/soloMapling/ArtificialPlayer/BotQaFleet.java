@@ -84,7 +84,7 @@ public final class BotQaFleet {
         return fleetsByOwner.size();
     }
 
-    private static void normalize(Character bot, int jobId, int level, int mesos) {
+    public static void normalize(Character bot, int jobId, int level, int mesos) {
         stopAll(bot);
         // Synthetic ids are never persisted. Strip all inherited combat/account-facing inventory state
         // before assigning the deterministic QA profile so the GM template cannot influence results.
