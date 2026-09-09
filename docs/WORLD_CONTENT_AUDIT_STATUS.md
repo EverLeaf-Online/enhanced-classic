@@ -1,6 +1,6 @@
 # EverLeaf World / NPC / Quest / Monster Audit Status
 
-Verified against the non-Empress `release-dev` content line on 2026-09-02.
+Verified against the then-active non-Empress `release-dev` content line on 2026-09-02. That branch has since been consolidated into canonical `master`.
 
 This document records repository/static completion evidence separately from live-client gameplay verification. It intentionally does not modify or consume the protected updated-WZ/v95 modernization work.
 
@@ -79,7 +79,7 @@ This document records repository/static completion evidence separately from live
 
 ## CI gate
 
-The required build now runs the world, NPC/portal, script-map-reference, regional quest, global quest, quest content/action/gameplay, economy/drop, and boss/PQ linkage audits before Maven compile/test/package. The 2026-09-02 hardening batches passed these gates before merging to `release-dev`.
+The required build now runs the world, NPC/portal, script-map-reference, regional quest, global quest, quest content/action/gameplay, economy/drop, and boss/PQ linkage audits before Maven compile/test/package. The 2026-09-02 hardening batches passed these gates before merging to the then-active `release-dev` branch, now consolidated into `master`.
 
 ## Scope boundary
 

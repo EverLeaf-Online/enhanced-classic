@@ -3,7 +3,7 @@
 Verified UTC: 2026-09-04T05:57:29Z
 
 - Source commit: `8343d7846fa50c2b30b851b1e951b1ddcfe65b46`
-- Branch: `release-dev`
+- Historical branch at time of test: `release-dev` (retired; canonical production branch is now `master`)
 - Disposable QA DB/stack isolation: enforced
 - Ambient production bot spawning: disabled
 - Full suite result: **PASS**

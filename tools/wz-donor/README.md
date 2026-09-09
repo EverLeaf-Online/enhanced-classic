@@ -4,7 +4,7 @@ This directory contains review-first tooling for comparing newer MapleStory WZ e
 
 ## Safety model
 
-- `release-dev/wz/` is the canonical server-side exported v83 baseline.
+- `master/wz/` is the canonical repository server-side exported v83 baseline.
 - Newer WZ sets are **donors**, never drop-in replacements.
 - Do not commit proprietary raw `.wz` archives to this repository.
 - Raw donor files and exported donor archives belong under `/opt/everleaf/private/wz-donors/` on Oracle or another private workspace.

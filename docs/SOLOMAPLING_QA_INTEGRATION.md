@@ -14,7 +14,7 @@ Pinning the upstream commit makes compatibility work reproducible and prevents a
 
 ## EverLeaf integration branch
 
-- Base: `release-dev`
+- Historical base at time of integration: `release-dev` (retired; canonical production branch is now `master`)
 - Work branch: `feature/solomapling-qa-integration`
 - Draft PR: `#260`
 
@@ -150,4 +150,4 @@ The workflow has `contents: read`; it is verification-only and cannot mutate the
 - Preserve EverLeaf host logic when an upstream Cosmic/SoloMapling implementation conflicts with current EverLeaf behavior.
 - Port the minimum host hook necessary instead of replacing whole host files.
 - Keep manual smoke controls GM-only and channel-constrained until runtime behavior is proven.
-- Do not merge PR #260 to `release-dev` or deploy it to production solely because compilation is green; controlled runtime smoke is a separate gate.
+- Historical note: do not merge PR #260 to the then-active `release-dev` line or deploy it to production solely because compilation is green; controlled runtime smoke is a separate gate.

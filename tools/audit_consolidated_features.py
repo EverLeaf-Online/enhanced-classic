@@ -11,7 +11,7 @@ from __future__ import annotations
 import subprocess
 
 CANONICAL = {
-    "server": "origin/release-dev",
+    "server": "origin/master",
     "web": "origin/master",
     "client": "origin/client-dev",
 }
