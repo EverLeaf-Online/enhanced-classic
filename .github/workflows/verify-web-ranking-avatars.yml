@@ -1,0 +1,58 @@
+name: Verify EverLeaf Ranking Avatars
+
+on:
+  workflow_run:
+    workflows: ["Deploy EverLeaf Web"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify live ranking avatar delivery
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://everleafms.online'
+
+          RANKINGS_HTML="$(curl --fail --silent --show-error --location --max-time 30 "$BASE/rankings")"
+          grep -Fq 'EverLeaf Rankings' <<<"$RANKINGS_HTML"
+          grep -Fq 'data-live-avatar="/character-avatar/' <<<"$RANKINGS_HTML"
+          if grep -Fq 'onerror=' <<<"$RANKINGS_HTML"; then
+            echo 'Rankings still depend on CSP-blocked inline image error handlers.' >&2
+            exit 1
+          fi
+
+          AVATAR_PATH="$(grep -oE 'data-live-avatar="/character-avatar/[0-9]+\.png\?job=[0-9]+"' <<<"$RANKINGS_HTML" | head -n1 | cut -d'"' -f2)"
+          if [[ -z "$AVATAR_PATH" ]]; then
+            echo 'Could not find a live character avatar path on the rankings page.' >&2
+            exit 1
+          fi
+
+          HEADERS="$(mktemp)"
+          IMAGE="$(mktemp)"
+          trap 'rm -f "$HEADERS" "$IMAGE"' EXIT
+          curl --fail --silent --show-error --max-time 40 -D "$HEADERS" -o "$IMAGE" "$BASE$AVATAR_PATH"
+          grep -Eqi '^content-type:[[:space:]]*image/' "$HEADERS"
+          grep -Eqi '^x-everleaf-avatar-source:[[:space:]]*local-wz(-cache)?[[:space:]]*$' "$HEADERS"
+          grep -Eqi '^x-everleaf-avatar-mode:[[:space:]]*full[[:space:]]*$' "$HEADERS"
+          grep -Eqi '^x-everleaf-avatar-equipment-count:[[:space:]]*[1-9][0-9]*[[:space:]]*$' "$HEADERS"
+          test -s "$IMAGE"
+
+          BYTES="$(wc -c < "$IMAGE")"
+          if [[ "$BYTES" -lt 100 ]]; then
+            echo "Ranking avatar response is unexpectedly small: ${BYTES} bytes." >&2
+            exit 1
+          fi
+          python3 -c 'import pathlib,sys; d=pathlib.Path(sys.argv[1]).read_bytes(); raise SystemExit(0 if d[:8]==b"\x89PNG\r\n\x1a\n" else 1)' "$IMAGE"
+
+          SOURCE="$(grep -Ei '^x-everleaf-avatar-source:' "$HEADERS" | tail -n1 | tr -d '\r')"
+          MODE="$(grep -Ei '^x-everleaf-avatar-mode:' "$HEADERS" | tail -n1 | tr -d '\r')"
+          EQUIPMENT="$(grep -Ei '^x-everleaf-avatar-equipment-count:' "$HEADERS" | tail -n1 | tr -d '\r')"
+          echo "EverLeaf ranking avatar is a full equipped local Character.wz render: $AVATAR_PATH (${BYTES} bytes; ${SOURCE}; ${MODE}; ${EQUIPMENT})."

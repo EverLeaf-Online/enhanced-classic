@@ -31,11 +31,12 @@ jobs:
 
           ITEMS_HTML="$(curl --fail --silent --show-error --location --max-time 30 "$BASE/wiki/items")"
           grep -Fq 'ITEM DATABASE' <<<"$ITEMS_HTML"
-          grep -Fq 'Live WZ catalog' <<<"$ITEMS_HTML"
-          grep -Eq '<strong>[1-9][0-9,]*</strong><span>indexed records</span>' <<<"$ITEMS_HTML"
+          grep -Fq 'Cleaned live catalog' <<<"$ITEMS_HTML"
+          grep -Eq '<strong>[1-9][0-9,]*</strong><span>player-useful records</span>' <<<"$ITEMS_HTML"
 
           MONSTERS_HTML="$(curl --fail --silent --show-error --location --max-time 30 "$BASE/wiki/monsters")"
           grep -Fq 'MONSTER DATABASE' <<<"$MONSTERS_HTML"
-          grep -Eq '<strong>[1-9][0-9,]*</strong><span>indexed records</span>' <<<"$MONSTERS_HTML"
+          grep -Fq 'Cleaned live catalog' <<<"$MONSTERS_HTML"
+          grep -Eq '<strong>[1-9][0-9,]*</strong><span>player-useful records</span>' <<<"$MONSTERS_HTML"
 
-          echo 'EverLeaf production data Wiki is live with non-empty item and monster catalogs.'
+          echo 'EverLeaf production data Wiki is live with non-empty cleaned item and monster catalogs.'

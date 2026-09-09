@@ -1,1 +1,632 @@
-.knowledgeWorkspace{grid-template-columns:minmax(0,1fr) 300px}.knowledgeMain{min-width:0}.knowledgeMain .cmsManagerTitle{display:flex;justify-content:space-between;gap:16px;align-items:start}.knowledgeFilters{display:grid;grid-template-columns:minmax(180px,1fr) 190px auto auto;gap:8px;margin:16px 0}.knowledgeFilters input,.knowledgeFilters select{min-width:0;padding:10px 11px;border:1px solid #b9c8aa;border-radius:7px;background:#fffef8;color:#355b50}.knowledgeTableWrap{overflow:auto;border:1px solid #d3dcc7;border-radius:9px}.knowledgeTable{width:100%;border-collapse:collapse;background:#fffef7}.knowledgeTable th,.knowledgeTable td{padding:11px 12px;border-bottom:1px solid #e2e7da;text-align:left;vertical-align:top}.knowledgeTable th{background:#edf2df;color:#60766c;font-size:8px;letter-spacing:.06em;text-transform:uppercase}.knowledgeTable td:first-child{min-width:260px}.knowledgeTable td strong{display:block;color:#315b59;font:700 14px Georgia,serif}.knowledgeTable td small{display:block;margin-top:3px;color:#7d8d85;font-size:8px;line-height:1.45}.knowledgeStatus{display:inline-flex;padding:4px 7px;border:1px solid #b8c8a9;border-radius:999px;background:#eef4e3;color:#4e7658;font-size:7px;font-weight:900;white-space:nowrap}.knowledgeEmpty{padding:30px;text-align:center;color:#819087}.coverageList{display:grid;gap:7px}.coverageList a{display:flex;justify-content:space-between;gap:12px;padding:11px;border:1px solid #d0dac3;border-radius:8px;background:#fffef7;color:inherit;text-decoration:none}.coverageList a:hover{border-color:#99b684;background:#f4f7e9}.coverageList span{min-width:0}.coverageList strong,.coverageList small{display:block}.coverageList strong{color:#315b59;font:700 13px Georgia,serif}.coverageList small{margin-top:2px;color:#839087;font-size:7px;line-height:1.35}.coverageList b{align-self:center;min-width:28px;height:28px;display:grid;place-items:center;border-radius:8px;background:#e7efda;color:#47724f;font-size:10px}.knowledgeRoadmap{margin-top:18px;padding:15px;border:1px solid #cbd6bb;border-radius:10px;background:linear-gradient(145deg,#f0f5e4,#fff9e9)}.knowledgeRoadmap h3{margin:4px 0 8px;color:#315b59;font:700 17px Georgia,serif}.knowledgeRoadmap ul{margin:0;padding-left:18px;color:#62776e;font-size:9px;line-height:1.7}.knowledgeRoadmap p{margin:10px 0 0;color:#7c8b83;font-size:8px;line-height:1.5}.knowledgeSummary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:16px 0 4px}.knowledgeSummary>div{padding:12px;border:1px solid #d0dac2;border-radius:9px;background:linear-gradient(180deg,#fffef7,#f4f7e8)}.knowledgeSummary small,.knowledgeSummary strong{display:block}.knowledgeSummary small{color:#849087;font-size:7px;text-transform:uppercase;letter-spacing:.05em}.knowledgeSummary strong{margin-top:3px;color:#315b59;font:700 20px Georgia,serif}.knowledgeSource b,.knowledgeSource span{display:block}.knowledgeSource b{color:#496d5d;font-size:8px}.knowledgeSource span{margin-top:2px;color:#8b968f}.knowledgeSourceCoverage{margin-top:18px;padding-top:16px;border-top:1px solid #dde4d5}.knowledgeSourceCoverage h3{margin:4px 0 9px;color:#315b59;font:700 17px Georgia,serif}.knowledgeSourceCoverage>div:not(.pageEyebrow){display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #edf0e8;color:#61766d;font-size:8px}.knowledgeSourceCoverage>div b{min-width:24px;text-align:right;color:#4a7652}@media(max-width:980px){.knowledgeWorkspace{grid-template-columns:1fr}.knowledgeFilters{grid-template-columns:1fr 1fr}.knowledgeCoverage{order:-1}.knowledgeSummary{grid-template-columns:repeat(2,1fr)}}@media(max-width:620px){.knowledgeMain .cmsManagerTitle{display:block}.knowledgeMain .cmsManagerTitle .btn{margin-top:9px}.knowledgeFilters{grid-template-columns:1fr}.knowledgeSummary{grid-template-columns:1fr 1fr}.knowledgeTable th:nth-child(2),.knowledgeTable td:nth-child(2),.knowledgeTable th:nth-child(4),.knowledgeTable td:nth-child(4){display:none}.knowledgeTable td:first-child{min-width:210px}}
+/* =========================================================
+   EverLeaf CMS / Knowledge Library
+   Dark Admin Theme
+   ========================================================= */
+
+
+/* =========================================================
+   ADMIN FRAME
+   ========================================================= */
+
+body.route-admin {
+  background: #0b0f0d !important;
+  color: #e9efe9;
+}
+
+body.route-admin .siteContent,
+body.route-admin main {
+  background: #0b0f0d !important;
+  color: #e9efe9;
+}
+
+
+/* =========================================================
+   GENERAL ADMIN SURFACES
+   ========================================================= */
+
+body.route-admin .adminShell,
+body.route-admin .adminLayout,
+body.route-admin .adminMain,
+body.route-admin .adminContent,
+body.route-admin .cmsShell,
+body.route-admin .cmsMain,
+body.route-admin .knowledgeShell,
+body.route-admin .knowledgeLayout,
+body.route-admin .pageWrap {
+  background: transparent !important;
+  color: #e9efe9;
+}
+
+body.route-admin .paperCard,
+body.route-admin .featurePanel,
+body.route-admin .adminCard,
+body.route-admin .adminPanel,
+body.route-admin .cmsCard,
+body.route-admin .cmsPanel,
+body.route-admin .tableWrap,
+body.route-admin .adminTableWrap {
+  background: #121816 !important;
+  color: #e9efe9 !important;
+  border-color: #293a32 !important;
+  box-shadow: none !important;
+}
+
+
+/* =========================================================
+   ADMIN NAVIGATION
+   ========================================================= */
+
+body.route-admin nav,
+body.route-admin .adminNav,
+body.route-admin .adminSidebar,
+body.route-admin .sidebar {
+  background: #101614 !important;
+  border-color: #26372f !important;
+}
+
+body.route-admin nav a,
+body.route-admin .adminNav a,
+body.route-admin .adminSidebar a {
+  color: #c8d7cd !important;
+}
+
+body.route-admin nav a:hover,
+body.route-admin .adminNav a:hover,
+body.route-admin .adminSidebar a:hover {
+  color: #ffffff !important;
+}
+
+
+/* =========================================================
+   TYPOGRAPHY
+   ========================================================= */
+
+body.route-admin h1,
+body.route-admin h2,
+body.route-admin h3,
+body.route-admin h4,
+body.route-admin h5,
+body.route-admin strong,
+body.route-admin label {
+  color: #eef4ef !important;
+}
+
+body.route-admin p,
+body.route-admin span,
+body.route-admin li {
+  color: #b8c5bc;
+}
+
+body.route-admin .muted,
+body.route-admin small,
+body.route-admin .subtle,
+body.route-admin .helpText {
+  color: #87988d !important;
+}
+
+body.route-admin .pageEyebrow {
+  color: #69b789 !important;
+}
+
+
+/* =========================================================
+   FORM CONTROLS
+   ========================================================= */
+
+body.route-admin input,
+body.route-admin textarea,
+body.route-admin select {
+  background: #0e1311 !important;
+  color: #edf4ef !important;
+  border: 1px solid #34483d !important;
+}
+
+body.route-admin input::placeholder,
+body.route-admin textarea::placeholder {
+  color: #73857a !important;
+}
+
+body.route-admin input:focus,
+body.route-admin textarea:focus,
+body.route-admin select:focus {
+  outline: none;
+  border-color: #62aa7e !important;
+  box-shadow: 0 0 0 2px rgba(98, 170, 126, 0.16);
+}
+
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+body.route-admin .btn,
+body.route-admin button {
+  background: #161d19;
+  color: #e8efe9 !important;
+  border-color: #425a4d !important;
+}
+
+body.route-admin .btn:hover,
+body.route-admin button:hover {
+  background: #202a24;
+}
+
+body.route-admin .btn.primary,
+body.route-admin button.primary,
+body.route-admin input[type="submit"] {
+  background: #318c5b !important;
+  color: #ffffff !important;
+  border-color: #318c5b !important;
+}
+
+body.route-admin .btn.primary:hover,
+body.route-admin button.primary:hover,
+body.route-admin input[type="submit"]:hover {
+  background: #3b9b67 !important;
+}
+
+
+/* =========================================================
+   LINKS
+   ========================================================= */
+
+body.route-admin a {
+  color: #8ac8a1;
+}
+
+body.route-admin a:hover {
+  color: #afe0bf;
+}
+
+
+/* =========================================================
+   KNOWLEDGE WORKSPACE
+   ========================================================= */
+
+.knowledgeWorkspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 14px;
+}
+
+.knowledgeMain {
+  min-width: 0;
+}
+
+.knowledgeMain .cmsManagerTitle {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+}
+
+
+/* =========================================================
+   KNOWLEDGE FILTERS
+   ========================================================= */
+
+.knowledgeFilters {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 190px auto auto;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.knowledgeFilters input,
+.knowledgeFilters select {
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid #34483d;
+  border-radius: 7px;
+  background: #0e1311;
+  color: #e6eee8;
+}
+
+
+/* =========================================================
+   KNOWLEDGE TABLE
+   ========================================================= */
+
+.knowledgeTableWrap {
+  overflow: auto;
+  border: 1px solid #2d4036;
+  border-radius: 9px;
+  background: #121816;
+}
+
+.knowledgeTable {
+  width: 100%;
+  border-collapse: collapse;
+  background: #121816;
+}
+
+.knowledgeTable th,
+.knowledgeTable td {
+  padding: 11px 12px;
+  border-bottom: 1px solid #29372f;
+  text-align: left;
+  vertical-align: top;
+}
+
+.knowledgeTable th {
+  background: #18211c;
+  color: #82998c;
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.knowledgeTable td {
+  color: #b8c6bd;
+}
+
+.knowledgeTable tbody tr:hover {
+  background: #161f1a;
+}
+
+.knowledgeTable td:first-child {
+  min-width: 260px;
+}
+
+.knowledgeTable td strong {
+  display: block;
+  color: #dcebe0;
+  font: 700 14px Georgia, serif;
+}
+
+.knowledgeTable td small {
+  display: block;
+  margin-top: 3px;
+  color: #819087;
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+
+/* =========================================================
+   STATUS BADGES
+   ========================================================= */
+
+.knowledgeStatus {
+  display: inline-flex;
+  padding: 4px 7px;
+  border: 1px solid #47705a;
+  border-radius: 999px;
+  background: #183225;
+  color: #9bd3ad;
+  font-size: 7px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.knowledgeEmpty {
+  padding: 30px;
+  text-align: center;
+  color: #84938a;
+}
+
+
+/* =========================================================
+   COVERAGE SIDEBAR
+   ========================================================= */
+
+.coverageList {
+  display: grid;
+  gap: 7px;
+}
+
+.coverageList a {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px;
+  border: 1px solid #2d4036;
+  border-radius: 8px;
+  background: #121816;
+  color: inherit;
+  text-decoration: none;
+}
+
+.coverageList a:hover {
+  border-color: #53826a;
+  background: #17231d;
+}
+
+.coverageList span {
+  min-width: 0;
+}
+
+.coverageList strong,
+.coverageList small {
+  display: block;
+}
+
+.coverageList strong {
+  color: #dcebe0;
+  font: 700 13px Georgia, serif;
+}
+
+.coverageList small {
+  margin-top: 2px;
+  color: #819087;
+  font-size: 7px;
+  line-height: 1.35;
+}
+
+.coverageList b {
+  align-self: center;
+  min-width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #1d3a2a;
+  color: #8ed0a3;
+  font-size: 10px;
+}
+
+
+/* =========================================================
+   ROADMAP
+   ========================================================= */
+
+.knowledgeRoadmap {
+  margin-top: 18px;
+  padding: 15px;
+  border: 1px solid #30473a;
+  border-radius: 10px;
+  background: linear-gradient(
+    145deg,
+    #132019,
+    #101713
+  );
+}
+
+.knowledgeRoadmap h3 {
+  margin: 4px 0 8px;
+  color: #dcebe0;
+  font: 700 17px Georgia, serif;
+}
+
+.knowledgeRoadmap ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #aebcb3;
+  font-size: 9px;
+  line-height: 1.7;
+}
+
+.knowledgeRoadmap p {
+  margin: 10px 0 0;
+  color: #819087;
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+   SUMMARY CARDS
+   ========================================================= */
+
+.knowledgeSummary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 16px 0 4px;
+}
+
+.knowledgeSummary > div {
+  padding: 12px;
+  border: 1px solid #304238;
+  border-radius: 9px;
+  background: linear-gradient(
+    180deg,
+    #151d19,
+    #111713
+  );
+}
+
+.knowledgeSummary small,
+.knowledgeSummary strong {
+  display: block;
+}
+
+.knowledgeSummary small {
+  color: #829088;
+  font-size: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.knowledgeSummary strong {
+  margin-top: 3px;
+  color: #95d0aa;
+  font: 700 20px Georgia, serif;
+}
+
+
+/* =========================================================
+   KNOWLEDGE SOURCES
+   ========================================================= */
+
+.knowledgeSource b,
+.knowledgeSource span {
+  display: block;
+}
+
+.knowledgeSource b {
+  color: #93c7a5;
+  font-size: 8px;
+}
+
+.knowledgeSource span {
+  margin-top: 2px;
+  color: #829087;
+}
+
+
+/* =========================================================
+   SOURCE COVERAGE
+   ========================================================= */
+
+.knowledgeSourceCoverage {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #29382f;
+}
+
+.knowledgeSourceCoverage h3 {
+  margin: 4px 0 9px;
+  color: #dcebe0;
+  font: 700 17px Georgia, serif;
+}
+
+.knowledgeSourceCoverage > div:not(.pageEyebrow) {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid #233028;
+  color: #aebcb3;
+  font-size: 8px;
+}
+
+.knowledgeSourceCoverage > div b {
+  min-width: 24px;
+  text-align: right;
+  color: #80c397;
+}
+
+
+/* =========================================================
+   GENERIC ADMIN TABLES
+   ========================================================= */
+
+body.route-admin table {
+  background: #121816;
+  color: #dce6df;
+}
+
+body.route-admin th {
+  background: #18211c !important;
+  color: #9aac9f !important;
+}
+
+body.route-admin td {
+  color: #c4cfc8 !important;
+}
+
+body.route-admin table,
+body.route-admin th,
+body.route-admin td,
+body.route-admin tr {
+  border-color: #293a32 !important;
+}
+
+
+/* =========================================================
+   GENERIC ADMIN STAT / CONTENT CARDS
+   ========================================================= */
+
+body.route-admin .stat,
+body.route-admin .stats .stat {
+  background: #121816 !important;
+  border-color: #2c4035 !important;
+  color: #e9efe9 !important;
+}
+
+body.route-admin .statNum {
+  color: #8fd0a5 !important;
+}
+
+
+/* =========================================================
+   DIVIDERS
+   ========================================================= */
+
+body.route-admin hr,
+body.route-admin .divider {
+  border-color: #29382f !important;
+}
+
+
+/* =========================================================
+   SCROLLBARS
+   ========================================================= */
+
+body.route-admin {
+  scrollbar-color: #34483d #0b0f0d;
+}
+
+body.route-admin ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+body.route-admin ::-webkit-scrollbar-track {
+  background: #0b0f0d;
+}
+
+body.route-admin ::-webkit-scrollbar-thumb {
+  background: #34483d;
+  border-radius: 10px;
+}
+
+body.route-admin ::-webkit-scrollbar-thumb:hover {
+  background: #456050;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 980px) {
+
+  .knowledgeWorkspace {
+    grid-template-columns: 1fr;
+  }
+
+  .knowledgeFilters {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .knowledgeCoverage {
+    order: -1;
+  }
+
+  .knowledgeSummary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+
+@media (max-width: 620px) {
+
+  .knowledgeMain .cmsManagerTitle {
+    display: block;
+  }
+
+  .knowledgeMain .cmsManagerTitle .btn {
+    margin-top: 9px;
+  }
+
+  .knowledgeFilters {
+    grid-template-columns: 1fr;
+  }
+
+  .knowledgeSummary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .knowledgeTable th:nth-child(2),
+  .knowledgeTable td:nth-child(2),
+  .knowledgeTable th:nth-child(4),
+  .knowledgeTable td:nth-child(4) {
+    display: none;
+  }
+
+  .knowledgeTable td:first-child {
+    min-width: 210px;
+  }
+}

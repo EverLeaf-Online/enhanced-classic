@@ -174,7 +174,8 @@ async function login(username, password) {
   const db = getPool(), g = env.gameDb;
   const sql = `
     SELECT ${I(g.accountId)} id, ${I(g.accountName)} name,
-           ${I(g.accountPassword)} password, ${I(g.accountBanned)} banned
+       ${I(g.accountPassword)} password, ${I(g.accountBanned)} banned,
+       ${I("webadmin")} webadmin
     FROM ${I(g.accountsTable)}
     WHERE ${I(g.accountName)} = ?
     LIMIT 1
@@ -183,7 +184,26 @@ async function login(username, password) {
   const account = rows[0];
   if (!account || account.banned) return null;
   const ok = await verifyPassword(password, account.password);
-  return ok ? { id: account.id, name: account.name } : null;
+  return ok ? {
+  id: account.id,
+  name: account.name,
+  webadmin: Number(account.webadmin || 0)
+} : null;
+}
+async function isWebAdmin(accountId) {
+  const db = getPool(), g = env.gameDb;
+
+  const [rows] = await db.query(
+    `SELECT COALESCE(${I("webadmin")},0) webadmin,
+            COALESCE(${I(g.accountBanned)},0) banned
+       FROM ${I(g.accountsTable)}
+      WHERE ${I(g.accountId)}=?
+      LIMIT 1`,
+    [Number(accountId)]
+  );
+
+  return Number(rows[0]?.webadmin || 0) === 1 &&
+         Number(rows[0]?.banned || 0) === 0;
 }
 
 async function register({ username, password, email }) {
@@ -316,6 +336,7 @@ module.exports = {
   characterAppearance,
   resolveVisibleEquipment,
   login,
+  isWebAdmin,
   register,
   accountCharacters,
   changePassword,

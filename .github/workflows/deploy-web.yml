@@ -25,10 +25,10 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configure SSH
         shell: bash
@@ -47,32 +47,57 @@ jobs:
           if [ -n "$SSH_KNOWN_HOSTS" ]; then
             printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           else
-            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts
+            rm -f ~/.ssh/known_hosts ~/.ssh/known_hosts.tmp
+            for attempt in 1 2 3 4 5 6; do
+              echo "Discovering SSH host key (attempt $attempt/6)..."
+              if ssh-keyscan -T 15 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts.tmp 2>/dev/null && [ -s ~/.ssh/known_hosts.tmp ]; then
+                mv ~/.ssh/known_hosts.tmp ~/.ssh/known_hosts
+                break
+              fi
+              rm -f ~/.ssh/known_hosts.tmp
+              if [ "$attempt" -lt 6 ]; then sleep 5; fi
+            done
+            if [ ! -s ~/.ssh/known_hosts ]; then
+              echo "Unable to discover SSH host key for $EVERLEAF_DEPLOY_HOST after 6 attempts." >&2
+              exit 1
+            fi
           fi
           chmod 600 ~/.ssh/known_hosts
           cat > ~/.ssh/config <<EOF
           Host $EVERLEAF_DEPLOY_HOST
-            ServerAliveInterval 30
-            ServerAliveCountMax 20
+            BatchMode yes
+            ConnectionAttempts 1
+            ServerAliveInterval 10
+            ServerAliveCountMax 3
             TCPKeepAlive yes
-            ConnectTimeout 20
+            ConnectTimeout 8
           EOF
           chmod 600 ~/.ssh/config
           ssh-keygen -lf ~/.ssh/known_hosts || true
 
       - name: Verify SSH access
+        shell: bash
         run: |
-          ssh -o BatchMode=yes -o ConnectTimeout=10 -i ~/.ssh/id_everleaf \
-            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'echo EverLeaf SSH OK'
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6; do
+            echo "Verifying SSH access (attempt $attempt/6)..."
+            if timeout 25s ssh -i ~/.ssh/id_everleaf \
+              "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" 'echo EverLeaf SSH OK'; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 6 ]; then sleep 5; fi
+          done
+          echo 'Unable to establish a bounded SSH session after 6 attempts.' >&2
+          exit 1
 
       - name: Backup production state
         run: |
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
+          timeout 180s ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
             'if [ -f /opt/everleaf/web/scripts/backup-production.sh ]; then sudo bash /opt/everleaf/web/scripts/backup-production.sh; fi'
 
       - name: Sync web source
         run: |
-          rsync -az --delete \
+          timeout 240s rsync -az --delete \
             --exclude='.env' \
             --exclude='data/' \
             --exclude='node_modules/' \
@@ -81,7 +106,7 @@ jobs:
 
       - name: Install, migrate domain, configure HTTPS, and restart
         run: |
-          ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "EVERLEAF_TLS_HOST='$EVERLEAF_TLS_HOST' EVERLEAF_WWW_HOST='$EVERLEAF_WWW_HOST' EVERLEAF_LEGACY_TLS_HOST='$EVERLEAF_LEGACY_TLS_HOST' bash -s" <<'REMOTE'
+          timeout 900s ssh -i ~/.ssh/id_everleaf "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "EVERLEAF_TLS_HOST='$EVERLEAF_TLS_HOST' EVERLEAF_WWW_HOST='$EVERLEAF_WWW_HOST' EVERLEAF_LEGACY_TLS_HOST='$EVERLEAF_LEGACY_TLS_HOST' bash -s" <<'REMOTE'
             set -euo pipefail
             cd /opt/everleaf/web
 
@@ -96,6 +121,15 @@ jobs:
               fi
             }
 
+            dump_web_diagnostics() {
+              echo '--- everleaf-web status ---' >&2
+              sudo systemctl status everleaf-web --no-pager -l >&2 || true
+              echo '--- everleaf-web recent journal ---' >&2
+              sudo journalctl -u everleaf-web -n 120 --no-pager >&2 || true
+              echo '--- listeners on 3000 ---' >&2
+              sudo ss -ltnp '( sport = :3000 )' >&2 || true
+            }
+
             set_env_var BASE_URL "https://$EVERLEAF_TLS_HOST"
             set_env_var PUBLIC_BASE_URL "https://$EVERLEAF_TLS_HOST"
             set_env_var DISCORD_URL "https://discord.gg/w9ED8vtxa7"
@@ -103,12 +137,31 @@ jobs:
             set_env_var TRUST_PROXY "1"
             set_env_var COOKIE_SECURE "true"
             set_env_var CHANNEL_PORTS "7575,7576,7577,7578,7579,7580,7581,7582,7583,7584,7585,7586,7587,7588,7589,7590,7591,7592,7593,7594"
+            set_env_var CHARACTER_WZ_RENDERER_URL "http://127.0.0.1:3011"
+            set_env_var MAPLESTORY_IO_BASE_URL ""
+            set_env_var MAPLESTORY_IO_VERSION "83"
 
             if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
             npm run init-db
 
+            WEB_DB_ACCOUNT_COUNT=0
+            while IFS=$'\t' read -r db_user db_host; do
+              [ -n "$db_user" ] || continue
+              escaped_user="${db_user//\'/\'\'}"
+              escaped_host="${db_host//\'/\'\'}"
+              sudo mysql -e "GRANT SELECT ON \`cosmic\`.\`inventoryitems\` TO '${escaped_user}'@'${escaped_host}';"
+              WEB_DB_ACCOUNT_COUNT=$((WEB_DB_ACCOUNT_COUNT + 1))
+            done < <(sudo mysql -NBe "SELECT User,Host FROM mysql.user WHERE User='everleaf_web' ORDER BY Host;")
+            if [ "$WEB_DB_ACCOUNT_COUNT" -lt 1 ]; then
+              echo 'No existing everleaf_web MySQL account was found; refusing to deploy rankings without equipment access.' >&2
+              exit 1
+            fi
+            sudo mysql -e 'FLUSH PRIVILEGES;'
+
             sudo apt-get update -y
-            sudo apt-get install -y nginx certbot python3-certbot-nginx
+            sudo apt-get install -y nginx certbot python3-certbot-nginx python3-venv git
+            bash /opt/everleaf/web/scripts/install-wz-avatar-renderer.sh
+
             sudo install -m 644 /opt/everleaf/web/ops/nginx-everleaf.conf /etc/nginx/conf.d/everleaf.conf
             sudo install -m 644 /opt/everleaf/web/ops/everleaf-backup.service /etc/systemd/system/everleaf-backup.service
             sudo install -m 644 /opt/everleaf/web/ops/everleaf-backup.timer /etc/systemd/system/everleaf-backup.timer
@@ -138,33 +191,64 @@ jobs:
             sudo systemctl restart everleaf-web
             sudo nginx -t
             sudo systemctl reload nginx
-            sleep 2
             systemctl is-active --quiet everleaf-web
+            systemctl is-active --quiet everleaf-wz-avatar
             systemctl is-active --quiet nginx
-            curl -fsS http://127.0.0.1:3000/ >/dev/null
-            curl -fsS --resolve "$EVERLEAF_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_TLS_HOST/v1/launcher/status" >/dev/null
-            curl -fsS --resolve "$EVERLEAF_WWW_HOST:443:127.0.0.1" "https://$EVERLEAF_WWW_HOST/v1/launcher/status" >/dev/null
-            curl -fsS --resolve "$EVERLEAF_LEGACY_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_LEGACY_TLS_HOST/v1/launcher/status" >/dev/null
-            STATUS_JSON="$(curl -fsS http://127.0.0.1:3000/api/status)"
+
+            WEB_READY=0
+            for attempt in $(seq 1 12); do
+              echo "Waiting for EverLeaf web readiness (attempt $attempt/12)..."
+              if curl -fsS --max-time 5 http://127.0.0.1:3000/robots.txt >/dev/null; then
+                WEB_READY=1
+                break
+              fi
+              sleep 5
+            done
+            if [ "$WEB_READY" -ne 1 ]; then
+              echo 'EverLeaf web did not become locally ready within 60 seconds.' >&2
+              dump_web_diagnostics
+              exit 1
+            fi
+
+            curl -fsS --max-time 30 http://127.0.0.1:3000/ >/dev/null || {
+              echo 'Homepage health check failed after the web service became ready.' >&2
+              dump_web_diagnostics
+              exit 1
+            }
+            curl -fsS --max-time 20 --resolve "$EVERLEAF_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_TLS_HOST/v1/launcher/status" >/dev/null
+            curl -fsS --max-time 20 --resolve "$EVERLEAF_WWW_HOST:443:127.0.0.1" "https://$EVERLEAF_WWW_HOST/v1/launcher/status" >/dev/null
+            curl -fsS --max-time 20 --resolve "$EVERLEAF_LEGACY_TLS_HOST:443:127.0.0.1" "https://$EVERLEAF_LEGACY_TLS_HOST/v1/launcher/status" >/dev/null
+            STATUS_JSON="$(curl -fsS --max-time 20 http://127.0.0.1:3000/api/status)"
             node -e 'const s=JSON.parse(process.argv[1]); if(s.totalChannels!==20) process.exit(1);' "$STATUS_JSON"
-            # The bot token is deliberately kept out of the website .env.
-            # Read the root-only credential installed for the Discord service
-            # and fail the deployment if the live status message cannot sync.
+
+            RANKINGS_HTML="$(curl -fsS --max-time 30 http://127.0.0.1:3000/rankings)"
+            AVATAR_PATH="$(grep -oE 'data-live-avatar="/character-avatar/[0-9]+\.png\?job=[0-9]+"' <<<"$RANKINGS_HTML" | head -n1 | cut -d'"' -f2)"
+            test -n "$AVATAR_PATH"
+            AVATAR_HEADERS="$(mktemp)"
+            AVATAR_IMAGE="$(mktemp)"
+            curl -fsS --max-time 30 -D "$AVATAR_HEADERS" -o "$AVATAR_IMAGE" "http://127.0.0.1:3000$AVATAR_PATH"
+            grep -Eqi '^content-type:[[:space:]]*image/' "$AVATAR_HEADERS"
+            grep -Eqi '^x-everleaf-avatar-source:[[:space:]]*local-wz(-cache)?[[:space:]]*$' "$AVATAR_HEADERS"
+            grep -Eqi '^x-everleaf-avatar-mode:[[:space:]]*full[[:space:]]*$' "$AVATAR_HEADERS"
+            grep -Eqi '^x-everleaf-avatar-equipment-count:[[:space:]]*[1-9][0-9]*[[:space:]]*$' "$AVATAR_HEADERS"
+            python3 -c 'import pathlib,sys; d=pathlib.Path(sys.argv[1]).read_bytes(); raise SystemExit(0 if len(d)>=100 and d[:8]==b"\x89PNG\r\n\x1a\n" else 1)' "$AVATAR_IMAGE"
+            rm -f "$AVATAR_HEADERS" "$AVATAR_IMAGE"
+
             sudo test -s /etc/everleaf/discord-bot.env
             sudo node scripts/sync-discord-status.js /etc/everleaf/discord-bot.env http://127.0.0.1:3000/api/status
             sudo bash /opt/everleaf/web/scripts/backup-production.sh
             sudo systemctl is-enabled --quiet everleaf-backup.timer
             sudo systemctl is-active --quiet everleaf-backup.timer
-            echo 'EverLeaf web deployment and domain migration health checks passed.'
+            echo 'EverLeaf web deployment, equipped local WZ avatars, and domain health checks passed.'
           REMOTE
 
       - name: Verify public HTTPS
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_TLS_HOST/" >/dev/null
+          curl --fail --silent --show-error --location --max-time 30 "https://$EVERLEAF_TLS_HOST/" >/dev/null
           curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_TLS_HOST/v1/launcher/status" >/dev/null
-          curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_WWW_HOST/" >/dev/null
-          curl --fail --silent --show-error --location --max-time 20 "https://$EVERLEAF_LEGACY_TLS_HOST/" >/dev/null
+          curl --fail --silent --show-error --location --max-time 30 "https://$EVERLEAF_WWW_HOST/" >/dev/null
+          curl --fail --silent --show-error --location --max-time 30 "https://$EVERLEAF_LEGACY_TLS_HOST/" >/dev/null
           STATUS_JSON="$(curl --fail --silent --show-error --max-time 20 "https://$EVERLEAF_TLS_HOST/api/status")"
           node -e 'const s=JSON.parse(process.argv[1]); if(s.totalChannels!==20) process.exit(1);' "$STATUS_JSON"
           test "$(curl --silent --output /dev/null --write-out '%{redirect_url}' --max-time 20 http://132.145.141.79/)" = "https://$EVERLEAF_TLS_HOST/"

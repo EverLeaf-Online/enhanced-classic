@@ -174,6 +174,7 @@ router.post("/login", async (req,res) => {
   try {
     const account=await game.login(parsed.data.username,parsed.data.password);
     if(!account) return res.status(401).render("login",{error:"Invalid username or password.",settings:settings()});
+  await new Promise((resolve,reject)=>req.session.regenerate(error=>error?reject(error):resolve()));
     req.session.player=account;
     res.redirect("/account");
   } catch {

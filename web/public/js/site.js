@@ -1,4 +1,8 @@
 (() => {
+  const routeSegment = String(window.location.pathname || '/').split('/').filter(Boolean)[0] || 'home';
+  const routeClass = `site-${routeSegment.toLowerCase().replace(/[^a-z0-9-]/g, '-')}`;
+  document.body.classList.add(routeClass);
+
   const nav = document.querySelector('.nav');
   const mobileMenu = document.querySelector('.mobileMenu');
   const mobileSummary = mobileMenu?.querySelector('summary');
@@ -18,8 +22,46 @@
     mobileSummary.setAttribute('aria-expanded', String(Boolean(mobileMenu.open)));
   };
 
+  const hydrateLiveAvatars = () => {
+    document.querySelectorAll('img[data-live-avatar]').forEach((image) => {
+      const liveUrl = String(image.dataset.liveAvatar || '').trim();
+      if (!liveUrl || image.dataset.liveAvatarBound === '1') return;
+      image.dataset.liveAvatarBound = '1';
+
+      const probe = new Image();
+      probe.decoding = 'async';
+      probe.onload = () => {
+        image.src = liveUrl;
+        image.dataset.liveAvatarLoaded = '1';
+      };
+      probe.onerror = () => {
+        image.dataset.liveAvatarFailed = '1';
+      };
+      probe.src = liveUrl;
+    });
+  };
+
+  const bindPasswordToggles = () => {
+    document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+      const targetId = String(button.dataset.passwordToggle || '').trim();
+      const input = targetId ? document.getElementById(targetId) : null;
+      if (!input || button.dataset.passwordToggleBound === '1') return;
+      button.dataset.passwordToggleBound = '1';
+
+      button.addEventListener('click', () => {
+        const revealing = input.type === 'password';
+        input.type = revealing ? 'text' : 'password';
+        button.setAttribute('aria-pressed', String(revealing));
+        button.setAttribute('aria-label', revealing ? 'Hide password' : 'Show password');
+        input.focus({ preventScroll: true });
+      });
+    });
+  };
+
   syncNav();
   syncMobileState();
+  hydrateLiveAvatars();
+  bindPasswordToggles();
   window.addEventListener('scroll', syncNav, { passive: true });
 
   if (mobileMenu) {
