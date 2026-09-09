@@ -38,7 +38,7 @@ public final class BotTrainingMapSelector {
         while (!queue.isEmpty() && visited.size() <= MAX_VISITED) {
             Node node = queue.removeFirst();
             if (node.depth() >= SEARCH_DEPTH) continue;
-            int[] neighbors = GCWorldGraph.get().getOrDefault(node.mapId(), new int[0]);
+            int[] neighbors = GCWorldGraph.neighbors(GCWorldGraph.get(), node.mapId());
             for (int mapId : neighbors) {
                 if (!visited.add(mapId)) continue;
                 Candidate candidate = candidate(bot, mapId, playerLevel);

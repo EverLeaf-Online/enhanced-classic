@@ -114,7 +114,7 @@ final class GCWorldGraph {
 
     /* Walkable-portal neighbours plus taxi (cab) destinations and curated scripted warps (e.g. the
      * subway entrance), so town↔town and scripted-only training routes are routable. */
-    private static int[] neighbors(Map<Integer, int[]> g, int mapId) {
+    static int[] neighbors(Map<Integer, int[]> g, int mapId) {
         int[] portals = g.getOrDefault(mapId, EMPTY);
         int[] taxi = GCTaxi.destinations(mapId);
         int[] warp = BotScriptedWarp.destinations(mapId);
