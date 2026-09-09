@@ -61,6 +61,7 @@ import server.maps.AbstractAnimatedMapObject;
 import server.maps.MapObjectType;
 import server.maps.MapleMap;
 import server.maps.Summon;
+import soloMapling.ArtificialPlayer.BotHelpers;
 import tools.IntervalBuilder;
 import tools.PacketCreator;
 import tools.Pair;
@@ -1841,7 +1842,9 @@ public class Monster extends AbstractLoadedLife {
         Character newControllerWithPuppet = null;
 
         for (Character chr : getMap().getAllPlayers()) {
-            if (!chr.isHidden()) {
+            // Headless SoloMapling characters cannot stream MoveMonster packets.
+            // Never let them become automatic monster controllers.
+            if (!chr.isHidden() && !BotHelpers.isBot(chr)) {
                 int ctrlMonsSize = chr.getNumControlledMonsters();
 
                 if (isCharacterPuppetInVicinity(chr)) {

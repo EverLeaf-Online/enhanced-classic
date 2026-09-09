@@ -1448,6 +1448,10 @@ public class Client extends ChannelInboundHandlerAdapter {
     }
 
     public synchronized void announceBossHpBar(Monster mm, final int mobHash, Packet packet) {
+        // Headless SoloMapling clients intentionally have no bound player.
+        if (player == null) {
+            return;
+        }
         long timeNow = System.currentTimeMillis();
         int targetHash = player.getTargetHpBarHash();
 

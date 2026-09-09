@@ -70,6 +70,9 @@ import server.expeditions.ExpeditionBossLog;
 import server.life.PlayerNPC;
 import server.quest.Quest;
 import service.NoteService;
+import soloMapling.ArtificialPlayer.BotClientHandler;
+import soloMapling.ArtificialPlayer.DisposableQaSmokeRunner;
+import soloMapling.ArtificialPlayer.DisposableQaSuiteRunner;
 import tools.DatabaseConnection;
 import tools.Pair;
 
@@ -874,6 +877,7 @@ public class Server {
 
         channelDependencies = registerChannelDependencies();
 
+
         final ExecutorService initExecutor = Executors.newFixedThreadPool(10);
         // Run slow operations asynchronously to make startup faster
         final List<Future<?>> futures = new ArrayList<>();
@@ -947,6 +951,12 @@ public class Server {
         for (Channel ch : this.getAllChannels()) {
             ch.reloadEventScriptManager();
         }
+
+        // SoloMapling QA foundation: initialize the shared headless client only.
+        // Automatic environment/bot spawning remains disabled until smoke-tested.
+        BotClientHandler.initHeadlessBotClient();
+        DisposableQaSmokeRunner.startIfRequested();
+        DisposableQaSuiteRunner.startIfRequested();
     }
 
     private ChannelDependencies registerChannelDependencies() {
