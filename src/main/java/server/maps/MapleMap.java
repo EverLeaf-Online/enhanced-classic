@@ -101,6 +101,7 @@ import java.util.function.Predicate;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static soloMapling.ArtificialPlayer.BotHelpers.isBot;
 
 public class MapleMap {
     private static final Logger log = LoggerFactory.getLogger(MapleMap.class);
@@ -123,6 +124,10 @@ public class MapleMap {
     private final List<Runnable> statUpdateRunnables = new ArrayList(50);
     private final List<Rectangle> areas = new ArrayList<>();
     private FootholdTree footholds = null;
+    // SoloMapling / GCMoveSystem live terrain model.
+    private final List<Rope> ropes = new ArrayList<>();
+    private float footholdSpeed = 1.0f;
+    private boolean swim = false;
     private Pair<Integer, Integer> xLimits;  // caches the min and max x's with available footholds
     private final Rectangle mapArea = new Rectangle();
     private final int mapid;
@@ -424,8 +429,11 @@ public class MapleMap {
             for (Character chr : characters) {
                 if (condition == null || condition.canSpawn(chr)) {
                     if (chr.getPosition().distanceSq(mapobject.getPosition()) <= getRangedDistance()) {
-                        inRangeCharacters.add(chr);
-                        chr.addVisibleMapObject(mapobject);
+                        // Headless bots do not maintain client-side ranged visibility state.
+                        if (!isBot(chr)) {
+                            inRangeCharacters.add(chr);
+                            chr.addVisibleMapObject(mapobject);
+                        }
                     }
                 }
             }
@@ -449,8 +457,11 @@ public class MapleMap {
             for (Character chr : characters) {
                 if (condition == null || condition.canSpawn(chr)) {
                     if (chr.getPosition().distanceSq(mapobject.getPosition()) <= getRangedDistance()) {
-                        inRangeCharacters.add(chr);
-                        chr.addVisibleMapObject(mapobject);
+                        // Headless bots do not maintain client-side ranged visibility state.
+                        if (!isBot(chr)) {
+                            inRangeCharacters.add(chr);
+                            chr.addVisibleMapObject(mapobject);
+                        }
                     }
                 }
             }
@@ -2598,11 +2609,9 @@ public class MapleMap {
         return null;
     }
 
-    /*
     public Collection<Portal> getPortals() {
         return Collections.unmodifiableCollection(portals.values());
     }
-    */
 
     public void addPlayerPuppet(Character player) {
         for (Monster mm : this.getAllMonsters()) {
@@ -2999,6 +3008,30 @@ public class MapleMap {
         return footholds;
     }
 
+    public void addRope(Rope rope) {
+        ropes.add(rope);
+    }
+
+    public List<Rope> getRopes() {
+        return ropes;
+    }
+
+    public float getFootholdSpeed() {
+        return footholdSpeed;
+    }
+
+    public void setFootholdSpeed(float footholdSpeed) {
+        this.footholdSpeed = footholdSpeed;
+    }
+
+    public boolean isSwim() {
+        return swim;
+    }
+
+    public void setSwim(boolean swim) {
+        this.swim = swim;
+    }
+
     public void setMapPointBoundings(int px, int py, int h, int w) {
         mapArea.setBounds(px, py, w, h);
     }
@@ -3142,6 +3175,11 @@ public class MapleMap {
         for (Character chr : getAllPlayers()) {
             updateMapObjectVisibility(chr, monster);
         }
+    }
+
+    /** SoloMapling headless movement path: position is server-authoritative. */
+    public void moveBot(Character player, Point newPosition) {
+        player.setPosition(newPosition);
     }
 
     public void movePlayer(Character player, Point newPosition) {

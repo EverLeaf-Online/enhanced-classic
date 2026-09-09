@@ -508,6 +508,12 @@ public class Character extends AbstractCharacterObject {
         return ret;
     }
 
+    // SoloMapling QA: assign the synthetic in-memory bot identity before
+    // registering the cloned template character in channel/world/map storage.
+    public void setID(int id) {
+        this.id = id;
+    }
+
     public boolean isLoggedinWorld() {
         return this.isLoggedin() && !this.isAwayFromWorld();
     }
@@ -5281,6 +5287,36 @@ public class Character extends AbstractCharacterObject {
         return localstr;
     }
 
+    // SoloMapling / GCMoveSystem: effective movement stats used to select
+    // the bot navigation profile without bypassing normal equipment/buff logic.
+    public int getTotalMoveSpeedStat() {
+        int total = 100;
+        for (Item item : getInventory(InventoryType.EQUIPPED)) {
+            if (item instanceof Equip equip) {
+                total += equip.getSpeed();
+            }
+        }
+        Integer speedBuff = getBuffedValue(BuffStat.SPEED);
+        if (speedBuff != null) {
+            total += speedBuff;
+        }
+        return Math.max(1, total);
+    }
+
+    public int getTotalJumpStat() {
+        int total = 100;
+        for (Item item : getInventory(InventoryType.EQUIPPED)) {
+            if (item instanceof Equip equip) {
+                total += equip.getJump();
+            }
+        }
+        Integer jumpBuff = getBuffedValue(BuffStat.JUMP);
+        if (jumpBuff != null) {
+            total += jumpBuff;
+        }
+        return Math.max(1, total);
+    }
+
     public int getTotalDex() {
         return localdex;
     }
@@ -7027,7 +7063,6 @@ public class Character extends AbstractCharacterObject {
                         Portal portal = ret.map.getPortal(ret.initialSpawnPoint);
                         if (portal == null) {
                             portal = ret.map.getPortal(0);
-                            ret.initialSpawnPoint = 0;
                         }
                         ret.setPosition(portal.getPosition());
                         int partyid = rs.getInt("party");
