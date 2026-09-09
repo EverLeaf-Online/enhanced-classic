@@ -238,7 +238,18 @@ public final class BareBotHunter {
             BotLootDriver.LootResult loot = BotLootDriver.tick(bot);
             if (loot.found()) return;
             Monster target = nearestMonster(bot);
-            if (target == null || target.getPosition() == null || bot.getPosition() == null) return;
+            if (target == null) {
+                // The hunter may be started from a town or another map with no mobs.
+                // Immediately select a reachable level-appropriate training map instead
+                // of idling forever until the normal +5-level progression check.
+                int targetMapId = BotTrainingMapSelector.select(bot, trainingMapId);
+                if (targetMapId != trainingMapId) {
+                    beginProgression(targetMapId);
+                }
+                return;
+            }
+
+            if (target.getPosition() == null || bot.getPosition() == null) return;
 
             Point botPos = bot.getPosition();
             Point mobPos = target.getPosition();
