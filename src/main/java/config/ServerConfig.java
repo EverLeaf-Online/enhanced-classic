@@ -52,6 +52,10 @@ public class ServerConfig {
     //Other configuration
     public boolean SHUTDOWNHOOK;
 
+    // SoloMapling QA: opt-in only. EverLeaf keeps automatic bot population off
+    // until the isolated integration smoke suite explicitly enables it.
+    public boolean SPAWN_BOTS_ON_STARTUP;
+
     //Server Flags
     public boolean USE_CUSTOM_KEYSET;
     public boolean USE_DEBUG;
