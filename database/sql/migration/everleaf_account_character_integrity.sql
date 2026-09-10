@@ -6,7 +6,7 @@
 -- This migration intentionally uses ON DELETE RESTRICT instead of CASCADE.
 -- Character deletion has application-level cleanup for inventory, quests, pets,
 -- social state, merchant state, etc.; cascading only the characters row would
--- leave legacy dependent tables orphaned.
+-- bypass that cleanup and can leave legacy dependent tables orphaned.
 --
 -- Fail closed if historical orphaned character rows already exist. Audit and
 -- remediate those rows first, then re-run this migration.
@@ -17,6 +17,7 @@ CREATE PROCEDURE everleaf_install_account_character_guard()
 BEGIN
     DECLARE orphan_count BIGINT DEFAULT 0;
     DECLARE fk_count INT DEFAULT 0;
+    DECLARE restrict_fk_count INT DEFAULT 0;
 
     SELECT COUNT(*)
       INTO orphan_count
@@ -29,8 +30,9 @@ BEGIN
             SET MESSAGE_TEXT = 'EverLeaf account/character guard not installed: orphaned characters exist; run the account-integrity audit and remediate first.';
     END IF;
 
-    SELECT COUNT(*)
-      INTO fk_count
+    SELECT COUNT(*),
+           COALESCE(SUM(r.DELETE_RULE = 'RESTRICT' AND r.UPDATE_RULE = 'RESTRICT'), 0)
+      INTO fk_count, restrict_fk_count
       FROM information_schema.KEY_COLUMN_USAGE k
       JOIN information_schema.REFERENTIAL_CONSTRAINTS r
         ON r.CONSTRAINT_SCHEMA = k.CONSTRAINT_SCHEMA
@@ -48,6 +50,9 @@ BEGIN
             FOREIGN KEY (accountid) REFERENCES accounts(id)
             ON DELETE RESTRICT
             ON UPDATE RESTRICT;
+    ELSEIF fk_count <> 1 OR restrict_fk_count <> 1 THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'EverLeaf account/character guard found an unexpected existing foreign-key rule; review it manually instead of silently replacing it.';
     END IF;
 END//
 DELIMITER ;
