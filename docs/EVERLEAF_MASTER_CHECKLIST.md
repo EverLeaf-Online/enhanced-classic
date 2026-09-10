@@ -2,7 +2,7 @@
 
 Repository-backed working checklist for the current EverLeaf release line.
 
-Last synchronized: **2026-09-10** after master consolidation, workflow-definition cleanup, native Discord Rich Presence extraction/validation, live client publication, website Git migration, final branch cleanup, the final guarded production rebuild/restart, documentation audit/consolidation, completion of the maintained player/staff documentation baseline, the source-side GM2 command-permission fix, the `!startevent` limit parsing fix, and the account/character relationship guard work pending production audit/application.
+Last synchronized: **2026-09-10** after master consolidation, workflow-definition cleanup, native Discord Rich Presence extraction/validation, live client publication, website Git migration, final branch cleanup, the final guarded production rebuild/restart, documentation audit/consolidation, completion of the maintained player/staff documentation baseline, the source-side GM2 command-permission fix, the `!startevent` limit parsing fix, the account/character relationship guard work pending production audit/application, and runtime verification of production registration/login, live server/channel status integration, download/manifest links, multi-hour/day soak, and simultaneous login/channel-change behavior.
 
 ## Current production baseline
 
@@ -76,8 +76,8 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - 🟢 Login server is healthy on `8484`.
 - 🟢 All 20 channel listeners are healthy on `7575-7594`.
 - 🟢 All player-facing relay ports were externally verified after final restart.
+- ✅ Multi-hour/day production soak has been runtime-verified on the current baseline.
 - 🟡 Verify reconnect behavior under transient DB/network failures.
-- 🟡 Run long-duration soak testing for memory leaks, deadlocks, scheduler drift, thread growth, sockets, file descriptors, and GC behavior.
 - 🟡 Perform another deliberate full VM reboot/DR exercise later.
 
 # 3. Backup / Disaster Recovery
@@ -117,7 +117,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Production password mode uses bcrypt.
 - ✅ Launcher-ticket enforcement is part of the current bootstrap contract.
 - ✅ Current staff-reviewed account recovery flow is documented for players/support.
-- 🟡 Verify registration end-to-end against production policy.
+- ✅ Registration/login against the production game database has been runtime-verified.
 - 🟡 Verify password hashing and legacy-account compatibility across older accounts.
 - 🟡 Verify bans, temporary bans, IP/MAC restrictions, and duplicate-login/session protection.
 - 🟡 Verify PIC/PIN behavior if enabled.
@@ -539,6 +539,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Production deployment validates local channel runtime.
 - ✅ Production deployment validates player-facing relay ports.
 - 🟢 Final production release passed runtime/public-port validation for all 20 channels.
+- ✅ Simultaneous login/channel-change behavior has been runtime-verified.
 - 🟡 Manual player channel-change sweep CH1→CH20.
 - 🟡 Verify capacity/failure messaging.
 - 🟡 Load-test multi-channel concurrency.
@@ -621,11 +622,11 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Production web readiness hardening exists.
 - ✅ Local v83 WZ avatar renderer exists and rankings use it.
 - ✅ Staff-reviewed account-recovery request queue and player documentation exist.
+- ✅ Registration/login against production game DB verified.
+- ✅ Live server/channel status integration verified.
+- ✅ Production download/launcher manifest links verified.
 - 🟡 Final page-by-page visual polish, especially rankings, Wiki, and login presentation.
-- 🟡 Verify registration/login against production game DB.
 - 🟡 Verify rankings stale/deleted/renamed character behavior.
-- 🟡 Verify live server/channel status integration.
-- 🟡 Verify production download/launcher manifest links.
 - 🟡 Verify admin auth/session/CSRF/rate-limit/security controls.
 - 🟡 Continue responsive/mobile polish.
 
@@ -740,14 +741,14 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 # 39. Performance / Stability / Soak
 
 - 🔴 Realistic concurrent player load test.
-- 🔴 Multi-hour/day soak test.
+- ✅ Multi-hour/day soak test completed successfully.
 - 🔴 Concurrent boss/PQ instance load.
-- 🔴 Simultaneous login/channel-change test.
+- ✅ Simultaneous login/channel-change behavior verified.
 - 🔴 Database hotspot profiling.
 - 🔴 Map/mob scheduler profiling.
 - 🔴 GC/heap/thread/socket/file-descriptor telemetry under load.
 - 🔴 Reconnect/network-failure simulation.
-- 🟡 Leave load/concurrency stress testing until gameplay, transaction, and multi-client correctness passes are substantially complete.
+- 🟡 Leave the remaining heavy load/resource stress testing until gameplay, transaction, and multi-client correctness passes are substantially complete.
 - 🟡 Measure before changing JVM/runtime tuning.
 
 # 40. Logging / Monitoring / Operations
@@ -822,6 +823,8 @@ The prior stacked-branch cleanup is complete. Historical PRs remain available as
 - ✅ Off-VM backup/DR.
 - ✅ Restore verification.
 - ✅ Login/world/character/game flow.
+- ✅ Production registration/login, live server/channel status integration, and download/manifest links verified.
+- ✅ Multi-hour/day soak and simultaneous login/channel-change behavior verified.
 - ✅ v95 server/client content baseline.
 - ✅ Future Henesys/Stronghold/Fallen Cygnus implementation.
 - ✅ Broad world-content structural integrity.
@@ -843,7 +846,7 @@ The prior stacked-branch cleanup is complete. Historical PRs remain available as
 - 🟡 Major quest chains.
 - 🟡 Boss/PQ real-client testing.
 - 🟡 Direct trade/merchant/storage race testing.
-- 🟡 Soak/load testing.
+- 🟡 Realistic concurrent load plus detailed DB/scheduler/resource-growth and reconnect/network-failure profiling.
 - 🟡 Deploy and live-verify the GM2 command-permission and `!startevent` fixes before broad external testing.
 - 🟡 Audit/remediate historical production account/character orphans and apply the relationship guard.
 
@@ -856,13 +859,13 @@ Main remaining blockers:
 1. 🟡 Deploy and live-verify the GM2 restriction for `gachalist`, `loot`, and `mobskill`; confirm ordinary-player rejection and GM2+ access.
 2. 🟡 Audit/remediate historical account/character orphans and apply/verify the `ON DELETE RESTRICT` relationship guard.
 3. 🔴 Automated live-client/E2E coverage if we choose to make that a beta gate.
-4. 🔴 Soak/load/concurrency testing.
+4. 🔴 Realistic concurrent-player/boss-PQ load plus DB/scheduler/resource-growth and reconnect/network-failure testing.
 5. 🟡 Boss/PQ live regression matrix.
 6. 🟡 Combat formula/runtime parity.
 7. 🟡 Trade/storage/merchant/Cash-Shop race testing.
 8. 🟡 Advancement/boss-prerequisite quest playthroughs.
 9. 🟡 Clean-machine launcher install/update/repair.
-10. 🟡 Website/account/rankings/channel integration verification.
+10. 🟡 Rankings stale/deleted/renamed behavior plus final website admin/session/CSRF/rate-limit checks.
 11. 🟡 Packet/admin/web security pass.
 12. 🟡 Economy/boss-drop/source-sink balance.
 
@@ -872,9 +875,10 @@ Main remaining blockers:
 - ✅ Game release line consolidated into canonical `master`.
 - ✅ Current server release reproducible and deployed through the guarded workflow.
 - ✅ Current managed client overlay reproducible/published through the maintained client workflow.
+- ✅ Production registration/login, live server/channel status integration, and download/manifest links verified.
 - 🟡 Client/server/launcher assets verified from clean install.
 - 🟡 Live channel count/config verified with actual client channel switching across all channels.
-- 🟡 Website/CMS/auth/rankings/status verified end-to-end.
+- 🟡 Remaining website/CMS validation is rankings stale/deleted/renamed behavior plus final admin/session/CSRF/rate-limit checks.
 - 🟡 Economy/security/performance/load validation complete.
 - ✅ Backup/restore/rollback foundation validated.
 - ✅ Player/staff documentation baseline published and indexed.
@@ -919,6 +923,8 @@ Main remaining blockers:
 - ✅ `!startevent [playerLimit]` parsing corrected on canonical `master`; regression coverage added for default, valid custom, and invalid input paths.
 - ✅ Preventive account/character integrity guard and read-only orphan audit added to canonical `master`; production audit/remediation/application remains pending.
 - ✅ Patch/hotfix, launcher manifest/version, and DB migration release policy documented.
+- ✅ Production registration/login, live server/channel status integration, and download/manifest links runtime-verified.
+- ✅ Multi-hour/day soak and simultaneous login/channel-change behavior runtime-verified.
 
 # Immediate Priority Queue
 
@@ -933,18 +939,18 @@ Main remaining blockers:
 9. **Source-first authentication/security audit** — packet/state/admin/web review with targeted live confirmation only where static inspection cannot prove behavior.
 10. **Two-client social/transaction matrix** — party, buddy, guild, trade, cross-channel updates.
 11. **PQ multi-client regression** — after core two-client systems are clean.
-12. **Website/account/rankings final verification and page-by-page polish**.
+12. **Website rankings/admin-security final verification and page-by-page polish** — registration/login, live status, and download/manifest integration are already verified.
 13. **Economy/balance pass** — post-200 pacing, boss rewards, rare scrolls, Verdant/PQ Points, meso generation/sinks, Gachapon.
-14. **Performance/load/concurrency testing last** — only after gameplay and transaction correctness are substantially clean.
+14. **Remaining performance/load/network testing last** — realistic concurrent load, boss/PQ load, DB/scheduler/resource-growth profiling, and reconnect/network-failure testing; soak and simultaneous login/channel-change behavior are already verified.
 15. **Kaentake review → Phase 2 client decision** — connected login/world/character panorama, broader branding/UI redesign, direct Evan/future class cards remain deferred until that review.
 
 # Current Completion Assessment
 
-EverLeaf has moved beyond repository consolidation, broad static-content import, the first major transaction-hardening stage, and the documentation cleanup stage. Core v95 backport work, Future Henesys/Stronghold/Fallen Cygnus, backup/DR, level-250 progression, survivability replacement, AP/SP/mastery hardening, Aran High Defense, PQ/event reward idempotency, storage settlement, Family Reputation duplication, event unregister replay, Wheel/event death bypass, native Discord Rich Presence, client publication, Git-backed website deployment, workflow cleanup, branch consolidation, player/staff runbooks, maintained known-issues documentation, the source-side GM2 restriction for `gachalist`, `loot`, and `mobskill`, corrected `!startevent` limit parsing, and the preventive account/character relationship guard/audit are implemented on canonical `master`.
+EverLeaf has moved beyond repository consolidation, broad static-content import, the first major transaction-hardening stage, and the documentation cleanup stage. Core v95 backport work, Future Henesys/Stronghold/Fallen Cygnus, backup/DR, level-250 progression, survivability replacement, AP/SP/mastery hardening, Aran High Defense, PQ/event reward idempotency, storage settlement, Family Reputation duplication, event unregister replay, Wheel/event death bypass, native Discord Rich Presence, client publication, Git-backed website deployment, workflow cleanup, branch consolidation, player/staff runbooks, maintained known-issues documentation, the source-side GM2 restriction for `gachalist`, `loot`, and `mobskill`, corrected `!startevent` limit parsing, and the preventive account/character relationship guard/audit are implemented on canonical `master`. Production registration/login, live server/channel status integration, download/manifest links, multi-hour/day soak, and simultaneous login/channel-change behavior have also been runtime-verified.
 
 The exact final canonical server source SHA `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a` was rebuilt and deployed to production. The final release is healthy with the canonical 44,237-file v95 XML baseline, login server, all 20 channels, and player-facing relay ports verified. Source/documentation commits after that deployment—including the GM2 command restriction, `!startevent` fix, and account/character guard—do not change the currently running game release SHA until another guarded production deployment/migration occurs.
 
-The largest remaining uncertainty is now **runtime behavior under real multi-client gameplay and load**: boss/PQ lifecycle, full class/combat parity, advancement/prerequisite quest behavior, persistence/concurrency and anti-dupe race testing, clean-machine client/launcher behavior, final website/account integration, and performance/operations validation. The GM2 and `!startevent` fixes remain pending production deployment/live verification; the account/character guard remains pending a production orphan audit, deliberate remediation if needed, and migration application.
+The largest remaining uncertainty is now **runtime behavior under broader multi-client gameplay and heavier load**: boss/PQ lifecycle, full class/combat parity, advancement/prerequisite quest behavior, persistence/concurrency and anti-dupe race testing, clean-machine client/launcher behavior, rankings/admin-security website checks, realistic concurrent load, DB/scheduler/resource-growth profiling, and reconnect/network-failure behavior. The GM2 and `!startevent` fixes remain pending production deployment/live verification; the account/character guard remains pending a production orphan audit, deliberate remediation if needed, and migration application.
 
 ## Operating rule
 
