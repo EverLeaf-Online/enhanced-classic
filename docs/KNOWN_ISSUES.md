@@ -77,7 +77,7 @@ The pinned v83 addresses used by this feature are source-build-specific and must
 
 Runtime closure is intentionally still pending until the batched client build/publish pass. Verify Discord behavior across login, character entry, level/job state, map changes, channel changes, logout, reconnect, and Discord-not-running/reconnect cases, and confirm stale character/map activity is cleared during transitions.
 
-## Confirmed source/data-integrity issues
+## Confirmed unresolved issues
 
 ### Medium — historical account purge/deletion can leave character data
 
@@ -94,6 +94,25 @@ Canonical `master` now contains:
 The migration deliberately refuses to install if historical orphaned characters already exist. It also refuses to silently replace an unexpected pre-existing foreign-key rule.
 
 This issue is **not closed in production yet**. Before applying the migration, run the read-only audit against production, identify any existing orphaned rows, back up the database, remediate those rows through an explicit reviewed cleanup plan, then apply and verify the guard. Do not mass-delete historical orphan trees automatically.
+
+### Medium — Alt+Enter/fullscreen does not preserve the HD display mode
+
+**Status:** Confirmed client defect; display subsystem rework pending
+
+The current player build launches in windowed mode. The most recent runtime observation is that **Alt+Enter does not switch the client to fullscreen**, while enabling fullscreen through Maple's in-game settings drops the display back to the legacy low-resolution/800-wide mode instead of preserving the configured HD resolution.
+
+EverLeaf's current `DisplayMode.h` only layers Win32 framed/borderless behavior over the existing renderer, while the normal v83 System Options path can still reinitialize the underlying Gr2D screen mode. That makes the present behavior a real display-mode defect rather than an unverified transition case.
+
+The replacement target is Kaentake-informed but independently implemented because the reference repository does not publish a license. EverLeaf should provide a native in-game resolution selector and keep the chosen resolution authoritative across display-mode changes. The supported selector should include at least:
+
+- 800×600
+- 1024×768
+- **1280×720** — current EverLeaf default
+- 1366×768
+- 1600×900
+- 1920×1080
+
+Close this issue only after the managed client is rebuilt/published and runtime testing confirms that the in-game selector persists, fullscreen uses the selected HD resolution rather than falling back to 800×600, and Alt+Enter reliably transitions between the supported windowed/fullscreen behavior without corrupting UI placement or input coordinates.
 
 ## Current user-facing limitations
 
@@ -137,7 +156,7 @@ Remaining checks are limited to explicit disconnect/replay/race paths not yet se
 
 **Status:** Validation required
 
-Remaining checks are interrupted-update rollback/retry, direct-EXE rejection, single-client enforcement, Alt+Enter/windowing transitions, and crash/disconnect handling.
+Remaining checks are interrupted-update rollback/retry, direct-EXE rejection, single-client enforcement, and crash/disconnect handling. The observed Alt+Enter/fullscreen/resolution behavior is tracked above as a confirmed defect instead of being left in this validation bucket.
 
 ### Website/account release hardening
 
