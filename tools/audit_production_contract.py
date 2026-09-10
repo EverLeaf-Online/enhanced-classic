@@ -11,7 +11,7 @@ for key,value in required.items():
 for pattern,label in ((r"(?m)^\s*HOST:\s*129\.159\.114\.146\s*(?:#.*)?$","HOST"),(r"(?m)^\s*AUTOMATIC_REGISTER:\s*false\s*(?:#.*)?$","automatic registration"),(r"(?m)^\s*USE_SUPPLY_RATE_COUPONS:\s*false\s*(?:#.*)?$","rate coupons")):
     if not re.search(pattern,config): raise SystemExit(f"production contract mismatch: {label}")
 if "7575-7594:7575-7594" not in Path("docker-compose.yml").read_text(): raise SystemExit("production contract mismatch: Docker channel exposure")
-contract=Path("docs/PRODUCTION_CONTRACT.md").read_text()
-for marker in ("20 channels","5x","3x","2x","1x","129.159.114.146"):
+contract=Path("docs/operations/PRODUCTION_AND_RELEASE.md").read_text()
+for marker in ("Production channels: 20","5x","3x","2x","1x","129.159.114.146"):
     if marker not in contract: raise SystemExit(f"production contract document missing {marker}")
 print("EverLeaf production contract: PASS")
