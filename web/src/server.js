@@ -100,7 +100,10 @@ app.use(session({
   }
 }));
 
-app.use(csrf);
+app.use((req,res,next)=>{
+  if(req.method==="POST"&&req.path==="/api/vote/pingback") return next();
+  return csrf(req,res,next);
+});
 
 app.use((req,res,next)=>{
   const sensitive=req.path==="/login"||req.path==="/register"||req.path==="/recover"||req.path.startsWith("/account")||req.path.startsWith("/admin");
