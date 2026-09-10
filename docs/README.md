@@ -40,6 +40,7 @@ This directory contains the maintained documentation for EverLeafMS.
 - [`staff/MODERATION_AND_APPEALS.md`](staff/MODERATION_AND_APPEALS.md) — ban, unban, containment, evidence, compromise, and appeal procedure.
 - [`staff/EVENT_OPERATIONS.md`](staff/EVENT_OPERATIONS.md) — joinable GM/classic event preparation, execution, rewards, abort, cleanup, and validation procedure.
 - [`staff/RECOVERY_AND_RESTORE.md`](staff/RECOVERY_AND_RESTORE.md) — command-level service recovery, backup, release rollback, database-restore decision gates, and restore rehearsal procedure.
+- [`staff/EMERGENCY_SHUTDOWN.md`](staff/EMERGENCY_SHUTDOWN.md) — emergency stop/containment, evidence preservation, backup, and controlled reopen procedure for incidents where continued writes are unsafe.
 
 ## Documentation maintenance rules
 
