@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that known EverLeaf non-Empress features remain on canonical branches.
+"""Verify that known EverLeaf non-Empress features remain on canonical master.
 
 This is intentionally behavior-marker based rather than commit-SHA based. Old
 feature branches were often squashed, cherry-picked, or superseded by stronger
@@ -13,7 +13,7 @@ import subprocess
 CANONICAL = {
     "server": "origin/master",
     "web": "origin/master",
-    "client": "origin/client-dev",
+    "client": "origin/master",
 }
 
 # (area, path, all required markers)
@@ -39,7 +39,9 @@ CHECKS = [
     # Client / launcher safety
     ("server", "launcher/EverLeaf.Launcher/BoundedDownload.cs", ["expectedBytes", "signed size", "extra"]),
     ("server", "launcher/EverLeaf.Launcher/LaunchTicket.cs", [".everleaf-launch", "CleanupStale"]),
-    ("server", "launcher/EverLeaf.Launcher/MainWindow.xaml.cs", ["LaunchTicket"]),
+    ("server", "launcher/EverLeaf.Launcher/ClientLaunchPolicy.cs", ["Global\\EverLeafMS.Client.SingleInstance", "EnsureCanLaunch", "Multi-client is not allowed"]),
+    ("server", "launcher/EverLeaf.Launcher/MainWindow.xaml.cs", ["LaunchTicket", "ClientLaunchPolicy.EnsureCanLaunch"]),
+    ("client", "client/ezorsia/ezorsia/dinput8.cpp", ["RequireEverLeafLauncher", "RequireSingleClientInstance", "FILE_FLAG_DELETE_ON_CLOSE", "Global\\EverLeafMS.Client.SingleInstance"]),
     ("client", "client/tools/evan-xml-donor-builder/main.cpp", ["wz::WzFile", "ParseWzFile", "EverLeaf Evan XML donor build: PASS"]),
 
     # Website / CMS / account / Wiki / voting
@@ -80,10 +82,10 @@ def main() -> int:
             continue
         passed += 1
 
-    # Empress and Community-files are explicitly excluded reference lines, never
-    # canonical release inputs.
+    # Historical/development lines are excluded reference lines, never canonical
+    # release inputs.
     canonical_values = set(CANONICAL.values())
-    for forbidden in ("origin/empress-dev", "origin/Community-files"):
+    for forbidden in ("origin/client-dev", "origin/empress-dev", "origin/Community-files"):
         if forbidden in canonical_values:
             failures.append(f"excluded branch became canonical: {forbidden}")
 
