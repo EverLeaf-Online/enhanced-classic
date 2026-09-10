@@ -1,13 +1,23 @@
 name: Validate EverLeaf native Discord presence
 
 on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'client/ezorsia/ezorsia/DiscordPresence.cpp'
+      - 'client/ezorsia/ezorsia/DiscordPresence.h'
+      - 'client/ezorsia/ezorsia/dllmain.cpp'
+      - 'client/ezorsia/ezorsia/ezorsia.vcxproj'
+      - 'client/ezorsia/ezorsia/config.ini'
+      - 'client/scripts/test-discord-presence.cpp'
+      - '.github/workflows/validate-native-discord.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  validate:
+  build:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
