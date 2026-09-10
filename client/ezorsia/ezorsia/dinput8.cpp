@@ -13,8 +13,13 @@ namespace {
 	volatile LONG g_launcherTicketAccepted = 0;
 	const char* kLauncherTicket = ".everleaf-launch";
 	const __int64 kTicketMaxAgeSeconds = 120;
+	const wchar_t* kClientInstanceMutex = L"Global\\EverLeafMS.Client.SingleInstance";
 	INIT_ONCE g_dinputInitOnce = INIT_ONCE_STATIC_INIT;
+	INIT_ONCE g_clientInstanceOnce = INIT_ONCE_STATIC_INIT;
 	HMODULE g_systemDinput8 = nullptr;
+	HANDLE g_clientInstanceMutex = nullptr;
+	volatile LONG g_clientInstanceState = 0; // 1=owned, 2=duplicate, -1=error
+	DWORD g_clientInstanceError = ERROR_SUCCESS;
 
 	BOOL CALLBACK ResolveSystemDinput8(PINIT_ONCE, PVOID, PVOID*) {
 		char szPath[MAX_PATH] = { 0 };
@@ -68,17 +73,77 @@ namespace {
 		ExitProcess(error);
 	}
 
+	BOOL CALLBACK AcquireSingleClientInstance(PINIT_ONCE, PVOID, PVOID*) {
+		SetLastError(ERROR_SUCCESS);
+		HANDLE mutex = CreateMutexW(nullptr, FALSE, kClientInstanceMutex);
+		if (!mutex) {
+			g_clientInstanceError = GetLastError();
+			InterlockedExchange(&g_clientInstanceState, -1);
+			return TRUE;
+		}
+
+		if (GetLastError() == ERROR_ALREADY_EXISTS) {
+			CloseHandle(mutex);
+			InterlockedExchange(&g_clientInstanceState, 2);
+			return TRUE;
+		}
+
+		g_clientInstanceMutex = mutex; // kept open for the lifetime of EverLeaf.exe
+		InterlockedExchange(&g_clientInstanceState, 1);
+		return TRUE;
+	}
+
+	void RequireSingleClientInstance() {
+		PVOID context = nullptr;
+		if (!InitOnceExecuteOnce(&g_clientInstanceOnce, AcquireSingleClientInstance, nullptr, &context)) {
+			g_clientInstanceError = GetLastError();
+			InterlockedExchange(&g_clientInstanceState, -1);
+		}
+
+		const LONG state = InterlockedCompareExchange(&g_clientInstanceState, 0, 0);
+		if (state == 1) return;
+
+		if (state == 2) {
+			MessageBoxW(
+				nullptr,
+				L"EverLeaf is already running. Multi-client is not allowed.\n\nClose the existing game before launching another client.",
+				L"EverLeaf Already Running",
+				MB_OK | MB_ICONINFORMATION
+			);
+			ExitProcess(ERROR_ALREADY_EXISTS);
+		}
+
+		DWORD error = g_clientInstanceError;
+		if (error == ERROR_SUCCESS) error = ERROR_OPEN_FAILED;
+		MessageBoxW(
+			nullptr,
+			L"EverLeaf could not establish its single-client guard.\n\nRestart Windows or close other EverLeaf processes and try again.",
+			L"EverLeaf Client Guard Error",
+			MB_OK | MB_ICONERROR
+		);
+		ExitProcess(error);
+	}
+
 	bool ConsumeFreshLauncherTicket() {
 		if (InterlockedCompareExchange(&g_launcherTicketAccepted, 1, 1) == 1) return true;
 
-		HANDLE ticket = CreateFileA(kLauncherTicket, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_HIDDEN, NULL);
+		// Open with no sharing and delete-on-close so exactly one client process can
+		// consume a launch ticket. A malformed ticket is still single-use.
+		HANDLE ticket = CreateFileA(
+			kLauncherTicket,
+			GENERIC_READ | DELETE,
+			0,
+			NULL,
+			OPEN_EXISTING,
+			FILE_ATTRIBUTE_HIDDEN | FILE_FLAG_DELETE_ON_CLOSE,
+			NULL
+		);
 		if (ticket == INVALID_HANDLE_VALUE) return false;
 
 		char buffer[64] = { 0 };
 		DWORD bytesRead = 0;
 		const BOOL readOk = ReadFile(ticket, buffer, sizeof(buffer) - 1, &bytesRead, NULL);
-		CloseHandle(ticket);
-		DeleteFileA(kLauncherTicket); // a launch ticket is single-use even when malformed
+		CloseHandle(ticket); // FILE_FLAG_DELETE_ON_CLOSE consumes the ticket atomically
 
 		if (!readOk || bytesRead == 0) return false;
 		buffer[bytesRead] = '\0';
@@ -105,6 +170,9 @@ namespace {
 }
 
 void dinput8::CreateHook() {
+	// Enforce one client per machine/session before any gameplay hooks are installed.
+	RequireSingleClientInstance();
+
 	// Enforce the launcher handoff from the verified post-unpack bootstrap too.
 	// Some v83 paths load this proxy without calling DirectInput8Create during
 	// startup, so export-only validation can leave a fresh ticket unconsumed and
@@ -137,6 +205,7 @@ extern "C" __declspec(dllexport) __declspec(naked) void DirectInput8Create()
 		pushfd
 		pushad
 		call EnsureSystemDinput8
+		call RequireSingleClientInstance
 		call RequireEverLeafLauncher
 		popad
 		popfd
@@ -150,6 +219,8 @@ extern "C" __declspec(dllexport) __declspec(naked) void GetdfDIJoystick()
 		pushfd
 		pushad
 		call EnsureSystemDinput8
+		call RequireSingleClientInstance
+		call RequireEverLeafLauncher
 		popad
 		popfd
 		jmp dword ptr[GetdfDIJoystick_Proc]
