@@ -1,9 +1,6 @@
 name: Verify EverLeaf Ranking Avatars
 
 on:
-  workflow_run:
-    workflows: ["Deploy EverLeaf Web"]
-    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -11,7 +8,6 @@ permissions:
 
 jobs:
   verify:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
