@@ -1,10 +1,6 @@
 name: Verify EverLeaf Public Portal
 
 on:
-  workflow_run:
-    workflows: ["Deploy EverLeaf Web"]
-    types: [completed]
-    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -12,7 +8,6 @@ permissions:
 
 jobs:
   verify:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Verify redesigned public routes
