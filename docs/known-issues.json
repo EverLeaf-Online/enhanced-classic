@@ -44,6 +44,16 @@
       "required_close": "Publish the updated managed launcher/client and verify direct EverLeaf.exe rejection, normal launcher launch, second-launch rejection, and rapid/race second-launch rejection on a clean player machine. If cryptographic server-backed launcher proof is later required, implement a server-validated launch-session protocol."
     },
     {
+      "id": "EL-DISCORD-001",
+      "severity": "low",
+      "status": "source_fixed_pending_client_publish_and_runtime_verification",
+      "area": "client/discord",
+      "title": "Richer Discord Rich Presence gameplay activity",
+      "source": "client/ezorsia/ezorsia/DiscordPresence.cpp",
+      "summary": "Canonical master now samples character name, level, job and field ID from Angel.idb-pinned GMS v83 getters on CUserLocal::Update, cross-checks local/context field IDs, and fails closed to basic EverLeaf activity on invalid or transitional state.",
+      "required_close": "Build and publish the updated managed client, then verify Discord activity across login, character entry, map changes, job/level changes, channel changes, logout and reconnect without crashes or stale activity."
+    },
+    {
       "id": "EL-RECOVERY-001",
       "severity": "medium",
       "status": "known_limitation",
@@ -67,6 +77,7 @@
     "transaction_and_concurrency_edge_cases",
     "clean_machine_launcher_and_client_behavior",
     "launcher_only_and_single_client_runtime_enforcement",
+    "discord_rich_presence_gameplay_runtime_verification",
     "rankings_stale_deleted_renamed_character_behavior",
     "website_admin_session_csrf_rate_limit_controls",
     "realistic_concurrent_player_load",
