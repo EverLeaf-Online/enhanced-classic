@@ -131,6 +131,26 @@ The new `player/INSTALLATION_AND_SUPPORT.md` does provide the installation/launc
 
 The consolidation was merged into canonical `master` through PR #385 on 2026-09-10. The two temporary branch refs used during the work were subsequently fast-forwarded to the merged `master` commit so they contain no unique work; branch-ref deletion remains housekeeping only.
 
+## Same-day follow-up completion
+
+After the consolidation audit, the missing-document list above was worked through directly against the current source and production workflow. The original list is preserved above as the point-in-time audit result; the following records what was completed afterward:
+
+- `docs/staff/GM_COMMANDS_AND_PERMISSIONS.md` — source-verified numeric command ranks and privilege boundaries derived from `CommandsExecutor.java` rather than legacy handbook labels.
+- `docs/staff/MODERATION_AND_APPEALS.md` — ban/unban, containment, evidence, compromise, economy-abuse, and appeal procedure.
+- `docs/staff/ACCOUNT_RECOVERY_PROCEDURE.md` — staff handling for the current CMS recovery queue and ownership-verification/privacy boundaries.
+- `docs/staff/EVENT_OPERATIONS.md` — event preparation, operation, reward, abort, cleanup, and validation runbook.
+- `docs/staff/RECOVERY_AND_RESTORE.md` — command-level service recovery, backup, immutable-release rollback, restore decision gates, and isolated restore-rehearsal procedure.
+- `docs/staff/EMERGENCY_SHUTDOWN.md` — explicit emergency production stop/containment and controlled-reopen procedure.
+- `docs/player/PROGRESSION_AND_CONTENT.md` — player-facing rates, level 200–250 progression, Verdant Marks, PQ Points, no-HP-washing policy, bosses/PQs, and custom-content guidance.
+- `docs/player/ACCOUNT_RECOVERY.md` — accurate player-facing description of the current staff-reviewed recovery flow without claiming an automated reset-email system that does not exist.
+- `docs/KNOWN_ISSUES.md` and `docs/known-issues.json` — human-readable and machine-readable current issue registers, clearly separated from inherited `archive/upstream/issues.txt`.
+- `docs/README.md` and related support/operations guides were cross-linked so the new documents are part of the maintained documentation surface rather than orphan files.
+- `docs/EVERLEAF_MASTER_CHECKLIST.md` Sections 42–43 were reconciled after the documents existed; the documentation-baseline items are now complete rather than merely planned.
+
+The source review performed while writing the command reference also uncovered a **real code-level authorization defect**: `mobskill` is placed in the GM2 command package but registered through the rank-0 overload in `CommandsExecutor`, with no internal GM guard in `MobSkillCommand`. `gachalist` and `loot` use the same rank-0 registration pattern and need intended-rank review. This was **not** hidden by the documentation pass: it is tracked in both known-issues registers and promoted into the master checklist Security/Public Beta priorities. The event documentation also records the source-level `!startevent` one-argument participant-limit parsing defect.
+
+This follow-up remained documentation/status-only. It did not modify game/runtime authorization behavior and did not deploy or restart production.
+
 ## Ongoing rule
 
 Future documentation changes should update an existing maintained guide whenever possible. New dated audits go straight to `archive/audits/` after their conclusions are reflected in the master checklist or a maintained guide.
