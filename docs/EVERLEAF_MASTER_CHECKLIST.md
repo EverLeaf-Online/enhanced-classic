@@ -2,15 +2,15 @@
 
 Canonical repository-backed status for EverLeafMS.
 
-Last synchronized: **2026-09-10** after master consolidation, native Discord Rich Presence extraction/validation, live client publication, workflow-definition cleanup, website Git migration, and final branch cleanup preparation.
+Last synchronized: **2026-09-10** after master consolidation, native Discord Rich Presence extraction/validation, live client publication, workflow-definition cleanup, website Git migration, branch cleanup, and the final canonical production rebuild.
 
 ## Current production baseline
 
 - Repository: `EverLeaf-Online/enhanced-classic`
 - Canonical branch: `master`
-- Canonical maintenance merge: `89f8a13f3b8fdb6efbd8e6f2ab3d17660d6c954e`
-- Running game release: `/opt/everleaf/releases/10adee94a13b-master-20260910T113147Z`
-- Running game release source SHA: `10adee94a13b1ab3f04a08e3dbc48f2f33de708d`
+- Canonical master SHA: `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a`
+- Running game release: `/opt/everleaf/releases/92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a-34484572759-2`
+- Running game release source SHA: `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a`
 - Production source checkout: `/opt/everleaf/server`
 - Active game release symlink: `/opt/everleaf/current`
 - Game service: `everleaf.service`
@@ -23,9 +23,10 @@ Last synchronized: **2026-09-10** after master consolidation, native Discord Ric
 - Public site: `https://everleafms.online`
 - Login port: `8484`
 - Channels: `7575-7594` (20 channels)
-- Live client overlay was rebuilt, verified, and published from `89f8a13f3b8fdb6efbd8e6f2ab3d17660d6c954e`.
+- Canonical v95 XML baseline verified in the final deploy: `44,237` XML files.
+- Live client overlay was rebuilt, verified, and published during the September 10 finalization.
 
-The game runtime remains on the verified `10adee94a13b` release because the September 10 finalization changed client/workflow/docs files, not Java server runtime code or the canonical v95 WZ release payload. The production source checkout is synchronized to final `master` by the repository-finalization workflow without restarting the healthy game service.
+The final canonical `master` was rebuilt and deployed after repository cleanup. GitHub `master`, `/opt/everleaf/server`, and the running production release are aligned to the same final source state. The deployment validated the canonical v95 content baseline, login listener, all 20 channel listeners, and every player-facing relay port.
 
 ## Status legend
 
@@ -44,7 +45,9 @@ The game runtime remains on the verified `10adee94a13b` release because the Sept
 - ✅ Useful branch-only audit/tooling work was preserved before cleanup.
 - ✅ PR #380 replaced the stale native-client stack with a clean current-master integration.
 - ✅ PR #366 was closed as superseded after its unique Discord work was extracted and validated.
-- ✅ Final repository-maintenance automation removes the remaining donor/maintenance branches after merge.
+- ✅ Final repository-maintenance automation completed branch cleanup.
+- ✅ `master` is the only remaining remote branch.
+- ✅ No open pull requests remain after finalization.
 - ✅ Repository rules continue to require pull-request changes to protected `master`.
 
 # 2. Production deployment and runtime
@@ -54,9 +57,12 @@ The game runtime remains on the verified `10adee94a13b` release because the Sept
 - ✅ `everleaf.service` runs the active release JAR.
 - ✅ Graceful shutdown was verified across all 20 channels.
 - ✅ Character persistence was observed during controlled shutdown.
-- 🟢 Consolidated game release `10adee94a13b` is live and healthy.
+- 🟢 Final canonical master `92a646d6c42a` is live and healthy.
+- ✅ Final Maven package build succeeded from canonical master.
+- ✅ Final production deployment validated login `8484` and channels `7575-7594`.
+- ✅ Final deployment validated all player-facing relay ports on `129.159.114.146`.
 - ✅ Previous release remains available for rollback.
-- ✅ Final repository maintenance syncs `/opt/everleaf/server` to canonical `master` without unnecessary game restart.
+- ✅ `/opt/everleaf/server` is synchronized to canonical `master`.
 - 🟡 Perform another full VM reboot/DR exercise later as a deliberate resilience test.
 
 # 3. Network topology and production configuration
@@ -86,6 +92,7 @@ The game runtime remains on the verified `10adee94a13b` release because the Sept
 - ✅ heavy client build/publish operations are narrowly scoped and explicit.
 - ✅ Client v2 integration, diagnostics, frame-limiter, and WASD guards are retained but converted to manual-only checks after final validation.
 - ✅ Native Discord validation has a dedicated Windows workflow.
+- ✅ Final repository-maintenance workflow completed successfully after handling already-absent refs correctly.
 - ✅ Historical deleted-branch run cleanup was reduced substantially; further history deletion remains optional and rate-limit-sensitive.
 
 # 5. Native client and launcher
@@ -136,6 +143,7 @@ The game runtime remains on the verified `10adee94a13b` release because the Sept
 - ✅ Broader recovery data includes client/WZ recovery material.
 - ✅ Production deployment has rollback behavior.
 - ✅ Production-readiness tooling contains backup-integrity and isolated restore checks.
+- ✅ Final canonical deployment completed its backup step before switching the release.
 - 🟡 Periodically perform a full documented restore rehearsal rather than relying only on static backup existence.
 
 # 9. Database and account administration
@@ -149,6 +157,7 @@ The game runtime remains on the verified `10adee94a13b` release because the Sept
 # 10. v95 content / Future Henesys / Stronghold / Fallen Cygnus
 
 - ✅ Canonical full-v95 XML baseline is stored on production.
+- ✅ Final deployment verified `44,237` XML files.
 - ✅ Production release staging injects the canonical v95 baseline rather than relying on a partial repository WZ tree.
 - ✅ Future Henesys/Henesys Ruins map set is present.
 - ✅ Stronghold/Fallen Cygnus required map/mob/NPC/quest content is present in the canonical baseline.
@@ -171,6 +180,11 @@ The game runtime remains on the verified `10adee94a13b` release because the Sept
 - ✅ Normal direct trade covered.
 - ✅ Merchant settlement covered.
 - ✅ Normal Cash Shop behavior covered.
+- ✅ Timed-stack expiration/slot-cap integrity hardening is applied.
+- ✅ Direct-trade untradeable-item enforcement is applied.
+- ✅ Duey ownership/settlement hardening is applied even though Duey is disabled in production.
+- ✅ Hired Merchant listing persistence, compensation, credit concurrency, quantity arithmetic, and snapshot integrity hardening is applied.
+- ✅ PlayerShop listing source, transaction, rollback, and snapshot integrity hardening is applied.
 - 🟡 Trade transition/disconnect race cases remain targeted.
 - 🟡 Cash Shop disconnect transfer/re-entry remains targeted.
 - 🟡 Quest reward replay after disconnect/relog remains targeted.
@@ -181,6 +195,9 @@ The game runtime remains on the verified `10adee94a13b` release because the Sept
 
 - ✅ Core class/skill integrity tooling exists.
 - ✅ Evan safe creation/progression fallback remains supported.
+- ✅ Evan skill data and progression transforms pass final deployment checks.
+- ✅ Evan Slow/Soul Arrow and Phantom Imprint/Aran Combo fallthrough fixes are applied.
+- ✅ Evan Soul Stone, Killer Wings, Critical Magic, Dragon Fury, Magic Resistance, and mastery progression fixes are applied.
 - ✅ Achilles / Aran High Defense behavior was runtime-tested.
 - 🟡 Run a systematic class/skill runtime matrix rather than ad-hoc spot testing.
 - 🟡 Verify advancement gates and major boss prerequisite quest chains.
@@ -228,6 +245,7 @@ The game runtime remains on the verified `10adee94a13b` release because the Sept
 - ✅ Empty-map travel routing implemented.
 - ✅ Travel graph, potion restock, combat reachability, distant-target handling, projectile supply, loadout reapply, and untargetable-map rerouting implemented.
 - ✅ Basic hunt/death/fleet/soak/class behavior was live-tested.
+- ✅ Final deployment revalidated the committed SoloMapling integration guardrails.
 - ⏸ Further bot pathfinding/terrain/long-soak work is intentionally parked unless the project returns to it.
 
 # 19. Performance / concurrency
@@ -249,19 +267,23 @@ The game runtime remains on the verified `10adee94a13b` release because the Sept
 
 # Current priority order
 
-1. ✅ Finish repository/workflow/branch cleanup and leave `master` as the only active branch.
-2. ✅ Ship and validate native Discord Rich Presence on the live managed client.
-3. 🟡 Solo boss regression and major boss prerequisite checks.
-4. 🟡 Systematic class/skill runtime matrix.
-5. 🟡 Advancement and boss prerequisite quest validation.
-6. 🟡 Targeted NPC/portal/reactor runtime sweep.
-7. 🟡 Remaining transaction/exploit edge cases.
-8. 🟡 Client crash/windowing/disconnect regression on clean installs.
-9. 🟡 Source-first authentication/security audit plus targeted runtime checks.
-10. 🟡 Two-client party/buddy/guild/trade validation.
-11. 🟡 PQ multi-client validation.
-12. 🟡 Load/concurrency testing last.
-13. ⏸ Kaentake review, then decide Phase 2 client visual direction.
+1. ✅ Repository/workflow/branch cleanup complete; `master` is the only active branch.
+2. ✅ Native Discord Rich Presence shipped and validated on the managed client.
+3. ✅ Final canonical production rebuild/deploy complete from `92a646d6c42a`.
+4. 🟡 Solo boss regression and major boss prerequisite checks.
+5. 🟡 Systematic class/skill runtime matrix.
+6. 🟡 Advancement and boss prerequisite quest validation.
+7. 🟡 Targeted NPC/portal/reactor runtime sweep.
+8. 🟡 Remaining transaction/exploit edge cases.
+9. 🟡 Client crash/windowing/channel-switch/disconnect regression on clean installs.
+10. 🟡 Source-first authentication/security audit plus targeted runtime checks.
+11. 🟡 Two-client party/buddy/guild/trade validation.
+12. 🟡 PQ multi-client validation.
+13. 🟡 Website/CMS page-by-page polish and ranking edge-case cleanup.
+14. 🟡 Account deletion / relational integrity cleanup.
+15. 🟡 Full VM reboot and documented disaster-recovery restore rehearsal.
+16. 🟡 Load/concurrency testing last.
+17. ⏸ Kaentake review, then decide Phase 2 client visual direction.
 
 ## Operating rule
 
