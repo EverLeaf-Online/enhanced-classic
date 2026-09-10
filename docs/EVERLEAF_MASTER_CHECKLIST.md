@@ -2,7 +2,7 @@
 
 Repository-backed working checklist for the current EverLeaf release line.
 
-Last synchronized: **2026-09-10** after master consolidation, workflow-definition cleanup, native Discord Rich Presence extraction/validation, live client publication, website Git migration, final branch cleanup, the final guarded production rebuild/restart, documentation audit/consolidation, and completion of the maintained player/staff documentation baseline.
+Last synchronized: **2026-09-10** after master consolidation, workflow-definition cleanup, native Discord Rich Presence extraction/validation, live client publication, website Git migration, final branch cleanup, the final guarded production rebuild/restart, documentation audit/consolidation, completion of the maintained player/staff documentation baseline, and the source-side GM2 command-permission fix pending production deployment.
 
 ## Current production baseline
 
@@ -660,7 +660,8 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ PlayerShop hardening.
 - ✅ Weekly/account-currency transactional protections.
 - ✅ Normal storage/direct-trade/merchant/Cash-Shop paths have targeted runtime evidence.
-- 🔧 **Fix `mobskill` command permission registration:** it is currently registered at rank 0 despite GM2 placement; review `gachalist`/`loot` rank intent in the same block and add regression coverage.
+- ✅ Canonical `master` now registers `gachalist`, `loot`, and `mobskill` at GM rank 2, with a regression guard preventing rank-0 fallback.
+- 🟡 Deploy the GM2 permission fix to production and verify an ordinary player is denied while GM2+ can invoke all three commands.
 - 🔧 Complete broad packet-validation audit.
 - 🔧 Malformed packet fuzzing.
 - 🔧 Broad dupe/race-condition matrix.
@@ -671,7 +672,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - 🟡 Drop/pickup races and cross-system persistence races.
 - 🟡 Verify quantities server-side across item/meso/NX/custom currencies.
 - 🟡 Verify NPC/quest/shop/map proximity/state validation where required.
-- 🟡 Verify unauthorized GM/admin command rejection after command-rank defect is corrected.
+- 🟡 Continue broad unauthorized GM/admin command rejection testing beyond the corrected GM2 registrations.
 - 🟡 Verify web rate limiting/session/cookie security.
 - 🟡 Verify logs do not expose secrets/sensitive account data.
 
@@ -724,6 +725,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Client v2 integration/WASD/frame-limiter/diagnostics guards passed during finalization.
 - ✅ Heavy QA/build workflows were converted to manual-only where continuous execution was generating unnecessary runner usage.
 - ✅ Maintained human-readable `docs/KNOWN_ISSUES.md` and machine-readable `docs/known-issues.json` registers exist.
+- ✅ GM2 command-registration regression guard covers `gachalist`, `loot`, and `mobskill`.
 - 🟡 Run automated gameplay QA against the actual packaged client/release when valuable.
 - 🟡 Add regression tests for every fixed exploit/critical bug.
 
@@ -820,6 +822,7 @@ The prior stacked-branch cleanup is complete. Historical PRs remain available as
 - ✅ Native Discord Rich Presence integrated and published.
 - ✅ One canonical branch line and clean repository structure.
 - ✅ Maintained player/staff documentation baseline and known-issues register.
+- ✅ `gachalist`, `loot`, and `mobskill` are corrected to GM rank 2 on canonical `master` with regression coverage.
 
 ## Remaining closed-alpha validation
 
@@ -830,7 +833,7 @@ The prior stacked-branch cleanup is complete. Historical PRs remain available as
 - 🟡 Boss/PQ real-client testing.
 - 🟡 Direct trade/merchant/storage race testing.
 - 🟡 Soak/load testing.
-- 🔧 Correct the confirmed `mobskill` command-rank defect before broad external testing.
+- 🟡 Deploy and live-verify the GM2 command-permission fix before broad external testing.
 
 **Assessment:** EverLeaf is closed-alpha capable, but not yet public-beta hardened.
 
@@ -838,7 +841,7 @@ The prior stacked-branch cleanup is complete. Historical PRs remain available as
 
 Main remaining blockers:
 
-1. 🔧 Correct the confirmed `mobskill` rank-0 permission defect and re-audit command authorization.
+1. 🟡 Deploy and live-verify the GM2 restriction for `gachalist`, `loot`, and `mobskill`; confirm ordinary-player rejection and GM2+ access.
 2. 🔴 Automated live-client/E2E coverage if we choose to make that a beta gate.
 3. 🔴 Soak/load/concurrency testing.
 4. 🟡 Boss/PQ live regression matrix.
@@ -899,10 +902,11 @@ Main remaining blockers:
 - ✅ Maintained player installation/support, progression/content, and account-recovery guides completed.
 - ✅ Maintained GM permissions, moderation/appeals, staff account-recovery, event operations, recovery/restore, and emergency-shutdown runbooks completed.
 - ✅ Maintained human-readable and machine-readable known-issues registers created.
+- ✅ `gachalist`, `loot`, and `mobskill` corrected to GM rank 2 on canonical `master`; source-level regression coverage added.
 
 # Immediate Priority Queue
 
-1. **Fix command authorization defect** — register `mobskill` at the intended staff rank, review `gachalist`/`loot` rank intent, and add player-rejection regression coverage.
+1. **Deploy + verify GM2 command restriction** — source is fixed for `gachalist`, `loot`, and `mobskill`; deploy the server change and confirm ordinary-player rejection plus GM2+ access.
 2. **Boss runtime regression** — Zakum, Horntail, Papulatus, Pink Bean, Fallen Cygnus/Empress, plus prerequisite/entry/death/re-entry behavior.
 3. **Systematic class/skill runtime matrix** — Explorer, Cygnus, Aran, Evan; attacks, buffs, passives, summons, movement, party effects, status interactions.
 4. **Advancement + boss-prerequisite quests** — live progression, repeat/abuse/disconnect paths.
@@ -919,11 +923,11 @@ Main remaining blockers:
 
 # Current Completion Assessment
 
-EverLeaf has moved beyond repository consolidation, broad static-content import, the first major transaction-hardening stage, and the documentation cleanup stage. Core v95 backport work, Future Henesys/Stronghold/Fallen Cygnus, backup/DR, level-250 progression, survivability replacement, AP/SP/mastery hardening, Aran High Defense, PQ/event reward idempotency, storage settlement, Family Reputation duplication, event unregister replay, Wheel/event death bypass, native Discord Rich Presence, client publication, Git-backed website deployment, workflow cleanup, branch consolidation, player/staff runbooks, and maintained known-issues documentation are implemented.
+EverLeaf has moved beyond repository consolidation, broad static-content import, the first major transaction-hardening stage, and the documentation cleanup stage. Core v95 backport work, Future Henesys/Stronghold/Fallen Cygnus, backup/DR, level-250 progression, survivability replacement, AP/SP/mastery hardening, Aran High Defense, PQ/event reward idempotency, storage settlement, Family Reputation duplication, event unregister replay, Wheel/event death bypass, native Discord Rich Presence, client publication, Git-backed website deployment, workflow cleanup, branch consolidation, player/staff runbooks, maintained known-issues documentation, and the source-side GM2 restriction for `gachalist`, `loot`, and `mobskill` are implemented.
 
-The exact final canonical server source SHA `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a` was rebuilt and deployed to production. The final release is healthy with the canonical 44,237-file v95 XML baseline, login server, all 20 channels, and player-facing relay ports verified. Documentation-only commits after that deployment do not change the currently running game release SHA.
+The exact final canonical server source SHA `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a` was rebuilt and deployed to production. The final release is healthy with the canonical 44,237-file v95 XML baseline, login server, all 20 channels, and player-facing relay ports verified. Source/documentation commits after that deployment—including the GM2 command restriction—do not change the currently running game release SHA until another guarded production deployment occurs.
 
-The largest remaining uncertainty is now **runtime behavior under real multi-client gameplay and load**: boss/PQ lifecycle, full class/combat parity, advancement/prerequisite quest behavior, persistence/concurrency and anti-dupe race testing, clean-machine client/launcher behavior, final website/account integration, and performance/operations validation. A newly confirmed source-level `mobskill` command registration defect is now tracked explicitly and should be corrected before broad external testing.
+The largest remaining uncertainty is now **runtime behavior under real multi-client gameplay and load**: boss/PQ lifecycle, full class/combat parity, advancement/prerequisite quest behavior, persistence/concurrency and anti-dupe race testing, clean-machine client/launcher behavior, final website/account integration, and performance/operations validation. The GM2 command restriction is fixed on canonical source and remains pending production deployment/live authorization verification.
 
 ## Operating rule
 
