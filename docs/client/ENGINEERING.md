@@ -40,6 +40,7 @@ The current release line includes or has validated source support for:
 - optional/opt-in WASD input;
 - local crash/freeze diagnostics without automatic telemetry upload;
 - EverLeaf-native Discord Rich Presence through local Discord IPC;
+- source support for richer character/level/job/map Discord activity using pinned v83 getters;
 - source-built Windows client validation in GitHub CI;
 - managed overlay publication through the launcher/patch system.
 
@@ -78,7 +79,36 @@ Crash dumps can contain ordinary process/thread debugging context and should sti
 
 ## Discord Rich Presence
 
-The maintained implementation is EverLeaf-owned, uses local Discord named-pipe IPC, has no bot token/OAuth secret, and does not require the Discord Game SDK or Yuna runtime binaries. Character/map/job activity hooks remain gated on verified v83 memory contracts before enabling richer runtime activity.
+The maintained implementation is EverLeaf-owned, uses local Discord named-pipe IPC, has no bot token/OAuth secret, and does not require the Discord Game SDK or Yuna runtime binaries.
+
+Richer gameplay activity is now implemented on canonical `master` using GMS v83.1 contracts recovered from the project-supplied `Angel.idb` and independently cross-checked against other v83 native-client work. The pinned contracts are:
+
+- `CWvsContext` singleton: `0x00BE7918`;
+- `CUserLocal` singleton: `0x00BEBF98`;
+- `get_field()`: `0x00437A0C`;
+- `CWvsContext::GetCharacterName()`: `0x004AC308`;
+- `CUserLocal::Update()`: `0x0094A144`;
+- `CUserLocal::GetCharacterLevel()`: `0x00949B15`;
+- `CUserLocal::GetJobCode()`: `0x0095FFC3`;
+- `CUserLocal::GetFieldID()`: `0x009613E0`;
+- `CWvsContext::GetCurFieldID()`: `0x00A1238B`.
+
+These addresses are specific to the pinned EverLeaf GMS v83 client image. They must be re-derived/re-verified before use with another MapleStory client version or binary baseline.
+
+The gameplay sampler runs from the hooked `CUserLocal::Update()` path on Maple's game thread. The background Discord IPC worker only reads the already-copied activity strings; it does not call Maple getters or walk Maple objects itself.
+
+Before richer activity is published, the sampler requires:
+
+- the active `CUserLocal` object to match the v83 singleton;
+- a valid `CWvsContext`;
+- a live field returned by `get_field()`;
+- a bounded non-empty character name;
+- a nonzero character level;
+- exact agreement between `CUserLocal::GetFieldID()` and `CWvsContext::GetCurFieldID()`.
+
+Any access fault, transition, missing object, or field-ID disagreement fails closed to the existing generic EverLeaf presence. Supported job labels are derived from EverLeaf's maintained v83 `client.Job` IDs; external post-v83 job tables are not imported into the client.
+
+Source regression coverage protects job labels, gameplay formatting, Discord IPC framing/acknowledgement behavior, the pinned address markers, and the field-ID cross-check. Managed-client build/publication and runtime verification are still pending the planned batched client rollout.
 
 ## Launcher boundary
 
