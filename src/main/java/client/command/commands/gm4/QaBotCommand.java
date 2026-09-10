@@ -164,6 +164,8 @@ public class QaBotCommand extends Command {
             return;
         }
 
+        BotQaFleet.seedClassSupplies(bot, jobId);
+
         c.getPlayer().yellowMessage("QA bot profile set to job " + result.job().getId()
                 + " with " + result.learnedSkills() + " QA combat/support skills maxed"
                 + " and weapon " + loadout.weaponId() + ".");

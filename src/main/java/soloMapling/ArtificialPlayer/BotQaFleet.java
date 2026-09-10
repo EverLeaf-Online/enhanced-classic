@@ -105,11 +105,31 @@ public final class BotQaFleet {
 
         int delta = mesos - bot.getMeso();
         if (delta != 0) bot.gainMeso(delta, false, true, false);
-        InventoryManipulator.addById(bot.getClient(), 2000000, (short) 100, "", -1); // Red Potion
-        InventoryManipulator.addById(bot.getClient(), 2000001, (short) 100, "", -1); // Blue Potion
-        if (needsStars(jobId)) InventoryManipulator.addById(bot.getClient(), 2070000, (short) 1, "", -1);
-        if (needsBullets(jobId)) InventoryManipulator.addById(bot.getClient(), 2330000, (short) 1, "", -1);
+        seedClassSupplies(bot, jobId);
         bot.healHpMp();
+    }
+
+    public static void seedClassSupplies(Character bot, int jobId) {
+        if (bot == null || !BotHelpers.isBot(bot)) return;
+
+        if (bot.getInventory(InventoryType.USE).findById(2000000) == null) {
+            InventoryManipulator.addById(bot.getClient(), 2000000, (short) 100, "", -1); // Red Potion
+        }
+        if (bot.getInventory(InventoryType.USE).findById(2000001) == null) {
+            InventoryManipulator.addById(bot.getClient(), 2000001, (short) 100, "", -1); // Blue Potion
+        }
+        if (needsBowArrows(jobId) && bot.getInventory(InventoryType.USE).findById(2060000) == null) {
+            InventoryManipulator.addById(bot.getClient(), 2060000, (short) 1000, "", -1);
+        }
+        if (needsCrossbowArrows(jobId) && bot.getInventory(InventoryType.USE).findById(2061000) == null) {
+            InventoryManipulator.addById(bot.getClient(), 2061000, (short) 1000, "", -1);
+        }
+        if (needsStars(jobId) && bot.getInventory(InventoryType.USE).findById(2070000) == null) {
+            InventoryManipulator.addById(bot.getClient(), 2070000, (short) 1, "", -1);
+        }
+        if (needsBullets(jobId) && bot.getInventory(InventoryType.USE).findById(2330000) == null) {
+            InventoryManipulator.addById(bot.getClient(), 2330000, (short) 1, "", -1);
+        }
     }
 
     private static void clearInventory(Character bot, InventoryType type) {
@@ -120,6 +140,14 @@ public final class BotQaFleet {
                 InventoryManipulator.removeFromSlot(bot.getClient(), type, item.getPosition(), item.getQuantity(), false);
             } catch (RuntimeException ignored) { }
         }
+    }
+
+    private static boolean needsBowArrows(int jobId) {
+        return (jobId >= 300 && jobId <= 312) || (jobId >= 1300 && jobId <= 1312);
+    }
+
+    private static boolean needsCrossbowArrows(int jobId) {
+        return jobId >= 320 && jobId <= 322;
     }
 
     private static boolean needsStars(int jobId) {
