@@ -131,13 +131,13 @@ A systematic runtime matrix across Explorer, Cygnus, Aran, and Evan attacks, buf
 
 **Status:** Validation required
 
-Trade, storage, merchants, PlayerShop, Cash Shop transfer/re-entry, quest reward replay, drop/pickup races, and concurrent custom-currency operations still need broader multi-client/race testing.
+Remaining checks are limited to explicit disconnect/replay/race paths not yet separately verified, including quest reward replay, drop/pickup races, concurrent custom-currency operations, and cross-system persistence races.
 
-### Clean-machine launcher/client behavior
+### Launcher/client remaining runtime edge cases
 
 **Status:** Validation required
 
-Launcher self-update, damaged-file repair, interrupted-update rollback/retry, clean-machine installation, direct-EXE rejection, single-client enforcement, Alt+Enter/windowing transitions, crash/disconnect handling, and full channel switching still need final clean-player-machine regression coverage.
+Remaining checks are interrupted-update rollback/retry, direct-EXE rejection, single-client enforcement, Alt+Enter/windowing transitions, and crash/disconnect handling.
 
 ### Website/account release hardening
 
