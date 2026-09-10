@@ -2,7 +2,7 @@
 
 Repository-backed working checklist for the current EverLeaf release line.
 
-Last synchronized: **2026-09-10** after master consolidation, workflow-definition cleanup, native Discord Rich Presence extraction/validation, live client publication, website Git migration, final branch cleanup, the final guarded production rebuild/restart, documentation audit/consolidation, completion of the maintained player/staff documentation baseline, the source-side GM2 command-permission fix, the `!startevent` limit parsing fix, the account/character relationship guard work pending production audit/application, runtime verification of production registration/login, live server/channel status integration, download/manifest links, multi-hour/day soak, and simultaneous login/channel-change behavior, plus source-side launcher-only/single-client hardening and richer Discord character/level/job/field activity using verified v83 contracts, both pending managed-client publication/runtime verification.
+Last synchronized: **2026-09-10** after master consolidation, workflow-definition cleanup, native Discord Rich Presence extraction/validation, live client publication, website Git migration, final branch cleanup, the final guarded production rebuild/restart, documentation audit/consolidation, completion of the maintained player/staff documentation baseline, the source-side GM2 command-permission fix, the `!startevent` limit parsing fix, the account/character relationship guard work pending production audit/application, runtime verification of production registration/login, live server/channel status integration, download/manifest links, multi-hour/day soak, simultaneous login/channel-change behavior, launcher self-update, damaged-file repair, clean-machine installation, full channel switching, normal Trade/storage/Hired Merchant/PlayerShop flows, and Cash Shop transfer/re-entry, plus source-side launcher-only/single-client hardening and richer Discord character/level/job/field activity using verified v83 contracts, both pending managed-client publication/runtime verification.
 
 ## Current production baseline
 
@@ -433,6 +433,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Critical rollback failure logging exists.
 - 🟢 Storage settlement hardening is live.
 - 🟢 Storage fee behavior has been runtime-verified.
+- ✅ Normal storage use has been runtime-verified.
 - 🟡 Storage + disconnect race test.
 - 🟡 Concurrent account-storage test.
 - 🟡 Restricted/custom item bypass test.
@@ -459,6 +460,8 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Trade button → Free Market routing exists with safety restrictions.
 - ✅ Free Market Cash Shop field-limit correction is live with the matching client WZ patch.
 - ✅ Regular Store Permit behavior is corrected (`USE_ERASE_PERMIT_ON_OPENSHOP: false`).
+- ✅ Normal Hired Merchant flow has been runtime-verified.
+- ✅ Normal PlayerShop flow has been runtime-verified.
 - 🟡 Cancel/disconnect/channel-change races.
 - 🟡 Simultaneous merchant/PlayerShop purchase races.
 - 🟡 Merchant restart/recovery live test.
@@ -513,7 +516,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ NX/global-drop/reward audits exist.
 - ✅ Normal Cash Shop entry/use behavior has been runtime-tested.
 - ✅ FM-specific Cash Shop field limit is corrected in server + client WZ.
-- 🟡 Verify Cash Shop entry/exit and character state across disconnect/re-entry.
+- ✅ Cash Shop transfer/re-entry and character-state return behavior have been runtime-verified.
 - 🟡 Verify NX balances/scopes.
 - 🟡 Verify purchase history/gifting/wishlist/storage if retained.
 - 🟡 Verify retry/replay behavior and transfer-state races.
@@ -542,7 +545,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Production deployment validates player-facing relay ports.
 - 🟢 Final production release passed runtime/public-port validation for all 20 channels.
 - ✅ Simultaneous login/channel-change behavior has been runtime-verified.
-- 🟡 Manual player channel-change sweep CH1→CH20.
+- ✅ Full player channel switching across the configured channel set has been runtime-verified.
 - 🟡 Verify capacity/failure messaging.
 - 🟡 Load-test multi-channel concurrency.
 
@@ -615,12 +618,12 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ `ClientLaunchPolicyTests` cover the launcher-side single-client decision contract.
 - 🟡 Publish and clean-machine verify direct-EXE rejection, normal launcher launch, second-launch rejection, and rapid/race second-launch rejection.
 - 🟡 Decide/implement server-validated launcher-session proof only if modified-local-client resistance is required as a public-beta security property.
-- 🟡 Verify launcher self-update.
-- 🟡 Verify damaged-file repair/hash validation.
+- ✅ Launcher self-update has been runtime-verified.
+- ✅ Damaged-file repair/hash validation has been runtime-verified.
 - 🟡 Verify interrupted update atomicity/rollback/retry.
 - 🟡 Verify Play launches the correct executable/config.
 - 🟡 Verify signing/provenance strategy.
-- 🟡 Clean-machine install/update/repair test.
+- ✅ Clean-machine installation has been runtime-verified.
 
 # 33. Website / CMS
 
@@ -681,7 +684,8 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Merchant hardening.
 - ✅ PlayerShop hardening.
 - ✅ Weekly/account-currency transactional protections.
-- ✅ Normal storage/direct-trade/merchant/Cash-Shop paths have targeted runtime evidence.
+- ✅ Normal storage/direct-trade/merchant/PlayerShop/Cash-Shop paths have targeted runtime evidence.
+- ✅ Cash Shop transfer/re-entry has been runtime-verified.
 - ✅ Canonical `master` now registers `gachalist`, `loot`, and `mobskill` at GM rank 2, with a regression guard preventing rank-0 fallback.
 - ✅ Managed stock-client launcher-only/single-client enforcement is hardened in canonical source.
 - 🟡 Deploy the GM2 permission fix to production and verify an ordinary player is denied while GM2+ can invoke all three commands.
@@ -690,7 +694,6 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - 🔧 Malformed packet fuzzing.
 - 🔧 Broad dupe/race-condition matrix.
 - 🟡 Trade transition/disconnect race cases.
-- 🟡 Cash Shop disconnect transfer/re-entry.
 - 🟡 Quest reward replay after disconnect/relog.
 - 🟡 NPC shop extreme quantity and meso-cap paths.
 - 🟡 Drop/pickup races and cross-system persistence races.
@@ -846,6 +849,9 @@ The prior stacked-branch cleanup is complete. Historical PRs remain available as
 - ✅ Login/world/character/game flow.
 - ✅ Production registration/login, live server/channel status integration, and download/manifest links verified.
 - ✅ Multi-hour/day soak and simultaneous login/channel-change behavior verified.
+- ✅ Launcher self-update, damaged-file repair, and clean-machine installation verified.
+- ✅ Full player channel switching verified.
+- ✅ Normal Trade, storage, Hired Merchant, PlayerShop, and Cash Shop transfer/re-entry flows verified.
 - ✅ v95 server/client content baseline.
 - ✅ Future Henesys/Stronghold/Fallen Cygnus implementation.
 - ✅ Broad world-content structural integrity.
@@ -862,13 +868,13 @@ The prior stacked-branch cleanup is complete. Historical PRs remain available as
 
 ## Remaining closed-alpha validation
 
-- 🟡 Publish/clean-machine verify launcher-only direct-EXE rejection, normal launcher launch, and second-client/race rejection alongside install/update/repair.
+- 🟡 Publish/clean-machine verify launcher-only direct-EXE rejection, normal launcher launch, and second-client/race rejection.
 - 🟡 Build/publish and runtime-verify richer Discord character/level/job/field activity, including logout/channel/map transitions and Discord reconnect.
 - 🟡 Multi-character persistence/restart test.
 - 🟡 Advancement playthrough.
 - 🟡 Major quest chains.
 - 🟡 Boss/PQ real-client testing.
-- 🟡 Direct trade/merchant/storage race testing.
+- 🟡 Explicit disconnect/race/replay transaction edge cases not covered by the verified normal paths.
 - 🟡 Realistic concurrent load plus detailed DB/scheduler/resource-growth and reconnect/network-failure profiling.
 - 🟡 Deploy and live-verify the GM2 command-permission and `!startevent` fixes before broad external testing.
 - 🟡 Audit/remediate historical production account/character orphans and apply the relationship guard.
@@ -886,7 +892,7 @@ Main remaining blockers:
 5. 🔴 Realistic concurrent-player/boss-PQ load plus DB/scheduler/resource-growth and reconnect/network-failure testing.
 6. 🟡 Boss/PQ live regression matrix.
 7. 🟡 Combat formula/runtime parity.
-8. 🟡 Trade/storage/merchant/Cash-Shop race testing.
+8. 🟡 Remaining explicit disconnect/replay/race transaction edge cases.
 9. 🟡 Advancement/boss-prerequisite quest playthroughs.
 10. 🟡 Rankings stale/deleted/renamed behavior plus final website admin/session/CSRF/rate-limit checks.
 11. 🟡 Packet/admin/web security pass.
@@ -899,8 +905,9 @@ Main remaining blockers:
 - ✅ Current server release reproducible and deployed through the guarded workflow.
 - ✅ Current managed client overlay reproducible/published through the maintained client workflow.
 - ✅ Production registration/login, live server/channel status integration, and download/manifest links verified.
-- 🟡 Clean-install client/server/launcher assets plus launcher-only/single-client enforcement verified on the newly published managed build.
-- 🟡 Live channel count/config verified with actual client channel switching across all channels.
+- ✅ Clean-machine installation verified.
+- 🟡 Launcher-only/single-client enforcement still requires verification on the newly published hardened managed build.
+- ✅ Live channel count/config verified with actual client channel switching across all channels.
 - 🟡 Remaining website/CMS validation is rankings stale/deleted/renamed behavior plus final admin/session/CSRF/rate-limit checks.
 - 🟡 Economy/security/performance/load validation complete.
 - ✅ Backup/restore/rollback foundation validated.
@@ -949,6 +956,8 @@ Main remaining blockers:
 - ✅ Patch/hotfix, launcher manifest/version, and DB migration release policy documented.
 - ✅ Production registration/login, live server/channel status integration, and download/manifest links runtime-verified.
 - ✅ Multi-hour/day soak and simultaneous login/channel-change behavior runtime-verified.
+- ✅ Launcher self-update, damaged-file repair, clean-machine installation, and full player channel switching runtime-verified.
+- ✅ Normal Trade, storage, Hired Merchant, PlayerShop, and Cash Shop transfer/re-entry flows runtime-verified.
 - ✅ Managed stock launcher/client source hardened to require launcher handoff and block multi-client with process/mutex checks, native lifetime mutex, and exclusive single-use launch-ticket consumption.
 - ✅ Consolidated feature audit corrected from retired `origin/client-dev` to canonical `origin/master` and extended with launcher/single-client guard markers.
 
@@ -961,10 +970,10 @@ Main remaining blockers:
 5. **Systematic class/skill runtime matrix** — Explorer, Cygnus, Aran, Evan; attacks, buffs, passives, summons, movement, party effects, status interactions.
 6. **Advancement + boss-prerequisite quests** — live progression, repeat/abuse/disconnect paths.
 7. **NPC / portal / reactor runtime sweep** — focus on high-impact travel, advancement, boss, storage/shop/event/custom paths.
-8. **Transaction/exploit edge cases** — trade transition, Cash Shop disconnect transfer/re-entry, quest reward replay, NPC-shop extremes, drop/pickup races, cross-system persistence races.
-9. **Client runtime regression** — clean install, launcher repair/update, crash/disconnect, windowing, Alt+Enter, channel switching, launcher-only/single-client enforcement, and richer Discord gameplay activity after the current client batch is built/published.
+8. **Transaction/exploit edge cases** — quest reward replay, NPC-shop extremes, drop/pickup races, cross-system persistence races, and explicit disconnect/race paths not already verified.
+9. **Client runtime regression** — interrupted-update rollback/retry, crash/disconnect, windowing, Alt+Enter, launcher-only/single-client enforcement, and richer Discord gameplay activity after the current client batch is built/published.
 10. **Source-first authentication/security audit** — packet/state/admin/web review with targeted live confirmation only where static inspection cannot prove behavior; decide whether server-backed launcher-session proof is required.
-11. **Two-client social/transaction matrix** — party, buddy, guild, trade, cross-channel updates using separate test machines/approved QA setup rather than player multi-client on one machine.
+11. **Two-client social/transaction matrix** — party, buddy, guild, cross-channel updates, and remaining transaction edge cases using separate test machines/approved QA setup rather than player multi-client on one machine.
 12. **PQ multi-client regression** — after core two-client systems are clean, using separate test machines/approved QA setup.
 13. **Website rankings/admin-security final verification and page-by-page polish** — registration/login, live status, and download/manifest integration are already verified.
 14. **Economy/balance pass** — post-200 pacing, boss rewards, rare scrolls, Verdant/PQ Points, meso generation/sinks, Gachapon.
@@ -973,11 +982,11 @@ Main remaining blockers:
 
 # Current Completion Assessment
 
-EverLeaf has moved beyond repository consolidation, broad static-content import, the first major transaction-hardening stage, and the documentation cleanup stage. Core v95 backport work, Future Henesys/Stronghold/Fallen Cygnus, backup/DR, level-250 progression, survivability replacement, AP/SP/mastery hardening, Aran High Defense, PQ/event reward idempotency, storage settlement, Family Reputation duplication, event unregister replay, Wheel/event death bypass, native Discord Rich Presence, richer Discord character/level/job/field source support, client publication, Git-backed website deployment, workflow cleanup, branch consolidation, player/staff runbooks, maintained known-issues documentation, the source-side GM2 restriction for `gachalist`, `loot`, and `mobskill`, corrected `!startevent` limit parsing, the preventive account/character relationship guard/audit, and launcher-only/one-client-per-machine stock-client hardening are implemented on canonical `master`. Production registration/login, live server/channel status integration, download/manifest links, multi-hour/day soak, and simultaneous login/channel-change behavior have also been runtime-verified.
+EverLeaf has moved beyond repository consolidation, broad static-content import, the first major transaction-hardening stage, and the documentation cleanup stage. Core v95 backport work, Future Henesys/Stronghold/Fallen Cygnus, backup/DR, level-250 progression, survivability replacement, AP/SP/mastery hardening, Aran High Defense, PQ/event reward idempotency, storage settlement, Family Reputation duplication, event unregister replay, Wheel/event death bypass, native Discord Rich Presence, richer Discord character/level/job/field source support, client publication, Git-backed website deployment, workflow cleanup, branch consolidation, player/staff runbooks, maintained known-issues documentation, the source-side GM2 restriction for `gachalist`, `loot`, and `mobskill`, corrected `!startevent` limit parsing, the preventive account/character relationship guard/audit, and launcher-only/one-client-per-machine stock-client hardening are implemented on canonical `master`. Production registration/login, live server/channel status integration, download/manifest links, multi-hour/day soak, simultaneous login/channel-change behavior, launcher self-update, damaged-file repair, clean-machine installation, full player channel switching, normal Trade/storage/Hired Merchant/PlayerShop flows, and Cash Shop transfer/re-entry have also been runtime-verified.
 
 The exact final canonical server source SHA `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a` was rebuilt and deployed to production. The final release is healthy with the canonical 44,237-file v95 XML baseline, login server, all 20 channels, and player-facing relay ports verified. Source/documentation/client commits after that deployment—including the GM2 command restriction, `!startevent` fix, account/character guard, launcher/single-client hardening, and richer Discord gameplay activity—do not change the currently running/published production artifacts until another deliberate guarded deployment/client publication/migration occurs.
 
-The largest remaining uncertainty is now **runtime behavior under broader multi-client gameplay and heavier load**: boss/PQ lifecycle, full class/combat parity, advancement/prerequisite quest behavior, persistence/concurrency and anti-dupe race testing, clean-machine launcher-only/single-client enforcement and richer Discord activity on the newly published build, rankings/admin-security website checks, realistic concurrent load, DB/scheduler/resource-growth profiling, and reconnect/network-failure behavior. The GM2 and `!startevent` fixes remain pending production deployment/live verification; the account/character guard remains pending a production orphan audit, deliberate remediation if needed, and migration application; the launcher/single-client hardening and richer Discord activity remain pending managed-client publication and runtime verification.
+The largest remaining uncertainty is now **runtime behavior under broader multi-client gameplay and heavier load**: boss/PQ lifecycle, full class/combat parity, advancement/prerequisite quest behavior, remaining persistence/concurrency and anti-dupe race testing, launcher-only/single-client enforcement and richer Discord activity on the next hardened managed build, rankings/admin-security website checks, realistic concurrent load, DB/scheduler/resource-growth profiling, and reconnect/network-failure behavior. The GM2 and `!startevent` fixes remain pending production deployment/live verification; the account/character guard remains pending a production orphan audit, deliberate remediation if needed, and migration application; the launcher/single-client hardening and richer Discord activity remain pending managed-client publication and runtime verification.
 
 ## Operating rule
 
