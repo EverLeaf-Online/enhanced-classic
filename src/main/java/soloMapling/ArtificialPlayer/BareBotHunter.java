@@ -239,10 +239,11 @@ public final class BareBotHunter {
             if (loot.found()) return;
             Monster target = BotAttackDriver.nearestHuntTarget(bot);
             if (target == null) {
-                // The hunter may be started from a town or another map with no mobs.
-                // Immediately select a reachable level-appropriate training map instead
-                // of idling forever until the normal +5-level progression check.
-                int targetMapId = BotTrainingMapSelector.select(bot, trainingMapId);
+                // No usable target exists on this map. Unlike ordinary progression,
+                // force selection of another reachable mob map even if the current
+                // map scores slightly better by level, otherwise the hunter can idle
+                // forever on a map whose mobs are unreachable by the combat surface rules.
+                int targetMapId = BotTrainingMapSelector.selectAlternative(bot, trainingMapId);
                 if (targetMapId != trainingMapId) {
                     beginProgression(targetMapId);
                 }

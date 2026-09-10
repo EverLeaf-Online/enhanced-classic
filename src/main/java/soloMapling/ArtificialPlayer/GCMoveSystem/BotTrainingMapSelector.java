@@ -53,6 +53,40 @@ public final class BotTrainingMapSelector {
         return best.score() + MIN_IMPROVEMENT <= currentScore ? best.mapId() : currentTrainingMapId;
     }
 
+    public static int selectAlternative(Character bot, int currentTrainingMapId) {
+        if (bot == null || bot.getMap() == null) return currentTrainingMapId;
+
+        int playerLevel = Math.max(1, bot.getLevel());
+        Candidate best = null;
+
+        Set<Integer> visited = new HashSet<>();
+        ArrayDeque<Node> queue = new ArrayDeque<>();
+        visited.add(currentTrainingMapId);
+        queue.add(new Node(currentTrainingMapId, 0));
+
+        while (!queue.isEmpty() && visited.size() <= MAX_VISITED) {
+            Node node = queue.removeFirst();
+            if (node.depth() >= SEARCH_DEPTH) continue;
+
+            int[] neighbors = GCWorldGraph.neighbors(GCWorldGraph.get(), node.mapId());
+            for (int mapId : neighbors) {
+                if (!visited.add(mapId)) continue;
+
+                Candidate candidate = candidate(bot, mapId, playerLevel);
+                if (candidate != null
+                        && candidate.mapId() != currentTrainingMapId
+                        && (best == null || candidate.score() < best.score())) {
+                    best = candidate;
+                }
+
+                queue.addLast(new Node(mapId, node.depth() + 1));
+                if (visited.size() >= MAX_VISITED) break;
+            }
+        }
+
+        return best == null ? currentTrainingMapId : best.mapId();
+    }
+
     private static Candidate candidate(Character bot, int mapId, int playerLevel) {
         try {
             MapleMap map = bot.getWarpMap(mapId);
