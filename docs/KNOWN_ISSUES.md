@@ -114,15 +114,15 @@ Launcher self-update, damaged-file repair, interrupted-update rollback/retry, cl
 
 ### Website/account integration
 
-**Status:** Validation required
+**Status:** Partially verified; remaining validation required
 
-Registration/login against the production game database, rankings behavior for stale/deleted/renamed characters, live server/channel status integration, download/manifest links, and final admin/session/CSRF/rate-limit checks remain part of release hardening.
+Registration/login against the production game database, live server/channel status integration, and production download/manifest links have been runtime-verified. Remaining website/account release hardening is focused on rankings behavior for stale/deleted/renamed characters plus final admin/session/CSRF/rate-limit checks.
 
 ### Performance/load/soak
 
-**Status:** Validation required
+**Status:** Partially verified; remaining validation required
 
-Realistic concurrent-player load, multi-hour/day soak, simultaneous logins/channel changes, concurrent boss/PQ instances, DB hotspots, scheduler behavior, heap/GC/thread/socket/file-descriptor growth, and reconnect/network-failure behavior have not yet completed the planned final stress pass.
+Multi-hour/day soak and simultaneous login/channel-change behavior have been runtime-verified. Remaining stress work is realistic concurrent-player load, concurrent boss/PQ instances, DB hotspots, scheduler behavior, heap/GC/thread/socket/file-descriptor growth profiling, and reconnect/network-failure behavior.
 
 ## Reporting a new issue
 
