@@ -12,6 +12,17 @@ std::vector<BYTE> Frame(Opcode opcode,const std::string& body) {
  std::vector<BYTE> b(sizeof(h)+body.size());std::memcpy(b.data(),&h,sizeof(h));std::memcpy(b.data()+sizeof(h),body.data(),body.size());return b;
 }
 int main() {
+ assert(std::string(JobName(0))=="Beginner");
+ assert(std::string(JobName(112))=="Hero");
+ assert(std::string(JobName(232))=="Bishop");
+ assert(std::string(JobName(412))=="Night Lord");
+ assert(std::string(JobName(512))=="Buccaneer");
+ assert(std::string(JobName(1112))=="Dawn Warrior");
+ assert(std::string(JobName(2112))=="Aran");
+ assert(std::string(JobName(2218))=="Evan");
+ assert(std::string(JobName(9999))=="Unknown Job");
+ assert(BuildGameplayDetails("Policy",120,232)=="Policy | Lv. 120 Bishop");
+ assert(BuildGameplayState(100000000)=="Map 100000000");
  SetActivity("Playing \"EverLeaf\"\nwith friends","Enhanced classic adventure");
  std::cout << BuildActivity("test-nonce") << std::endl;
  Incoming incoming;
