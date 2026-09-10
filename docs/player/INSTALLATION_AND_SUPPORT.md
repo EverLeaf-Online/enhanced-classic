@@ -9,13 +9,25 @@ This is the maintained player-facing installation/support baseline. It intention
 3. Allow the launcher to finish file validation/update before pressing Play.
 4. Launch the game through the launcher for normal play.
 
-The launcher-managed path is important because EverLeaf distributes client/WZ/native overlay updates through its patch manifest and uses launcher/bootstrap assumptions that a raw executable launch may bypass.
+EverLeaf is intentionally **launcher-only**. The launcher-managed path keeps the executable, WZ files, and native client components on the expected release and performs the required launch handoff before the game starts.
 
-## Raw EXE launches
+## Raw EXE launches are blocked
 
-Launching the game executable directly is not the supported normal player path. A raw EXE launch can bypass update/repair checks and launcher-ticket/bootstrap behavior, leading to version mismatch or failed login behavior.
+Do not launch `EverLeaf.exe` directly. The managed EverLeaf native bootstrap requires the launcher's one-time handoff and exits when that handoff is missing or invalid.
 
-If the launcher works but a raw EXE does not, use the launcher rather than attempting to bypass its controls.
+If Windows shortcuts or old files point directly to the game executable, remove those shortcuts and launch `EverLeafLauncher.exe` instead. Do not attempt to create/copy launcher-ticket files or bypass the launcher checks.
+
+## One client at a time
+
+EverLeaf does not support multi-client play on the same machine. The launcher refuses to start another game while EverLeaf is already running, and the managed native client also holds a machine-wide single-client guard for its lifetime.
+
+If the launcher reports that EverLeaf is already running:
+
+- use the existing game window;
+- close the existing EverLeaf client normally before launching again;
+- if the client crashed and Windows still shows the process, end only the stale EverLeaf process after confirming the game is no longer running, then reopen the launcher.
+
+Do not use renamed/copy folders or multiple launcher windows to attempt to run additional clients.
 
 ## Antivirus / security software
 
@@ -76,10 +88,10 @@ A useful gameplay report includes:
 - screenshot/video when relevant;
 - timestamp/time zone when a server-side log correlation may be needed.
 
-For suspected duplication, economy abuse, account compromise, or an exploitable security bug, avoid publishing reproduction steps publicly; send the evidence through a staff/support channel.
+For suspected duplication, economy abuse, account compromise, unauthorized launcher bypass, or another exploitable security bug, avoid publishing reproduction steps publicly; send the evidence through a staff/support channel.
 
 ## Known issues / validation areas
 
 See [`../KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) for the maintained known-defect and validation-risk register.
 
-EverLeaf is closed-alpha capable but still has public-beta validation work around full boss/PQ runs, multi-client race conditions, complete class/combat parity, clean-machine launcher behavior, load/soak testing, and final website/account integration. The master development checklist remains authoritative for the complete readiness roadmap.
+EverLeaf is closed-alpha capable but still has public-beta validation work around full boss/PQ runs, transaction/concurrency race conditions, complete class/combat parity, clean-machine launcher/client behavior, heavier load testing, and final website/account hardening. The master development checklist remains authoritative for the complete readiness roadmap.
