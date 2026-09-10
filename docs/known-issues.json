@@ -67,8 +67,8 @@
   "validation_risks": [
     "boss_and_pq_multiclient_lifecycle",
     "full_class_and_combat_runtime_parity",
-    "transaction_and_concurrency_edge_cases",
-    "clean_machine_launcher_and_client_behavior",
+    "remaining_transaction_disconnect_replay_race_edge_cases",
+    "launcher_client_interrupted_update_single_client_windowing_crash_edge_cases",
     "launcher_only_and_single_client_runtime_enforcement",
     "discord_rich_presence_gameplay_runtime_verification",
     "rankings_stale_deleted_renamed_character_behavior",
