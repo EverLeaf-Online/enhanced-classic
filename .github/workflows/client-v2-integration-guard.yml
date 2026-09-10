@@ -23,6 +23,8 @@ jobs:
           $dinput = Get-Content "client/ezorsia/ezorsia/dinput8.cpp" -Raw
           $memory = Get-Content "client/ezorsia/ezorsia/Memory.cpp" -Raw
           $config = Get-Content "client/ezorsia/ezorsia/config.ini" -Raw
+          $launcherWindow = Get-Content "launcher/EverLeaf.Launcher/MainWindow.xaml.cs" -Raw
+          $launchPolicy = Get-Content "launcher/EverLeaf.Launcher/ClientLaunchPolicy.cs" -Raw
 
           foreach ($required in @(
             '#include "SafeEarlyHooks.h"',
@@ -106,8 +108,32 @@ jobs:
           if (-not $createHook.Contains('RequireEverLeafLauncher();')) {
             throw 'Post-unpack dinput bootstrap does not enforce the launcher ticket'
           }
-          if (-not $dinput.Contains('InterlockedCompareExchange(&g_launcherTicketAccepted, 1, 1) == 1')) {
-            throw 'Launcher ticket consumption is not idempotent across bootstrap/export paths'
+          if (-not $createHook.Contains('RequireSingleClientInstance();')) {
+            throw 'Post-unpack dinput bootstrap does not enforce single-client policy'
+          }
+          foreach ($required in @(
+            'InterlockedCompareExchange(&g_launcherTicketAccepted, 1, 1) == 1',
+            'Global\\EverLeafMS.Client.SingleInstance',
+            'CreateMutexW(nullptr, FALSE, kClientInstanceMutex)',
+            'FILE_FLAG_DELETE_ON_CLOSE'
+          )) {
+            if (-not $dinput.Contains($required)) { throw "Missing launcher/single-client native contract: $required" }
+          }
+
+          foreach ($required in @(
+            'ClientLaunchPolicy.EnsureCanLaunch();',
+            'ClientLaunchPolicy.MultiClientMessage',
+            '!IsGameRunning()'
+          )) {
+            if (-not $launcherWindow.Contains($required)) { throw "Missing launcher multi-client gate: $required" }
+          }
+          foreach ($required in @(
+            'Global\EverLeafMS.Client.SingleInstance',
+            'Process.GetProcessesByName("EverLeaf")',
+            'Mutex.TryOpenExisting(ClientMutexName',
+            'Multi-client is not allowed'
+          )) {
+            if (-not $launchPolicy.Contains($required)) { throw "Missing launcher process/mutex policy: $required" }
           }
 
           foreach ($required in @(
