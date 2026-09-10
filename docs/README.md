@@ -15,6 +15,7 @@ This directory contains the maintained documentation for EverLeafMS.
 ### Operations
 
 - [`operations/PRODUCTION_AND_RELEASE.md`](operations/PRODUCTION_AND_RELEASE.md) — canonical production topology, release policy, deployment gates, rollback, backup, and operational checks.
+- [`operations/CHANGE_PATCH_AND_MIGRATION_POLICY.md`](operations/CHANGE_PATCH_AND_MIGRATION_POLICY.md) — routine patch cadence, emergency hotfix flow, managed-client/launcher manifest versioning, coordinated release surfaces, and database migration release policy.
 
 ### Gameplay and economy
 
@@ -39,6 +40,7 @@ This directory contains the maintained documentation for EverLeafMS.
 - [`staff/GM_COMMANDS_AND_PERMISSIONS.md`](staff/GM_COMMANDS_AND_PERMISSIONS.md) — source-verified numeric GM command ranks and operational restrictions; replaces legacy handbook role labels as the permission reference.
 - [`staff/MODERATION_AND_APPEALS.md`](staff/MODERATION_AND_APPEALS.md) — ban, unban, containment, evidence, compromise, and appeal procedure.
 - [`staff/ACCOUNT_RECOVERY_PROCEDURE.md`](staff/ACCOUNT_RECOVERY_PROCEDURE.md) — staff workflow for reviewing the current CMS recovery queue, ownership verification boundaries, status transitions, compromise cases, and audit trail.
+- [`staff/DATABASE_ADMINISTRATION.md`](staff/DATABASE_ADMINISTRATION.md) — safe DBeaver/private-tunnel administration, read-only inspection, transactional corrections, migration application, deletion/economy safeguards, and credential hygiene.
 - [`staff/EVENT_OPERATIONS.md`](staff/EVENT_OPERATIONS.md) — joinable GM/classic event preparation, execution, rewards, abort, cleanup, and validation procedure.
 - [`staff/RECOVERY_AND_RESTORE.md`](staff/RECOVERY_AND_RESTORE.md) — command-level service recovery, backup, release rollback, database-restore decision gates, and restore rehearsal procedure.
 - [`staff/EMERGENCY_SHUTDOWN.md`](staff/EMERGENCY_SHUTDOWN.md) — emergency stop/containment, evidence preservation, backup, and controlled reopen procedure for incidents where continued writes are unsafe.
@@ -53,5 +55,6 @@ This directory contains the maintained documentation for EverLeafMS.
 - Keep implementation details only when they remain useful for maintaining the current system; archive superseded implementation plans.
 - When moving or replacing a maintained document, update repository links in the same change.
 - When command registration changes, re-audit `staff/GM_COMMANDS_AND_PERMISSIONS.md` against `CommandsExecutor.java`.
+- When patch/launcher/migration behavior changes, update `operations/CHANGE_PATCH_AND_MIGRATION_POLICY.md` in the same change.
 
 The missing-document follow-up from the September 10 audit is complete. The original gap list and same-day completion record are preserved in [`archive/DOCUMENTATION_AUDIT_2026-09-10.md`](archive/DOCUMENTATION_AUDIT_2026-09-10.md). Any remaining red/yellow items in the master checklist are implementation, runtime-validation, security, balance, or operations work rather than missing baseline documentation.
