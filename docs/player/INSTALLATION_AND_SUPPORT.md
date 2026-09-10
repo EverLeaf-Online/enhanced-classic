@@ -52,9 +52,17 @@ When reporting a crash, include the log/error and the steps that triggered it. T
 
 Do not post passwords, PIC/PIN values, session/launcher tokens, or private account credentials in bug reports.
 
-## Accounts
+## Accounts and recovery
 
-Website registration is the authoritative account-creation path under the current production policy. Account recovery/support behavior is still being hardened; use the official site/help/support surfaces rather than attempting database/account workarounds.
+Website registration is the authoritative account-creation path under the current production policy.
+
+The current account-recovery path is documented in [`ACCOUNT_RECOVERY.md`](ACCOUNT_RECOVERY.md). Recovery requests are submitted through the official `/recover` page and enter a staff-reviewed queue; the current system is not an automated password-reset-email flow.
+
+Do not attempt database/account workarounds or send passwords/PIC/PIN/session tokens to staff.
+
+## Progression/content help
+
+For rates, level 200–250 progression, Verdant Marks, PQ Points, survivability/no-HP-washing policy, bosses/PQs, and major custom content, see [`PROGRESSION_AND_CONTENT.md`](PROGRESSION_AND_CONTENT.md).
 
 ## Gameplay bug reports
 
@@ -70,6 +78,8 @@ A useful gameplay report includes:
 
 For suspected duplication, economy abuse, account compromise, or an exploitable security bug, avoid publishing reproduction steps publicly; send the evidence through a staff/support channel.
 
-## Known validation areas
+## Known issues / validation areas
 
-EverLeaf is closed-alpha capable but still has public-beta validation work around full boss/PQ runs, multi-client race conditions, complete class/combat parity, clean-machine launcher behavior, load/soak testing, and final website/account integration. The authoritative current list is the master development checklist.
+See [`../KNOWN_ISSUES.md`](../KNOWN_ISSUES.md) for the maintained known-defect and validation-risk register.
+
+EverLeaf is closed-alpha capable but still has public-beta validation work around full boss/PQ runs, multi-client race conditions, complete class/combat parity, clean-machine launcher behavior, load/soak testing, and final website/account integration. The master development checklist remains authoritative for the complete readiness roadmap.
