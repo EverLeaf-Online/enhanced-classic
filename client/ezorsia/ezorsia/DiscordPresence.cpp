@@ -36,6 +36,9 @@ constexpr DWORD kGetCharacterLevelAddress = 0x00949B15;
 constexpr DWORD kGetJobCodeAddress = 0x0095FFC3;
 constexpr DWORD kGetFieldIdAddress = 0x009613E0;
 constexpr DWORD kGetCurFieldIdAddress = 0x00A1238B;
+constexpr DWORD kOnLeaveGameAddress = 0x00A041FF;
+
+static_assert(sizeof(void*) == 4, "EverLeaf Discord gameplay contracts require the pinned Win32 v83 client");
 
 enum class Opcode : std::uint32_t {
     Handshake = 0,
@@ -54,6 +57,7 @@ struct FrameHeader {
 
 std::atomic<bool> gRunning{ false };
 std::atomic<bool> gStopRequested{ false };
+std::atomic<std::uint64_t> gActivityRevision{ 0 };
 std::mutex gActivityMutex;
 std::string gDetails = "Exploring EverLeaf";
 std::string gState = "Enhanced classic adventure";
@@ -285,6 +289,7 @@ struct GameplaySnapshot {
 };
 
 using CUserLocalUpdate_t = void(__thiscall*)(void*);
+using WvsContextOnLeaveGame_t = void(__thiscall*)(void*);
 using GetCharacterName_t = const char* (__thiscall*)(void*);
 using GetCharacterLevel_t = unsigned char (__thiscall*)(void*);
 using GetJobCode_t = int (__thiscall*)(void*);
@@ -294,6 +299,8 @@ using GetField_t = void* (__cdecl*)();
 
 CUserLocalUpdate_t gUserLocalUpdateOriginal =
     reinterpret_cast<CUserLocalUpdate_t>(kUserLocalUpdateAddress);
+WvsContextOnLeaveGame_t gWvsContextOnLeaveGameOriginal =
+    reinterpret_cast<WvsContextOnLeaveGame_t>(kOnLeaveGameAddress);
 GetCharacterName_t gGetCharacterName =
     reinterpret_cast<GetCharacterName_t>(kGetCharacterNameAddress);
 GetCharacterLevel_t gGetCharacterLevel =
@@ -303,7 +310,7 @@ GetFieldId_t gGetFieldId = reinterpret_cast<GetFieldId_t>(kGetFieldIdAddress);
 GetCurFieldId_t gGetCurFieldId = reinterpret_cast<GetCurFieldId_t>(kGetCurFieldIdAddress);
 GetField_t gGetField = reinterpret_cast<GetField_t>(kGetFieldAddress);
 
-bool gGameplayHookInstalled = false;
+bool gGameplayHooksInstalled = false;
 bool gGameplayActivityVisible = false;
 ULONGLONG gLastGameplayRefresh = 0;
 
@@ -379,9 +386,15 @@ void __fastcall CUserLocalUpdateHook(void* pThis, void*) {
     RefreshGameplayActivity(pThis);
 }
 
-bool InstallGameplayHook() {
-    if (gGameplayHookInstalled) return true;
-    if (!gUserLocalUpdateOriginal) return false;
+void __fastcall WvsContextOnLeaveGameHook(void* pThis, void*) {
+    gWvsContextOnLeaveGameOriginal(pThis);
+    gLastGameplayRefresh = 0;
+    SetBasicActivity();
+}
+
+bool InstallGameplayHooks() {
+    if (gGameplayHooksInstalled) return true;
+    if (!gUserLocalUpdateOriginal || !gWvsContextOnLeaveGameOriginal) return false;
 
     if (!Memory::SetHook(
             true,
@@ -390,7 +403,18 @@ bool InstallGameplayHook() {
         return false;
     }
 
-    gGameplayHookInstalled = true;
+    if (!Memory::SetHook(
+            true,
+            reinterpret_cast<void**>(&gWvsContextOnLeaveGameOriginal),
+            reinterpret_cast<void*>(WvsContextOnLeaveGameHook))) {
+        Memory::SetHook(
+            false,
+            reinterpret_cast<void**>(&gUserLocalUpdateOriginal),
+            reinterpret_cast<void*>(CUserLocalUpdateHook));
+        return false;
+    }
+
+    gGameplayHooksInstalled = true;
     return true;
 }
 #endif
@@ -433,8 +457,10 @@ DWORD WINAPI WorkerProc(LPVOID) {
         bool announced = false;
         while (!gStopRequested.load()) {
             const std::string nonce = std::to_string(GetTickCount64());
+            const std::uint64_t sentRevision = gActivityRevision.load();
+            const std::string activity = BuildActivity(nonce);
             incoming.acknowledged = false;
-            if (!SendFrame(pipe, Opcode::Frame, BuildActivity(nonce))
+            if (!SendFrame(pipe, Opcode::Frame, activity)
                 || !WaitForResponse(pipe, incoming, nonce)) break;
             if (!announced) {
                 CrashDiagnostics::LogEvent("Discord Rich Presence activity acknowledged");
@@ -444,6 +470,7 @@ DWORD WINAPI WorkerProc(LPVOID) {
             bool healthy = true;
             while (GetTickCount64() < refreshAt && !gStopRequested.load()) {
                 if (!PollPipe(pipe, incoming, nonce)) { healthy = false; break; }
+                if (gActivityRevision.load() != sentRevision) break;
                 SleepUntil(kSleepSliceMs);
             }
             if (!healthy) break;
@@ -466,10 +493,10 @@ void Start() {
     }
 
 #ifndef EVERLEAF_PRESENCE_TEST
-    if (!InstallGameplayHook()) {
-        CrashDiagnostics::LogEvent("Discord Rich Presence gameplay hook unavailable; using basic activity");
+    if (!InstallGameplayHooks()) {
+        CrashDiagnostics::LogEvent("Discord Rich Presence gameplay hooks unavailable; using basic activity");
     } else {
-        CrashDiagnostics::LogEvent("Discord Rich Presence v83 gameplay hook installed");
+        CrashDiagnostics::LogEvent("Discord Rich Presence v83 gameplay hooks installed");
     }
 #endif
 
@@ -501,8 +528,13 @@ void Stop() {
 }
 
 void SetActivity(const std::string& details, const std::string& state) {
+    const std::string nextDetails = details.empty() ? "Exploring EverLeaf" : details;
+    const std::string nextState = state.empty() ? "Enhanced classic adventure" : state;
+
     std::lock_guard<std::mutex> lock(gActivityMutex);
-    gDetails = details.empty() ? "Exploring EverLeaf" : details;
-    gState = state.empty() ? "Enhanced classic adventure" : state;
+    if (gDetails == nextDetails && gState == nextState) return;
+    gDetails = nextDetails;
+    gState = nextState;
+    gActivityRevision.fetch_add(1);
 }
 } // namespace DiscordPresence
