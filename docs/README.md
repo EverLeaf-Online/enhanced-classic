@@ -54,4 +54,4 @@ This directory contains the maintained documentation for EverLeafMS.
 - When moving or replacing a maintained document, update repository links in the same change.
 - When command registration changes, re-audit `staff/GM_COMMANDS_AND_PERMISSIONS.md` against `CommandsExecutor.java`.
 
-See [`archive/DOCUMENTATION_AUDIT_2026-09-10.md`](archive/DOCUMENTATION_AUDIT_2026-09-10.md) for the consolidation audit and same-day follow-up that established this structure.
+The missing-document follow-up from the September 10 audit is complete. The original gap list and same-day completion record are preserved in [`archive/DOCUMENTATION_AUDIT_2026-09-10.md`](archive/DOCUMENTATION_AUDIT_2026-09-10.md). Any remaining red/yellow items in the master checklist are implementation, runtime-validation, security, balance, or operations work rather than missing baseline documentation.
