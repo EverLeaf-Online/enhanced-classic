@@ -58,6 +58,25 @@ This should be validated with the published managed launcher/client by testing: 
 
 **Security boundary:** these controls enforce the policy for the EverLeaf-managed stock binaries. A player who can arbitrarily patch/replace their local executable or bootstrap DLL is outside what a purely client-side guard can make tamper-proof. If EverLeaf later requires cryptographically server-backed proof that an unmodified launcher authorized each login, that requires a server-validated launch-session protocol rather than pretending a local mutex/ticket alone is unbreakable.
 
+### Low — richer Discord Rich Presence gameplay activity was gated on v83 contracts
+
+**Status:** Source-fixed; managed client publication and runtime verification pending
+
+The published client already provides EverLeaf-native basic Discord Rich Presence. Canonical `master` now adds richer gameplay activity after pinning the required GMS v83 contracts from the project-supplied `Angel.idb` and cross-checking them against independent v83 client work.
+
+The source now:
+
+- samples gameplay state from `CUserLocal::Update` on Maple's game thread rather than reading Maple objects from the Discord IPC worker;
+- reads the character name, level, job code, and field ID through pinned v83 getters rather than guessed struct offsets;
+- cross-checks `CUserLocal::GetFieldID()` against `CWvsContext::GetCurFieldID()` before publishing map activity;
+- requires an active field/local-user/context state and fails closed to the existing generic EverLeaf activity during login, logout, transitions, pointer/layout failures, or field-ID disagreement;
+- formats supported EverLeaf v83 jobs from the server's maintained `Job` IDs instead of importing post-v83 job IDs from external references;
+- retains the existing local Discord named-pipe IPC implementation, with no Discord bot token, OAuth secret, Game SDK DLL, or database access.
+
+The pinned v83 addresses used by this feature are source-build-specific and must not be carried to another client version without re-verification. Regression coverage now checks supported job labels/gameplay formatting in addition to the existing Discord IPC framing/acknowledgement tests, and the native Discord workflow contains source-contract markers for the verified addresses and fail-closed map cross-check.
+
+Runtime closure is intentionally still pending until the batched client build/publish pass. Verify Discord behavior across login, character entry, level/job state, map changes, channel changes, logout, reconnect, and Discord-not-running/reconnect cases, and confirm stale character/map activity is cleared during transitions.
+
 ## Confirmed source/data-integrity issues
 
 ### Medium — historical account purge/deletion can leave character data
@@ -85,12 +104,6 @@ This issue is **not closed in production yet**. Before applying the migration, r
 The public `/recover` form accepts a username or valid account email, deduplicates pending submissions within a day, and deliberately returns the same success response to prevent account enumeration. Requests enter the staff CMS queue with `pending`, `resolved`, or `rejected` status.
 
 The current code does **not** implement an automated password-reset token/email flow. Staff must verify and resolve requests under the recovery procedure.
-
-### Low — richer Discord Rich Presence activity is intentionally disabled
-
-**Status:** Deferred, not a regression
-
-The published client includes EverLeaf-native Discord Rich Presence, but character/map/job activity hooks remain disabled until their v83 memory contracts are verified. Basic presence is expected; richer per-character/map data is not yet promised.
 
 ### Low — direct modern class-card/Evan creation UI is paused
 
