@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
@@ -26,7 +25,7 @@ public partial class MainWindow : Window
     }
 
     private bool IsGameRunning()
-        => Process.GetProcessesByName("EverLeaf").Any(process => process.Id != Environment.ProcessId);
+        => ClientLaunchPolicy.IsGameRunning();
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
@@ -104,8 +103,8 @@ public partial class MainWindow : Window
 
         if (IsGameRunning())
         {
-            ErrorText.Text = "EverLeaf is currently running. Close the game before checking or repairing client files.";
-            PatchStatusText.Text = "Close EverLeaf before repair";
+            ErrorText.Text = ClientLaunchPolicy.MultiClientMessage;
+            PatchStatusText.Text = "EverLeaf is already running";
             _clientReady = true;
             SetBusy(false);
             return;
@@ -145,6 +144,7 @@ public partial class MainWindow : Window
         string? launchTicket = null;
         try
         {
+            ClientLaunchPolicy.EnsureCanLaunch();
             SetBusy(true);
             if (!_clientReady)
                 await RepairInternalAsync();
@@ -157,6 +157,11 @@ public partial class MainWindow : Window
                 return;
             }
 
+            // Check again immediately before issuing the single-use ticket. This
+            // closes the window where another launcher instance could start a
+            // client while this launcher was repairing/checking files.
+            ClientLaunchPolicy.EnsureCanLaunch();
+
             PatchStatusText.Text = "Launching EverLeaf…";
             launchTicket = LaunchTicket.Create(_gameDirectory);
             GameLauncher.Start(_gameDirectory);
@@ -167,7 +172,7 @@ public partial class MainWindow : Window
         {
             LaunchTicket.Delete(launchTicket);
             ErrorText.Text = FriendlyError(ex);
-            PatchStatusText.Text = "Ready";
+            PatchStatusText.Text = IsGameRunning() ? "EverLeaf is already running" : "Ready";
         }
         finally
         {
@@ -199,7 +204,7 @@ public partial class MainWindow : Window
     private async Task RepairInternalAsync()
     {
         if (IsGameRunning())
-            throw new IOException("EverLeaf is currently running. Close the game before checking or repairing client files.");
+            throw new IOException(ClientLaunchPolicy.MultiClientMessage);
 
         // Do this before PatchService creates probes/temp files. A stale launch
         // ticket is session state and must not affect folder writability or repair.
@@ -243,16 +248,18 @@ public partial class MainWindow : Window
     private void SetBusy(bool busy)
     {
         _busy = busy;
-        PlayButton.IsEnabled = !busy && _launcherReady && (_installMode || _serverOnline);
+        PlayButton.IsEnabled = !busy && _launcherReady && (_installMode || _serverOnline) && !IsGameRunning();
         RepairButton.IsEnabled = !busy;
         PlayButton.Content = busy
             ? (_installMode ? "INSTALLING…" : "UPDATING…")
             : !_launcherReady
                 ? "LAUNCHER CHECK REQUIRED"
-                : _installMode
-                    ? "INSTALL EVERLEAF"
-                    : _serverOnline
-                        ? "PLAY EVERLEAF"
-                        : "SERVER OFFLINE";
+                : IsGameRunning()
+                    ? "EVERLEAF ALREADY RUNNING"
+                    : _installMode
+                        ? "INSTALL EVERLEAF"
+                        : _serverOnline
+                            ? "PLAY EVERLEAF"
+                            : "SERVER OFFLINE";
     }
 }
