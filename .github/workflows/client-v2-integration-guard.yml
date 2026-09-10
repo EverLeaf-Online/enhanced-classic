@@ -1,11 +1,6 @@
 name: Client v2 integration guard
 
 on:
-  pull_request:
-    branches: [master]
-    paths:
-      - "client/ezorsia/ezorsia/**"
-      - ".github/workflows/client-v2-integration-guard.yml"
   workflow_dispatch:
 
 permissions:

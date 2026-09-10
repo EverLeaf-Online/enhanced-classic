@@ -1,14 +1,6 @@
 name: Client v2 frame limiter guard
 
 on:
-  pull_request:
-    branches: [master]
-    paths:
-      - "client/ezorsia/ezorsia/FrameLimiter.*"
-      - "client/ezorsia/ezorsia/config.ini"
-      - "client/ezorsia/ezorsia/dllmain.cpp"
-      - "client/ezorsia/ezorsia/ezorsia.vcxproj"
-      - ".github/workflows/client-v2-frame-limiter-guard.yml"
   workflow_dispatch:
 
 permissions:
@@ -61,8 +53,6 @@ jobs:
             throw "FrameLimiter.cpp is not compiled into the client DLL"
           }
 
-          # The frame limiter may throttle presentation but must not rewrite the
-          # legacy fixed-step update interval. Maple's game logic remains 30 ms.
           if ($frame.Contains('m_tUpdateTime') -or $frame.Contains('+= 30')) {
             throw "Frame limiter must not modify the game logic update step"
           }

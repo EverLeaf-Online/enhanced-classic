@@ -2,16 +2,17 @@
 
 Canonical repository-backed status for EverLeafMS.
 
-Last synchronized: **2026-09-10** after branch consolidation, production rebuild/redeploy from canonical `master`, website Git migration, workflow cleanup, and native-client Rich Presence extraction.
+Last synchronized: **2026-09-10** after master consolidation, native Discord Rich Presence extraction/validation, live client publication, workflow-definition cleanup, website Git migration, and final branch cleanup preparation.
 
 ## Current production baseline
 
 - Repository: `EverLeaf-Online/enhanced-classic`
-- Canonical production branch: `master`
-- Production source baseline before this maintenance branch: `10adee94a13b1ab3f04a08e3dbc48f2f33de708d`
-- Current live release: `/opt/everleaf/releases/10adee94a13b-master-20260910T113147Z`
+- Canonical branch: `master`
+- Canonical maintenance merge: `89f8a13f3b8fdb6efbd8e6f2ab3d17660d6c954e`
+- Running game release: `/opt/everleaf/releases/10adee94a13b-master-20260910T113147Z`
+- Running game release source SHA: `10adee94a13b1ab3f04a08e3dbc48f2f33de708d`
 - Production source checkout: `/opt/everleaf/server`
-- Active release symlink: `/opt/everleaf/current`
+- Active game release symlink: `/opt/everleaf/current`
 - Game service: `everleaf.service`
 - Website checkout: `/opt/everleaf/web-repo`
 - Website runtime symlink: `/opt/everleaf/web -> /opt/everleaf/web-repo/web`
@@ -22,8 +23,9 @@ Last synchronized: **2026-09-10** after branch consolidation, production rebuild
 - Public site: `https://everleafms.online`
 - Login port: `8484`
 - Channels: `7575-7594` (20 channels)
+- Live client overlay was rebuilt, verified, and published from `89f8a13f3b8fdb6efbd8e6f2ab3d17660d6c954e`.
 
-The consolidated `master` was rebuilt, staged as a release, switched live, restarted gracefully, and verified online. The previous release remains available for rollback.
+The game runtime remains on the verified `10adee94a13b` release because the September 10 finalization changed client/workflow/docs files, not Java server runtime code or the canonical v95 WZ release payload. The production source checkout is synchronized to final `master` by the repository-finalization workflow without restarting the healthy game service.
 
 ## Status legend
 
@@ -35,29 +37,29 @@ The consolidated `master` was rebuilt, staged as a release, switched live, resta
 
 ---
 
-# 1. Repository / branch management
+# 1. Repository and branch management
 
-- ✅ `master` is the canonical production line.
-- ✅ `release-dev` and obsolete development branches were retired.
-- ✅ Remote branch count was reduced from the historical branch sprawl to the canonical line plus the remaining native-client donor branch.
-- ✅ Useful branch-only audit/documentation/tooling work was preserved before deletion.
-- ✅ Obsolete branch-consolidation workflows were removed.
-- 🔧 Finish extracting useful work from PR #366 without merging its stale branch ancestry.
-- 🔧 Close PR #366 and delete `client/everleaf-native-package-20260905` after validation.
-- 🔧 Remove stale branch names from remaining docs/tooling.
+- ✅ `master` is the sole canonical production/development line.
+- ✅ Historical `release-dev` and obsolete stacked development branches were retired.
+- ✅ Useful branch-only audit/tooling work was preserved before cleanup.
+- ✅ PR #380 replaced the stale native-client stack with a clean current-master integration.
+- ✅ PR #366 was closed as superseded after its unique Discord work was extracted and validated.
+- ✅ Final repository-maintenance automation removes the remaining donor/maintenance branches after merge.
+- ✅ Repository rules continue to require pull-request changes to protected `master`.
 
-# 2. Production deployment / runtime
+# 2. Production deployment and runtime
 
 - ✅ Release-based deployment under `/opt/everleaf/releases`.
 - ✅ `/opt/everleaf/current` points to the active release.
-- ✅ systemd runtime uses the active release JAR.
-- ✅ Graceful shutdown verified across all 20 channels.
-- ✅ Character save observed during controlled shutdown.
-- 🟢 Consolidated `master` deployment is live and healthy.
-- ✅ Rollback release retained.
-- 🟡 Recheck full VM reboot behavior later as a disaster-recovery exercise.
+- ✅ `everleaf.service` runs the active release JAR.
+- ✅ Graceful shutdown was verified across all 20 channels.
+- ✅ Character persistence was observed during controlled shutdown.
+- 🟢 Consolidated game release `10adee94a13b` is live and healthy.
+- ✅ Previous release remains available for rollback.
+- ✅ Final repository maintenance syncs `/opt/everleaf/server` to canonical `master` without unnecessary game restart.
+- 🟡 Perform another full VM reboot/DR exercise later as a deliberate resilience test.
 
-# 3. Production configuration / network topology
+# 3. Network topology and production configuration
 
 - ✅ `HOST: 129.159.114.146`.
 - ✅ `LANHOST: 129.159.114.146`.
@@ -65,457 +67,202 @@ The consolidated `master` was rebuilt, staged as a release, switched live, resta
 - ✅ `SPAWN_BOTS_ON_STARTUP: false`.
 - ✅ `USE_DUEY: false`.
 - ✅ `USE_ERASE_PERMIT_ON_OPENSHOP: false`.
-- ✅ Origin/deployment host remains `132.145.141.79`.
-- ✅ Player-facing client/game traffic uses relay `129.159.114.146`.
-- 🔧 Remove remaining obsolete DuckDNS references from active workflows/scripts.
-- 🔧 Audit remaining historical IP assumptions and keep only intentional migration/history references.
+- ✅ Oracle origin/deployment stays `132.145.141.79`.
+- ✅ Player-facing game traffic uses relay `129.159.114.146`.
+- ✅ Primary player/site domain is `everleafms.online`.
+- ✅ Obsolete active DuckDNS checks were removed from maintained production workflows.
+- 🟡 Historical migration docs may retain old hostnames/IPs where clearly labeled as history.
 
-# 4. GitHub Actions / workflow policy
+# 4. GitHub Actions and workflow policy
 
-- ✅ Obsolete consolidation/client-dev workflows removed.
-- ✅ Historical workflow-run cleanup reduced deleted-branch run count substantially.
-- ⏸ Further run-history deletion paused by GitHub secondary API rate limiting.
-- 🔧 Keep heavyweight build/deploy/QA workflows manual-only while hosted-runner limits make automatic execution noisy/unreliable.
-- 🔧 Remove stale branch triggers.
-- 🔧 Remove unnecessary scheduled and `workflow_run` fan-out.
-- 🔧 Keep production deployment guarded and explicit.
-- 🔧 Keep client build/publish explicit and separately invokable.
+- ✅ Obsolete branch-consolidation and client-dev workflows removed.
+- ✅ `run-build.yml` is manual-only.
+- ✅ `everleaf-qa.yml` is manual-only.
+- ✅ production monitoring is manual-only; server-side systemd timers remain the normal health path.
+- ✅ production-readiness audit is manual-only.
+- ✅ web data-Wiki, ranking-avatar, public-portal, and post-deploy v95 verification workflows no longer fan out via `workflow_run`.
+- ✅ version bumping is explicit/manual instead of creating skipped jobs on every push.
+- ✅ Discord status-monitor deployment is explicit/manual.
+- ✅ heavy client build/publish operations are narrowly scoped and explicit.
+- ✅ Client v2 integration, diagnostics, frame-limiter, and WASD guards are retained but converted to manual-only checks after final validation.
+- ✅ Native Discord validation has a dedicated Windows workflow.
+- ✅ Historical deleted-branch run cleanup was reduced substantially; further history deletion remains optional and rate-limit-sensitive.
 
-# 5. Backups / disaster recovery
+# 5. Native client and launcher
+
+- ✅ Current source-built Win32 client builds successfully on GitHub-hosted Windows runner.
+- ✅ Client v2 integration guard passed during finalization.
+- ✅ WASD guard passed during finalization.
+- ✅ Frame-limiter guard passed during finalization.
+- ✅ Diagnostics guard passed during finalization.
+- ✅ Native Discord Rich Presence validation passed after the packaging/rebrand transform was included.
+- ✅ Live client publication rebuilt and verified `dinput8.dll`, generated the managed overlay, updated the patch manifest, published to Oracle patch storage, and verified public endpoints.
+- ✅ Launcher/update infrastructure remains authoritative for distributing managed client files.
+- ✅ Player-facing client bootstrap uses relay `129.159.114.146`.
+- ✅ Community UI preference remains the packaged default.
+- ✅ Safe windowed defaults remain in place; borderless/Alt+Enter support is reversible.
+- ⏸ Broader login/world/character-select visual overhaul remains deferred until Kaentake review.
+
+# 6. Discord Rich Presence
+
+- ✅ Native local Discord IPC implementation is now on canonical `master`.
+- ✅ Uses the EverLeaf Discord application ID and local named-pipe IPC.
+- ✅ Does not ship a bot token, OAuth secret, Yuna runtime, or `discord_game_sdk.dll`.
+- ✅ Reconnect behavior handles Discord not running at client startup.
+- ✅ Presence can be disabled with `DiscordRichPresence=false`.
+- ✅ Default activity contains EverLeaf website and Discord buttons.
+- ✅ IPC frame/escaping/acknowledgement tests passed on Windows runner.
+- ✅ Win32 client compiled with `DiscordPresence.cpp` wired through current `dllmain.cpp`.
+- 🟡 Character/job/map-specific presence remains intentionally unhooked until v83 memory contracts are verified safely.
+
+# 7. Website / CMS
+
+- ✅ Website is Git-backed from `/opt/everleaf/web-repo`.
+- ✅ Runtime points through `/opt/everleaf/web` symlink.
+- ✅ Mutable `.env` and data live outside Git in `/opt/everleaf/web-state`.
+- ✅ `everleaf-web.service` is active.
+- ✅ Public site uses `https://everleafms.online`.
+- ✅ Rankings, Wiki, downloads, login, registration, account recovery, terms, rules, news, and help routes exist.
+- ✅ Local WZ character-avatar renderer exists and rankings use it.
+- 🟡 Continue page-by-page visual polish as a separate product/UI stream.
+- 🟡 Continue validating stale/deleted/renamed-character ranking behavior.
+
+# 8. Backups and disaster recovery
 
 - ✅ OCI Object Storage backup path exists.
-- ✅ Daily backup timer exists.
-- ✅ MySQL dumps included.
-- ✅ Critical game/web/nginx/systemd/config data included.
-- ✅ Broader weekly recovery archive includes client/WZ recovery data.
-- ✅ Upload/download/hash/archive validation previously completed.
-- ✅ Production deployment workflow invokes backup before release switch.
-- 🟡 Perform another end-to-end restore rehearsal to a scratch target.
-- 🟡 Review long-term retention and optional multi-region replication later.
-
-# 6. Core login / account flow
-
-- ✅ Login server works.
-- ✅ World selection works.
-- ✅ Character selection works.
-- ✅ Character select to gameplay works.
-- ✅ Channel switching works.
-- 🟡 Verify registration end-to-end.
-- 🟡 Verify password hashing/legacy compatibility.
-- 🟡 Verify duplicate-login/session cleanup.
-- 🟡 Verify PIN/PIC behavior if enabled.
-- 🟡 Verify bans/IP/MAC restrictions and reconnect edge cases.
-
-# 7. Character creation / persistence
-
-- ✅ Beginner creation works.
-- ✅ Beginner -> NPC -> Evan conversion works.
-- ⏸ Direct modern class-card/direct Evan creation remains intentionally paused.
-- 🟡 Verify name validation/reserved/duplicate-name rules.
-- 🟡 Define and verify character/account deletion cleanup.
-- 🟡 Verify full character state survives relog/restart: inventory, mesos, skills, quests, keybinds, social state, pets, mounts, cooldowns.
-
-# 8. Classes / jobs / skills
-
-- ✅ Explorer family supported.
-- ✅ Cygnus Knights supported.
-- ✅ Aran supported.
-- ✅ Evan supported.
-- ✅ Aran High Defense fix retained.
-- ✅ Achilles reduction path retained.
-- ✅ Multiple Evan skill hardening fixes retained.
-- 🔧 Run a systematic runtime matrix for every class instead of spot checks.
-- 🔧 Verify passives, buffs, summons, transforms, charge, stance, dispel, status effects, projectiles, melee, and magic interactions.
-
-# 9. AP/SP reset / mastery books
-
-- ✅ Reset validation/rollback hardening exists.
-- ✅ Same-stat and same-skill invalid paths are rejected.
-- ✅ HP/MP safety floors/caps are enforced.
-- ✅ 4th-job mastery target validation exists.
-- ✅ Failed reset paths do not consume items.
-- 🟡 Live-test uncommon class/skill reset combinations.
-
-# 10. Progression / level cap / EXP
-
-- ✅ Level cap 250.
-- ✅ Post-200 progression framework exists.
-- ✅ 201-249 EXP curve and level-250 terminal behavior exist.
-- ✅ Weekly progression/ledger framework exists.
-- 🟡 Balance post-200 pacing with live telemetry.
-- 🟡 Verify milestone rewards and budget limits live.
-
-# 11. Survivability / HP-washing replacement
-
-- ✅ Survivability policy/service exists.
-- ✅ Applied on level-up/load.
-- ✅ Existing legitimate high HP is not reduced.
-- ✅ AP Reset cannot bypass survivability floor.
-- 🟡 Tune final HP curves against actual boss damage.
-
-# 12. Combat / damage / statuses
-
-- ✅ Core combat framework present.
-- ✅ Major monster/player status mechanics present.
-- 🟡 Verify physical damage formulas.
-- 🟡 Verify magic damage formulas.
-- 🟡 Verify crit/accuracy/avoid/defense/elemental/level-penalty behavior.
-- 🟡 Verify guards, cancels, reflects, invulnerability, knockback, summons, projectiles and boss phases.
-
-# 13. Party EXP / leech / family
-
-- ✅ Party EXP split and Holy Symbol handling exist.
-- ✅ Leech interval/level-range logic exists.
-- ✅ Duplicate Family Reputation award path was fixed.
-- 🟡 Multi-client party EXP validation still needed.
-- 🟡 Boss-party membership transition cases still needed.
-
-# 14. Death / revive / charms
-
-- ✅ Normal death path works.
-- ✅ Wheel-related event bypass was hardened.
-- ✅ Duplicate unregister callback replay was hardened.
-- 🟡 Verify EXP loss and charm interactions.
-- 🟡 Verify Resurrection and boss/PQ revive paths.
-- 🟡 Verify disconnect while dead and re-entry semantics.
-
-# 15. Maps / portals / reactors
-
-- ✅ Broad world/map-reference audits completed.
-- ✅ Portal case/reference audits completed.
-- ✅ Return/death/forced-return references audited.
-- ✅ Major missing reactor handlers restored.
-- 🟡 Traverse major travel/Hidden Street chains in packaged client.
-- 🟡 Verify reactor animation/state transitions live.
-- 🟡 Verify cleanup after timeout/disconnect/re-entry.
+- ✅ Backup timer exists.
+- ✅ MySQL dumps are included.
+- ✅ Critical game/web/nginx/systemd/config data are included.
+- ✅ Broader recovery data includes client/WZ recovery material.
+- ✅ Production deployment has rollback behavior.
+- ✅ Production-readiness tooling contains backup-integrity and isolated restore checks.
+- 🟡 Periodically perform a full documented restore rehearsal rather than relying only on static backup existence.
+
+# 9. Database and account administration
+
+- ✅ DBeaver remote administration path is configured.
+- ✅ Core account/character database is operational.
+- ✅ Class changes can be performed without server restart.
+- 🟡 Review account deletion semantics so character rows do not remain unexpectedly when an account is intentionally purged.
+- 🟡 Continue relationship-integrity checks for inventory/equipment/quest/account records.
+
+# 10. v95 content / Future Henesys / Stronghold / Fallen Cygnus
+
+- ✅ Canonical full-v95 XML baseline is stored on production.
+- ✅ Production release staging injects the canonical v95 baseline rather than relying on a partial repository WZ tree.
+- ✅ Future Henesys/Henesys Ruins map set is present.
+- ✅ Stronghold/Fallen Cygnus required map/mob/NPC/quest content is present in the canonical baseline.
+- ✅ Production deployment validates expected map/mob/NPC/quest invariants.
+- 🟡 Continue targeted gameplay regression of boss/map transitions and quest prerequisites rather than redoing completed import work.
+
+# 11. Free Market / merchants / storage / Duey
+
+- ✅ Free Market Cash Shop field-limit fix is live with corresponding client WZ patch.
+- ✅ Regular Store Permit behavior is corrected.
+- ✅ Duey is disabled in production.
+- ✅ Storage fee handling is fixed and verified.
+- ✅ Hired Merchant recovery/persistence/credit/quantity/snapshot hardening exists.
+- ✅ PlayerShop transaction/snapshot hardening exists.
+- 🟡 Continue edge-case race/disconnect testing across trade, merchant, storage, and Cash Shop transitions.
+
+# 12. Economy / transaction exploit coverage
+
+- ✅ Storage race/failure cases covered.
+- ✅ Normal direct trade covered.
+- ✅ Merchant settlement covered.
+- ✅ Normal Cash Shop behavior covered.
+- 🟡 Trade transition/disconnect race cases remain targeted.
+- 🟡 Cash Shop disconnect transfer/re-entry remains targeted.
+- 🟡 Quest reward replay after disconnect/relog remains targeted.
+- 🟡 NPC shop extreme quantity and meso-cap handling remains targeted.
+- 🟡 Drop/pickup races and cross-system persistence races remain under-tested.
+
+# 13. Classes and skills
+
+- ✅ Core class/skill integrity tooling exists.
+- ✅ Evan safe creation/progression fallback remains supported.
+- ✅ Achilles / Aran High Defense behavior was runtime-tested.
+- 🟡 Run a systematic class/skill runtime matrix rather than ad-hoc spot testing.
+- 🟡 Verify advancement gates and major boss prerequisite quest chains.
+- ⏸ Direct Evan class-card character creation remains deferred; current beginner-to-Evan NPC path is acceptable for now.
+
+# 14. NPC / portal / reactor / quest integrity
+
+- ✅ Portal filename case issue `Depart_topFloor.js` is fixed.
+- ✅ Static world, script-map, quest, event-manager, and active-NPC audit tooling exists.
+- 🟡 Continue runtime sweep of high-risk NPCs/portals/reactors where static references cannot prove behavior.
+- 🟡 Verify quest reward replay and advancement/boss prerequisite chains under disconnect/relog.
+
+# 15. Client runtime stability
+
+- ✅ Source-built client startup/bootstrap hardening exists.
+- ✅ Race-safe dinput8 proxy logic exists.
+- ✅ Crash/freeze diagnostics exist without automatic telemetry upload.
+- ✅ Presentation-only FPS limiter preserves Maple's game-logic timing.
+- ✅ Windowed/borderless/Alt+Enter behavior is separated from game logic.
+- 🟡 Continue live crash/windowing/channel-switch/disconnect regression tests on clean client installs.
+- 🟡 Validate any future Windows toolset changes against the x86 v83 client before adopting them globally.
+
+# 16. Authentication / security
+
+- ✅ Production web secrets are externalized.
+- ✅ Password mode uses bcrypt in production.
+- ✅ MySQL is expected to remain non-public.
+- ✅ SSH hardening checks exist in production-readiness tooling.
+- ✅ Launcher-ticket enforcement is part of current client bootstrap contract.
+- 🟡 Continue source-first auth/security audit with targeted runtime confirmation only where necessary.
+- 🟡 Continue exploit review for packet/state transitions that cannot be proven by static inspection alone.
+
+# 17. Social and multi-client systems
+
+- 🟡 Perform two-client party regression.
+- 🟡 Perform buddy regression.
+- 🟡 Perform guild regression.
+- 🟡 Perform direct-trade transition/disconnect regression.
+- 🟡 Perform PQ multi-client regression after core two-client systems are clean.
+
+# 18. SoloMapling QA bots
 
-# 16. Future Henesys / Stronghold / Fallen Cygnus / Empress
-
-- ✅ Future Henesys implemented.
-- ✅ Stronghold implemented.
-- ✅ Fallen Cygnus/Empress content implemented.
-- ✅ Associated maps, mobs, NPCs, scripts, portals, names and minimap content implemented.
-- 🟡 Multiplayer runtime/balance validation remains.
-
-# 17. NPCs
-
-- ✅ Global NPC presence/asset/script audits exist.
-- ✅ Coordinates/footholds/roam ranges audited.
-- 🟡 Visually verify important NPC placement.
-- 🟡 Live-test travel, advancement, storage, shop, quest, boss and event NPCs.
-
-# 18. Quests
-
-- ✅ Broad structural quest audits completed.
-- ✅ Maple Island/Victoria/mainland/scripted quest audit tooling exists.
-- ✅ Reward/reference/repeatability checks exist.
-- 🟡 Live-test job advancement chains.
-- 🟡 Live-test boss prerequisite chains.
-- 🟡 Live-test abandon/restart/relog replay paths.
-- 🟡 Verify repeatable/daily/weekly cooldown behavior.
-
-# 19. Monsters / spawns / drops
-
-- ✅ Spawn IDs/footholds/coordinates audited.
-- ✅ Economy/global-drop auditing exists.
-- ✅ Ordinary global Chaos/White Scroll drops removed.
-- 🟡 Verify respawn timing/density live.
-- 🟡 Verify elite/boss trigger behavior.
-- 🟡 Verify meso/quest/global drop conditions and modifiers.
-
-# 20. Bosses / expeditions
-
-- ✅ Zakum implementation exists.
-- ✅ Horntail implementation exists.
-- ✅ Papulatus implementation exists.
-- ✅ Pink Bean implementation exists.
-- ✅ Fallen Cygnus/Empress implementation exists.
-- ✅ Rooted Zakum exists.
-- 🔧 Run solo-boss regression suite first.
-- 🔧 Run full party lifecycle later: signup, leader transfer, disconnect/rejoin, death/re-entry, lockouts and rewards.
-
-# 21. Party Quests
-
-- ✅ PQ persistence/points and idempotent reward protections exist.
-- 🔧 Multi-participant runtime coverage needed for major PQs.
-- 🔧 Verify leader/member disconnect, timeout, stage cleanup and reward duplication protections.
-
-# 22. Events / minigames
-
-- ✅ Event manager framework exists.
-- 🟡 Verify scheduled and GM events.
-- 🟡 Verify timeout/disconnect/map cleanup and duplicate reward paths.
-
-# 23. Travel systems
-
-- 🟡 Verify Victoria/Orbis/Ludi/Ellinia/Ariant/Leafre/Mu Lung travel paths.
-- 🟡 Verify departure/arrival timers.
-- 🟡 Verify disconnect/channel-change mid-travel.
-
-# 24. Drops / pickup
-
-- 🟡 Verify ownership/party rights/pet loot/expiry.
-- 🔧 Test simultaneous pickup races.
-- 🔧 Test map change, inventory-full and disconnect during pickup.
-- 🔧 Test rollback/persistence race cases.
-
-# 25. Inventory
-
-- 🟡 Verify all inventory categories and stack merge/sort.
-- 🟡 Verify expiration/untradeable/cash/pet metadata.
-- 🟡 Verify scrolling, stars/bullets/rechargeables.
-- 🔧 Verify inventory-full transaction failure safety.
-
-# 26. Economy
-
-- 🟡 Verify meso cap/overflow paths.
-- 🟡 Verify NPC buy/sell, merchant, storage and trade meso handling.
-- 🟡 Review taxes/fees and high-value transfers.
-- 🔧 Search for infinite-meso and overflow edge cases.
-
-# 27. Player shops / hired merchants
-
-- ✅ Store Permit consumption behavior corrected.
-- ✅ Merchant persistence/recovery work retained.
-- 🔧 Test owner/buyer disconnect, stack splitting, partial purchase, max-meso, restart settlement, duplicate retrieval and stale cleanup.
-
-# 28. Storage
-
-- ✅ Storage works.
-- ✅ Storage fee behavior corrected.
-- ✅ Race/failure handling was hardened.
-- 🔧 Test full storage/inventory, max mesos, metadata preservation, pets/cash items, disconnect/restart during transaction.
-
-# 29. Cash Shop
-
-- ✅ Normal access works outside FM.
-- ✅ Basic entry/exit flow covered.
-- 🔧 Test disconnect entering/leaving, re-entry, state restoration, inventory transfer, gifts, wishlist, packages, pets, NX edge cases and transaction replay.
-
-# 30. Trade / transaction integrity
-
-- ✅ Normal direct trade works.
-- 🔧 Test accept/cancel timing races.
-- 🔧 Test disconnect during trade.
-- 🔧 Test channel change during pending transactions.
-- 🔧 Test server shutdown during transaction.
-- 🔧 Test cross-system persistence races involving storage/merchant/Cash Shop.
-
-# 31. Social systems
-
-- 🔧 Multi-client party testing.
-- 🔧 Buddy add/remove and presence testing.
-- 🔧 Guild create/invite/kick/leave/rank testing.
-- 🔧 Alliance/family/messenger/marriage systems if enabled.
-- 🔧 Whisper/blacklist behavior.
-
-# 32. Pets
-
-- 🟡 Verify summon/dismiss/food/closeness/level/expiration/revive/name/equip.
-- 🔧 Verify pet-loot races and storage/trade/Cash Shop interactions.
-
-# 33. Mounts
-
-- 🟡 Verify acquisition/summon/fatigue/feeding/map restrictions/death/relog/channel switch.
-
-# 34. Character stats
-
-- 🟡 Verify AP allocation/auto-assign/HP-MP behavior/stat caps/equipment requirements.
-- 🟡 Verify recalculation after class change.
-
-# 35. Equipment / scrolling
-
-- 🟡 Verify equip/unequip and scroll success/failure.
-- 🟡 Verify White Scroll/Clean Slate/Chaos/Hammer only where supported.
-- 🟡 Verify stars, cash covers, expiration and weapon restrictions.
-
-# 36. Buffs / debuffs
-
-- 🟡 Verify overwrite/strongest-buff rules.
-- 🟡 Verify dispel/death/map/channel/Cash Shop transitions.
-- 🟡 Verify party aura/summon/status timer behavior.
-
-# 37. Authentication / security
-
-- 🔧 Source-first authentication audit.
-- 🔧 Session fixation/invalidation.
-- 🔧 Password-reset abuse.
-- 🔧 PIN/PIC bypass logic.
-- 🔧 brute-force throttling/account lockout.
-- 🔧 duplicate session/HWID/IP policy.
-- 🔧 GM/admin authorization boundaries.
-- 🔧 SQL injection/XSS/path traversal/secret scanning where applicable.
-
-# 38. GM / admin
-
-- 🟡 Audit permissions by GM tier.
-- 🟡 Audit destructive commands and item/character mutation.
-- 🟡 Audit ban/mute/warp/hide/summon/shutdown logging.
-- ✅ Known command set includes `!maxskill`, `!resetskill`, `!warp`; no `!skill` command.
-
-# 39. Logging / observability
-
-- ✅ Startup/shutdown/systemd logging exists.
-- ✅ health/disk monitoring services exist.
-- 🟡 Review auth/trade/merchant/storage/Cash Shop/GM exploit logging coverage.
-- 🟡 Review CPU/memory/thread/socket/DB-pool observability.
-
-# 40. Performance / load
-
-- ⏸ Run after correctness work.
-- 🔧 10/25/50/100-client staged load tests.
-- 🔧 login bursts/channel distribution/boss/merchant load.
-- 🔧 memory leak/GC/thread/file-descriptor/DB-connection soak tests.
-
-# 41. SoloMapling / QA bots
-
-- ✅ Runtime integration exists.
 - ✅ QA bot provisioning normalized.
-- ✅ persistence prevention, travel graph, potion restock, combat reachability, distant targets, projectile supplies and alt-map routing work retained.
-- ✅ Hunt/death/fleet/multi-class short soak previously verified.
-- ⏸ Further pathfinding and long-duration bot work parked.
+- ✅ Bot persistence disabled.
+- ✅ Empty-map travel routing implemented.
+- ✅ Travel graph, potion restock, combat reachability, distant-target handling, projectile supply, loadout reapply, and untargetable-map rerouting implemented.
+- ✅ Basic hunt/death/fleet/soak/class behavior was live-tested.
+- ⏸ Further bot pathfinding/terrain/long-soak work is intentionally parked unless the project returns to it.
 
-# 42. Client runtime baseline
+# 19. Performance / concurrency
 
-- ✅ Widescreen support present.
-- ✅ Alt+Enter/borderless work present.
-- ✅ Win32/Winsock hook work present.
-- ✅ Loader/bootstrap cleanup present.
-- ✅ WASD option present but remains conservative/opt-in where applicable.
-- ✅ Relay address is used for player-facing bootstrap.
+- ✅ Current production runs 20 channels.
+- ✅ Health tooling verifies channel/listener topology.
+- 🟡 Leave load/concurrency stress testing until gameplay, transaction, and multi-client correctness passes are complete.
+- 🟡 Measure before changing JVM/runtime tuning; do not optimize from guesswork.
 
-# 43. Native Discord Rich Presence / PR #366
+# 20. Phase 2 client direction
 
-- 🔧 PR #366 donor branch is stale relative to current master and must not be merged wholesale.
-- ✅ Discord local IPC implementation extracted onto a fresh branch based on current master.
-- ✅ No Discord SDK DLL, bot token or OAuth secret required.
-- ✅ Config toggle `DiscordRichPresence=true` added.
-- ✅ Startup/stop wiring added to the current bootstrap.
-- ✅ Windows IPC regression test extracted.
-- 🔧 Run Windows build/test validation.
-- 🔧 Merge only the clean extracted implementation.
-- 🔧 Close PR #366 and delete the obsolete donor branch after successful validation.
-- ⏸ Character/map/job Rich Presence details remain deferred until verified memory contracts exist.
+- ⏸ Review Kaentake before committing to the broader Phase 2 client overhaul.
+- ⏸ Connected login/world/character panorama remains deferred.
+- ⏸ Login/world/character-select branding overhaul remains deferred.
+- ⏸ Direct Evan/future class-card selector remains deferred.
+- ✅ Native Discord Rich Presence was separated from that deferred visual scope and shipped independently.
 
-# 44. Client visual overhaul / Phase 2
+---
 
-- ⏸ Login/world/character-select redesign intentionally deferred until after Kaentake review.
-- ⏸ Connected panorama, branding package and related clean-client E2E remain deferred.
-- 🔧 Finish structured Kaentake comparison before resuming this phase.
+# Current priority order
 
-# 45. Client assets / WZ
+1. ✅ Finish repository/workflow/branch cleanup and leave `master` as the only active branch.
+2. ✅ Ship and validate native Discord Rich Presence on the live managed client.
+3. 🟡 Solo boss regression and major boss prerequisite checks.
+4. 🟡 Systematic class/skill runtime matrix.
+5. 🟡 Advancement and boss prerequisite quest validation.
+6. 🟡 Targeted NPC/portal/reactor runtime sweep.
+7. 🟡 Remaining transaction/exploit edge cases.
+8. 🟡 Client crash/windowing/disconnect regression on clean installs.
+9. 🟡 Source-first authentication/security audit plus targeted runtime checks.
+10. 🟡 Two-client party/buddy/guild/trade validation.
+11. 🟡 PQ multi-client validation.
+12. 🟡 Load/concurrency testing last.
+13. ⏸ Kaentake review, then decide Phase 2 client visual direction.
 
-- ✅ Asset audit/reference documents exist.
-- 🔧 Complete canonical asset inventory and package conventions.
-- 🔧 Normalize transparency/padding/anchors/frame sizes/resolution.
-- 🔧 Classify replacements requiring no native change vs WZ vs native code.
-- 🔧 Remove duplicate/low-quality/stale donor presentation assets deliberately.
+## Operating rule
 
-# 46. Client branding cleanup
-
-- 🔧 Remove player-visible Ezorsia/Yuna/legacy donor branding where inappropriate.
-- 🔧 Preserve historical/upstream attribution where technically useful.
-- 🔧 Audit executable/window/error/launcher/URL strings.
-
-# 47. Launcher / patcher
-
-- ✅ Launcher update path works.
-- ✅ Live manifest/client distribution exists.
-- 🟡 Verify fresh install, repair, interrupted download, corrupted file recovery and rollback behavior.
-- 🟡 Verify EXE/DLL/WZ update behavior and authoritative hashes.
-- 🟡 Verify user configuration is not overwritten incorrectly.
-
-# 48. Website / CMS
-
-- ✅ Website is Git-backed under `/opt/everleaf/web-repo`.
-- ✅ Runtime state separated under `/opt/everleaf/web-state`.
-- ✅ Website service healthy and public site reachable.
-- ✅ Dependency install previously reported 0 vulnerabilities during migration.
-- 🔧 Full page-by-page polish remains.
-- 🔧 Rankings/wiki/account/mobile/error-state passes remain.
-- 🔧 Security headers/CSP/rate limiting/session/admin-route review remain.
-- 🟡 Backup/restore verification for mutable CMS state.
-
-# 49. Rankings / avatar renderer
-
-- ✅ Rankings and WZ avatar service exist.
-- 🔧 Verify all jobs/equipment/NX/pets/weapons/capes/effects/unusual IDs.
-- 🔧 Verify deletion/rename/class-change refresh and stale-cache handling.
-- 🔧 Verify sorting/tie correctness.
-
-# 50. Database / account administration
-
-- ✅ Remote administration path exists.
-- ✅ Class/job admin edits work without server restart.
-- 🔧 Define and fix deleted-account/character residue behavior.
-- 🔧 Audit orphan rows/foreign keys/least-privilege DB permissions.
-- 🟡 Repeat backup/restore test.
-
-# 51. Build / reproducibility
-
-- ✅ Maven production package works.
-- ✅ Full Maven test suite previously passed after consolidation/preservation work.
-- ✅ Release deployment is commit-based.
-- 🔧 Document pinned Java/Maven/Windows toolchain.
-- 🔧 Standardize artifact checksums/release metadata.
-- 🔧 Continue reducing manual deployment/release steps in favor of guarded workflows.
-
-# 52. v95 / backport references
-
-- ✅ v95 research/backport reference work exists.
-- ✅ Future Henesys/Stronghold/Empress work is already incorporated.
-- ⏸ No full protocol/server upgrade to v95 is planned by default.
-- 🔧 Keep donor data organized and only backport intentionally selected content.
-
-# 53. Known v83 bugs / exploit ledger
-
-- 🔧 Maintain a permanent source-backed vulnerability/bug ledger.
-- 🔧 Classify findings as exploit, dupe, corruption, crash, cosmetic or client-only.
-- 🔧 Mark EverLeaf exposure and link fixes/regression coverage.
-
-# 54. Current exploit / dupe testing priorities
-
-- ✅ Storage basic race/failure coverage.
-- ✅ Normal trade coverage.
-- ✅ Merchant settlement coverage.
-- ✅ Normal Cash Shop coverage.
-- 🔧 Trade state-transition races.
-- 🔧 Cash Shop disconnect/re-entry transfer paths.
-- 🔧 Quest reward replay after disconnect/relog.
-- 🔧 NPC shop extreme quantity / meso cap paths.
-- 🔧 Drop/pickup and cross-system persistence races.
-
-# 55. Release-readiness gate
-
-Before EverLeaf is treated as broadly stable:
-
-- 🔧 Complete core login E2E matrix.
-- 🔧 Complete major class/skill runtime matrix.
-- 🔧 Complete job advancement and major boss prerequisite chains.
-- 🔧 Complete major boss lifecycle testing.
-- 🔧 Complete NPC/portal/reactor live sweep.
-- 🔧 Complete storage/trade/Cash Shop/merchant edge testing.
-- 🔧 Complete two-client social-system testing.
-- 🔧 Complete major PQ testing.
-- 🔧 Complete launcher clean-install/repair test.
-- 🔧 Complete authentication/security pass.
-- 🔧 Complete backup restore rehearsal.
-- 🔧 Complete long-duration load/soak last.
-
-# 56. Priority order
-
-1. Finish workflow-definition cleanup so routine pushes stop producing junk runs.
-2. Validate and merge the clean native Discord Rich Presence extraction.
-3. Close PR #366 and delete the obsolete donor branch so only the canonical line remains.
-4. Keep production Git/live release synchronized after the final merge.
-5. Solo-boss regression testing.
-6. Full class/skill runtime matrix.
-7. Job advancement + boss prerequisite quests.
-8. NPC/portal/reactor live sweep.
-9. Drop/pickup + transaction/exploit edge testing.
-10. Client crash/windowing/disconnect testing.
-11. Authentication/security source audit + targeted runtime checks.
-12. Two-client party/buddy/guild/trade tests.
-13. PQ multi-client testing.
-14. Load/concurrency/soak testing last.
-15. Then resume Kaentake review -> Phase 2 client redesign.
+Treat this file as the canonical roadmap/status document. Update it when a task materially changes state; do not infer production state from old PR bodies, stale branches, or historical workflow runs.

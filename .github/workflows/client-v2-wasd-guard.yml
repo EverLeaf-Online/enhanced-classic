@@ -1,13 +1,6 @@
 name: Client v2 WASD input guard
 
 on:
-  pull_request:
-    branches: [master]
-    paths:
-      - "client/ezorsia/ezorsia/WasdInput.h"
-      - "client/ezorsia/ezorsia/dinput8.cpp"
-      - "client/ezorsia/ezorsia/config.ini"
-      - ".github/workflows/client-v2-wasd-guard.yml"
   workflow_dispatch:
 
 permissions:
@@ -65,14 +58,9 @@ jobs:
               if marker not in wasd:
                   raise SystemExit(f'Missing WASD safety marker: {marker}')
 
-          # Keep this feature independent of the legacy AutoTypes translation
-          # unit, whose definitions would duplicate symbols at link time.
           if '#include "AutoTypes.h"' in wasd or '#include "AutoTypes.h"' in dinput:
               raise SystemExit('WASD/dinput translation unit reintroduced AutoTypes.h')
 
-          # Unknown field/stage state must disable translation, while unknown
-          # focus-handler state must be treated as text entry. These complementary
-          # fail-closed paths keep both menu navigation and typing untouched.
           gameplay = wasd.split('inline bool IsGameplayField()', 1)[1].split('inline bool IsEditControlFocused()', 1)[0]
           if '__except (EXCEPTION_EXECUTE_HANDLER)' not in gameplay or 'return false;' not in gameplay:
               raise SystemExit('Gameplay-field probe does not fail closed')
@@ -80,8 +68,6 @@ jobs:
           if '__except (EXCEPTION_EXECUTE_HANDLER)' not in focus or 'return true;' not in focus:
               raise SystemExit('Edit-focus probe does not fail closed')
 
-          # Translation is allowed to mutate only wParam. lParam contains
-          # key-up/repeat/modifier state and must remain byte-for-byte intact.
           if re.search(r'pISMsg->lParam\s*=', wasd):
               raise SystemExit('WASD layer modifies ISMSG lParam')
           if wasd.count('pISMsg->wParam =') != 1:

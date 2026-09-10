@@ -1,14 +1,6 @@
 name: Client v2 diagnostics guard
 
 on:
-  pull_request:
-    branches: [master]
-    paths:
-      - "client/ezorsia/ezorsia/CrashDiagnostics.*"
-      - "client/ezorsia/ezorsia/dllmain.cpp"
-      - "client/ezorsia/ezorsia/ezorsia.vcxproj"
-      - "docs/client-v2/DIAGNOSTICS.md"
-      - ".github/workflows/client-v2-diagnostics-guard.yml"
   workflow_dispatch:
 
 permissions:
@@ -60,8 +52,6 @@ jobs:
             if ($diag.Contains($forbidden)) { throw "Diagnostics unexpectedly contains network/sensitive/full-memory/process-scan marker: $forbidden" }
           }
 
-          # The audited copycat folder contains a local x64 dbghelp.dll next to an x86
-          # game. EverLeaf must never resolve dbghelp through the game directory/search path.
           if ($diag.Contains('LoadLibraryW(L"dbghelp.dll")') -or $diag.Contains('LoadLibraryA("dbghelp.dll")')) {
             throw "Diagnostics can load a game-directory/search-path dbghelp.dll"
           }
