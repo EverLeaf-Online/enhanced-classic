@@ -10,28 +10,28 @@
       "area": "commands/security",
       "title": "gachalist, loot, and mobskill were registered at rank 0",
       "source": "src/main/java/client/command/CommandsExecutor.java",
-      "summary": "Canonical master now explicitly registers gachalist, loot, and mobskill at GM rank 2. Source-level regression coverage prevents fallback to the rank-0 overload.",
+      "summary": "Canonical master explicitly registers gachalist, loot, and mobskill at GM rank 2, with source-level regression coverage.",
       "required_close": "Deploy the fixed server build to production and verify an ordinary player is denied while GM2+ can invoke the commands."
     },
     {
       "id": "EL-EVENT-001",
       "severity": "low",
-      "status": "open",
+      "status": "source_fixed_pending_deploy",
       "area": "events/commands",
-      "title": "startevent single participant-limit argument is ignored",
+      "title": "startevent ignored a single participant-limit argument",
       "source": "src/main/java/client/command/commands/gm3/StartEventCommand.java",
-      "summary": "The command only parses params[0] when params.length > 1, so one numeric limit argument leaves the default capacity of 50.",
-      "required_close": "Correct and test command argument handling."
+      "summary": "Canonical master now accepts no argument for the default limit of 50 or exactly one positive integer player limit; invalid inputs are rejected and regression-tested.",
+      "required_close": "Deploy the fixed server build and verify default and custom-limit behavior in a controlled GM event test."
     },
     {
       "id": "EL-DATA-001",
       "severity": "medium",
-      "status": "open",
+      "status": "preventive_fix_ready_production_remediation_pending",
       "area": "accounts/database",
-      "title": "Account purge semantics can leave character-related rows",
-      "source": "docs/EVERLEAF_MASTER_CHECKLIST.md",
-      "summary": "Final account deletion/restoration and dependent character/inventory/equipment/quest/social cleanup policy remains unresolved.",
-      "required_close": "Define policy, validate relationship integrity, implement safe cleanup behavior, and test it."
+      "title": "Historical account purge semantics can leave character-related rows",
+      "source": "database/sql/migration/everleaf_account_character_integrity.sql",
+      "summary": "The legacy base schema lacks an account-to-character foreign key. Canonical master now includes a read-only orphan audit and a fail-closed ON DELETE RESTRICT relationship guard, but existing production orphans must be audited and remediated before applying it.",
+      "required_close": "Run tools/everleaf-ops/audit-account-character-integrity.sql on production, back up and deliberately remediate any historical orphan rows, apply the relationship-guard migration, and verify zero relationship-integrity failures."
     },
     {
       "id": "EL-LAUNCHER-001",
