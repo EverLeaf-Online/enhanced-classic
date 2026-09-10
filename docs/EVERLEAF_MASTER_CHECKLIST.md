@@ -2,15 +2,15 @@
 
 Canonical repository-backed status for EverLeafMS.
 
-Last synchronized: **2026-09-10** after master consolidation, native Discord Rich Presence extraction/validation, live client publication, workflow-definition cleanup, website Git migration, and final branch cleanup preparation.
+Last synchronized: **2026-09-10** after master consolidation, workflow cleanup, native Discord Rich Presence extraction/validation, live client publication, and final canonical production rebuild/restart.
 
 ## Current production baseline
 
 - Repository: `EverLeaf-Online/enhanced-classic`
 - Canonical branch: `master`
-- Canonical maintenance merge: `89f8a13f3b8fdb6efbd8e6f2ab3d17660d6c954e`
-- Running game release: `/opt/everleaf/releases/10adee94a13b-master-20260910T113147Z`
-- Running game release source SHA: `10adee94a13b1ab3f04a08e3dbc48f2f33de708d`
+- Canonical production SHA: `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a`
+- Running game release: `/opt/everleaf/releases/92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a-34484572759-2`
+- Running game release source SHA: `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a`
 - Production source checkout: `/opt/everleaf/server`
 - Active game release symlink: `/opt/everleaf/current`
 - Game service: `everleaf.service`
@@ -23,9 +23,9 @@ Last synchronized: **2026-09-10** after master consolidation, native Discord Ric
 - Public site: `https://everleafms.online`
 - Login port: `8484`
 - Channels: `7575-7594` (20 channels)
-- Live client overlay was rebuilt, verified, and published from `89f8a13f3b8fdb6efbd8e6f2ab3d17660d6c954e`.
-
-The game runtime remains on the verified `10adee94a13b` release because the September 10 finalization changed client/workflow/docs files, not Java server runtime code or the canonical v95 WZ release payload. The production source checkout is synchronized to final `master` by the repository-finalization workflow without restarting the healthy game service.
+- Canonical v95 XML validation: `44,237` XML files.
+- Live client overlay was rebuilt, verified, and published during the September 10 finalization.
+- Final production rebuild completed successfully; the server was restarted and the login plus all 20 channel ports passed health validation.
 
 ## Status legend
 
@@ -44,8 +44,7 @@ The game runtime remains on the verified `10adee94a13b` release because the Sept
 - ✅ Useful branch-only audit/tooling work was preserved before cleanup.
 - ✅ PR #380 replaced the stale native-client stack with a clean current-master integration.
 - ✅ PR #366 was closed as superseded after its unique Discord work was extracted and validated.
-- ✅ Final repository-maintenance automation removes the remaining donor/maintenance branches after merge.
-- ✅ Repository rules continue to require pull-request changes to protected `master`.
+- ✅ Repository rules protect `master`.
 
 # 2. Production deployment and runtime
 
@@ -54,9 +53,8 @@ The game runtime remains on the verified `10adee94a13b` release because the Sept
 - ✅ `everleaf.service` runs the active release JAR.
 - ✅ Graceful shutdown was verified across all 20 channels.
 - ✅ Character persistence was observed during controlled shutdown.
-- 🟢 Consolidated game release `10adee94a13b` is live and healthy.
+- 🟢 Final canonical release `92a646d6c42a` is live and healthy.
 - ✅ Previous release remains available for rollback.
-- ✅ Final repository maintenance syncs `/opt/everleaf/server` to canonical `master` without unnecessary game restart.
 - 🟡 Perform another full VM reboot/DR exercise later as a deliberate resilience test.
 
 # 3. Network topology and production configuration
