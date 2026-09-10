@@ -22,13 +22,7 @@ Registered player commands and aliases:
 
 `help`, `commands`, `droplimit`, `time`, `jobguide`, `credits`, `uptime`, `gacha`, `dispose`, `unstuck`, `everleaf`, `changel`, `equiplv`, `showrates`, `rates`, `online`, `marks`, `verdant`, `progress`, `weeklies`, `weekly`, `gm`, `reportbug`, `points`, `vote`, `whodrops`, `whatdropsfrom`, `joinevent`, `leaveevent`, `ranks`, `str`, `dex`, `int`, `luk`, `enableauth`, `toggleexp`, `mylawn`, `bosshp`, `mobhp`.
 
-Three additional commands are **currently registered at rank 0 despite living in the `gm2` package**:
-
-- `gachalist` — opens the Gachapon reward listing.
-- `loot` — loots map items owned by the character or party.
-- `mobskill` — applies a selected mob skill to all monsters on the current map.
-
-`mobskill` is not appropriate for ordinary-player access and is tracked as a permission defect in [`../KNOWN_ISSUES.md`](../KNOWN_ISSUES.md). Until the source is corrected, staff should treat player use of `@mobskill` as unintended behavior and preserve evidence if abused.
+`gachalist`, `loot`, and `mobskill` are **not player commands**. They are GM2-only utilities and are explicitly registered at rank 2.
 
 ## Rank 1
 
@@ -58,8 +52,11 @@ Rank 1 is low-level staff capability but still changes gameplay state. Do not gr
 - `job`
 - `unbug`
 - `id`
+- `gachalist` — opens the Gachapon reward listing.
+- `loot` — loots map items owned by the character or party.
+- `mobskill` — applies a selected mob skill to all monsters on the current map.
 
-These commands can directly modify player state, inventories, stats, levels, skills, location, or visibility. Use them only for support/testing actions with a clear reason and avoid using them to create permanent player advantage.
+These commands can directly modify player state, inventories, stats, levels, skills, location, visibility, map loot behavior, or monster state. Use them only for support/testing actions with a clear reason and avoid using them to create permanent player advantage.
 
 ### Jail
 
@@ -161,4 +158,4 @@ Rank 6 includes staff-rank mutation, shutdown, mass disconnect, world/channel to
 
 ## Verification source
 
-As of 2026-09-10, the command dispatcher registers levels 0–6 in `CommandsExecutor`, enforces the numeric minimum rank centrally, recognizes `@` for players and `@`/`!` for GMs, and blocks command use in jail. This document intentionally reflects **registered source behavior**, including defects, rather than legacy handbook group labels.
+As of 2026-09-10, the command dispatcher registers levels 0–6 in `CommandsExecutor`, enforces the numeric minimum rank centrally, recognizes `@` for players and `@`/`!` for GMs, and blocks command use in jail. `gachalist`, `loot`, and `mobskill` are explicitly registered at **rank 2** and protected by `CommandsExecutorGm2PermissionTest`.
