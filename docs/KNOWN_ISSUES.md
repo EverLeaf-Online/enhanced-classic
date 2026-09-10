@@ -12,7 +12,7 @@ The master development checklist remains authoritative for project-wide readines
 - **Low** — minor behavior, polish, or operational inconvenience.
 - **Validation** — not yet a confirmed defect, but an area that still lacks enough runtime evidence for public-beta confidence.
 
-## Fixed on canonical `master`, pending production deployment
+## Fixed on canonical `master`, pending production/client deployment
 
 ### High — `gachalist`, `loot`, and `mobskill` were registered at rank 0
 
@@ -38,6 +38,26 @@ The previous implementation only parsed `params[0]` when more than one parameter
 
 Canonical `master` now accepts either no argument (default **50**) or exactly one positive integer player limit. Zero, negative, non-numeric, and extra arguments are rejected with syntax guidance. `src/test/java/client/command/commands/gm3/StartEventCommandTest.java` covers the default, valid custom limits, and invalid inputs.
 
+### Medium — launcher-only and single-client policy needed fail-closed enforcement
+
+**Status:** Source-hardened; managed launcher/client publication and runtime verification pending
+
+EverLeaf policy is **launcher-only** and **one game client per machine at a time**. Players are not supposed to open `EverLeaf.exe` directly or run multiple EverLeaf clients simultaneously.
+
+Canonical `master` now hardens the stock managed client/launcher path in several layers:
+
+- the launcher checks for an existing `EverLeaf` process before repair and immediately before Play;
+- the launcher also checks the native machine-wide client mutex `Global\EverLeafMS.Client.SingleInstance` and refuses a second launch;
+- the native `dinput8.dll` bootstrap acquires that machine-wide mutex and keeps it open for the lifetime of the client, so a second stock client exits even if two launcher instances race;
+- the `.everleaf-launch` handoff remains mandatory for the managed native client;
+- launch-ticket consumption now opens the ticket exclusively with `FILE_FLAG_DELETE_ON_CLOSE`, preventing two client processes from consuming the same ticket concurrently;
+- the native bootstrap enforces both launcher-ticket and single-client checks from the normal post-unpack hook and both dinput export entry paths;
+- `ClientLaunchPolicyTests` and the manual `client-v2-integration-guard` protect the source contract.
+
+This should be validated with the published managed launcher/client by testing: direct `EverLeaf.exe` launch rejection, normal launcher launch, opening a second launcher while the game is running, and a deliberate rapid/race second-launch attempt.
+
+**Security boundary:** these controls enforce the policy for the EverLeaf-managed stock binaries. A player who can arbitrarily patch/replace their local executable or bootstrap DLL is outside what a purely client-side guard can make tamper-proof. If EverLeaf later requires cryptographically server-backed proof that an unmodified launcher authorized each login, that requires a server-validated launch-session protocol rather than pretending a local mutex/ticket alone is unbreakable.
+
 ## Confirmed source/data-integrity issues
 
 ### Medium — historical account purge/deletion can leave character data
@@ -57,12 +77,6 @@ The migration deliberately refuses to install if historical orphaned characters 
 This issue is **not closed in production yet**. Before applying the migration, run the read-only audit against production, identify any existing orphaned rows, back up the database, remediate those rows through an explicit reviewed cleanup plan, then apply and verify the guard. Do not mass-delete historical orphan trees automatically.
 
 ## Current user-facing limitations
-
-### Medium — raw game EXE launch is not a supported install path
-
-**Status:** Known limitation
-
-Launching the game executable directly can bypass launcher update/repair and launcher-ticket/bootstrap assumptions. The supported flow is the EverLeaf Launcher. Players who bypass it may see version mismatch, failed login, or stale native/WZ files.
 
 ### Medium — account recovery is staff-queue based, not self-service reset
 
@@ -110,7 +124,7 @@ Trade, storage, merchants, PlayerShop, Cash Shop transfer/re-entry, quest reward
 
 **Status:** Validation required
 
-Launcher self-update, damaged-file repair, interrupted-update rollback/retry, clean-machine installation, Alt+Enter/windowing transitions, crash/disconnect handling, and full channel switching still need final clean-player-machine regression coverage.
+Launcher self-update, damaged-file repair, interrupted-update rollback/retry, clean-machine installation, direct-EXE rejection, single-client enforcement, Alt+Enter/windowing transitions, crash/disconnect handling, and full channel switching still need final clean-player-machine regression coverage.
 
 ### Website/account integration
 
@@ -130,7 +144,7 @@ For a gameplay/client issue, capture the exact action, expected vs actual behavi
 
 For suspected duplication, authentication bypass, unauthorized GM/admin access, economy abuse, or another exploitable security defect, **do not publish detailed reproduction steps publicly while it is exploitable**. Preserve evidence and route it through staff/security handling.
 
-Client logs/dumps may contain debugging context and should be submitted intentionally through an official support channel. Never include passwords, PIC/PIN values, launcher/session tokens, or private credentials.
+Client logs/dumps may contain debugging context and should be submitted intentionally through an official support path. Never include passwords, PIC/PIN values, launcher/session tokens, or private credentials.
 
 ## Maintenance rule
 
