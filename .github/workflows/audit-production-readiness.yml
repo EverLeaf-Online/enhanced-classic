@@ -2,15 +2,6 @@ name: Audit EverLeaf production readiness
 
 on:
   workflow_dispatch:
-  push:
-    branches: [master]
-    paths:
-      - '.github/workflows/audit-production-readiness.yml'
-  schedule:
-    - cron: '23 9 * * *'
-  workflow_run:
-    workflows: ['Deploy EverLeaf Game Production', 'Deploy EverLeaf Web']
-    types: [completed]
 
 concurrency:
   group: everleaf-production-audit
@@ -27,7 +18,6 @@ env:
 
 jobs:
   audit:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

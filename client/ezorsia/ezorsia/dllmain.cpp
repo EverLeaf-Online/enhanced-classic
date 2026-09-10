@@ -8,6 +8,7 @@
 #include "DisplayMode.h"
 #include "WidescreenCorrections.h"
 #include "AddyLocations.h"
+#include "DiscordPresence.h"
 #include "EverLeafLoginLayout.h"
 #include "EverLeafWebLinks.h"
 
@@ -159,6 +160,10 @@ void MainFunc() {
     dinput8::CreateHook();
     CrashDiagnostics::SetPhase("installing-frame-limiter");
     if (!FrameLimiter::Install()) CrashDiagnostics::LogEvent("frame limiter unavailable; continuing with stock presentation timing");
+
+    CrashDiagnostics::SetPhase("starting-discord-presence");
+    DiscordPresence::Start();
+
     CrashDiagnostics::SetPhase("client-hooks-ready");
 }
 
@@ -207,6 +212,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         break;
     }
     case DLL_PROCESS_DETACH:
+        DiscordPresence::Stop();
         if (lpReserved == nullptr && gBootstrapComplete) {
             CloseHandle(gBootstrapComplete);
             gBootstrapComplete = nullptr;

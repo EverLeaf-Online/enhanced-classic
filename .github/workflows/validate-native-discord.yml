@@ -1,0 +1,87 @@
+name: Validate EverLeaf native Discord presence
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'client/ezorsia/ezorsia/DiscordPresence.cpp'
+      - 'client/ezorsia/ezorsia/DiscordPresence.h'
+      - 'client/ezorsia/ezorsia/dllmain.cpp'
+      - 'client/ezorsia/ezorsia/ezorsia.vcxproj'
+      - 'client/ezorsia/ezorsia/config.ini'
+      - 'client/scripts/test-discord-presence.cpp'
+      - '.github/workflows/validate-native-discord.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Verify source wiring
+        shell: pwsh
+        run: |
+          $required = @(
+            'client/ezorsia/ezorsia/DiscordPresence.cpp',
+            'client/ezorsia/ezorsia/DiscordPresence.h',
+            'client/scripts/test-discord-presence.cpp'
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path $path)) { throw "Missing required file: $path" }
+          }
+
+          $bootstrap = Get-Content 'client/ezorsia/ezorsia/dllmain.cpp' -Raw
+          foreach ($needle in @('#include "DiscordPresence.h"','DiscordPresence::Start();','DiscordPresence::Stop();')) {
+            if (-not $bootstrap.Contains($needle)) { throw "Missing Discord bootstrap marker: $needle" }
+          }
+
+          $project = Get-Content 'client/ezorsia/ezorsia/ezorsia.vcxproj' -Raw
+          foreach ($needle in @('DiscordPresence.h','DiscordPresence.cpp')) {
+            if (-not $project.Contains($needle)) { throw "Visual Studio project is missing $needle" }
+          }
+
+          $config = Get-Content 'client/ezorsia/ezorsia/config.ini' -Raw
+          if (-not ($config -match '(?m)^DiscordRichPresence=true\r?$')) {
+            throw 'DiscordRichPresence=true is missing from config.ini'
+          }
+
+      - name: Test Discord IPC frames and acknowledgements
+        shell: pwsh
+        run: |
+          $source = Get-Content 'client/ezorsia/ezorsia/DiscordPresence.cpp' -Raw
+          $source.Replace('#include "stdafx.h"','#include <windows.h>') | Set-Content 'client/scripts/discord-presence-test-source.inc'
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          if (-not $vs) { throw 'Visual Studio installation not found' }
+          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvarsall.bat'
+          $batch = "@echo off`r`ncall `"$vcvars`" x86 >nul`r`ncl /nologo /EHsc /std:c++17 client\scripts\test-discord-presence.cpp /Fe:presence-test.exe`r`nif errorlevel 1 exit /b 1`r`npresence-test.exe > presence-payload.json`r`n"
+          $batch | Set-Content "$env:RUNNER_TEMP\presence-test.cmd"
+          & cmd /c "$env:RUNNER_TEMP\presence-test.cmd"
+          if ($LASTEXITCODE -ne 0) { throw 'Discord IPC tests failed' }
+          $payload = Get-Content presence-payload.json -Raw | ConvertFrom-Json
+          if ($payload.cmd -ne 'SET_ACTIVITY' -or $payload.nonce -ne 'test-nonce') { throw 'Malformed Discord activity envelope' }
+          if ($payload.args.activity.details -ne "Playing `"EverLeaf`"`nwith friends") { throw 'Incorrect Discord JSON escaping' }
+          if ($payload.args.activity.buttons.Count -ne 2) { throw 'Missing Discord presence buttons' }
+
+      - name: Apply EverLeaf Client v2 rebrand
+        shell: pwsh
+        run: python client/scripts/apply-client-v2-rebrand.py
+
+      - name: Build source-pinned Win32 release
+        shell: pwsh
+        run: msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+
+      - name: Verify built client
+        shell: pwsh
+        run: |
+          $dll = 'client/ezorsia/out/Release/dinput8.dll'
+          if (-not (Test-Path $dll)) { throw "Missing build output: $dll" }
+          python client/scripts/verify-client-v2-branding.py $dll
+          Get-FileHash $dll -Algorithm SHA256

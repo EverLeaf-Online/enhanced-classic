@@ -6,8 +6,6 @@ on:
   push:
     branches: [master]
     paths:
-      - "client/branding/login/**"
-      - "client/tools/login-wz-patcher/**"
       - ".github/workflows/publish-everleaf-login-wz.yml"
 
 concurrency:
@@ -20,7 +18,7 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
-  EVERLEAF_PUBLIC_HOST: everleafms.duckdns.org
+  EVERLEAF_PUBLIC_HOST: everleafms.online
   LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
 
 jobs:

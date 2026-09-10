@@ -1,13 +1,7 @@
 name: Deploy EverLeaf Discord status monitor
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - tools/everleaf-ops/discord-status-bot.js
-      - tools/everleaf-ops/discord-status-bot.test.js
-      - .github/workflows/deploy-discord-status-monitor.yml
+  workflow_dispatch:
 
 concurrency:
   group: everleaf-discord-status-monitor
