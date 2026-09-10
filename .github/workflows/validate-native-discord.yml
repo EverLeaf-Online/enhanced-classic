@@ -70,6 +70,10 @@ jobs:
           if ($payload.args.activity.details -ne "Playing `"EverLeaf`"`nwith friends") { throw 'Incorrect Discord JSON escaping' }
           if ($payload.args.activity.buttons.Count -ne 2) { throw 'Missing Discord presence buttons' }
 
+      - name: Apply EverLeaf Client v2 rebrand
+        shell: pwsh
+        run: python client/scripts/apply-client-v2-rebrand.py
+
       - name: Build source-pinned Win32 release
         shell: pwsh
         run: msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
