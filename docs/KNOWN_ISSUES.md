@@ -12,22 +12,25 @@ The master development checklist remains authoritative for project-wide readines
 - **Low** — minor behavior, polish, or operational inconvenience.
 - **Validation** — not yet a confirmed defect, but an area that still lacks enough runtime evidence for public-beta confidence.
 
+## Fixed on canonical `master`, pending production deployment
+
+### High — `gachalist`, `loot`, and `mobskill` were registered at rank 0
+
+**Status:** Source-fixed; production deployment/verification pending
+
+The three commands live in the `gm2` command package and are intended to be GM-only. They were previously registered through the overload that defaulted their minimum rank to 0, which allowed ordinary-player invocation through the `@` prefix.
+
+Canonical `master` now explicitly registers all three at **GM rank 2**:
+
+- `gachalist`
+- `loot`
+- `mobskill`
+
+`src/test/java/client/command/CommandsExecutorGm2PermissionTest.java` guards the registrations so they cannot silently fall back to the rank-0 overload.
+
+Until a production game-server deployment containing the fix is confirmed, operators should still treat any ordinary-player use of these commands on the currently running release as unintended and preserve relevant evidence.
+
 ## Confirmed source-level issues
-
-### High — `mobskill` is registered at rank 0
-
-**Status:** Open
-
-`MobSkillCommand` lives in the `gm2` command package and applies a selected monster skill to every monster on the current map, but `CommandsExecutor.registerLv2Commands()` currently registers it through the overload that defaults the required rank to **0**. Ordinary players can therefore invoke the registered command through the player `@` prefix.
-
-Until fixed:
-
-- treat `@mobskill` as unintended player access;
-- preserve logs/evidence if it is abused;
-- do not document it as a supported player command outside staff/security material;
-- correct the registration rank and add a regression test before calling this closed.
-
-The same registration pattern currently gives rank 0 to `gachalist` and `loot`; those two commands are less privileged in behavior, but their intended policy should still be reviewed when fixing the registration block.
 
 ### Low — `!startevent` single player-limit argument is ignored
 
@@ -123,7 +126,7 @@ Client logs/dumps may contain debugging context and should be submitted intentio
 
 ## Maintenance rule
 
-- Remove an entry only after the fix/decision is represented on canonical `master` and the needed validation passes.
+- Remove an entry only after the fix/decision is represented on canonical `master` and the needed production/runtime validation passes.
 - Convert fixed critical/high defects into regression coverage when practical.
 - Do not add inherited Cosmic/HeavenMS issues here unless they are verified against the current EverLeaf source/release.
 - Do not use this file as a replacement roadmap; broad planned work belongs in `EVERLEAF_MASTER_CHECKLIST.md`.
