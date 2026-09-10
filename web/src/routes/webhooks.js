@@ -3,8 +3,19 @@ const stripe = require("../services/stripeService");
 const discord = require("../services/discordService");
 const paypal = require("../services/paypalService");
 const supporter = require("../services/supporterService");
+const vote = require("./vote");
 
 const router = express.Router();
+
+// GTop100 calls this route server-to-server, before browser sessions/CSRF are
+// mounted in server.js. Parse only this callback locally; payment webhooks keep
+// their raw bodies for signature verification.
+router.post(
+  "/gtop",
+  express.json({ limit: "50kb" }),
+  express.urlencoded({ extended: false, limit: "50kb" }),
+  vote.handlePingback
+);
 
 router.post("/stripe", express.raw({ type: "application/json", limit: "100kb" }), async (req, res) => {
   try {

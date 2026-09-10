@@ -71,7 +71,7 @@ router.get("/api/vote/pingback", (req,res) => {
   });
 });
 
-router.post("/api/vote/pingback", async (req,res) => {
+async function handlePingback(req,res) {
   if (!env.vote.gtopPingbackKey) {
     console.error("GTop100 pingback rejected: GTOP100_PINGBACK_KEY is not configured");
     return res.status(503).json({ ok:false, error:"vote_pingback_not_configured" });
@@ -115,7 +115,10 @@ router.post("/api/vote/pingback", async (req,res) => {
     rewarded:results.filter(result => result.rewarded).length,
     results
   });
-});
+}
+
+router.post("/api/vote/pingback", handlePingback);
 
 module.exports = router;
+module.exports.handlePingback = handlePingback;
 module.exports._test = { secretEqual, flattenBatchEntry, normalizeVote, parsePingback, verifiedVoteUrl };
