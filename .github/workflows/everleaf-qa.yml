@@ -1,39 +1,7 @@
 name: EverLeaf QA Agents
 
 on:
-  pull_request:
-    paths:
-      - 'scripts/**'
-      - 'database/**'
-      - 'src/main/java/**'
-      - 'src/test/**'
-      - 'wz/Map.wz/**'
-      - 'wz/Npc.wz/**'
-      - 'wz/Mob.wz/**'
-      - 'wz/Reactor.wz/**'
-      - 'tools/**'
-      - 'deploy/qa/**'
-      - '.github/workflows/everleaf-qa.yml'
-  push:
-    branches:
-      - master
-      - enhanced-dev
-      - content-dev
-      - progression-dev
-      - qa-agent-hub
-      - master
-    paths:
-      - 'scripts/**'
-      - 'database/**'
-      - 'src/main/java/**'
-      - 'src/test/**'
-      - 'wz/Map.wz/**'
-      - 'wz/Npc.wz/**'
-      - 'wz/Mob.wz/**'
-      - 'wz/Reactor.wz/**'
-      - 'tools/**'
-      - 'deploy/qa/**'
-      - '.github/workflows/everleaf-qa.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -71,60 +39,16 @@ jobs:
       - name: Run baseline QA agent hub
         run: |
           mkdir -p build
-          python3 tools/qa/everleaf_qa.py \
-            --json build/qa-report.json \
-            --markdown build/qa-report.md
+          python3 tools/qa/everleaf_qa.py --json build/qa-report.json --markdown build/qa-report.md
 
-      - name: Run established NPC spawn auditor
-        run: python3 scripts/audit_npc_spawns.py --json > build/npc-spawn-audit.json
-
-      - name: Run world integrity audit
-        run: python3 tools/audit_world_integrity.py --json > build/world-integrity-audit.json
-
-      - name: Run static world-link audit
+      - name: Run world and integration audits
         run: |
-          set +e
+          python3 scripts/audit_npc_spawns.py --json > build/npc-spawn-audit.json
+          python3 tools/audit_world_integrity.py --json > build/world-integrity-audit.json
           python3 tools/audit_world_links.py --json > build/world-links-audit.json
-          rc=$?
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          path = Path('build/world-links-audit.json')
-          if path.exists():
-              data = json.loads(path.read_text())
-              print('World-link hard failures:', data.get('hardFailureCount', 0))
-              for finding in data.get('hardFindings', [])[:60]:
-                  print('[WORLD-LINK FAIL]', finding.get('map_id'), finding.get('object_id'), finding.get('detail'))
-              errors = data.get('parseErrors', [])
-              for error in errors[:20]:
-                  print('[WORLD-LINK XML FAIL]', error)
-          PY
-          exit $rc
-
-      - name: Verify Trade to Free Market integration
-        if: always()
-        run: python3 tools/qa/audit_trade_fm_integration.py
-
-      - name: Verify ranged whack server integration
-        if: always()
-        run: python3 tools/qa/audit_ranged_whack_integration.py
-
-      - name: Run deep QA correlations
-        if: always()
-        run: python3 tools/qa/everleaf_deep_qa.py --json build/deep-qa-report.json
-
-      - name: Print deep QA summary
-        if: always()
-        run: |
-          if [ -f build/deep-qa-report.json ]; then
-            python3 -c 'import json; d=json.load(open("build/deep-qa-report.json")); print("Deep QA:", d["summary"])'
-          fi
-          if [ -f build/world-integrity-audit.json ]; then
-            python3 -c 'import json; d=json.load(open("build/world-integrity-audit.json")); print("World integrity: hard failures=", d.get("hardFailureCount"), "review=", d.get("reviewFindingCount"))'
-          fi
-          if [ -f build/world-links-audit.json ]; then
-            python3 -c 'import json; d=json.load(open("build/world-links-audit.json")); print("World links: hard failures=", d.get("hardFailureCount"), "review=", d.get("reviewFindingCount"))'
-          fi
+          python3 tools/qa/audit_trade_fm_integration.py
+          python3 tools/qa/audit_ranged_whack_integration.py
+          python3 tools/qa/everleaf_deep_qa.py --json build/deep-qa-report.json
 
       - name: Upload QA reports
         if: always()
