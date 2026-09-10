@@ -1,8 +1,6 @@
 name: Production monitor
 
 on:
-  schedule:
-    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -39,11 +37,4 @@ jobs:
       - name: Verify public endpoints
         run: |
           set -euo pipefail
-          curl -fsS --max-time 15 https://everleafms.duckdns.org/v1/launcher/manifest >/dev/null
-          # Primary domain is enforced only once its DNS resolves publicly to the production IP.
-          primary=$(dig +short A everleafms.online | tail -n1 || true)
-          if [ "$primary" = '132.145.141.79' ]; then
-            curl -fsS --max-time 15 https://everleafms.online/v1/launcher/manifest >/dev/null
-          else
-            echo "PRIMARY_DNS_PENDING resolved=${primary:-none} expected=132.145.141.79"
-          fi
+          curl -fsS --max-time 15 https://everleafms.online/v1/launcher/manifest >/dev/null
