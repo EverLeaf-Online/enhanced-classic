@@ -113,7 +113,7 @@ The accepted Evan flow remains Beginner creation followed by the in-game NPC con
 
 ## Public-beta validation risks
 
-The following are not automatically confirmed bugs, but they remain known risk areas because full runtime coverage is incomplete:
+The following are not automatically confirmed bugs, but they remain known risk areas because full runtime coverage is incomplete. Completed checks are intentionally omitted from this active list.
 
 ### Boss and Party Quest lifecycle
 
@@ -125,13 +125,13 @@ Complete multi-client runs remain for major bosses/PQs, including prerequisite/e
 
 **Status:** Validation required
 
-Explorer, Cygnus, Aran, and Evan have substantial implementation/static coverage, but a systematic runtime matrix across attacks, buffs, passives, summons, movement, status effects, formulas, and party interactions is still pending.
+A systematic runtime matrix across Explorer, Cygnus, Aran, and Evan attacks, buffs, passives, summons, movement, status effects, formulas, and party interactions is still pending.
 
 ### Transaction/concurrency edge cases
 
 **Status:** Validation required
 
-Trade, storage, merchants, PlayerShop, Cash Shop transfer/re-entry, quest reward replay, drop/pickup races, and concurrent custom-currency operations need broader multi-client/race testing despite existing hardening and targeted runtime evidence.
+Trade, storage, merchants, PlayerShop, Cash Shop transfer/re-entry, quest reward replay, drop/pickup races, and concurrent custom-currency operations still need broader multi-client/race testing.
 
 ### Clean-machine launcher/client behavior
 
@@ -139,17 +139,17 @@ Trade, storage, merchants, PlayerShop, Cash Shop transfer/re-entry, quest reward
 
 Launcher self-update, damaged-file repair, interrupted-update rollback/retry, clean-machine installation, direct-EXE rejection, single-client enforcement, Alt+Enter/windowing transitions, crash/disconnect handling, and full channel switching still need final clean-player-machine regression coverage.
 
-### Website/account integration
+### Website/account release hardening
 
-**Status:** Partially verified; remaining validation required
+**Status:** Validation required
 
-Registration/login against the production game database, live server/channel status integration, and production download/manifest links have been runtime-verified. Remaining website/account release hardening is focused on rankings behavior for stale/deleted/renamed characters plus final admin/session/CSRF/rate-limit checks.
+Remaining checks are limited to rankings behavior for stale/deleted/renamed characters and final admin authentication/session/CSRF/rate-limit controls.
 
-### Performance/load/soak
+### Performance/load/reliability
 
-**Status:** Partially verified; remaining validation required
+**Status:** Validation required
 
-Multi-hour/day soak and simultaneous login/channel-change behavior have been runtime-verified. Remaining stress work is realistic concurrent-player load, concurrent boss/PQ instances, DB hotspots, scheduler behavior, heap/GC/thread/socket/file-descriptor growth profiling, and reconnect/network-failure behavior.
+Remaining work is realistic concurrent-player load, concurrent boss/PQ instances, database and scheduler hotspot profiling, heap/GC/thread/socket/file-descriptor growth profiling, and reconnect/network-failure behavior.
 
 ## Reporting a new issue
 
@@ -161,7 +161,7 @@ Client logs/dumps may contain debugging context and should be submitted intentio
 
 ## Maintenance rule
 
-- Remove an entry only after the fix/decision is represented on canonical `master` and the needed production/runtime validation passes.
+- Keep this active register unresolved-only. When the needed production/runtime validation passes, remove the completed item or completed sub-check from this file rather than leaving it mixed into a remaining-risk entry.
 - Convert fixed critical/high defects into regression coverage when practical.
 - Do not add inherited Cosmic/HeavenMS issues here unless they are verified against the current EverLeaf source/release.
 - Do not use this file as a replacement roadmap; broad planned work belongs in `EVERLEAF_MASTER_CHECKLIST.md`.
