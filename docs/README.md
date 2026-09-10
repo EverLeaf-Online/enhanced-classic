@@ -6,7 +6,7 @@ This directory contains the maintained documentation for EverLeafMS.
 
 1. [`EVERLEAF_MASTER_CHECKLIST.md`](EVERLEAF_MASTER_CHECKLIST.md) — authoritative roadmap, implementation status, production baseline, and priority queue.
 2. Maintained topic guides below — current policy, operating guidance, and technical design.
-3. [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) — current confirmed defects, user-visible limitations, and unresolved validation risks.
+3. [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) — current human-readable confirmed defects, user-visible limitations, and unresolved validation risks; [`known-issues.json`](known-issues.json) is the machine-readable companion.
 4. [`archive/`](archive/) — dated audits, superseded plans, donor research, and historical evidence. Archive material is **not** a statement of current production state.
 5. [`../handbook/`](../handbook/) — large upstream/reference ID tables and protocol/game-data references. These are reference data, not EverLeaf status documents. See [`../handbook/README.md`](../handbook/README.md) before using them; legacy command labels/listings there do not define current EverLeaf permissions or monetization policy.
 
@@ -38,6 +38,7 @@ This directory contains the maintained documentation for EverLeafMS.
 - [`staff/OPERATIONS_AND_INCIDENTS.md`](staff/OPERATIONS_AND_INCIDENTS.md) — staff-facing operational, incident, evidence-preservation, rollback, and support principles.
 - [`staff/GM_COMMANDS_AND_PERMISSIONS.md`](staff/GM_COMMANDS_AND_PERMISSIONS.md) — source-verified numeric GM command ranks and operational restrictions; replaces legacy handbook role labels as the permission reference.
 - [`staff/MODERATION_AND_APPEALS.md`](staff/MODERATION_AND_APPEALS.md) — ban, unban, containment, evidence, compromise, and appeal procedure.
+- [`staff/ACCOUNT_RECOVERY_PROCEDURE.md`](staff/ACCOUNT_RECOVERY_PROCEDURE.md) — staff workflow for reviewing the current CMS recovery queue, ownership verification boundaries, status transitions, compromise cases, and audit trail.
 - [`staff/EVENT_OPERATIONS.md`](staff/EVENT_OPERATIONS.md) — joinable GM/classic event preparation, execution, rewards, abort, cleanup, and validation procedure.
 - [`staff/RECOVERY_AND_RESTORE.md`](staff/RECOVERY_AND_RESTORE.md) — command-level service recovery, backup, release rollback, database-restore decision gates, and restore rehearsal procedure.
 - [`staff/EMERGENCY_SHUTDOWN.md`](staff/EMERGENCY_SHUTDOWN.md) — emergency stop/containment, evidence preservation, backup, and controlled reopen procedure for incidents where continued writes are unsafe.
@@ -45,7 +46,7 @@ This directory contains the maintained documentation for EverLeafMS.
 ## Documentation maintenance rules
 
 - Do not create another roadmap/status file. Update `EVERLEAF_MASTER_CHECKLIST.md` when project state changes.
-- Keep `KNOWN_ISSUES.md` focused on verified defects/limitations and explicitly identified validation risks; do not turn it into another roadmap.
+- Keep `KNOWN_ISSUES.md` and `known-issues.json` synchronized; neither replaces the roadmap.
 - Do not put dated live snapshots beside maintained docs. Put evidence captures under `archive/audits/`.
 - Do not let donor/reverse-engineering research masquerade as production behavior. Put it under an appropriate archive research folder.
 - Keep player-facing guidance separate from staff/production procedures.
@@ -53,4 +54,4 @@ This directory contains the maintained documentation for EverLeafMS.
 - When moving or replacing a maintained document, update repository links in the same change.
 - When command registration changes, re-audit `staff/GM_COMMANDS_AND_PERMISSIONS.md` against `CommandsExecutor.java`.
 
-See [`archive/DOCUMENTATION_AUDIT_2026-09-10.md`](archive/DOCUMENTATION_AUDIT_2026-09-10.md) for the consolidation audit that established this structure.
+See [`archive/DOCUMENTATION_AUDIT_2026-09-10.md`](archive/DOCUMENTATION_AUDIT_2026-09-10.md) for the consolidation audit and same-day follow-up that established this structure.
