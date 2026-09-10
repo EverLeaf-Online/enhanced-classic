@@ -1,13 +1,6 @@
 name: Verify v95 after game deploy
 
 on:
-  push:
-    branches: [master]
-    paths:
-      - '.github/workflows/verify-v95-after-game-deploy.yml'
-  workflow_run:
-    workflows: ["Deploy EverLeaf Game Production"]
-    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -15,7 +8,6 @@ permissions:
 
 jobs:
   verify:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
