@@ -21,7 +21,7 @@ CREATE TABLE accounts (
 CREATE TABLE characters (
     id INT NOT NULL PRIMARY KEY,
     accountid INT NOT NULL,
-    CONSTRAINT fk_test_character_account FOREIGN KEY (accountid) REFERENCES accounts(id) ON DELETE CASCADE
+    KEY idx_test_character_account (accountid)
 ) ENGINE=InnoDB;
 CREATE TABLE inventoryequipment (
     inventoryitemid BIGINT NOT NULL PRIMARY KEY,
@@ -32,6 +32,7 @@ INSERT INTO characters (id, accountid) VALUES (10, 1), (11, 1), (20, 2);
 SQL
 
 structural_migrations=(
+    database/sql/migration/everleaf_account_character_integrity.sql
     database/sql/migration/everleaf_weekly_progression.sql
     database/sql/migration/everleaf_verdant_marks.sql
     database/sql/migration/everleaf_pq_points.sql
@@ -118,6 +119,28 @@ expect_query_value \
     "forge stage column" \
     "1" \
     "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name='inventoryequipment' AND column_name='everleaf_forge_stage';"
+
+expect_query_value \
+    "account character delete guard" \
+    "RESTRICT" \
+    "SELECT DELETE_RULE FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND CONSTRAINT_NAME='fk_everleaf_characters_account' AND TABLE_NAME='characters';"
+
+# An account with characters must not be raw-deletable; otherwise the legacy
+# character/inventory/etc. cleanup path would be bypassed and orphan state could
+# be created. Account 2 has no other EverLeaf test rows, so this specifically
+# exercises the account->characters guard.
+if "${mysql_cmd[@]}" "$database" -e "DELETE FROM accounts WHERE id=2;" >/dev/null 2>&1; then
+    echo "ERROR: account/character delete guard allowed deleting an account with characters" >&2
+    exit 1
+fi
+echo "Account/character delete guard OK"
+
+# Empty accounts remain removable.
+"${mysql_cmd[@]}" "$database" -e "INSERT INTO accounts (id,name) VALUES (3,'Empty'); DELETE FROM accounts WHERE id=3;" >/dev/null
+expect_query_value \
+    "empty account deletion" \
+    "0" \
+    "SELECT COUNT(*) FROM accounts WHERE id=3;"
 
 expect_duplicate_rejected() {
     local label="$1"
