@@ -30,23 +30,31 @@ Canonical `master` now explicitly registers all three at **GM rank 2**:
 
 Until a production game-server deployment containing the fix is confirmed, operators should still treat any ordinary-player use of these commands on the currently running release as unintended and preserve relevant evidence.
 
-## Confirmed source-level issues
+### Low — `!startevent` ignored a single player-limit argument
 
-### Low — `!startevent` single player-limit argument is ignored
+**Status:** Source-fixed; production deployment/verification pending
 
-**Status:** Open
+The previous implementation only parsed `params[0]` when more than one parameter was supplied, so `!startevent 25` silently retained the default capacity of 50.
 
-`StartEventCommand` defaults the join cap to 50 and only parses `params[0]` when `params.length > 1`. Supplying exactly one numeric argument therefore does not change the default cap.
+Canonical `master` now accepts either no argument (default **50**) or exactly one positive integer player limit. Zero, negative, non-numeric, and extra arguments are rejected with syntax guidance. `src/test/java/client/command/commands/gm3/StartEventCommandTest.java` covers the default, valid custom limits, and invalid inputs.
 
-Operational workaround: use the default capacity and do not rely on a custom `!startevent <limit>` value until the command syntax/implementation is corrected and tested.
+## Confirmed source/data-integrity issues
 
-### Medium — account purge/deletion semantics can leave character data
+### Medium — historical account purge/deletion can leave character data
 
-**Status:** Open / policy + data-integrity work
+**Status:** Preventive source fix ready; live audit/remediation and migration application pending
 
-The master checklist tracks a case where intentionally deleted accounts may still have character rows or related inventory/equipment/quest/social data. The final deletion/restoration policy and relationship cleanup behavior are not yet complete.
+The legacy base schema does not enforce a foreign-key relationship from `characters.accountid` to `accounts.id`. A direct manual `DELETE` of an account row can therefore leave character rows behind, and deleting the character row through a blind database cascade would also bypass EverLeaf's existing application-level character cleanup for inventory, quests, pets, social state, merchant state, and related records.
 
-Do not manually delete production account/character rows ad hoc. Preserve a backup, identify dependent records, and use an explicit reviewed cleanup procedure.
+Canonical `master` now contains:
+
+- `tools/everleaf-ops/audit-account-character-integrity.sql` — read-only audit for orphaned characters and key dependent-row integrity;
+- `database/sql/migration/everleaf_account_character_integrity.sql` — a fail-closed relationship guard that installs `characters.accountid -> accounts.id` with **ON DELETE RESTRICT / ON UPDATE RESTRICT** only when the existing data is clean;
+- migration smoke coverage proving an account with characters cannot be raw-deleted while an empty account remains removable.
+
+The migration deliberately refuses to install if historical orphaned characters already exist. It also refuses to silently replace an unexpected pre-existing foreign-key rule.
+
+This issue is **not closed in production yet**. Before applying the migration, run the read-only audit against production, identify any existing orphaned rows, back up the database, remediate those rows through an explicit reviewed cleanup plan, then apply and verify the guard. Do not mass-delete historical orphan trees automatically.
 
 ## Current user-facing limitations
 
