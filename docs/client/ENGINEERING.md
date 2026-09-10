@@ -10,6 +10,7 @@ The maintained client work separates:
 
 - network/bootstrap configuration;
 - launcher-managed update/repair;
+- launcher-only/single-client launch enforcement;
 - source-built Win32 bootstrap/runtime extensions;
 - display/windowing modernization;
 - presentation-only frame limiting;
@@ -27,6 +28,9 @@ The current release line includes or has validated source support for:
 - 1280×720 gameplay/client configuration;
 - Win32 startup/bootstrap hardening;
 - race-safe dinput8 proxy/bootstrap behavior;
+- launcher-only one-time handoff enforcement in the managed native bootstrap;
+- one-client-at-a-time enforcement through launcher checks plus a machine-wide native client mutex;
+- exclusive single-use launch-ticket consumption;
 - widescreen/runtime corrections;
 - windowed/borderless/Alt+Enter support separated from game logic;
 - presentation-only frame limiting;
@@ -78,9 +82,19 @@ The maintained implementation is EverLeaf-owned, uses local Discord named-pipe I
 
 ## Launcher boundary
 
-The launcher owns managed update/repair and launch policy. The native runtime should not reinvent an unsigned copy-over patcher, global registry hacks, or opaque third-party loader chain.
+The launcher owns managed update/repair and launch policy. EverLeaf's intended player contract is:
 
-Player-facing guidance is launcher-first. Raw EXE launches are not the supported normal path because they can bypass update/repair and launcher-ticket assumptions.
+- launch through `EverLeafLauncher.exe` only;
+- do not run `EverLeaf.exe` directly;
+- only one EverLeaf game client may run on a machine at a time.
+
+The managed native bootstrap requires the launcher's transient `.everleaf-launch` handoff. Ticket consumption is exclusive/single-use, and the stock client exits when the handoff is missing or invalid.
+
+For multi-client prevention, the launcher checks both the `EverLeaf` process and `Global\EverLeafMS.Client.SingleInstance` immediately before Play. The native bootstrap acquires the same machine-wide mutex and retains its handle for the lifetime of the game, so a second stock client fails closed even if two launcher windows race.
+
+These are client/launcher enforcement layers, not a claim that software under the player's local administrative control is cryptographically tamper-proof. If the project later requires server-backed proof that each login came from an authorized, unmodified launcher session, that must be implemented as an explicit server-validated launch-session protocol.
+
+The native runtime should not reinvent an unsigned copy-over patcher, global registry hacks, or opaque third-party loader chain.
 
 ## Deferred Phase 2 UI work
 
