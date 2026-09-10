@@ -65,7 +65,7 @@ jobs:
             [IO.File]::WriteAllBytes((Join-Path $PWD $iconPath), $bytes)
             $hash = (Get-FileHash -LiteralPath $iconPath -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($hash -eq $expectedHash) {
-              Write-Host "EverLeaf app icon ready via $label: $hash"
+              Write-Host "EverLeaf app icon ready via ${label}: $hash"
               return $true
             }
             Remove-Item -LiteralPath $iconPath -Force -ErrorAction SilentlyContinue
