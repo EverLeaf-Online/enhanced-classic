@@ -33,19 +33,23 @@ Do not activate a dormant seasonal script directly on production as an experimen
 
 1. Move the staff character to the intended event map.
 2. Confirm the map is safe for incoming players and not an active boss/PQ instance.
-3. Run:
+3. Run either:
 
 ```text
 !startevent
 ```
 
-Current source behavior creates a channel event using the current map and defaults to **50 players**, then broadcasts `@joinevent` instructions to the world.
+or:
 
-### Known parameter limitation
+```text
+!startevent <playerLimit>
+```
 
-The current `StartEventCommand` only parses a participant-limit argument when more than one parameter is supplied. A single numeric argument is therefore ignored and the default of 50 remains. Do not rely on `!startevent <limit>` until that source defect is fixed/tested; it is tracked in `docs/KNOWN_ISSUES.md`.
+With no argument, the event defaults to **50 players**. The optional `playerLimit` accepts exactly one positive integer. Zero, negative, non-numeric, or extra arguments are rejected with syntax guidance instead of starting an event with an unintended capacity.
 
-4. Confirm the broadcast appears.
+The command then creates a channel event using the current map and broadcasts `@joinevent` instructions to the world.
+
+4. Confirm the broadcast appears and states the intended capacity.
 5. Use a second/player client when practical to verify `@joinevent` enters the intended map.
 6. Watch participant count/map state as players join.
 
