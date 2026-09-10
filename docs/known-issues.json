@@ -6,12 +6,12 @@
     {
       "id": "EL-CMD-001",
       "severity": "high",
-      "status": "open",
+      "status": "source_fixed_pending_deploy",
       "area": "commands/security",
-      "title": "mobskill command is registered at rank 0",
+      "title": "gachalist, loot, and mobskill were registered at rank 0",
       "source": "src/main/java/client/command/CommandsExecutor.java",
-      "summary": "MobSkillCommand is in the gm2 package but is registered through the rank-0 overload, allowing ordinary-player invocation through the @ prefix.",
-      "required_close": "Register at the intended staff rank and add regression coverage for player rejection. Review gachalist and loot rank intent in the same registration block."
+      "summary": "Canonical master now explicitly registers gachalist, loot, and mobskill at GM rank 2. Source-level regression coverage prevents fallback to the rank-0 overload.",
+      "required_close": "Deploy the fixed server build to production and verify an ordinary player is denied while GM2+ can invoke the commands."
     },
     {
       "id": "EL-EVENT-001",
