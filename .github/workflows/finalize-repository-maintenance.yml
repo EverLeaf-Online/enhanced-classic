@@ -1,6 +1,15 @@
 name: Finalize EverLeaf repository maintenance
 
 on:
+  pull_request:
+    branches: [master]
+    paths:
+      - '.github/workflows/finalize-repository-maintenance.yml'
+      - '.github/workflows/client-v2-integration-guard.yml'
+      - '.github/workflows/client-v2-diagnostics-guard.yml'
+      - '.github/workflows/client-v2-frame-limiter-guard.yml'
+      - '.github/workflows/client-v2-wasd-guard.yml'
+      - 'docs/EVERLEAF_MASTER_CHECKLIST.md'
   push:
     branches: [master]
     paths:
@@ -15,7 +24,33 @@ env:
   EVERLEAF_DEPLOY_USER: ubuntu
 
 jobs:
+  build:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate final workflow policy and checklist
+        shell: bash
+        run: |
+          set -euo pipefail
+          for workflow in \
+            .github/workflows/client-v2-integration-guard.yml \
+            .github/workflows/client-v2-diagnostics-guard.yml \
+            .github/workflows/client-v2-frame-limiter-guard.yml \
+            .github/workflows/client-v2-wasd-guard.yml; do
+            grep -q '^  workflow_dispatch:$' "$workflow"
+            if grep -q '^  pull_request:$' "$workflow"; then
+              echo "$workflow still auto-runs on pull requests" >&2
+              exit 1
+            fi
+          done
+          grep -q 'PR #366 was closed as superseded' docs/EVERLEAF_MASTER_CHECKLIST.md
+          grep -q 'Live client overlay was rebuilt, verified, and published' docs/EVERLEAF_MASTER_CHECKLIST.md
+          echo 'FINAL_WORKFLOW_POLICY_OK'
+
   finalize:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
