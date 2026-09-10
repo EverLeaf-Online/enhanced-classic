@@ -1,8 +1,15 @@
 # EverLeaf Staff Operations and Incident Handling
 
-This document consolidates staff-facing operational principles that were previously scattered across deployment, production, security, and audit notes. It is a baseline, not a substitute for a future exhaustive GM-command or moderation handbook.
+This document consolidates staff-facing operational principles that were previously scattered across deployment, production, security, and audit notes. Detailed procedures now live in the linked staff runbooks rather than being duplicated here.
 
 For production topology and release procedure, use [`../operations/PRODUCTION_AND_RELEASE.md`](../operations/PRODUCTION_AND_RELEASE.md). For current readiness gaps, use [`../EVERLEAF_MASTER_CHECKLIST.md`](../EVERLEAF_MASTER_CHECKLIST.md).
+
+Related maintained staff references:
+
+- [`GM_COMMANDS_AND_PERMISSIONS.md`](GM_COMMANDS_AND_PERMISSIONS.md) — source-verified GM command ranks and privilege boundaries.
+- [`MODERATION_AND_APPEALS.md`](MODERATION_AND_APPEALS.md) — bans, appeals, evidence, compromise, and moderation procedure.
+- [`EVENT_OPERATIONS.md`](EVENT_OPERATIONS.md) — event preparation, operation, rewards, abort, and cleanup.
+- [`RECOVERY_AND_RESTORE.md`](RECOVERY_AND_RESTORE.md) — service recovery, backup, release rollback, data-restore gates, and restore rehearsal.
 
 ## Operating principles
 
@@ -56,6 +63,8 @@ For a suspected active duplication or transaction exploit:
 
 Do not publish exploit reproduction details while the vulnerability remains exploitable.
 
+Use [`RECOVERY_AND_RESTORE.md`](RECOVERY_AND_RESTORE.md) when the incident requires a production backup/restart/rollback/restore, and [`MODERATION_AND_APPEALS.md`](MODERATION_AND_APPEALS.md) when player restrictions are involved.
+
 ## Release rollback vs data remediation
 
 Application rollback and database/economy remediation are different actions.
@@ -80,7 +89,7 @@ For bans, appeals, account-compromise reports, or suspicious economy activity, p
 
 Do not rely solely on screenshots from a third party when server-side evidence is available. Avoid collecting more personal data than needed for the investigation.
 
-A definitive GM command/permission reference and full ban/appeal procedure are still separate documentation gaps tracked by the master checklist.
+The definitive command/permission and ban/appeal procedures are now maintained in [`GM_COMMANDS_AND_PERMISSIONS.md`](GM_COMMANDS_AND_PERMISSIONS.md) and [`MODERATION_AND_APPEALS.md`](MODERATION_AND_APPEALS.md).
 
 ## Player support triage
 
@@ -88,13 +97,13 @@ Support should first classify the issue into account/authentication, launcher/up
 
 Ask for reproducible facts rather than credentials. Never request a player's password, PIC/PIN, launcher token, or private authentication material.
 
-For client problems, point players to the official launcher/repair path and never recommend globally disabling antivirus.
+For client problems, point players to the official launcher/repair path and never recommend globally disabling antivirus. For account recovery, use the current player flow documented in [`../player/ACCOUNT_RECOVERY.md`](../player/ACCOUNT_RECOVERY.md).
 
 ## Event operations
 
 Do not activate dormant/seasonal event scripts simply because they exist in the repository. Event availability, schedule, reward tables, and instance cleanup behavior must be deliberate and tested. Reward replay/disconnect behavior and cleanup are release-critical for enabled events.
 
-A fuller event-operation checklist remains future staff documentation work.
+Use the maintained [`EVENT_OPERATIONS.md`](EVENT_OPERATIONS.md) runbook for staff-run events and for testing returning/dormant event content.
 
 ## Evidence retention
 
