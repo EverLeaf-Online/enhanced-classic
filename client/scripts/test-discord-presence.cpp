@@ -23,7 +23,11 @@ int main() {
  assert(std::string(JobName(9999))=="Unknown Job");
  assert(BuildGameplayDetails("Policy",120,232)=="Policy | Lv. 120 Bishop");
  assert(BuildGameplayState(100000000)=="Map 100000000");
+ const auto revisionBefore=gActivityRevision.load();
  SetActivity("Playing \"EverLeaf\"\nwith friends","Enhanced classic adventure");
+ assert(gActivityRevision.load()==revisionBefore+1);
+ SetActivity("Playing \"EverLeaf\"\nwith friends","Enhanced classic adventure");
+ assert(gActivityRevision.load()==revisionBefore+1);
  std::cout << BuildActivity("test-nonce") << std::endl;
  Incoming incoming;
  auto ready=Frame(Opcode::Frame,R"({"cmd":"DISPATCH","evt" : "READY"})");
