@@ -2,13 +2,13 @@
 
 Repository-backed working checklist for the current EverLeaf release line.
 
-Last synchronized: **2026-09-10** after master consolidation, workflow-definition cleanup, native Discord Rich Presence extraction/validation, live client publication, website Git migration, final branch cleanup, and the final guarded production rebuild/restart.
+Last synchronized: **2026-09-10** after master consolidation, workflow-definition cleanup, native Discord Rich Presence extraction/validation, live client publication, website Git migration, final branch cleanup, the final guarded production rebuild/restart, documentation audit/consolidation, and completion of the maintained player/staff documentation baseline.
 
 ## Current production baseline
 
 - Primary repository: `EverLeaf-Online/enhanced-classic`
 - Canonical branch: `master`
-- Repository branch state: **master only**
+- Repository branch state: **`master` is the sole canonical line; temporary documentation refs may remain but contain no unique work**
 - Open pull requests: **none**
 - Current running game release source SHA: `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a`
 - Current running game release: `/opt/everleaf/releases/92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a-34484572759-2`
@@ -49,6 +49,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ PR #366 closed as superseded after its unique Discord work was extracted onto current master.
 - ✅ Old native-client donor branch removed.
 - ✅ Temporary maintenance/finalization branches removed.
+- ✅ Documentation consolidation PR #385 merged; temporary documentation refs contain no unique work and are housekeeping-only.
 - ✅ No open PRs remain after cleanup.
 - ✅ Direct Codex Connector writes to protected `master` are now available through the configured ruleset bypass.
 - ✅ Production deploy workflow exists and is guarded.
@@ -100,6 +101,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Final September 10 deployment backup stage completed successfully before release switch.
 - ✅ Disk cleanup completed during DR setup and restored substantial free space.
 - ✅ Backup/DR setup is complete.
+- ✅ Command-level recovery/rollback/restore rehearsal runbook documented in `docs/staff/RECOVERY_AND_RESTORE.md`.
 - 🟡 Periodically perform an isolated full restore rehearsal.
 - 🟡 Optional future upgrade: multi-region replication if regional disaster tolerance is desired.
 
@@ -114,12 +116,13 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Production web secrets are externalized.
 - ✅ Production password mode uses bcrypt.
 - ✅ Launcher-ticket enforcement is part of the current bootstrap contract.
+- ✅ Current staff-reviewed account recovery flow is documented for players/support.
 - 🟡 Verify registration end-to-end against production policy.
 - 🟡 Verify password hashing and legacy-account compatibility across older accounts.
 - 🟡 Verify bans, temporary bans, IP/MAC restrictions, and duplicate-login/session protection.
 - 🟡 Verify PIC/PIN behavior if enabled.
 - 🟡 Verify account persistence across restart/reconnect conditions.
-- 🟡 Continue mitigation/documentation for users launching the raw EXE instead of the EverLeaf Launcher.
+- 🟡 Continue mitigation for users launching the raw EXE instead of the EverLeaf Launcher; supported launcher-first behavior is now documented.
 - 🟡 Complete source-first authentication/security review with targeted runtime confirmation.
 
 # 5. Character Creation / Persistence
@@ -191,6 +194,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Transactional row locking exists for claims.
 - ✅ Verdant Marks ledger uses unique account/reason protection.
 - ✅ Verdant Marks are account-bound DB currency, not transferable inventory.
+- ✅ Maintained player-facing progression/Verdant/PQ Points documentation exists.
 - 🟡 Balance 201–249 pacing from real gameplay telemetry.
 - 🟡 Verify post-200 milestone pacing and reward balance live.
 
@@ -203,8 +207,8 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Idempotent and never reduces legitimate existing MaxHP.
 - ✅ Legacy washed HP above the floor is grandfathered.
 - ✅ AP Reset cannot bypass the minimum HP floor.
+- ✅ Survivability/no-HP-washing documentation is synchronized into maintained gameplay and player guides.
 - 🟡 Tune final HP curves against real boss damage/balance.
-- 🟡 Synchronize survivability documentation with the current implementation.
 
 # 10. Combat / Damage / Status Effects
 
@@ -386,6 +390,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Dormant/legacy scripts remain report-only rather than silently enabled.
 - ✅ RPS implementation/handler/opcode/NPC/WZ dependency audit exists.
 - ✅ Event/minigame audit tooling exists.
+- ✅ Staff event-operation/abort/cleanup procedure documented.
 - 🟡 Runtime-test enabled events/minigames.
 - 🟡 Verify event map reset behavior.
 - 🟡 Verify reward replay/disconnect behavior.
@@ -589,11 +594,12 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Launcher/update infrastructure exists.
 - ✅ September 10 live client publication generated the managed overlay, updated the patch manifest, published to Oracle patch storage, and verified public patch endpoints.
 - ✅ Player-facing bootstrap/default game IP uses relay `129.159.114.146`.
+- ✅ Player-facing launcher-first/raw-EXE guidance is documented.
 - 🟡 Verify launcher self-update.
 - 🟡 Verify damaged-file repair/hash validation.
 - 🟡 Verify interrupted update atomicity/rollback/retry.
 - 🟡 Verify Play launches the correct executable/config.
-- 🟡 Add clear handling for raw EXE launches.
+- 🟡 Add technical enforcement/handling for raw EXE launches if desired beyond documentation.
 - 🟡 Verify signing/provenance strategy.
 - 🟡 Clean-machine install/update/repair test.
 
@@ -611,6 +617,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Dark public theme restoration merged.
 - ✅ Production web readiness hardening exists.
 - ✅ Local v83 WZ avatar renderer exists and rankings use it.
+- ✅ Staff-reviewed account-recovery request queue and player documentation exist.
 - 🟡 Final page-by-page visual polish, especially rankings, Wiki, and login presentation.
 - 🟡 Verify registration/login against production game DB.
 - 🟡 Verify rankings stale/deleted/renamed character behavior.
@@ -653,6 +660,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ PlayerShop hardening.
 - ✅ Weekly/account-currency transactional protections.
 - ✅ Normal storage/direct-trade/merchant/Cash-Shop paths have targeted runtime evidence.
+- 🔧 **Fix `mobskill` command permission registration:** it is currently registered at rank 0 despite GM2 placement; review `gachalist`/`loot` rank intent in the same block and add regression coverage.
 - 🔧 Complete broad packet-validation audit.
 - 🔧 Malformed packet fuzzing.
 - 🔧 Broad dupe/race-condition matrix.
@@ -663,7 +671,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - 🟡 Drop/pickup races and cross-system persistence races.
 - 🟡 Verify quantities server-side across item/meso/NX/custom currencies.
 - 🟡 Verify NPC/quest/shop/map proximity/state validation where required.
-- 🟡 Verify unauthorized GM/admin command rejection.
+- 🟡 Verify unauthorized GM/admin command rejection after command-rank defect is corrected.
 - 🟡 Verify web rate limiting/session/cookie security.
 - 🟡 Verify logs do not expose secrets/sensitive account data.
 
@@ -715,9 +723,9 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Native Discord Windows validation passed.
 - ✅ Client v2 integration/WASD/frame-limiter/diagnostics guards passed during finalization.
 - ✅ Heavy QA/build workflows were converted to manual-only where continuous execution was generating unnecessary runner usage.
+- ✅ Maintained human-readable `docs/KNOWN_ISSUES.md` and machine-readable `docs/known-issues.json` registers exist.
 - 🟡 Run automated gameplay QA against the actual packaged client/release when valuable.
 - 🟡 Add regression tests for every fixed exploit/critical bug.
-- 🟡 Maintain machine-readable known-issues list.
 
 # 39. Performance / Stability / Soak
 
@@ -745,10 +753,11 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ `everleaf-healthcheck.timer` and `everleaf-disk-monitor.timer` provide normal server-side scheduled health coverage.
 - ✅ GitHub production monitoring workflow is manual-only to avoid redundant hosted-runner usage.
 - ✅ Discord status-monitor deployment workflow is explicit/manual.
+- ✅ Formal restart/recovery/rollback/restore operations runbook exists.
+- ✅ Emergency stop/containment/reopen runbook exists.
 - 🟡 Add/verify proactive production alerts where server-side timers/bot do not already cover them.
 - 🟡 Structured gameplay/reward/trade/storage anomaly logging.
 - 🟡 Client crash/diagnostic collection strategy.
-- 🟡 Formal restart/recovery operations runbook.
 
 # 41. Incident / Security Investigation
 
@@ -760,26 +769,26 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 
 # 42. Player Documentation
 
-- 🔴 Definitive installation/launcher guide.
-- 🔴 Clear launcher-only/raw-EXE guidance.
-- 🟡 Account creation/recovery/support documentation.
-- 🟡 Rates/level-250/post-200 progression documentation.
-- 🟡 Verdant Marks documentation.
-- 🟡 PQ Points documentation.
-- 🟡 No-HP-washing progression explanation.
-- 🟡 Boss/PQ/custom-content documentation.
-- 🟡 Known-issues/reporting documentation.
-- 🟡 Antivirus false-positive guidance without recommending global antivirus disablement.
+- ✅ Definitive installation/launcher guide: `docs/player/INSTALLATION_AND_SUPPORT.md`.
+- ✅ Clear launcher-first/raw-EXE guidance.
+- ✅ Account creation/recovery/support documentation, including the current staff-reviewed recovery queue.
+- ✅ Rates/level-250/post-200 progression documentation.
+- ✅ Verdant Marks documentation.
+- ✅ PQ Points documentation.
+- ✅ No-HP-washing progression explanation.
+- ✅ Boss/PQ/custom-content documentation.
+- ✅ Known-issues/reporting documentation in `docs/KNOWN_ISSUES.md`.
+- ✅ Antivirus false-positive guidance without recommending global antivirus disablement.
 
 # 43. Staff / GM Documentation
 
-- 🔴 GM command/permission reference.
-- 🔴 Player-support procedures.
-- 🔴 Rollback/economy incident procedures.
-- 🔴 Ban/appeal/evidence procedures.
-- 🔴 Event-operation procedures.
-- 🔴 Deploy/restart/backup/restore runbook.
-- 🔴 Exploit-response/emergency shutdown procedure.
+- ✅ Source-verified GM command/permission reference: `docs/staff/GM_COMMANDS_AND_PERMISSIONS.md`.
+- ✅ Player-support procedures and account-recovery handling baseline.
+- ✅ Rollback/economy incident procedures.
+- ✅ Ban/appeal/evidence procedures: `docs/staff/MODERATION_AND_APPEALS.md`.
+- ✅ Event-operation procedures: `docs/staff/EVENT_OPERATIONS.md`.
+- ✅ Deploy/restart/backup/restore runbook: `docs/staff/RECOVERY_AND_RESTORE.md` plus production release guide.
+- ✅ Exploit-response/emergency shutdown procedure: `docs/staff/OPERATIONS_AND_INCIDENTS.md` + `docs/staff/EMERGENCY_SHUTDOWN.md`.
 
 # 44. Historical Git Work / Reconciliation
 
@@ -789,8 +798,8 @@ The prior stacked-branch cleanup is complete. Historical PRs remain available as
 - ✅ Old client donor branch removed.
 - ✅ Old `release-dev` line removed.
 - ✅ Obsolete stacked maintenance/development branches removed.
-- ✅ Repository returned to one active branch: `master`.
-- ✅ No open PRs remain after the September 10 cleanup.
+- ✅ `master` is the sole canonical active line; temporary documentation refs are identical to `master` and carry no unique work.
+- ✅ No open PRs remain after the September 10 cleanup/documentation consolidation.
 - ✅ Future work should normally land directly on `master` through the authorized Codex Connector bypass unless a real review/CI branch is deliberately useful.
 
 # 45. Closed Alpha Readiness
@@ -809,7 +818,8 @@ The prior stacked-branch cleanup is complete. Historical PRs remain available as
 - ✅ Strong server audit/test coverage.
 - ✅ Substantial anti-dupe/reward/storage/merchant hardening.
 - ✅ Native Discord Rich Presence integrated and published.
-- ✅ One canonical branch and clean repository structure.
+- ✅ One canonical branch line and clean repository structure.
+- ✅ Maintained player/staff documentation baseline and known-issues register.
 
 ## Remaining closed-alpha validation
 
@@ -820,7 +830,7 @@ The prior stacked-branch cleanup is complete. Historical PRs remain available as
 - 🟡 Boss/PQ real-client testing.
 - 🟡 Direct trade/merchant/storage race testing.
 - 🟡 Soak/load testing.
-- 🟡 Known-issues list.
+- 🔧 Correct the confirmed `mobskill` command-rank defect before broad external testing.
 
 **Assessment:** EverLeaf is closed-alpha capable, but not yet public-beta hardened.
 
@@ -828,17 +838,17 @@ The prior stacked-branch cleanup is complete. Historical PRs remain available as
 
 Main remaining blockers:
 
-1. 🔴 Automated live-client/E2E coverage if we choose to make that a beta gate.
-2. 🔴 Soak/load/concurrency testing.
-3. 🟡 Boss/PQ live regression matrix.
-4. 🟡 Combat formula/runtime parity.
-5. 🟡 Trade/storage/merchant/Cash-Shop race testing.
-6. 🟡 Advancement/boss-prerequisite quest playthroughs.
-7. 🟡 Clean-machine launcher install/update/repair.
-8. 🟡 Website/account/rankings/channel integration verification.
-9. 🟡 Packet/admin/web security pass.
-10. 🟡 Economy/boss-drop/source-sink balance.
-11. 🟡 Player/staff documentation/support procedures.
+1. 🔧 Correct the confirmed `mobskill` rank-0 permission defect and re-audit command authorization.
+2. 🔴 Automated live-client/E2E coverage if we choose to make that a beta gate.
+3. 🔴 Soak/load/concurrency testing.
+4. 🟡 Boss/PQ live regression matrix.
+5. 🟡 Combat formula/runtime parity.
+6. 🟡 Trade/storage/merchant/Cash-Shop race testing.
+7. 🟡 Advancement/boss-prerequisite quest playthroughs.
+8. 🟡 Clean-machine launcher install/update/repair.
+9. 🟡 Website/account/rankings/channel integration verification.
+10. 🟡 Packet/admin/web security pass.
+11. 🟡 Economy/boss-drop/source-sink balance.
 
 # 47. Public Launch Readiness
 
@@ -851,7 +861,7 @@ Main remaining blockers:
 - 🟡 Website/CMS/auth/rankings/status verified end-to-end.
 - 🟡 Economy/security/performance/load validation complete.
 - ✅ Backup/restore/rollback foundation validated.
-- 🟡 Player/staff documentation published.
+- ✅ Player/staff documentation baseline published and indexed.
 - 🟡 Final launch approval after beta telemetry/balance/security review.
 
 # 48. Post-Launch Operations
@@ -882,33 +892,38 @@ Main remaining blockers:
 - ✅ Workflow-definition cleanup removed/disabled junk-trigger paths and moved heavyweight guards/audits to manual execution.
 - ✅ PR #366 Discord implementation salvaged without merging its stale branch ancestry.
 - ✅ Native Discord Rich Presence passed Windows validation and shipped in the managed client overlay.
-- ✅ Old client/maintenance branches removed; repository returned to `master` only.
+- ✅ Old client/maintenance branches removed; repository returned to one canonical `master` line.
 - ✅ Final production rebuild/restart deployed exact source SHA `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a`.
 - ✅ Final production release validated 44,237 v95 XML files, login 8484, all 20 channels, and all player-facing relay ports.
+- ✅ Documentation audit/consolidation completed and merged through PR #385.
+- ✅ Maintained player installation/support, progression/content, and account-recovery guides completed.
+- ✅ Maintained GM permissions, moderation/appeals, event operations, recovery/restore, and emergency-shutdown runbooks completed.
+- ✅ Maintained human-readable and machine-readable known-issues registers created.
 
 # Immediate Priority Queue
 
-1. **Boss runtime regression** — Zakum, Horntail, Papulatus, Pink Bean, Fallen Cygnus/Empress, plus prerequisite/entry/death/re-entry behavior.
-2. **Systematic class/skill runtime matrix** — Explorer, Cygnus, Aran, Evan; attacks, buffs, passives, summons, movement, party effects, status interactions.
-3. **Advancement + boss-prerequisite quests** — live progression, repeat/abuse/disconnect paths.
-4. **NPC / portal / reactor runtime sweep** — focus on high-impact travel, advancement, boss, storage/shop/event/custom paths.
-5. **Transaction/exploit edge cases** — trade transition, Cash Shop disconnect transfer/re-entry, quest reward replay, NPC-shop extremes, drop/pickup races, cross-system persistence races.
-6. **Client runtime regression** — clean install, launcher repair/update, crash/disconnect, windowing, Alt+Enter, channel switching.
-7. **Source-first authentication/security audit** — packet/state/admin/web review with targeted live confirmation only where static inspection cannot prove behavior.
-8. **Two-client social/transaction matrix** — party, buddy, guild, trade, cross-channel updates.
-9. **PQ multi-client regression** — after core two-client systems are clean.
-10. **Website/account/rankings final verification and page-by-page polish**.
-11. **Economy/balance pass** — post-200 pacing, boss rewards, rare scrolls, Verdant/PQ Points, meso generation/sinks, Gachapon.
-12. **Performance/load/concurrency testing last** — only after gameplay and transaction correctness are substantially clean.
-13. **Kaentake review → Phase 2 client decision** — connected login/world/character panorama, broader branding/UI redesign, direct Evan/future class cards remain deferred until that review.
+1. **Fix command authorization defect** — register `mobskill` at the intended staff rank, review `gachalist`/`loot` rank intent, and add player-rejection regression coverage.
+2. **Boss runtime regression** — Zakum, Horntail, Papulatus, Pink Bean, Fallen Cygnus/Empress, plus prerequisite/entry/death/re-entry behavior.
+3. **Systematic class/skill runtime matrix** — Explorer, Cygnus, Aran, Evan; attacks, buffs, passives, summons, movement, party effects, status interactions.
+4. **Advancement + boss-prerequisite quests** — live progression, repeat/abuse/disconnect paths.
+5. **NPC / portal / reactor runtime sweep** — focus on high-impact travel, advancement, boss, storage/shop/event/custom paths.
+6. **Transaction/exploit edge cases** — trade transition, Cash Shop disconnect transfer/re-entry, quest reward replay, NPC-shop extremes, drop/pickup races, cross-system persistence races.
+7. **Client runtime regression** — clean install, launcher repair/update, crash/disconnect, windowing, Alt+Enter, channel switching.
+8. **Source-first authentication/security audit** — packet/state/admin/web review with targeted live confirmation only where static inspection cannot prove behavior.
+9. **Two-client social/transaction matrix** — party, buddy, guild, trade, cross-channel updates.
+10. **PQ multi-client regression** — after core two-client systems are clean.
+11. **Website/account/rankings final verification and page-by-page polish**.
+12. **Economy/balance pass** — post-200 pacing, boss rewards, rare scrolls, Verdant/PQ Points, meso generation/sinks, Gachapon.
+13. **Performance/load/concurrency testing last** — only after gameplay and transaction correctness are substantially clean.
+14. **Kaentake review → Phase 2 client decision** — connected login/world/character panorama, broader branding/UI redesign, direct Evan/future class cards remain deferred until that review.
 
 # Current Completion Assessment
 
-EverLeaf has moved beyond repository consolidation, broad static-content import, and the first major transaction-hardening stage. Core v95 backport work, Future Henesys/Stronghold/Fallen Cygnus, backup/DR, level-250 progression, survivability replacement, AP/SP/mastery hardening, Aran High Defense, PQ/event reward idempotency, storage settlement, Family Reputation duplication, event unregister replay, Wheel/event death bypass, native Discord Rich Presence, client publication, Git-backed website deployment, workflow cleanup, and branch consolidation are implemented.
+EverLeaf has moved beyond repository consolidation, broad static-content import, the first major transaction-hardening stage, and the documentation cleanup stage. Core v95 backport work, Future Henesys/Stronghold/Fallen Cygnus, backup/DR, level-250 progression, survivability replacement, AP/SP/mastery hardening, Aran High Defense, PQ/event reward idempotency, storage settlement, Family Reputation duplication, event unregister replay, Wheel/event death bypass, native Discord Rich Presence, client publication, Git-backed website deployment, workflow cleanup, branch consolidation, player/staff runbooks, and maintained known-issues documentation are implemented.
 
-The exact final canonical server source SHA `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a` was rebuilt and deployed to production. The final release is healthy with the canonical 44,237-file v95 XML baseline, login server, all 20 channels, and player-facing relay ports verified.
+The exact final canonical server source SHA `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a` was rebuilt and deployed to production. The final release is healthy with the canonical 44,237-file v95 XML baseline, login server, all 20 channels, and player-facing relay ports verified. Documentation-only commits after that deployment do not change the currently running game release SHA.
 
-The largest remaining uncertainty is now **runtime behavior under real multi-client gameplay and load**: boss/PQ lifecycle, full class/combat parity, advancement/prerequisite quest behavior, persistence/concurrency and anti-dupe race testing, clean-machine client/launcher behavior, final website/account integration, and performance/operations validation.
+The largest remaining uncertainty is now **runtime behavior under real multi-client gameplay and load**: boss/PQ lifecycle, full class/combat parity, advancement/prerequisite quest behavior, persistence/concurrency and anti-dupe race testing, clean-machine client/launcher behavior, final website/account integration, and performance/operations validation. A newly confirmed source-level `mobskill` command registration defect is now tracked explicitly and should be corrected before broad external testing.
 
 ## Operating rule
 
