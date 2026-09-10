@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "updated": "2026-09-10",
+  "canonical_human_readable": "docs/KNOWN_ISSUES.md",
+  "issues": [
+    {
+      "id": "EL-CMD-001",
+      "severity": "high",
+      "status": "open",
+      "area": "commands/security",
+      "title": "mobskill command is registered at rank 0",
+      "source": "src/main/java/client/command/CommandsExecutor.java",
+      "summary": "MobSkillCommand is in the gm2 package but is registered through the rank-0 overload, allowing ordinary-player invocation through the @ prefix.",
+      "required_close": "Register at the intended staff rank and add regression coverage for player rejection. Review gachalist and loot rank intent in the same registration block."
+    },
+    {
+      "id": "EL-EVENT-001",
+      "severity": "low",
+      "status": "open",
+      "area": "events/commands",
+      "title": "startevent single participant-limit argument is ignored",
+      "source": "src/main/java/client/command/commands/gm3/StartEventCommand.java",
+      "summary": "The command only parses params[0] when params.length > 1, so one numeric limit argument leaves the default capacity of 50.",
+      "required_close": "Correct and test command argument handling."
+    },
+    {
+      "id": "EL-DATA-001",
+      "severity": "medium",
+      "status": "open",
+      "area": "accounts/database",
+      "title": "Account purge semantics can leave character-related rows",
+      "source": "docs/EVERLEAF_MASTER_CHECKLIST.md",
+      "summary": "Final account deletion/restoration and dependent character/inventory/equipment/quest/social cleanup policy remains unresolved.",
+      "required_close": "Define policy, validate relationship integrity, implement safe cleanup behavior, and test it."
+    },
+    {
+      "id": "EL-LAUNCHER-001",
+      "severity": "medium",
+      "status": "known_limitation",
+      "area": "launcher/client",
+      "title": "Raw EXE launch bypasses the supported managed-client path",
+      "source": "docs/player/INSTALLATION_AND_SUPPORT.md",
+      "summary": "Direct game executable launches can bypass launcher update/repair and launcher-ticket/bootstrap assumptions.",
+      "required_close": "Complete clear raw-EXE handling and clean-machine launcher/install/update/repair validation."
+    },
+    {
+      "id": "EL-RECOVERY-001",
+      "severity": "medium",
+      "status": "known_limitation",
+      "area": "website/accounts",
+      "title": "Account recovery is staff-queue based rather than automated reset-token flow",
+      "source": "web/src/routes/recovery.js",
+      "summary": "The public recovery form creates a deduplicated staff-reviewed request; it does not send an automated password-reset token/email.",
+      "required_close": "Only close if a deliberate self-service recovery flow is implemented, tested, deployed, and documented; otherwise retain as an accepted limitation."
+    }
+  ],
+  "validation_risks": [
+    "boss_and_pq_multiclient_lifecycle",
+    "full_class_and_combat_runtime_parity",
+    "transaction_and_concurrency_edge_cases",
+    "clean_machine_launcher_and_client_behavior",
+    "website_and_account_end_to_end_integration",
+    "performance_load_and_long_duration_soak"
+  ]
+}
