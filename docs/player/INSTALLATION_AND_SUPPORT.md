@@ -19,13 +19,11 @@ If Windows shortcuts or old files point directly to the game executable, remove 
 
 ## One client at a time
 
-EverLeaf does not support multi-client play on the same machine. The launcher refuses to start another game while EverLeaf is already running, and the managed native client also holds a machine-wide single-client guard for its lifetime.
+EverLeaf policy is **one game client per machine at a time**. Multi-client play on the same machine is not allowed.
 
-If the launcher reports that EverLeaf is already running:
+Canonical source now contains stronger launcher and native-client enforcement for this policy, including an existing-process check, a machine-wide client guard, and race-safe single-use launch handoff. That hardened build is pending managed-client publication/runtime verification; until it is published, do not treat any ability of an older launcher build to start another client as permission to multi-client.
 
-- use the existing game window;
-- close the existing EverLeaf client normally before launching again;
-- if the client crashed and Windows still shows the process, end only the stale EverLeaf process after confirming the game is no longer running, then reopen the launcher.
+When the hardened build is published, the expected behavior is that a second launch is refused while EverLeaf is already running. Close the existing client normally before launching again.
 
 Do not use renamed/copy folders or multiple launcher windows to attempt to run additional clients.
 
