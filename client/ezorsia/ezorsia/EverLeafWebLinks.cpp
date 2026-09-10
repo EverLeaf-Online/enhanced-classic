@@ -17,7 +17,7 @@ namespace {
 
     std::string GetBaseUrl() {
         INIReader config("config.ini");
-        std::string base = config.Get("website", "BaseURL", "http://132.145.141.79");
+        std::string base = config.Get("website", "BaseURL", "https://everleafms.online");
         while (!base.empty() && base.back() == '/') {
             base.pop_back();
         }

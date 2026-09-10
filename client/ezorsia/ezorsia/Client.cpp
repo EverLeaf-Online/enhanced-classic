@@ -12,7 +12,7 @@ bool Client::ShowFutureClassCards = true;
 double Client::setDamageCap = 199999.0;
 bool Client::useTubi = false;
 int Client::speedMovementCap = 140;
-std::string Client::ServerIP_AddressFromINI = "132.145.141.79";
+std::string Client::ServerIP_AddressFromINI = "129.159.114.146";
 
 void Client::UpdateGameStartup() {
 

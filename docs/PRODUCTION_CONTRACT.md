@@ -7,7 +7,7 @@ This is the authoritative EverLeaf production baseline. Checked-in release code 
 - Primary world: **20 channels**
 - Login: **8484**
 - Channels: **7575-7594**
-- Public channel handoff host: **132.145.141.79**
+- Public channel handoff host: **129.159.114.146**
 - Level cap: **250**
 
 ## Rates
