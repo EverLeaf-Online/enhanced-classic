@@ -88,20 +88,47 @@ Use `ROLLBACK` instead of `COMMIT` if the affected-row count or resulting state 
 
 Never run a broad `UPDATE` or `DELETE` without first proving the `WHERE` clause with the corresponding `SELECT`.
 
-## Destructive delete workflow
+## Account and character deletion integrity
 
-Account/character deletion is currently a known policy/integrity area because dependent character/inventory/equipment/quest/social rows can remain if deletion is handled incorrectly.
+The legacy base schema does not define a foreign key from `characters.accountid` to `accounts.id`. Historically, deleting only an `accounts` row could therefore leave character rows behind.
 
-Until the cleanup policy/tooling is complete:
+Do **not** solve that by adding `ON DELETE CASCADE`. Normal EverLeaf character deletion performs application-level cleanup across inventory/equipment, quests, pets, social state, merchant/Fredrick state, MTS data, and other dependent records. Cascading only the `characters` row would bypass that cleanup and can create a different class of orphaned data.
 
-- do not manually purge an account by deleting only the `accounts` row;
-- do not assume cascading relationships cover every historical table;
-- enumerate dependent rows first;
-- preserve a backup;
-- use a reviewed cleanup plan that covers character and dependent state;
-- verify counts after the transaction.
+Canonical `master` now provides two safeguards:
 
-The maintained known-issues register tracks this gap.
+- `tools/everleaf-ops/audit-account-character-integrity.sql` — read-only audit for orphaned character/account relationships and key dependent rows;
+- `database/sql/migration/everleaf_account_character_integrity.sql` — fail-closed foreign-key guard using **ON DELETE RESTRICT / ON UPDATE RESTRICT**.
+
+The intended policy is:
+
+1. Character deletion must use the supported application cleanup path rather than ad-hoc row deletion.
+2. An account that still owns characters must not be raw-deleted.
+3. An account with no characters may be deleted after other account-scoped dependencies and policy requirements are checked.
+4. Historical orphaned characters must be reviewed and remediated deliberately; they must not be mass-deleted merely to make a migration pass.
+
+### Before installing the relationship guard on production
+
+Run the read-only audit first:
+
+```bash
+mysql cosmic < tools/everleaf-ops/audit-account-character-integrity.sql
+```
+
+Review the orphan counts and identities. The migration intentionally aborts if any orphaned character already exists or if it encounters an unexpected pre-existing account/character foreign-key rule.
+
+If historical orphans exist:
+
+1. take and verify a fresh production backup;
+2. identify the missing account ID and every affected character ID;
+3. inspect inventory/equipment/quest/social/merchant/custom-progression dependencies;
+4. determine whether the correct action is restoration/re-association or permanent deletion;
+5. perform a narrowly reviewed remediation rather than a blanket cleanup;
+6. rerun the read-only integrity audit and require zero unexplained orphan relationships;
+7. only then apply the relationship-guard migration.
+
+After installation, verify `SHOW CREATE TABLE characters` reports the intended `fk_everleaf_characters_account` relationship with `RESTRICT` behavior.
+
+The maintained known-issues register remains open for historical production remediation until the live audit is clean and the guard is applied.
 
 ## Economy/currency corrections
 
