@@ -44,6 +44,16 @@
       "required_close": "Publish the updated managed launcher/client and verify direct EverLeaf.exe rejection, normal launcher launch, second-launch rejection, and rapid/race second-launch rejection on a clean player machine. If cryptographic server-backed launcher proof is later required, implement a server-validated launch-session protocol."
     },
     {
+      "id": "EL-CLIENT-001",
+      "severity": "medium",
+      "status": "confirmed_defect_rework_pending",
+      "area": "client/display",
+      "title": "Alt+Enter does not switch display mode and stock fullscreen falls back to 800-wide resolution",
+      "source": "client/ezorsia/ezorsia/DisplayMode.h",
+      "summary": "The current player build launches in windowed mode. Alt+Enter has been observed not to enter fullscreen, while enabling fullscreen through the in-game settings falls back to the legacy low-resolution mode instead of preserving the configured HD resolution. EverLeaf is adopting a Kaentake-informed but independently implemented display path with an in-game resolution selector and persistent HD resolution handling.",
+      "required_close": "Implement and publish the EverLeaf in-game resolution selector including 1280x720, preserve the selected resolution across windowed/fullscreen changes, make Alt+Enter reliably toggle the supported display mode, and runtime-test windowed/fullscreen/Alt+Enter transitions without an 800x600 fallback."
+    },
+    {
       "id": "EL-DISCORD-001",
       "severity": "low",
       "status": "source_fixed_pending_client_publish_and_runtime_verification",
@@ -68,7 +78,7 @@
     "boss_and_pq_multiclient_lifecycle",
     "full_class_and_combat_runtime_parity",
     "remaining_transaction_disconnect_replay_race_edge_cases",
-    "launcher_client_interrupted_update_single_client_windowing_crash_edge_cases",
+    "launcher_client_interrupted_update_and_crash_edge_cases",
     "launcher_only_and_single_client_runtime_enforcement",
     "discord_rich_presence_gameplay_runtime_verification",
     "rankings_stale_deleted_renamed_character_behavior",
