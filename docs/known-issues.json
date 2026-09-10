@@ -36,12 +36,12 @@
     {
       "id": "EL-LAUNCHER-001",
       "severity": "medium",
-      "status": "known_limitation",
+      "status": "source_hardened_pending_client_publish_and_runtime_verification",
       "area": "launcher/client",
-      "title": "Raw EXE launch bypasses the supported managed-client path",
-      "source": "docs/player/INSTALLATION_AND_SUPPORT.md",
-      "summary": "Direct game executable launches can bypass launcher update/repair and launcher-ticket/bootstrap assumptions.",
-      "required_close": "Complete clear raw-EXE handling and clean-machine launcher/install/update/repair validation."
+      "title": "Launcher-only and single-client policy enforcement",
+      "source": "launcher/EverLeaf.Launcher/ClientLaunchPolicy.cs",
+      "summary": "Canonical master requires the managed launcher handoff and now blocks multiple stock clients with launcher process/mutex checks, a machine-wide native client mutex, and exclusive one-time launch-ticket consumption.",
+      "required_close": "Publish the updated managed launcher/client and verify direct EverLeaf.exe rejection, normal launcher launch, second-launch rejection, and rapid/race second-launch rejection on a clean player machine. If cryptographic server-backed launcher proof is later required, implement a server-validated launch-session protocol."
     },
     {
       "id": "EL-RECOVERY-001",
@@ -66,6 +66,7 @@
     "full_class_and_combat_runtime_parity",
     "transaction_and_concurrency_edge_cases",
     "clean_machine_launcher_and_client_behavior",
+    "launcher_only_and_single_client_runtime_enforcement",
     "rankings_stale_deleted_renamed_character_behavior",
     "website_admin_session_csrf_rate_limit_controls",
     "realistic_concurrent_player_load",
