@@ -7,8 +7,8 @@ const deploy=fs.readFileSync(path.join(__dirname,'../../.github/workflows/deploy
 const grants=fs.readFileSync(path.join(__dirname,'../sql/recommended_web_user.sql'),'utf8');
 
 test('production verification requires a full equipped local Character.wz ranking avatar',()=>{
-  assert.match(workflow,/workflow_run/);
-  assert.match(workflow,/Deploy EverLeaf Web/);
+  assert.match(workflow,/workflow_dispatch/);
+  assert.doesNotMatch(workflow,/workflow_run/);
   assert.match(workflow,/\/rankings/);
   assert.match(workflow,/data-live-avatar/);
   assert.match(workflow,/character-avatar/);
