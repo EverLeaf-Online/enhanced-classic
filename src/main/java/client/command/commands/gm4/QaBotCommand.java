@@ -13,6 +13,7 @@ import soloMapling.ArtificialPlayer.BareBotPortal;
 import soloMapling.ArtificialPlayer.BotLootDriver;
 import soloMapling.ArtificialPlayer.BotNpcDriver;
 import soloMapling.ArtificialPlayer.BotQaProfile;
+import soloMapling.ArtificialPlayer.BotQaLoadout;
 import soloMapling.ArtificialPlayer.BotQaFleet;
 import soloMapling.ArtificialPlayer.BotShopDriver;
 import soloMapling.ArtificialPlayer.BotAttackSystem.BotAttackDriver;
@@ -156,8 +157,16 @@ public class QaBotCommand extends Command {
             c.getPlayer().yellowMessage("QA bot class profile failed: " + result.reason());
             return;
         }
+
+        BotQaLoadout.LoadoutResult loadout = BotQaLoadout.apply(bot, jobId);
+        if (!loadout.success()) {
+            c.getPlayer().yellowMessage("QA bot loadout failed: " + loadout.reason());
+            return;
+        }
+
         c.getPlayer().yellowMessage("QA bot profile set to job " + result.job().getId()
-                + " with " + result.learnedSkills() + " QA combat/support skills maxed.");
+                + " with " + result.learnedSkills() + " QA combat/support skills maxed"
+                + " and weapon " + loadout.weaponId() + ".");
     }
 
     private static void npc(Client c, String[] params) {
