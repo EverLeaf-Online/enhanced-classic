@@ -1,0 +1,8 @@
+[Unit]
+Description=Resource budget for optional EverLeaf builds
+[Slice]
+CPUQuota=100%
+CPUWeight=20
+MemoryHigh=1200M
+MemoryMax=1500M
+TasksMax=256

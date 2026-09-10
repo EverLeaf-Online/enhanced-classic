@@ -43,6 +43,21 @@ async function request(url, options = {}) {
   }
 }
 
+async function readStatus(url, fetchImpl=fetch) {
+  let lastError;
+  for(let attempt=0;attempt<2;attempt++) {
+    try {
+      const response=await fetchImpl(url,{signal:AbortSignal.timeout(8000)});
+      if(!response.ok) throw new Error(`Status API returned ${response.status}.`);
+      return await response.json();
+    } catch(error) {
+      lastError=error;
+      if(attempt===0) await new Promise(resolve=>setTimeout(resolve,250));
+    }
+  }
+  throw lastError;
+}
+
 function healthSignature(status) {
   return JSON.stringify({
     statusApiOnline: status.statusApiOnline,
@@ -191,15 +206,15 @@ async function run() {
     try {
       let observed;
       try {
-        const [response, loginOnline] = await Promise.all([
-          request(statusApi),
+        const [apiStatus, loginOnline] = await Promise.all([
+          readStatus(statusApi),
           portOnline(loginPort),
         ]);
-        if (!response.ok) throw new Error(`Status API returned ${response.status}.`);
-        observed = normalizeApiStatus(await response.json(), loginOnline);
+        observed = normalizeApiStatus(apiStatus, loginOnline);
       } catch (error) {
         console.error(new Date().toISOString(), `status_check_failed=${error.message}`);
         observed = offlineStatus(gate.accepted);
+        observed.loginOnline = await portOnline(loginPort);
       }
 
       const stable = gate.observe(observed);
@@ -250,4 +265,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { StabilityGate, buildComponents, buildEmbed, healthSignature, normalizeApiStatus, offlineStatus };
+module.exports = { readStatus, StabilityGate, buildComponents, buildEmbed, healthSignature, normalizeApiStatus, offlineStatus };
