@@ -54,12 +54,24 @@
       "required_close": "Only close if a deliberate self-service recovery flow is implemented, tested, deployed, and documented; otherwise retain as an accepted limitation."
     }
   ],
+  "verified_runtime": [
+    "production_registration_and_login",
+    "live_server_and_channel_status_integration",
+    "production_download_and_manifest_links",
+    "multi_hour_day_soak",
+    "simultaneous_logins_and_channel_changes"
+  ],
   "validation_risks": [
     "boss_and_pq_multiclient_lifecycle",
     "full_class_and_combat_runtime_parity",
     "transaction_and_concurrency_edge_cases",
     "clean_machine_launcher_and_client_behavior",
-    "website_and_account_end_to_end_integration",
-    "performance_load_and_long_duration_soak"
+    "rankings_stale_deleted_renamed_character_behavior",
+    "website_admin_session_csrf_rate_limit_controls",
+    "realistic_concurrent_player_load",
+    "concurrent_boss_pq_load",
+    "database_and_scheduler_hotspot_profiling",
+    "heap_gc_thread_socket_fd_growth_profiling",
+    "reconnect_and_network_failure_behavior"
   ]
 }
