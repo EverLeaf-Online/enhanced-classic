@@ -783,7 +783,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 # 43. Staff / GM Documentation
 
 - ✅ Source-verified GM command/permission reference: `docs/staff/GM_COMMANDS_AND_PERMISSIONS.md`.
-- ✅ Player-support procedures and account-recovery handling baseline.
+- ✅ Player-support procedures and account-recovery handling: `docs/staff/OPERATIONS_AND_INCIDENTS.md` + `docs/staff/ACCOUNT_RECOVERY_PROCEDURE.md`.
 - ✅ Rollback/economy incident procedures.
 - ✅ Ban/appeal/evidence procedures: `docs/staff/MODERATION_AND_APPEALS.md`.
 - ✅ Event-operation procedures: `docs/staff/EVENT_OPERATIONS.md`.
@@ -897,7 +897,7 @@ Main remaining blockers:
 - ✅ Final production release validated 44,237 v95 XML files, login 8484, all 20 channels, and all player-facing relay ports.
 - ✅ Documentation audit/consolidation completed and merged through PR #385.
 - ✅ Maintained player installation/support, progression/content, and account-recovery guides completed.
-- ✅ Maintained GM permissions, moderation/appeals, event operations, recovery/restore, and emergency-shutdown runbooks completed.
+- ✅ Maintained GM permissions, moderation/appeals, staff account-recovery, event operations, recovery/restore, and emergency-shutdown runbooks completed.
 - ✅ Maintained human-readable and machine-readable known-issues registers created.
 
 # Immediate Priority Queue
