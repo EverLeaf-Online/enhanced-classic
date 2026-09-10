@@ -29,6 +29,7 @@ The audit found that `handbook/` is primarily large ID/reference tables and shou
 - `docs/engineering/QA_AUTOMATION.md` — maintained static/deep/runtime QA and gameplay-agent guidance.
 - `docs/player/INSTALLATION_AND_SUPPORT.md` — launcher-first player support and antivirus guidance.
 - `docs/staff/OPERATIONS_AND_INCIDENTS.md` — staff operations/incident baseline.
+- `handbook/README.md` — boundary warning for legacy lookup/reference data, including legacy command labels that must not be treated as current EverLeaf policy.
 
 ## Historical/audit files moved to `archive/audits/`
 
@@ -108,9 +109,27 @@ This material is inherited/reference content and is not EverLeaf's current known
 ## Not combined deliberately
 
 - The master checklist remains separate because it is the authoritative roadmap/status ledger.
-- `handbook/` remains separate because it is reference data, not prose documentation.
+- `handbook/` remains separate because it is reference data, not prose documentation, and existing tooling may depend on its paths.
 - Historical audit evidence remains as individual files to preserve provenance.
 - Large client reverse-engineering reports remain individual archived files because combining them would make later address/provenance research harder, not easier.
+
+## Remaining documentation gaps after consolidation
+
+The reorganization does **not** mean every documentation item in the master checklist is complete. The audit leaves these genuine gaps visible rather than manufacturing replacement documents just to reduce the checklist:
+
+- authoritative GM command and permission reference verified against current source;
+- complete ban/appeal/moderation procedure beyond the new evidence-handling baseline;
+- detailed event-operation runbook beyond the new staff baseline;
+- command-level restore/recovery rehearsal runbook beyond the current production/DR guide;
+- public player-facing progression/content guide for rates, level 200–250 progression, Verdant Marks, PQ Points, survivability, bosses, and PQs;
+- maintained known-issues list separate from inherited/upstream `issues.txt`;
+- final account-recovery/support instructions after recovery behavior is fully settled.
+
+The new `player/INSTALLATION_AND_SUPPORT.md` does provide the installation/launcher baseline, explicit launcher-first/raw-EXE guidance, safe antivirus false-positive guidance, crash-report guidance, and gameplay/security reporting guidance. The new `staff/OPERATIONS_AND_INCIDENTS.md` provides the baseline for player-support triage, exploit/dupe response, rollback vs persistent-state remediation, evidence preservation, and incident severity.
+
+## Merge result
+
+The consolidation was merged into canonical `master` through PR #385 on 2026-09-10. The two temporary branch refs used during the work were subsequently fast-forwarded to the merged `master` commit so they contain no unique work; branch-ref deletion remains housekeeping only.
 
 ## Ongoing rule
 
