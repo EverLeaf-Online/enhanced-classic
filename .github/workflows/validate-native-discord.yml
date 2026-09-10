@@ -54,9 +54,12 @@ jobs:
             '0x0095FFC3',
             '0x009613E0',
             '0x00A1238B',
+            '0x00A041FF',
             'TryReadGameplaySnapshot',
             'localFieldId != static_cast<unsigned long>(contextFieldId)',
             'CUserLocalUpdateHook',
+            'WvsContextOnLeaveGameHook',
+            'gActivityRevision',
             'Memory::SetHook('
           )
           foreach ($needle in $contractMarkers) {
