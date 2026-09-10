@@ -22,6 +22,8 @@ EverLeaf is an actively maintained production server with the game server, nativ
 
 The canonical working roadmap and detailed implementation status live in [`docs/EVERLEAF_MASTER_CHECKLIST.md`](docs/EVERLEAF_MASTER_CHECKLIST.md). That file should be treated as the authoritative development checklist rather than old PR descriptions, retired branches, or historical workflow runs.
 
+The maintained documentation index is [`docs/README.md`](docs/README.md), which separates current operations/gameplay/client/player/staff guidance from archived audits and historical research.
+
 ## Development direction
 
 - Level cap: **250**
@@ -158,7 +160,7 @@ Player traffic is advertised through the EverLeaf relay, while GitHub deployment
 
 Production database credentials, SSH material, tokens, and mutable runtime secrets must remain outside source control. MySQL should not be exposed publicly, the game server should not run as the MySQL root user, and production registration/authentication policy should remain deliberate and auditable.
 
-Deployment uses staged releases with backup, health validation, and automatic rollback behavior. See [`docs/DEPLOYMENT_CHECKLIST.md`](docs/DEPLOYMENT_CHECKLIST.md) and the master checklist before production changes.
+Deployment uses staged releases with backup, health validation, and automatic rollback behavior. See [`docs/operations/PRODUCTION_AND_RELEASE.md`](docs/operations/PRODUCTION_AND_RELEASE.md) and the master checklist before production changes.
 
 ## Backups and disaster recovery
 
