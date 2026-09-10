@@ -5,6 +5,7 @@ on:
     branches: [master]
     paths:
       - '.github/workflows/finalize-repository-maintenance.yml'
+      - '.github/workflows/deploy-game-production.yml'
       - '.github/workflows/client-v2-integration-guard.yml'
       - '.github/workflows/client-v2-diagnostics-guard.yml'
       - '.github/workflows/client-v2-frame-limiter-guard.yml'
@@ -47,6 +48,7 @@ jobs:
           done
           grep -q 'PR #366 was closed as superseded' docs/EVERLEAF_MASTER_CHECKLIST.md
           grep -q 'Live client overlay was rebuilt, verified, and published' docs/EVERLEAF_MASTER_CHECKLIST.md
+          grep -q 'Final canonical master rebuild requested 2026-09-10' .github/workflows/deploy-game-production.yml
           echo 'FINAL_WORKFLOW_POLICY_OK'
 
   finalize:
