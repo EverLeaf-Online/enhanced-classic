@@ -32,22 +32,53 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $encodedPath = 'client/branding/everleaf-app-icon.ico.gz.b64'
           $iconPath = 'launcher/assets/everleaf-icon.ico'
+          $expectedHash = 'b5aaa689bc617b518d04ca8506b3db556fda719fae2e97c742d608827e5ffef9'
           if (-not (Test-Path -LiteralPath $encodedPath)) { throw 'EverLeaf icon source is missing.' }
           New-Item -ItemType Directory -Path (Split-Path -Parent $iconPath) -Force | Out-Null
-          $compressed = [Convert]::FromBase64String((Get-Content -LiteralPath $encodedPath -Raw).Trim())
-          $input = [IO.MemoryStream]::new($compressed)
-          try {
-            $gzip = [IO.Compression.GZipStream]::new($input, [IO.Compression.CompressionMode]::Decompress)
-            try {
-              $output = [IO.File]::Create((Join-Path $PWD $iconPath))
-              try { $gzip.CopyTo($output) } finally { $output.Dispose() }
-            } finally { $gzip.Dispose() }
-          } finally { $input.Dispose() }
-          $hash = (Get-FileHash -LiteralPath $iconPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($hash -ne 'b5aaa689bc617b518d04ca8506b3db556fda719fae2e97c742d608827e5ffef9') {
-            throw "EverLeaf icon SHA-256 mismatch: $hash"
+
+          # The historical icon payload was checked in without Base64 padding and
+          # may contain either a gzip wrapper or the raw DEFLATE payload produced
+          # by the original asset-generation step. Normalize the encoding first,
+          # then accept only a decode path that reproduces the pinned icon hash.
+          $payload = (Get-Content -LiteralPath $encodedPath -Raw) -replace '\s',''
+          switch ($payload.Length % 4) {
+            0 { }
+            2 { $payload += '==' }
+            3 { $payload += '=' }
+            default { throw 'EverLeaf icon source has an invalid Base64 length.' }
           }
-          Write-Host "EverLeaf app icon ready: $hash"
+          $compressed = [Convert]::FromBase64String($payload)
+
+          function Expand-IconPayload([Type]$streamType, [string]$label) {
+            $input = [IO.MemoryStream]::new($compressed)
+            try {
+              $stream = [Activator]::CreateInstance($streamType, @($input, [IO.Compression.CompressionMode]::Decompress))
+              try {
+                $output = [IO.MemoryStream]::new()
+                try {
+                  $stream.CopyTo($output)
+                  $bytes = $output.ToArray()
+                } finally { $output.Dispose() }
+              } finally { $stream.Dispose() }
+            } finally { $input.Dispose() }
+
+            [IO.File]::WriteAllBytes((Join-Path $PWD $iconPath), $bytes)
+            $hash = (Get-FileHash -LiteralPath $iconPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($hash -eq $expectedHash) {
+              Write-Host "EverLeaf app icon ready via $label: $hash"
+              return $true
+            }
+            Remove-Item -LiteralPath $iconPath -Force -ErrorAction SilentlyContinue
+            Write-Host "Icon decode via $label produced unexpected SHA-256: $hash"
+            return $false
+          }
+
+          $decoded = $false
+          try { $decoded = Expand-IconPayload ([IO.Compression.GZipStream]) 'gzip' } catch { Write-Host "gzip decode rejected: $($_.Exception.Message)" }
+          if (-not $decoded) {
+            try { $decoded = Expand-IconPayload ([IO.Compression.DeflateStream]) 'deflate' } catch { Write-Host "deflate decode rejected: $($_.Exception.Message)" }
+          }
+          if (-not $decoded) { throw 'EverLeaf icon source could not be decoded to the pinned icon.' }
 
       - name: Apply launcher integrity fixes
         run: python tools/apply_launcher_integrity_fixes.py
