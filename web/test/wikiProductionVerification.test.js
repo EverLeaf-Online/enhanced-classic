@@ -5,8 +5,8 @@ const path=require('node:path');
 const workflow=fs.readFileSync(path.join(__dirname,'../../.github/workflows/verify-web-data-wiki.yml'),'utf8');
 
 test('production verification requires a non-empty live data Wiki',()=>{
-  assert.match(workflow,/workflow_run/);
-  assert.match(workflow,/Deploy EverLeaf Web/);
+  assert.match(workflow,/workflow_dispatch/);
+  assert.doesNotMatch(workflow,/workflow_run/);
   assert.match(workflow,/EVERLEAF DATA WIKI/);
   assert.match(workflow,/WZ \+ MySQL/);
   assert.match(workflow,/Server data unavailable/);
