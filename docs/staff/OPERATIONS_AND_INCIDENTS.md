@@ -8,8 +8,10 @@ Related maintained staff references:
 
 - [`GM_COMMANDS_AND_PERMISSIONS.md`](GM_COMMANDS_AND_PERMISSIONS.md) — source-verified GM command ranks and privilege boundaries.
 - [`MODERATION_AND_APPEALS.md`](MODERATION_AND_APPEALS.md) — bans, appeals, evidence, compromise, and moderation procedure.
+- [`ACCOUNT_RECOVERY_PROCEDURE.md`](ACCOUNT_RECOVERY_PROCEDURE.md) — staff handling for the CMS account-recovery queue, verification boundaries, compromise cases, and audit trail.
 - [`EVENT_OPERATIONS.md`](EVENT_OPERATIONS.md) — event preparation, operation, rewards, abort, and cleanup.
 - [`RECOVERY_AND_RESTORE.md`](RECOVERY_AND_RESTORE.md) — service recovery, backup, release rollback, data-restore gates, and restore rehearsal.
+- [`EMERGENCY_SHUTDOWN.md`](EMERGENCY_SHUTDOWN.md) — emergency production containment when continued writes are unsafe.
 
 ## Operating principles
 
@@ -63,7 +65,7 @@ For a suspected active duplication or transaction exploit:
 
 Do not publish exploit reproduction details while the vulnerability remains exploitable.
 
-Use [`RECOVERY_AND_RESTORE.md`](RECOVERY_AND_RESTORE.md) when the incident requires a production backup/restart/rollback/restore, and [`MODERATION_AND_APPEALS.md`](MODERATION_AND_APPEALS.md) when player restrictions are involved.
+Use [`RECOVERY_AND_RESTORE.md`](RECOVERY_AND_RESTORE.md) when the incident requires a production backup/restart/rollback/restore, [`EMERGENCY_SHUTDOWN.md`](EMERGENCY_SHUTDOWN.md) when continued writes must stop immediately, and [`MODERATION_AND_APPEALS.md`](MODERATION_AND_APPEALS.md) when player restrictions are involved.
 
 ## Release rollback vs data remediation
 
@@ -89,7 +91,7 @@ For bans, appeals, account-compromise reports, or suspicious economy activity, p
 
 Do not rely solely on screenshots from a third party when server-side evidence is available. Avoid collecting more personal data than needed for the investigation.
 
-The definitive command/permission and ban/appeal procedures are now maintained in [`GM_COMMANDS_AND_PERMISSIONS.md`](GM_COMMANDS_AND_PERMISSIONS.md) and [`MODERATION_AND_APPEALS.md`](MODERATION_AND_APPEALS.md).
+The definitive command/permission and ban/appeal procedures are maintained in [`GM_COMMANDS_AND_PERMISSIONS.md`](GM_COMMANDS_AND_PERMISSIONS.md) and [`MODERATION_AND_APPEALS.md`](MODERATION_AND_APPEALS.md).
 
 ## Player support triage
 
@@ -97,7 +99,7 @@ Support should first classify the issue into account/authentication, launcher/up
 
 Ask for reproducible facts rather than credentials. Never request a player's password, PIC/PIN, launcher token, or private authentication material.
 
-For client problems, point players to the official launcher/repair path and never recommend globally disabling antivirus. For account recovery, use the current player flow documented in [`../player/ACCOUNT_RECOVERY.md`](../player/ACCOUNT_RECOVERY.md).
+For client problems, point players to the official launcher/repair path and never recommend globally disabling antivirus. For account recovery, direct players to [`../player/ACCOUNT_RECOVERY.md`](../player/ACCOUNT_RECOVERY.md) and handle the staff side through [`ACCOUNT_RECOVERY_PROCEDURE.md`](ACCOUNT_RECOVERY_PROCEDURE.md).
 
 ## Event operations
 
