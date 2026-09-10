@@ -117,7 +117,7 @@ jobs:
               "https://api.github.com/repos/$GITHUB_REPOSITORY/git/refs/heads/$encoded")"
             case "$status" in
               204) echo "Deleted $branch" ;;
-              404) echo "$branch already absent" ;;
+              404|422) echo "$branch already absent" ;;
               *) cat /tmp/delete-branch.json >&2; echo "Failed deleting $branch (HTTP $status)" >&2; exit 1 ;;
             esac
           done
