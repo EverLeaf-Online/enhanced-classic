@@ -91,7 +91,8 @@ Richer gameplay activity is now implemented on canonical `master` using GMS v83.
 - `CUserLocal::GetCharacterLevel()`: `0x00949B15`;
 - `CUserLocal::GetJobCode()`: `0x0095FFC3`;
 - `CUserLocal::GetFieldID()`: `0x009613E0`;
-- `CWvsContext::GetCurFieldID()`: `0x00A1238B`.
+- `CWvsContext::GetCurFieldID()`: `0x00A1238B`;
+- `CWvsContext::OnLeaveGame()`: `0x00A041FF`.
 
 These addresses are specific to the pinned EverLeaf GMS v83 client image. They must be re-derived/re-verified before use with another MapleStory client version or binary baseline.
 
@@ -106,9 +107,11 @@ Before richer activity is published, the sampler requires:
 - a nonzero character level;
 - exact agreement between `CUserLocal::GetFieldID()` and `CWvsContext::GetCurFieldID()`.
 
-Any access fault, transition, missing object, or field-ID disagreement fails closed to the existing generic EverLeaf presence. Supported job labels are derived from EverLeaf's maintained v83 `client.Job` IDs; external post-v83 job tables are not imported into the client.
+Any access fault, transition, missing object, or field-ID disagreement fails closed to the existing generic EverLeaf presence. `CWvsContext::OnLeaveGame()` also clears rich activity explicitly so logout cannot leave stale character/map text behind. Supported job labels are derived from EverLeaf's maintained v83 `client.Job` IDs; external post-v83 job tables are not imported into the client.
 
-Source regression coverage protects job labels, gameplay formatting, Discord IPC framing/acknowledgement behavior, the pinned address markers, and the field-ID cross-check. Managed-client build/publication and runtime verification are still pending the planned batched client rollout.
+`SetActivity()` increments an activity revision only when the visible details/state actually change. The Discord IPC worker observes that revision while maintaining its normal 30-second heartbeat, allowing level/job/map/login-state changes to be sent promptly rather than waiting for the next periodic refresh.
+
+Source regression coverage protects job labels, gameplay formatting, activity-revision behavior, Discord IPC framing/acknowledgement behavior, the pinned address markers, the logout hook, and the field-ID cross-check. Managed-client build/publication and runtime verification are still pending the planned batched client rollout.
 
 ## Launcher boundary
 
