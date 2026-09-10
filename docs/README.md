@@ -7,7 +7,7 @@ This directory contains the maintained documentation for EverLeafMS.
 1. [`EVERLEAF_MASTER_CHECKLIST.md`](EVERLEAF_MASTER_CHECKLIST.md) — authoritative roadmap, implementation status, production baseline, and priority queue.
 2. Maintained topic guides below — current policy, operating guidance, and technical design.
 3. [`archive/`](archive/) — dated audits, superseded plans, donor research, and historical evidence. Archive material is **not** a statement of current production state.
-4. [`../handbook/`](../handbook/) — large upstream/reference ID tables and protocol/game-data references. These are reference data, not EverLeaf status documents.
+4. [`../handbook/`](../handbook/) — large upstream/reference ID tables and protocol/game-data references. These are reference data, not EverLeaf status documents. See [`../handbook/README.md`](../handbook/README.md) before using them; legacy command labels/listings there do not define current EverLeaf permissions or monetization policy.
 
 ## Maintained documentation
 
