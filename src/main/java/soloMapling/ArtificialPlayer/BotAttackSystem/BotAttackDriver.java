@@ -235,6 +235,29 @@ public final class BotAttackDriver {
         return new Rectangle(left, box.y, Math.max(0, box.x + box.width - left), box.height);
     }
 
+    public static Monster nearestHuntTarget(Character bot) {
+        if (bot == null || bot.getMap() == null || bot.getPosition() == null) return null;
+
+        Point p = bot.getPosition();
+        Monster nearest = null;
+        double best = Double.MAX_VALUE;
+
+        // Hunting navigation must be able to acquire a target anywhere on the
+        // current map. The normal attack selector intentionally remains bounded
+        // by SEEK_RANGE for actual combat execution.
+        for (Monster mob : bot.getMap().getAllMonsters()) {
+            if (mob == null || !mob.isAlive() || mob.getPosition() == null) continue;
+            if (!onAttackableSurface(bot, mob)) continue;
+
+            double distance = p.distanceSq(mob.getPosition());
+            if (distance < best) {
+                best = distance;
+                nearest = mob;
+            }
+        }
+        return nearest;
+    }
+
     public static Monster nearestAttackableMob(Character bot) {
         Point p = bot.getPosition();
         Monster nearest = null;

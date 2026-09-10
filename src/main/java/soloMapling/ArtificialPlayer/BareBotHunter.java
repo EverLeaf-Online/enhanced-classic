@@ -237,7 +237,7 @@ public final class BareBotHunter {
 
             BotLootDriver.LootResult loot = BotLootDriver.tick(bot);
             if (loot.found()) return;
-            Monster target = BotAttackDriver.nearestAttackableMob(bot);
+            Monster target = BotAttackDriver.nearestHuntTarget(bot);
             if (target == null) {
                 // The hunter may be started from a town or another map with no mobs.
                 // Immediately select a reachable level-appropriate training map instead
