@@ -18,9 +18,9 @@ jobs:
           from pathlib import Path
           import re
 
-          wasd = Path('client/ezorsia/ezorsia/WasdInput.h').read_text(encoding='utf-8')
-          dinput = Path('client/ezorsia/ezorsia/dinput8.cpp').read_text(encoding='utf-8')
-          config = Path('client/ezorsia/ezorsia/config.ini').read_text(encoding='utf-8')
+          wasd = Path('client/native/core/WasdInput.h').read_text(encoding='utf-8')
+          dinput = Path('client/native/core/dinput8.cpp').read_text(encoding='utf-8')
+          config = Path('client/native/core/config.ini').read_text(encoding='utf-8')
 
           required = [
               'kGetISMessageAddress = 0x0059A306',
