@@ -1,28 +1,8 @@
 {
   "schema_version": 1,
-  "updated": "2026-09-10",
+  "updated": "2026-09-11",
   "canonical_human_readable": "docs/KNOWN_ISSUES.md",
   "issues": [
-    {
-      "id": "EL-CMD-001",
-      "severity": "high",
-      "status": "source_fixed_pending_deploy",
-      "area": "commands/security",
-      "title": "gachalist, loot, and mobskill were registered at rank 0",
-      "source": "src/main/java/client/command/CommandsExecutor.java",
-      "summary": "Canonical master explicitly registers gachalist, loot, and mobskill at GM rank 2, with source-level regression coverage.",
-      "required_close": "Deploy the fixed server build to production and verify an ordinary player is denied while GM2+ can invoke the commands."
-    },
-    {
-      "id": "EL-EVENT-001",
-      "severity": "low",
-      "status": "source_fixed_pending_deploy",
-      "area": "events/commands",
-      "title": "startevent ignored a single participant-limit argument",
-      "source": "src/main/java/client/command/commands/gm3/StartEventCommand.java",
-      "summary": "Canonical master now accepts no argument for the default limit of 50 or exactly one positive integer player limit; invalid inputs are rejected and regression-tested.",
-      "required_close": "Deploy the fixed server build and verify default and custom-limit behavior in a controlled GM event test."
-    },
     {
       "id": "EL-DATA-001",
       "severity": "medium",
@@ -30,38 +10,8 @@
       "area": "accounts/database",
       "title": "Historical account purge semantics can leave character-related rows",
       "source": "database/sql/migration/everleaf_account_character_integrity.sql",
-      "summary": "The legacy base schema lacks an account-to-character foreign key. Canonical master now includes a read-only orphan audit and a fail-closed ON DELETE RESTRICT relationship guard, but existing production orphans must be audited and remediated before applying it.",
+      "summary": "The legacy base schema lacks an account-to-character foreign key. Canonical master includes a read-only orphan audit and a fail-closed ON DELETE RESTRICT relationship guard, but existing production orphans must be audited and remediated before applying it.",
       "required_close": "Run tools/everleaf-ops/audit-account-character-integrity.sql on production, back up and deliberately remediate any historical orphan rows, apply the relationship-guard migration, and verify zero relationship-integrity failures."
-    },
-    {
-      "id": "EL-LAUNCHER-001",
-      "severity": "medium",
-      "status": "source_hardened_pending_client_publish_and_runtime_verification",
-      "area": "launcher/client",
-      "title": "Launcher-only and single-client policy enforcement",
-      "source": "launcher/EverLeaf.Launcher/ClientLaunchPolicy.cs",
-      "summary": "Canonical master requires the managed launcher handoff and now blocks multiple stock clients with launcher process/mutex checks, a machine-wide native client mutex, and exclusive one-time launch-ticket consumption.",
-      "required_close": "Publish the updated managed launcher/client and verify direct EverLeaf.exe rejection, normal launcher launch, second-launch rejection, and rapid/race second-launch rejection on a clean player machine. If cryptographic server-backed launcher proof is later required, implement a server-validated launch-session protocol."
-    },
-    {
-      "id": "EL-CLIENT-001",
-      "severity": "medium",
-      "status": "confirmed_defect_rework_pending",
-      "area": "client/display",
-      "title": "Alt+Enter does not switch display mode and stock fullscreen falls back to 800-wide resolution",
-      "source": "client/ezorsia/ezorsia/DisplayMode.h",
-      "summary": "The current player build launches in windowed mode. Alt+Enter has been observed not to enter fullscreen, while enabling fullscreen through the in-game settings falls back to the legacy low-resolution mode instead of preserving the configured HD resolution. EverLeaf is adopting a Kaentake-informed but independently implemented display path with an in-game resolution selector and persistent HD resolution handling.",
-      "required_close": "Implement and publish the EverLeaf in-game resolution selector including 1280x720, preserve the selected resolution across windowed/fullscreen changes, make Alt+Enter reliably toggle the supported display mode, and runtime-test windowed/fullscreen/Alt+Enter transitions without an 800x600 fallback."
-    },
-    {
-      "id": "EL-DISCORD-001",
-      "severity": "low",
-      "status": "source_fixed_pending_client_publish_and_runtime_verification",
-      "area": "client/discord",
-      "title": "Richer Discord Rich Presence gameplay activity",
-      "source": "client/ezorsia/ezorsia/DiscordPresence.cpp",
-      "summary": "Canonical master now samples character name, level, job and field ID from Angel.idb-pinned GMS v83 getters on CUserLocal::Update, cross-checks local/context field IDs, and fails closed to basic EverLeaf activity on invalid or transitional state.",
-      "required_close": "Build and publish the updated managed client, then verify Discord activity across login, character entry, map changes, job/level changes, channel changes, logout and reconnect without crashes or stale activity."
     },
     {
       "id": "EL-RECOVERY-001",
@@ -75,11 +25,13 @@
     }
   ],
   "validation_risks": [
+    "gm_command_live_smoke",
     "boss_and_pq_multiclient_lifecycle",
     "full_class_and_combat_runtime_parity",
     "remaining_transaction_disconnect_replay_race_edge_cases",
     "launcher_client_interrupted_update_and_crash_edge_cases",
     "launcher_only_and_single_client_runtime_enforcement",
+    "display_resolution_fullscreen_alt_enter_runtime_verification",
     "discord_rich_presence_gameplay_runtime_verification",
     "rankings_stale_deleted_renamed_character_behavior",
     "website_admin_session_csrf_rate_limit_controls",
