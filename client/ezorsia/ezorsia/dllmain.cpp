@@ -5,6 +5,7 @@
 #include "dinput8.h"
 #include "CrashDiagnostics.h"
 #include "FrameLimiter.h"
+#include "DisplayResolution.h"
 #include "DisplayMode.h"
 #include "WidescreenCorrections.h"
 #include "AddyLocations.h"
@@ -148,6 +149,9 @@ void MainFunc() {
     CrashDiagnostics::SetPhase("applying-widescreen-corrections");
     if (!WidescreenCorrections::Apply()) CrashDiagnostics::LogEvent("owner-backed widescreen corrections unavailable; continuing without them");
 
+    CrashDiagnostics::SetPhase("installing-runtime-display-resolution");
+    if (!DisplayResolution::Install()) CrashDiagnostics::LogEvent("runtime resolution selector unavailable; startup resolution remains active");
+
     if (Client::ModernLoginUI) {
         CrashDiagnostics::SetPhase("applying-login-ui");
         EverLeafLoginLayout::Apply();
@@ -212,6 +216,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         break;
     }
     case DLL_PROCESS_DETACH:
+        DisplayResolution::Shutdown();
         DiscordPresence::Stop();
         if (lpReserved == nullptr && gBootstrapComplete) {
             CloseHandle(gBootstrapComplete);
