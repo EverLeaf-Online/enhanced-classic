@@ -54,7 +54,7 @@ static WzFile OpenDonor(string p)
     return w;
 }
 
-static (WzImage image, string[] dirs)? FindImage(WzDirectory root, string relativePath)
+static ImageLocation? FindImageExact(WzDirectory root, string relativePath)
 {
     var parts = relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
     if (parts.Length == 0) return null;
@@ -65,7 +65,34 @@ static (WzImage image, string[] dirs)? FindImage(WzDirectory root, string relati
         if (d == null) return null;
     }
     var image = d.GetImageByName(parts[^1]);
-    return image == null ? null : (image, parts[..^1]);
+    return image == null ? null : new ImageLocation(image, parts[..^1]);
+}
+
+static IEnumerable<ImageLocation> EnumerateImages(WzDirectory root, string[] prefix)
+{
+    foreach (var image in root.WzImages)
+        yield return new ImageLocation(image, prefix);
+    foreach (var sub in root.WzDirectories)
+    {
+        var next = prefix.Concat(new[] { sub.Name }).ToArray();
+        foreach (var row in EnumerateImages(sub, next)) yield return row;
+    }
+}
+
+static ImageLocation ResolveDonorImage(WzDirectory root, string requestedPath)
+{
+    var exact = FindImageExact(root, requestedPath);
+    if (exact != null) return exact.Value;
+
+    var baseName = requestedPath.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()
+        ?? throw new InvalidDataException($"Invalid donor path: {requestedPath}");
+    var hits = EnumerateImages(root, Array.Empty<string>())
+        .Where(x => string.Equals(x.Image.Name, baseName, StringComparison.OrdinalIgnoreCase))
+        .Take(3)
+        .ToArray();
+    if (hits.Length == 1) return hits[0];
+    if (hits.Length == 0) throw new InvalidDataException($"Donor path missing: {requestedPath}");
+    throw new InvalidDataException($"Donor path ambiguous after basename fallback: {requestedPath}; matches={string.Join(',', hits.Select(h => h.FullPath))}");
 }
 
 static WzDirectory EnsureDirs(WzDirectory root, IEnumerable<string> dirs)
@@ -113,22 +140,24 @@ static string ImageDigest(WzImage img)
 var targetHashBefore = Sha(targetPath);
 var donorHash = Sha(donorPath);
 short targetVersion, donorVersion;
-var donorDigests = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+var staged = new List<StagedImage>();
 
 using (var target = OpenTarget(targetPath))
 using (var donor = OpenDonor(donorPath))
 {
     targetVersion = target.Version;
     donorVersion = donor.Version;
-    foreach (var rel in requested)
+    foreach (var requestedPath in requested)
     {
-        if (FindImage(target.WzDirectory, rel) != null)
-            throw new InvalidOperationException($"Target collision: {rel}");
-        var source = FindImage(donor.WzDirectory, rel)
-            ?? throw new InvalidDataException($"Donor path missing: {rel}");
-        donorDigests[rel] = ImageDigest(source.image);
-        EnsureDirs(target.WzDirectory, source.dirs).AddImage(source.image.DeepClone());
+        var source = ResolveDonorImage(donor.WzDirectory, requestedPath);
+        var actualPath = source.FullPath;
+        if (FindImageExact(target.WzDirectory, actualPath) != null)
+            throw new InvalidOperationException($"Target collision at resolved donor path: requested={requestedPath}, resolved={actualPath}");
+        var digest = ImageDigest(source.Image);
+        EnsureDirs(target.WzDirectory, source.Dirs).AddImage(source.Image.DeepClone());
+        staged.Add(new StagedImage(requestedPath, actualPath, digest));
     }
+    if (staged.Count == 0) throw new InvalidOperationException("Refusing empty static candidate.");
     target.SaveToDisk(outputPath);
 }
 
@@ -138,34 +167,43 @@ if (Sha(targetPath) != targetHashBefore)
 var verified = 0;
 using (var output = OpenTarget(outputPath))
 {
-    foreach (var rel in requested)
+    foreach (var row in staged)
     {
-        var image = FindImage(output.WzDirectory, rel)
-            ?? throw new InvalidDataException($"Saved output lost: {rel}");
-        var outputDigest = ImageDigest(image.image);
-        if (!string.Equals(outputDigest, donorDigests[rel], StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException($"Donor/output image digest mismatch: {rel}");
+        var image = FindImageExact(output.WzDirectory, row.ResolvedPath)
+            ?? throw new InvalidDataException($"Saved output lost: requested={row.RequestedPath}, resolved={row.ResolvedPath}");
+        var outputDigest = ImageDigest(image.Value.Image);
+        if (!string.Equals(outputDigest, row.DonorDigest, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException($"Donor/output image digest mismatch: requested={row.RequestedPath}, resolved={row.ResolvedPath}");
         verified++;
     }
 }
 
+var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 1,
+    schemaVersion = 2,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
     family = Path.GetFileName(targetPath),
     requestedCount = requested.Length,
+    stagedCount = staged.Count,
     verifiedCount = verified,
+    basenameFallbackCount = fallbackCount,
     source = new { path = targetPath, sha256 = targetHashBefore, version = targetVersion, size = new FileInfo(targetPath).Length },
     donor = new { path = donorPath, sha256 = donorHash, version = donorVersion, size = new FileInfo(donorPath).Length },
     output = new { path = outputPath, sha256 = Sha(outputPath), size = new FileInfo(outputPath).Length },
-    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true },
-    paths = requested,
+    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, nonEmptyCandidate = true },
+    images = staged.Select(x => new { requestedPath = x.RequestedPath, resolvedPath = x.ResolvedPath }).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
-Console.WriteLine($"STAGED {Path.GetFileName(targetPath)}: {verified:N0}/{requested.Length:N0} donor-only images verified");
+Console.WriteLine($"STAGED {Path.GetFileName(targetPath)}: {verified:N0}/{requested.Length:N0} donor-only images verified; fallback={fallbackCount:N0}");
 Console.WriteLine($"OUTPUT {outputPath}");
 Console.WriteLine("approved=false / productionApplyAllowed=false");
 return 0;
+
+internal readonly record struct ImageLocation(WzImage Image, string[] Dirs)
+{
+    public string FullPath => string.Join('/', Dirs.Append(Image.Name));
+}
+internal readonly record struct StagedImage(string RequestedPath, string ResolvedPath, string DonorDigest);
