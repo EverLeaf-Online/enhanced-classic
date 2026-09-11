@@ -1,16 +1,15 @@
-name: Apply EverLeaf app icon live
+name: Recover EverLeaf live client executable
 
 on:
   push:
     branches: [master]
     paths:
-      - 'client/branding/everleaf-app-icon.ico.gz.b64.part*'
       - '.github/workflows/apply-everleaf-app-icon-live.yml'
   workflow_dispatch:
 
 concurrency:
-  group: everleaf-app-icon-live
-  cancel-in-progress: true
+  group: everleaf-client-exe-recovery
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -18,11 +17,9 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
-  RESOURCE_HACKER_URL: https://www.angusj.com/resourcehacker/resource_hacker.zip
-  ICON_SHA256: 3fdea6b7873dfff399d7a6600c864ad1a5933706392adb7c53415301ac774ceb
 
 jobs:
-  deploy-client-icon:
+  recover-client-exe:
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
@@ -30,29 +27,6 @@ jobs:
         uses: actions/checkout@v5
         with:
           ref: master
-
-      - name: Materialize EverLeaf icon
-        shell: pwsh
-        run: |
-          $ErrorActionPreference='Stop'
-          $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'; New-Item -ItemType Directory -Force -Path $root | Out-Null
-          $parts=@(Get-ChildItem 'client/branding/everleaf-app-icon.ico.gz.b64.part*' -File | Sort-Object Name)
-          if($parts.Count -eq 0){throw 'EverLeaf icon source parts are missing'}
-          $icon=Join-Path $root 'everleaf-icon.ico'
-          $payload=(($parts | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join '') -replace '\s',''
-          $compressed=[Convert]::FromBase64String($payload)
-          $input=[IO.MemoryStream]::new($compressed)
-          try {
-            $gzip=[IO.Compression.GZipStream]::new($input,[IO.Compression.CompressionMode]::Decompress)
-            try {
-              $output=[IO.File]::Create($icon)
-              try { $gzip.CopyTo($output) } finally { $output.Dispose() }
-            } finally { $gzip.Dispose() }
-          } finally { $input.Dispose() }
-          $hash=(Get-FileHash $icon -Algorithm SHA256).Hash.ToLowerInvariant()
-          if($hash -ne $env:ICON_SHA256){throw "Icon SHA-256 mismatch expected=$env:ICON_SHA256 actual=$hash"}
-          if((Get-Item $icon).Length -lt 10000){throw 'Decoded icon is unexpectedly small'}
-          Write-Host "EVERLEAF_ICON_READY $hash"
 
       - name: Configure SSH
         shell: pwsh
@@ -76,88 +50,77 @@ jobs:
             TCPKeepAlive yes
             ConnectTimeout 20
           '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
-          ssh everleaf-oracle 'set -e; test -s /opt/everleaf/patches/files/EverLeaf.exe; test -s /opt/everleaf/patches/manifest.json; test -s /opt/everleaf/patches/managed-client-baseline.json; echo EVERLEAF_CLIENT_ICON_SSH_OK'
-          if($LASTEXITCODE){throw 'Oracle/client preflight failed'}
+          ssh everleaf-oracle 'set -e; test -s /opt/everleaf/patches/files/EverLeaf.exe; test -s /opt/everleaf/patches/manifest.json; sudo test -d /opt/everleaf/backups/client-icon; echo EVERLEAF_CLIENT_RECOVERY_SSH_OK'
+          if($LASTEXITCODE){throw 'Oracle/client recovery preflight failed'}
 
-      - name: Fetch live client executable
+      - name: Stage earliest pre-icon executable backup
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'
-          scp 'everleaf-oracle:/opt/everleaf/patches/files/EverLeaf.exe' (Join-Path $root 'EverLeaf.original.exe')
-          if($LASTEXITCODE){throw 'Live EverLeaf.exe fetch failed'}
-          $before=(Get-FileHash (Join-Path $root 'EverLeaf.original.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
-          "Original EverLeaf.exe SHA-256: $before" | Add-Content $env:GITHUB_STEP_SUMMARY
+          $remote="/tmp/everleaf-client-recovery-${{ github.run_id }}"
+          $script=@'
+          set -euo pipefail
+          BACKUP_ROOT=/opt/everleaf/backups/client-icon
+          STAGE=__REMOTE__
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+          CANDIDATE="$(sudo find "$BACKUP_ROOT" -maxdepth 1 -type f -name '*-EverLeaf.exe' -printf '%T@ %p\n' | sort -n | head -n 1 | cut -d' ' -f2-)"
+          test -n "$CANDIDATE"
+          sudo test -s "$CANDIDATE"
+          RESTORE_SHA="$(sudo sha256sum "$CANDIDATE" | awk '{print $1}')"
+          EXPECTED_SHA="$(basename "$CANDIDATE" | sed 's/-EverLeaf\.exe$//')"
+          test "$RESTORE_SHA" = "$EXPECTED_SHA"
+          sudo cp "$CANDIDATE" "$STAGE/EverLeaf.exe"
+          sudo chown "$(id -u):$(id -g)" "$STAGE/EverLeaf.exe"
+          printf '%s\n' "$RESTORE_SHA" > "$STAGE/sha256.txt"
+          printf '%s\n' "$CANDIDATE" > "$STAGE/source-backup.txt"
+          echo "EVERLEAF_PRE_ICON_BACKUP_STAGED sha=$RESTORE_SHA source=$CANDIDATE"
+          '@
+          $script=$script.Replace('__REMOTE__',$remote)
+          $local=Join-Path $env:RUNNER_TEMP 'stage-everleaf-client-recovery.sh'; [IO.File]::WriteAllText($local,($script -replace "`r",''))
+          scp $local 'everleaf-oracle:/tmp/stage-everleaf-client-recovery.sh'
+          ssh everleaf-oracle 'bash /tmp/stage-everleaf-client-recovery.sh'
+          if($LASTEXITCODE){throw 'Could not stage the pre-icon EverLeaf.exe backup'}
+          $root=Join-Path $env:RUNNER_TEMP 'everleaf-client-recovery'; New-Item -ItemType Directory -Force -Path $root | Out-Null
+          scp "everleaf-oracle`:$remote/EverLeaf.exe" (Join-Path $root 'EverLeaf.exe')
+          if($LASTEXITCODE){throw 'Could not fetch recovery EverLeaf.exe'}
+          scp "everleaf-oracle`:$remote/sha256.txt" (Join-Path $root 'sha256.txt')
+          if($LASTEXITCODE){throw 'Could not fetch recovery SHA'}
 
-      - name: Patch and validate client icon
-        timeout-minutes: 5
+      - name: Validate recovered executable with Windows loader
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'
-          $zip=Join-Path $root 'resource_hacker.zip'
-          $rhDir=Join-Path $root 'resource-hacker'
-          Write-Host 'Downloading Resource Hacker with bounded network timeouts...'
-          & curl.exe -L --fail --silent --show-error --connect-timeout 15 --max-time 120 $env:RESOURCE_HACKER_URL -o $zip
-          if($LASTEXITCODE){throw "Resource Hacker download failed with exit code $LASTEXITCODE"}
-          if((Get-Item $zip).Length -lt 1000000){throw 'Resource Hacker download is unexpectedly small'}
-          Expand-Archive -LiteralPath $zip -DestinationPath $rhDir -Force
-          $resourceHacker=Get-ChildItem -LiteralPath $rhDir -Filter 'ResourceHacker.exe' -Recurse -File | Select-Object -First 1 -ExpandProperty FullName
-          if(-not $resourceHacker){throw 'ResourceHacker.exe was not found in the official archive'}
-          Write-Host 'RESOURCE_HACKER_READY'
-
-          $original=Join-Path $root 'EverLeaf.original.exe'
-          $stripped=Join-Path $root 'EverLeaf.noicon.exe'
+          $root=Join-Path $env:RUNNER_TEMP 'everleaf-client-recovery'
           $candidate=Join-Path $root 'EverLeaf.exe'
-          $iconPath=Join-Path $root 'everleaf-icon.ico'
-
-          function Invoke-ResourceHacker([string[]]$arguments,[int]$timeoutMs) {
-            $process=Start-Process -FilePath $resourceHacker -ArgumentList $arguments -PassThru -WindowStyle Hidden
-            if(-not $process.WaitForExit($timeoutMs)){
-              try { $process.Kill($true) } catch {}
-              throw "Resource Hacker timed out after $([int]($timeoutMs/1000)) seconds"
-            }
-            if($process.ExitCode -ne 0){throw "Resource Hacker failed with exit code $($process.ExitCode)"}
-          }
-
-          # Remove old icon groups first so Windows cannot continue choosing a legacy group.
-          Invoke-ResourceHacker @('-open',$original,'-save',$stripped,'-action','delete','-mask','ICONGROUP,,') 60000
-          if(-not (Test-Path -LiteralPath $stripped)){throw 'Resource Hacker did not produce the icon-stripped executable'}
-
-          # Import the verified multi-size EverLeaf icon as the canonical application icon group.
-          Invoke-ResourceHacker @('-open',$stripped,'-save',$candidate,'-action','addoverwrite','-res',$iconPath,'-mask','ICONGROUP,MAINICON,') 60000
-          if(-not (Test-Path -LiteralPath $candidate)){throw 'Resource Hacker did not produce the patched executable'}
-
-          $before=(Get-FileHash $original -Algorithm SHA256).Hash.ToLowerInvariant()
-          $after=(Get-FileHash $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
-          if($after -eq $before){throw 'Client executable hash did not change after icon patch'}
-          if((Get-Item $candidate).Length -lt 1000000){throw 'Patched EverLeaf.exe is unexpectedly small'}
-          Add-Type -AssemblyName System.Drawing
-          $icon=[System.Drawing.Icon]::ExtractAssociatedIcon($candidate)
-          if($null -eq $icon){throw 'Windows could not extract an icon from patched EverLeaf.exe'}
+          $expected=(Get-Content (Join-Path $root 'sha256.txt') -Raw).Trim().ToLowerInvariant()
+          $actual=(Get-FileHash $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($actual -ne $expected){throw "Recovery executable hash mismatch expected=$expected actual=$actual"}
+          $bytes=[IO.File]::ReadAllBytes($candidate)
+          if($bytes.Length -lt 1000000){throw 'Recovery executable is unexpectedly small'}
+          if($bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A){throw 'Recovery executable has no MZ header'}
+          $peOffset=[BitConverter]::ToInt32($bytes,0x3C)
+          if($peOffset -lt 64 -or ($peOffset + 26) -ge $bytes.Length){throw 'Recovery executable has an invalid PE offset'}
+          if($bytes[$peOffset] -ne 0x50 -or $bytes[$peOffset+1] -ne 0x45 -or $bytes[$peOffset+2] -ne 0 -or $bytes[$peOffset+3] -ne 0){throw 'Recovery executable has no PE signature'}
+          $machine=[BitConverter]::ToUInt16($bytes,$peOffset+4)
+          $magic=[BitConverter]::ToUInt16($bytes,$peOffset+24)
+          if($machine -ne 0x014c){throw ("Recovery executable machine is not x86: 0x{0:X4}" -f $machine)}
+          if($magic -ne 0x010b){throw ("Recovery executable is not PE32: 0x{0:X4}" -f $magic)}
           try {
-            if($icon.Width -lt 16 -or $icon.Height -lt 16){throw 'Patched client icon dimensions are invalid'}
-          } finally { $icon.Dispose() }
-          $version=(Get-Item $candidate).VersionInfo
-          if($null -eq $version){throw 'Windows could not parse patched executable version resources'}
-          "Patched EverLeaf.exe SHA-256: $after" | Add-Content $env:GITHUB_STEP_SUMMARY
-          Write-Host "EVERLEAF_CLIENT_ICON_PATCH_OK $after"
+            $process=Start-Process -FilePath $candidate -PassThru -WindowStyle Hidden -ErrorAction Stop
+          } catch {
+            throw "Windows loader rejected recovery EverLeaf.exe: $($_.Exception.Message)"
+          }
+          Start-Sleep -Seconds 2
+          if(-not $process.HasExited){Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue}
+          "Recovered EverLeaf.exe SHA-256: $actual" | Add-Content $env:GITHUB_STEP_SUMMARY
+          Write-Host "WINDOWS_LOADER_ACCEPTED_RECOVERY_EXE $actual"
 
-      - name: Upload candidate to Oracle staging
+      - name: Restore executable live and regenerate patch manifest
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'
-          $remote="/tmp/everleaf-app-icon-${{ github.run_id }}"
-          ssh everleaf-oracle "rm -rf '$remote' && mkdir -p '$remote'"
-          scp (Join-Path $root 'EverLeaf.exe') "everleaf-oracle`:$remote/EverLeaf.exe"
-          if($LASTEXITCODE){throw 'Patched client upload failed'}
-
-      - name: Publish client executable and regenerate patch manifest
-        shell: pwsh
-        run: |
-          $ErrorActionPreference='Stop'
-          $remote="/tmp/everleaf-app-icon-${{ github.run_id }}"
+          $remote="/tmp/everleaf-client-recovery-${{ github.run_id }}"
           $script=@'
           set -euo pipefail
           PATCH=/opt/everleaf/patches
@@ -169,20 +132,27 @@ jobs:
           test -s "$CURRENT"
           BEFORE="$(sha256sum "$CURRENT" | awk '{print $1}')"
           AFTER="$(sha256sum "$CANDIDATE" | awk '{print $1}')"
-          test "$BEFORE" != "$AFTER"
-          BACKUP_ROOT=/opt/everleaf/backups/client-icon
-          BACKUP="$BACKUP_ROOT/${BEFORE}-EverLeaf.exe"
-          sudo install -d -m 700 "$BACKUP_ROOT"
-          if [ ! -e "$BACKUP" ]; then sudo install -m 600 "$CURRENT" "$BACKUP"; fi
+          EXPECTED="$(cat "$STAGE/sha256.txt")"
+          test "$AFTER" = "$EXPECTED"
+
+          RECOVERY_BACKUP_ROOT=/opt/everleaf/backups/client-recovery
+          RECOVERY_BACKUP="$RECOVERY_BACKUP_ROOT/${BEFORE}-EverLeaf.exe"
+          sudo install -d -m 700 "$RECOVERY_BACKUP_ROOT"
+          if [ ! -e "$RECOVERY_BACKUP" ]; then sudo install -m 600 "$CURRENT" "$RECOVERY_BACKUP"; fi
           cp "$PATCH/manifest.json" "$STAGE/manifest.before.json"
+
           rollback(){
-            echo 'EverLeaf client icon publish failed; rolling back.' >&2
-            sudo install -m 644 "$BACKUP" "$CURRENT"
+            echo 'EverLeaf client recovery publish failed; rolling back current executable and manifest.' >&2
+            sudo install -m 644 "$RECOVERY_BACKUP" "$CURRENT"
             sudo install -m 644 "$STAGE/manifest.before.json" "$PATCH/manifest.json"
           }
           trap rollback ERR
-          sudo install -m 644 "$CANDIDATE" "$CURRENT.new"
-          sudo mv -f "$CURRENT.new" "$CURRENT"
+
+          if [ "$BEFORE" != "$AFTER" ]; then
+            sudo install -m 644 "$CANDIDATE" "$CURRENT.new"
+            sudo mv -f "$CURRENT.new" "$CURRENT"
+          fi
+
           GENERATED="$STAGE/manifest.json"
           LAUNCHER_PATCH_ROOT="$PATCH" \
           LAUNCHER_BASELINE_PATH="$PATCH/managed-client-baseline.json" \
@@ -191,35 +161,43 @@ jobs:
           LAUNCHER_VERSION_PATH="$PATCH/downloads/EverLeafLauncher-version.txt" \
           node /opt/everleaf/web/scripts/build-patch-manifest.js '__SHA__'
           sudo install -m 644 "$GENERATED" "$PATCH/manifest.json"
-          expected="$(sha256sum "$CURRENT" | awk '{print $1}')"
-          test "$expected" = "$AFTER"
+
+          LIVE_SHA="$(sha256sum "$CURRENT" | awk '{print $1}')"
+          test "$LIVE_SHA" = "$AFTER"
           curl -fsS 'http://127.0.0.1:3000/patches/EverLeaf.exe' -o "$STAGE/live-EverLeaf.exe"
-          actual="$(sha256sum "$STAGE/live-EverLeaf.exe" | awk '{print $1}')"
-          test "$actual" = "$expected"
+          LOCAL_HTTP_SHA="$(sha256sum "$STAGE/live-EverLeaf.exe" | awk '{print $1}')"
+          test "$LOCAL_HTTP_SHA" = "$AFTER"
           grep -q 'EverLeaf.exe' "$PATCH/manifest.json"
           trap - ERR
-          echo "EVERLEAF_CLIENT_ICON_LIVE before=$BEFORE after=$AFTER"
+          echo "EVERLEAF_CLIENT_RECOVERY_LIVE before=$BEFORE restored=$AFTER"
           '@
           $script=$script.Replace('__REMOTE__',$remote).Replace('__SHA__','${{ github.sha }}')
-          $local=Join-Path $env:RUNNER_TEMP 'publish-everleaf-icon.sh'; [IO.File]::WriteAllText($local,($script -replace "`r",''))
-          scp $local 'everleaf-oracle:/tmp/publish-everleaf-icon.sh'
-          ssh everleaf-oracle 'bash /tmp/publish-everleaf-icon.sh'
-          if($LASTEXITCODE){throw 'Live client icon publish failed'}
+          $local=Join-Path $env:RUNNER_TEMP 'publish-everleaf-client-recovery.sh'; [IO.File]::WriteAllText($local,($script -replace "`r",''))
+          scp $local 'everleaf-oracle:/tmp/publish-everleaf-client-recovery.sh'
+          ssh everleaf-oracle 'bash /tmp/publish-everleaf-client-recovery.sh'
+          if($LASTEXITCODE){throw 'Live client recovery publish failed'}
 
-      - name: Verify public client executable
-        timeout-minutes: 5
+      - name: Verify public recovered executable
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'
-          $expected=(Get-FileHash (Join-Path $root 'EverLeaf.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $root=Join-Path $env:RUNNER_TEMP 'everleaf-client-recovery'
+          $expected=(Get-Content (Join-Path $root 'sha256.txt') -Raw).Trim().ToLowerInvariant()
           $public=Join-Path $root 'public-EverLeaf.exe'
           & curl.exe -L --fail --silent --show-error --connect-timeout 15 --max-time 120 'https://everleafms.online/patches/EverLeaf.exe' -o $public
           if($LASTEXITCODE){throw "Public EverLeaf.exe download failed with exit code $LASTEXITCODE"}
           $actual=(Get-FileHash $public -Algorithm SHA256).Hash.ToLowerInvariant()
-          if($actual -ne $expected){throw "Public EverLeaf.exe hash mismatch expected=$expected actual=$actual"}
-          Add-Type -AssemblyName System.Drawing
-          $icon=[System.Drawing.Icon]::ExtractAssociatedIcon($public)
-          if($null -eq $icon){throw 'Public EverLeaf.exe has no extractable icon'}
-          $icon.Dispose()
-          Write-Host "PUBLIC_EVERLEAF_CLIENT_ICON_OK $actual"
+          if($actual -ne $expected){throw "Public recovered EverLeaf.exe hash mismatch expected=$expected actual=$actual"}
+          $bytes=[IO.File]::ReadAllBytes($public)
+          $peOffset=[BitConverter]::ToInt32($bytes,0x3C)
+          $machine=[BitConverter]::ToUInt16($bytes,$peOffset+4)
+          $magic=[BitConverter]::ToUInt16($bytes,$peOffset+24)
+          if($machine -ne 0x014c -or $magic -ne 0x010b){throw 'Public recovered EverLeaf.exe is not a valid x86 PE32 executable'}
+          try {
+            $process=Start-Process -FilePath $public -PassThru -WindowStyle Hidden -ErrorAction Stop
+          } catch {
+            throw "Windows loader rejected public recovered EverLeaf.exe: $($_.Exception.Message)"
+          }
+          Start-Sleep -Seconds 2
+          if(-not $process.HasExited){Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue}
+          Write-Host "PUBLIC_EVERLEAF_CLIENT_RECOVERY_OK $actual"
