@@ -4,11 +4,11 @@ on:
   pull_request:
     branches: [master]
     paths:
-      - 'client/ezorsia/ezorsia/DiscordPresence.cpp'
-      - 'client/ezorsia/ezorsia/DiscordPresence.h'
-      - 'client/ezorsia/ezorsia/dllmain.cpp'
-      - 'client/ezorsia/ezorsia/ezorsia.vcxproj'
-      - 'client/ezorsia/ezorsia/config.ini'
+      - 'client/native/discord/**'
+      - 'client/native/core/DiscordPresence.cpp'
+      - 'client/native/core/dllmain.cpp'
+      - 'client/native/core/config.ini'
+      - 'client/native/EverLeaf Client.sln'
       - 'client/scripts/test-discord-presence.cpp'
       - '.github/workflows/validate-native-discord.yml'
   workflow_dispatch:
@@ -26,52 +26,41 @@ jobs:
       - name: Configure MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Verify source wiring
+      - name: Verify standalone Discord wiring
         shell: pwsh
         run: |
-          $required = @(
-            'client/ezorsia/ezorsia/DiscordPresence.cpp',
-            'client/ezorsia/ezorsia/DiscordPresence.h',
+          foreach ($path in @(
+            'client/native/discord/DiscordPresence.cpp',
+            'client/native/discord/DiscordPresence.h',
+            'client/native/discord/DiscordEntry.cpp',
+            'client/native/discord/Discord.vcxproj',
+            'client/native/core/DiscordPresence.cpp',
             'client/scripts/test-discord-presence.cpp'
-          )
-          foreach ($path in $required) {
+          )) {
             if (-not (Test-Path $path)) { throw "Missing required file: $path" }
           }
 
-          $bootstrap = Get-Content 'client/ezorsia/ezorsia/dllmain.cpp' -Raw
+          $bootstrap = Get-Content 'client/native/core/dllmain.cpp' -Raw
           foreach ($needle in @('#include "DiscordPresence.h"','DiscordPresence::Start();','DiscordPresence::Stop();')) {
             if (-not $bootstrap.Contains($needle)) { throw "Missing Discord bootstrap marker: $needle" }
           }
 
-          $presence = Get-Content 'client/ezorsia/ezorsia/DiscordPresence.cpp' -Raw
-          $contractMarkers = @(
-            '0x00BE7918',
-            '0x00BEBF98',
-            '0x00437A0C',
-            '0x004AC308',
-            '0x0094A144',
-            '0x00949B15',
-            '0x0095FFC3',
-            '0x009613E0',
-            '0x00A1238B',
-            '0x00A041FF',
-            'TryReadGameplaySnapshot',
-            'localFieldId != static_cast<unsigned long>(contextFieldId)',
-            'CUserLocalUpdateHook',
-            'WvsContextOnLeaveGameHook',
-            'gActivityRevision',
-            'Memory::SetHook('
-          )
-          foreach ($needle in $contractMarkers) {
-            if (-not $presence.Contains($needle)) { throw "Missing verified v83 Discord gameplay marker: $needle" }
+          $bridge = Get-Content 'client/native/core/DiscordPresence.cpp' -Raw
+          foreach ($needle in @('LoadLibraryW(L"Discord.dll")','EverLeafDiscord_Start','EverLeafDiscord_Stop','EverLeafDiscord_SetActivity')) {
+            if (-not $bridge.Contains($needle)) { throw "Missing Discord bridge marker: $needle" }
           }
 
-          $project = Get-Content 'client/ezorsia/ezorsia/ezorsia.vcxproj' -Raw
-          foreach ($needle in @('DiscordPresence.h','DiscordPresence.cpp')) {
-            if (-not $project.Contains($needle)) { throw "Visual Studio project is missing $needle" }
+          $entry = Get-Content 'client/native/discord/DiscordEntry.cpp' -Raw
+          foreach ($needle in @('EverLeafDiscord_Start','EverLeafDiscord_Stop','EverLeafDiscord_SetActivity')) {
+            if (-not $entry.Contains($needle)) { throw "Missing Discord export: $needle" }
           }
 
-          $config = Get-Content 'client/ezorsia/ezorsia/config.ini' -Raw
+          $project = Get-Content 'client/native/discord/Discord.vcxproj' -Raw
+          foreach ($needle in @('<ProjectName>Discord</ProjectName>','<TargetName>Discord</TargetName>','DiscordPresence.cpp','DiscordEntry.cpp')) {
+            if (-not $project.Contains($needle)) { throw "Discord project is missing $needle" }
+          }
+
+          $config = Get-Content 'client/native/core/config.ini' -Raw
           if (-not ($config -match '(?m)^DiscordRichPresence=true\r?$')) {
             throw 'DiscordRichPresence=true is missing from config.ini'
           }
@@ -79,7 +68,7 @@ jobs:
       - name: Test Discord IPC frames and acknowledgements
         shell: pwsh
         run: |
-          $source = Get-Content 'client/ezorsia/ezorsia/DiscordPresence.cpp' -Raw
+          $source = Get-Content 'client/native/discord/DiscordPresence.cpp' -Raw
           $source.Replace('#include "stdafx.h"','#include <windows.h>') | Set-Content 'client/scripts/discord-presence-test-source.inc'
           $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
           if (-not $vs) { throw 'Visual Studio installation not found' }
@@ -93,18 +82,19 @@ jobs:
           if ($payload.args.activity.details -ne "Playing `"EverLeaf`"`nwith friends") { throw 'Incorrect Discord JSON escaping' }
           if ($payload.args.activity.buttons.Count -ne 2) { throw 'Missing Discord presence buttons' }
 
-      - name: Apply EverLeaf Client v2 rebrand
+      - name: Apply EverLeaf native rebrand
         shell: pwsh
         run: python client/scripts/apply-client-v2-rebrand.py
 
-      - name: Build source-pinned Win32 release
+      - name: Build modular Win32 release
         shell: pwsh
-        run: msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+        run: msbuild "client/native/EverLeaf Client.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
 
-      - name: Verify built client
+      - name: Verify built modules
         shell: pwsh
         run: |
-          $dll = 'client/ezorsia/out/Release/dinput8.dll'
-          if (-not (Test-Path $dll)) { throw "Missing build output: $dll" }
-          python client/scripts/verify-client-v2-branding.py $dll
-          Get-FileHash $dll -Algorithm SHA256
+          foreach ($dll in @('client/native/out/Release/EverLeafMS.dll','client/native/out/Release/Discord.dll','client/native/out/Release/dinput8.dll')) {
+            if (-not (Test-Path $dll)) { throw "Missing build output: $dll" }
+            Get-FileHash $dll -Algorithm SHA256
+          }
+          python client/scripts/verify-client-v2-branding.py client/native/out/Release/EverLeafMS.dll
