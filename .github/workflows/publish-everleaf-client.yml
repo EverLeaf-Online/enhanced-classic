@@ -28,6 +28,13 @@ jobs:
         with:
           ref: master
 
+      - name: Verify source-pinned release SHA
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne $env:GITHUB_SHA) { throw "Release SHA mismatch expected=$env:GITHUB_SHA actual=$actual" }
+          Write-Host "EVERLEAF_CLIENT_RELEASE_SHA_OK $actual"
+
       - name: Apply Community UI preference
         shell: pwsh
         run: python client/scripts/apply-community-ui-preference.py
