@@ -112,17 +112,15 @@ def build_signboard(path):
 
 def button(path, size, text, state, green=False, text_size=None):
     width, height = size
-    palettes = ({
-        "normal": ((84, 121, 21), (154, 187, 57)),
-        "mouseOver": ((105, 145, 27), (193, 217, 79)),
-        "pressed": ((61, 91, 14), (125, 158, 38)),
-        "disabled": ((69, 75, 58), (104, 111, 82)),
-    } if green else {
-        "normal": ((62, 45, 23), (134, 97, 45)),
-        "mouseOver": ((79, 59, 27), (169, 123, 55)),
-        "pressed": ((45, 33, 16), (108, 78, 35)),
-        "disabled": ((65, 61, 50), (103, 95, 75)),
-    })
+    # EverLeaf's login controls use a neutral charcoal/silver palette.  The
+    # `green` argument is retained for compatibility with older call sites,
+    # but all login actions intentionally share one visual language now.
+    palettes = {
+        "normal": ((66, 70, 74), (132, 138, 145)),
+        "mouseOver": ((83, 88, 93), (176, 183, 190)),
+        "pressed": ((49, 53, 57), (108, 114, 120)),
+        "disabled": ((68, 70, 72), (94, 98, 102)),
+    }
     fill, edge = palettes[state]
     image = Image.new("RGB", size, fill)
     draw = ImageDraw.Draw(image)
@@ -141,12 +139,12 @@ def button(path, size, text, state, green=False, text_size=None):
 
 
 def build_check(path, checked):
-    image = Image.new("RGB", (18, 23), (54, 42, 21))
+    image = Image.new("RGB", (18, 23), (58, 61, 64))
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle((1, 3, 16, 18), radius=3, fill=(28, 48, 15),
-                           outline=(145, 177, 48), width=2)
+    draw.rounded_rectangle((1, 3, 16, 18), radius=3, fill=(52, 56, 60),
+                           outline=(151, 158, 165), width=2)
     if checked:
-        draw.line((4, 10, 8, 15, 15, 6), fill=(211, 235, 91), width=3, joint="curve")
+        draw.line((4, 10, 8, 15, 15, 6), fill=(232, 235, 238), width=3, joint="curve")
     image.save(path, "PNG", optimize=True)
 
 
