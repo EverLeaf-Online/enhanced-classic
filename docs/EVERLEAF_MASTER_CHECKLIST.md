@@ -2,7 +2,7 @@
 
 Repository-backed working checklist for the current EverLeaf release line.
 
-Last synchronized: **2026-09-10** after master consolidation, workflow-definition cleanup, native Discord Rich Presence extraction/validation, live client publication, website Git migration, final branch cleanup, the final guarded production rebuild/restart, documentation audit/consolidation, completion of the maintained player/staff documentation baseline, the source-side GM2 command-permission fix, the `!startevent` limit parsing fix, the account/character relationship guard work pending production audit/application, runtime verification of production registration/login, live server/channel status integration, download/manifest links, multi-hour/day soak, simultaneous login/channel-change behavior, launcher self-update, damaged-file repair, clean-machine installation, full channel switching, normal Trade/storage/Hired Merchant/PlayerShop flows, and Cash Shop transfer/re-entry, plus source-side launcher-only/single-client hardening and richer Discord character/level/job/field activity using verified v83 contracts, both pending managed-client publication/runtime verification.
+Last synchronized: **2026-09-11** after the production launcher/client/icon/web/game rollout. The current managed client and richer Discord/display work are published, the guarded game deployment/restart passed, the website deployment is green, and the active issue registers now contain unresolved runtime/security/load/data-validation work only.
 
 ## Current production baseline
 
@@ -10,8 +10,8 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - Canonical branch: `master`
 - Repository branch state: **`master` is the sole canonical line; temporary documentation refs may remain but contain no unique work**
 - Open pull requests: **none**
-- Current running game release source SHA: `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a`
-- Current running game release: `/opt/everleaf/releases/92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a-34484572759-2`
+- Current running game release source SHA: `b20fcc8c48acca3325ddb45f5daf48ea78c480a5`
+- Current running game release: immutable release produced by **Deploy EverLeaf Game Production #62** from `b20fcc8c48acca3325ddb45f5daf48ea78c480a5`
 - Production source checkout: `/opt/everleaf/server`
 - Active release symlink: `/opt/everleaf/current`
 - Game service: `everleaf.service`
@@ -25,8 +25,10 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - Login port: `8484`
 - Channels: `7575-7594` (20 channels)
 - Canonical production v95 XML baseline: **44,237 XML files** verified during final deployment.
-- Final deployment rebuilt the server JAR, staged the canonical v95 WZ tree, backed up production, switched `/opt/everleaf/current`, restarted `everleaf.service`, verified login + all 20 local channels, verified all relay ports, and recorded the deployed release.
-- Live managed client was rebuilt, validated, published, and includes the current native Discord Rich Presence integration.
+- September 11 production deployment rebuilt the server JAR, staged the canonical v95 WZ tree, backed up production, switched `/opt/everleaf/current`, restarted `everleaf.service`, verified login + all 20 local channels, verified all relay ports, and recorded the deployed release.
+- Live managed client was rebuilt, validated, and published by **Publish EverLeaf client #63** from `49bea10c092f8ff69df6bdc93f863852fa63671e`; it includes the current launcher/native hardening, display work, and richer Discord Rich Presence implementation.
+- Live `EverLeaf.exe` application icon publication completed successfully in **Apply EverLeaf app icon live #7** from `9591068a1be6da728339ca6a42c2612089350d5c`.
+- Production website CMS checks and deployment are green from `1af360340c7bdb72f85330bd4aeb581005225b0a`.
 
 ## Status legend
 
@@ -58,7 +60,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Build manifest generation exists.
 - ✅ Repository secret/artifact ignore hardening is present.
 - ✅ Production WZ staging hardlink failure has a safe copy/reflink fallback.
-- 🟢 Final guarded production deployment succeeded from `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a`.
+- 🟢 Final guarded production deployment succeeded from `b20fcc8c48acca3325ddb45f5daf48ea78c480a5` (production deploy #62).
 
 # 2. Core Server / Infrastructure
 
@@ -98,7 +100,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Weekly lifecycle retention: 90 days.
 - ✅ Previous object versions lifecycle retention: 14 days.
 - ✅ Production deploy invokes backup before switching releases.
-- ✅ Final September 10 deployment backup stage completed successfully before release switch.
+- ✅ September 11 production deployment backup stage completed successfully before release switch.
 - ✅ Disk cleanup completed during DR setup and restored substantial free space.
 - ✅ Backup/DR setup is complete.
 - ✅ Command-level recovery/rollback/restore rehearsal runbook documented in `docs/staff/RECOVERY_AND_RESTORE.md`.
@@ -119,7 +121,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Canonical source enforces one EverLeaf client per machine with launcher process/mutex checks plus a native lifetime mutex.
 - ✅ Current staff-reviewed account recovery flow is documented for players/support.
 - ✅ Registration/login against the production game database has been runtime-verified.
-- 🟡 Publish and runtime-verify launcher-only/direct-EXE rejection and single-client/race rejection on a clean player machine.
+- 🟡 Runtime-verify launcher-only/direct-EXE rejection and single-client/race rejection on a clean player machine; the hardened launcher/client is already published.
 - 🟡 If public-beta policy requires tamper-resistant proof against modified local binaries, design a server-validated launch-session protocol.
 - 🟡 Verify password hashing and legacy-account compatibility across older accounts.
 - 🟡 Verify bans, temporary bans, IP/MAC restrictions, and duplicate-login/session protection.
@@ -395,7 +397,8 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Event/minigame audit tooling exists.
 - ✅ Staff event-operation/abort/cleanup procedure documented.
 - ✅ `!startevent [playerLimit]` source handling corrected: no argument defaults to 50; exactly one positive integer is accepted; invalid/extra input is rejected; regression coverage added.
-- 🟡 Deploy/live-verify the `!startevent` limit fix with a controlled GM event.
+- ✅ The `!startevent` limit fix is deployed in the current production game release.
+- 🟡 Live-smoke the deployed `!startevent` limit fix with a controlled GM event.
 - 🟡 Runtime-test enabled events/minigames.
 - 🟡 Verify event map reset behavior.
 - 🟡 Verify reward replay/disconnect behavior.
@@ -543,7 +546,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Production target/configuration is 20 channels (CH1–CH20).
 - ✅ Production deployment validates local channel runtime.
 - ✅ Production deployment validates player-facing relay ports.
-- 🟢 Final production release passed runtime/public-port validation for all 20 channels.
+- 🟢 September 11 production release passed runtime/public-port validation for all 20 channels.
 - ✅ Simultaneous login/channel-change behavior has been runtime-verified.
 - ✅ Full player channel switching across the configured channel set has been runtime-verified.
 - 🟡 Verify capacity/failure messaging.
@@ -570,10 +573,11 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Frame-limiter guard passed during September 10 finalization.
 - ✅ Diagnostics guard passed during September 10 finalization.
 - ✅ Source-built Win32 client compiled successfully on the GitHub-hosted Windows runner.
-- ✅ Live managed `dinput8.dll` overlay rebuilt, packaged, published, and endpoint-verified for the prior release baseline.
-- 🟡 Rebuild/publish the current launcher/native hardening and runtime-test direct EXE rejection plus second-client/race rejection.
-- 🟡 Borderless/fullscreen runtime sweep.
-- 🟡 Alt+Enter runtime testing across clean installs.
+- ✅ Current managed client/native overlay rebuilt, packaged, published, and public-endpoint verified on September 11.
+- ✅ Current launcher/native hardening is built and published.
+- ✅ Native resolution-selector/HD display implementation compiled and shipped in the current managed client.
+- 🟡 Runtime-test direct EXE rejection plus second-client/race rejection on the published build.
+- 🟡 Runtime-sweep the resolution selector, borderless/fullscreen behavior, and Alt+Enter transitions across clean installs; confirm no 800×600 fallback or UI/input-coordinate corruption.
 - 🟡 Multi-monitor/minimize/restore/alt-tab testing.
 - 🟡 Clean disconnect/crash behavior.
 - 🟡 Clean-machine source-built client test.
@@ -590,16 +594,17 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Reconnect behavior handles Discord not running at client startup.
 - ✅ `DiscordRichPresence=false` disables the feature.
 - ✅ Default activity contains EverLeaf website and Discord buttons.
-- ✅ IPC framing/escaping/acknowledgement tests passed on the previously published Windows baseline.
-- ✅ Win32 client previously compiled with `DiscordPresence.cpp` wired through the current `dllmain.cpp`.
+- ✅ IPC framing/escaping/acknowledgement tests passed on the published Windows baseline.
+- ✅ Win32 client compiled with `DiscordPresence.cpp` wired through the current `dllmain.cpp`.
 - 🟢 Basic Rich Presence code is included in the currently published managed client overlay.
 - ✅ Required GMS v83 character/level/job/field contracts are pinned from the project-supplied `Angel.idb` and independently cross-checked against v83 client references.
 - ✅ Canonical source samples richer activity from `CUserLocal::Update()` on Maple's game thread; the Discord IPC worker does not read Maple objects.
 - ✅ Canonical source reads character name, level, job and field ID through verified getters, cross-checks local/context field IDs, and fails closed to generic activity on invalid/transitional state.
 - ✅ `CWvsContext::OnLeaveGame()` clears rich activity so logout cannot leave stale character/map text behind.
 - ✅ Activity revisions push changed character/job/level/map state promptly while retaining the normal Discord heartbeat.
-- ✅ Source regression coverage now includes EverLeaf job labels/gameplay formatting/activity revision behavior; the native Discord guard protects the pinned addresses, map cross-check and logout hook.
-- 🟡 Build/publish the current richer-activity client source and runtime-verify login, character entry, level/job updates, map changes, channel changes, logout, reconnect and Discord reconnect behavior.
+- ✅ Source regression coverage includes EverLeaf job labels/gameplay formatting/activity revision behavior; the native Discord guard protects the pinned addresses, map cross-check and logout hook.
+- ✅ Richer character/level/job/field Discord activity is built and published in the current managed client.
+- 🟡 Runtime-verify login, character entry, level/job updates, map changes, channel changes, logout, reconnect and Discord reconnect behavior.
 - 🟡 Final visual presence-card check on a clean player machine remains useful.
 
 # 32. Launcher / Patcher / Auto-Updater
@@ -610,13 +615,16 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Production patch hosting exists.
 - ✅ Managed-client baseline exists.
 - ✅ Launcher/update infrastructure exists.
-- ✅ September 10 live client publication generated the managed overlay, updated the patch manifest, published to Oracle patch storage, and verified public patch endpoints.
+- ✅ September 11 live client publication generated the managed overlay, updated the patch manifest, published to Oracle patch storage, and verified public patch endpoints.
 - ✅ Player-facing bootstrap/default game IP uses relay `129.159.114.146`.
 - ✅ Launcher-only policy is documented and source-enforced for the managed stock client through the one-time handoff.
 - ✅ Launcher refuses Play while an existing EverLeaf process/native client mutex is present.
 - ✅ Native client holds a machine-wide single-client mutex for its lifetime and consumes the launch ticket exclusively/single-use.
 - ✅ `ClientLaunchPolicyTests` cover the launcher-side single-client decision contract.
-- 🟡 Publish and clean-machine verify direct-EXE rejection, normal launcher launch, second-launch rejection, and rapid/race second-launch rejection.
+- ✅ Launcher build/tests, self-contained publish, Inno installer compile, security invariants, and portable packaging passed on the Windows runner.
+- ✅ Hardened launcher/client artifacts are published.
+- ✅ EverLeaf application icon is embedded in the live `EverLeaf.exe` and the public patch artifact was verified.
+- 🟡 Clean-machine runtime-verify direct-EXE rejection, normal launcher launch, second-launch rejection, and rapid/race second-launch rejection.
 - 🟡 Decide/implement server-validated launcher-session proof only if modified-local-client resistance is required as a public-beta security property.
 - ✅ Launcher self-update has been runtime-verified.
 - ✅ Damaged-file repair/hash validation has been runtime-verified.
@@ -643,6 +651,7 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Registration/login against production game DB verified.
 - ✅ Live server/channel status integration verified.
 - ✅ Production download/launcher manifest links verified.
+- ✅ September 11 CMS CI and production web deployment are green.
 - 🟡 Final page-by-page visual polish, especially rankings, Wiki, and login presentation.
 - 🟡 Verify rankings stale/deleted/renamed character behavior.
 - 🟡 Verify admin auth/session/CSRF/rate-limit/security controls.
@@ -663,9 +672,9 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Read-only account/character orphan audit exists: `tools/everleaf-ops/audit-account-character-integrity.sql`.
 - ✅ Fail-closed account/character relationship migration exists using `ON DELETE RESTRICT / ON UPDATE RESTRICT` and refuses to install over dirty/unexpected relationship state.
 - ✅ Migration smoke coverage includes the account/character guard, raw-delete rejection for accounts with characters, and allowed deletion of an empty account.
-- 🟡 Execute the migration test suite on an actual MySQL test runner; the new regression coverage is committed but no CI status is attached to the direct commits yet.
+- ✅ Check EverLeaf Migrations #23 passed the migration suite on MySQL 8, including the account/character relationship guard coverage.
 - 🟡 Test sequential upgrade from current production schema.
-- 🟡 Verify migration idempotency/safe-failure behavior on an actual MySQL runner.
+- 🟡 Verify migration idempotency/safe-failure behavior against the current production-shaped schema.
 - 🟡 Verify constraints/indexes/uniqueness for reward/currency systems.
 - 🟡 Verify least privilege and no public MySQL exposure.
 - 🟡 Run the production orphan audit, review/remediate any historical orphan trees, then deliberately apply and verify the relationship guard.
@@ -686,10 +695,11 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ Weekly/account-currency transactional protections.
 - ✅ Normal storage/direct-trade/merchant/PlayerShop/Cash-Shop paths have targeted runtime evidence.
 - ✅ Cash Shop transfer/re-entry has been runtime-verified.
-- ✅ Canonical `master` now registers `gachalist`, `loot`, and `mobskill` at GM rank 2, with a regression guard preventing rank-0 fallback.
-- ✅ Managed stock-client launcher-only/single-client enforcement is hardened in canonical source.
-- 🟡 Deploy the GM2 permission fix to production and verify an ordinary player is denied while GM2+ can invoke all three commands.
-- 🟡 Publish/runtime-verify the launcher-only/single-client hardening; server-backed authorization remains a separate future layer if required against modified clients.
+- ✅ Canonical `master` registers `gachalist`, `loot`, and `mobskill` at GM rank 2, with a regression guard preventing rank-0 fallback.
+- ✅ GM2 permission fix is deployed in the current production game release.
+- ✅ Managed stock-client launcher-only/single-client enforcement is hardened and published.
+- 🟡 Live-smoke ordinary-player rejection and GM2+ access for `gachalist`, `loot`, and `mobskill`.
+- 🟡 Runtime-verify the published direct-EXE/single-client/race behavior; server-backed authorization remains a separate future layer if required against modified clients.
 - 🔧 Complete broad packet-validation audit.
 - 🔧 Malformed packet fuzzing.
 - 🔧 Broad dupe/race-condition matrix.
@@ -748,17 +758,18 @@ Last synchronized: **2026-09-10** after master consolidation, workflow-definitio
 - ✅ World/NPC/portal/reactor/quest audits exist.
 - ✅ Economy/item/merchant audits exist.
 - ✅ Full Maven test suite passed after final branch-only preservation before workflow-only cleanup.
-- ✅ Native Discord Windows validation passed for the previously published basic-presence baseline.
+- ✅ Native Discord Windows validation passed for the published presence build.
 - ✅ Client v2 integration/WASD/frame-limiter/diagnostics guards passed during finalization.
 - ✅ Heavy QA/build workflows were converted to manual-only where continuous execution was generating unnecessary runner usage.
 - ✅ Maintained human-readable `docs/KNOWN_ISSUES.md` and machine-readable `docs/known-issues.json` registers exist.
 - ✅ GM2 command-registration regression guard covers `gachalist`, `loot`, and `mobskill`.
 - ✅ `StartEventCommandTest` covers default/custom participant limits and invalid input rejection.
 - ✅ `ClientLaunchPolicyTests` cover launcher single-client allow/reject behavior and the machine-wide mutex contract.
-- ✅ Manual client-v2 integration guard now checks launcher-ticket enforcement, native single-client mutex enforcement, and exclusive ticket consumption.
-- ✅ Consolidated feature audit now treats `origin/master` as canonical for client/server/web and checks the new launcher/native guard markers.
-- ✅ Richer Discord source regression coverage and native contract guards now cover job/activity formatting, activity revisions, verified v83 address markers, field-ID agreement, and logout clearing.
-- 🟡 Run the newly added Java/MySQL/launcher/native regression coverage on actual test runners, including the updated richer Discord client coverage.
+- ✅ Manual client-v2 integration guard checks launcher-ticket enforcement, native single-client mutex enforcement, and exclusive ticket consumption.
+- ✅ Consolidated feature audit treats `origin/master` as canonical for client/server/web and checks the new launcher/native guard markers.
+- ✅ Richer Discord source regression coverage and native contract guards cover job/activity formatting, activity revisions, verified v83 address markers, field-ID agreement, and logout clearing.
+- ✅ MySQL migration, launcher, native-client, richer Discord, packaging, and production deployment workflows passed on actual runners for the September 11 rollout.
+- 🟡 Continue targeted runtime/gameplay regression where static/build CI cannot substitute for live behavior.
 - 🟡 Run automated gameplay QA against the actual packaged client/release when valuable.
 - 🟡 Add regression tests for every fixed exploit/critical bug.
 
@@ -858,25 +869,27 @@ The prior stacked-branch cleanup is complete. Historical PRs remain available as
 - ✅ Core custom progression.
 - ✅ Strong server audit/test coverage.
 - ✅ Substantial anti-dupe/reward/storage/merchant hardening.
-- ✅ Native Discord basic Rich Presence integrated and published; richer character/level/job/field activity is source-complete on canonical `master`.
+- ✅ Native Discord Rich Presence, including richer character/level/job/field activity, is built and published in the current managed client.
 - ✅ One canonical branch line and clean repository structure.
 - ✅ Maintained player/staff documentation baseline and known-issues register.
-- ✅ `gachalist`, `loot`, and `mobskill` are corrected to GM rank 2 on canonical `master` with regression coverage.
-- ✅ `!startevent` optional participant-limit parsing is corrected on canonical `master` with regression coverage.
+- ✅ `gachalist`, `loot`, and `mobskill` are corrected to GM rank 2, regression-covered, and deployed to production.
+- ✅ `!startevent` optional participant-limit parsing is corrected, regression-covered, and deployed to production.
 - ✅ Account/character raw-delete prevention is implemented as a fail-closed migration with a read-only orphan audit.
-- ✅ Launcher-only and one-client-per-machine policy is source-hardened for the managed stock launcher/client.
+- ✅ Launcher-only and one-client-per-machine policy is source-hardened, built, and published for the managed stock launcher/client.
+- ✅ Native HD resolution/fullscreen implementation is built and published.
 
 ## Remaining closed-alpha validation
 
-- 🟡 Publish/clean-machine verify launcher-only direct-EXE rejection, normal launcher launch, and second-client/race rejection.
-- 🟡 Build/publish and runtime-verify richer Discord character/level/job/field activity, including logout/channel/map transitions and Discord reconnect.
+- 🟡 Clean-machine runtime-verify launcher-only direct-EXE rejection, normal launcher launch, and second-client/race rejection.
+- 🟡 Runtime-verify the published richer Discord character/level/job/field activity, including logout/channel/map transitions and Discord reconnect.
+- 🟡 Runtime-verify the published HD resolution/fullscreen/Alt+Enter behavior.
 - 🟡 Multi-character persistence/restart test.
 - 🟡 Advancement playthrough.
 - 🟡 Major quest chains.
 - 🟡 Boss/PQ real-client testing.
 - 🟡 Explicit disconnect/race/replay transaction edge cases not covered by the verified normal paths.
 - 🟡 Realistic concurrent load plus detailed DB/scheduler/resource-growth and reconnect/network-failure profiling.
-- 🟡 Deploy and live-verify the GM2 command-permission and `!startevent` fixes before broad external testing.
+- 🟡 Live-smoke the deployed GM2 command-permission and `!startevent` fixes before broad external testing.
 - 🟡 Audit/remediate historical production account/character orphans and apply the relationship guard.
 
 **Assessment:** EverLeaf is closed-alpha capable, but not yet public-beta hardened.
@@ -885,18 +898,19 @@ The prior stacked-branch cleanup is complete. Historical PRs remain available as
 
 Main remaining blockers:
 
-1. 🟡 Deploy and live-verify the GM2 restriction for `gachalist`, `loot`, and `mobskill`; confirm ordinary-player rejection and GM2+ access.
+1. 🟡 Live-smoke the deployed GM2 restriction for `gachalist`, `loot`, and `mobskill`; confirm ordinary-player rejection and GM2+ access, plus controlled `!startevent` custom-limit behavior.
 2. 🟡 Audit/remediate historical account/character orphans and apply/verify the `ON DELETE RESTRICT` relationship guard.
-3. 🟡 Publish and clean-machine verify launcher-only + single-client enforcement, including rapid/race second-launch rejection.
-4. 🔴 Automated live-client/E2E coverage if we choose to make that a beta gate.
-5. 🔴 Realistic concurrent-player/boss-PQ load plus DB/scheduler/resource-growth and reconnect/network-failure testing.
-6. 🟡 Boss/PQ live regression matrix.
-7. 🟡 Combat formula/runtime parity.
-8. 🟡 Remaining explicit disconnect/replay/race transaction edge cases.
-9. 🟡 Advancement/boss-prerequisite quest playthroughs.
-10. 🟡 Rankings stale/deleted/renamed behavior plus final website admin/session/CSRF/rate-limit checks.
-11. 🟡 Packet/admin/web security pass.
-12. 🟡 Economy/boss-drop/source-sink balance.
+3. 🟡 Clean-machine runtime-verify the published launcher-only + single-client enforcement, including rapid/race second-launch rejection.
+4. 🟡 Runtime-verify the newly published HD resolution/fullscreen/Alt+Enter path and richer Discord gameplay activity.
+5. 🔴 Automated live-client/E2E coverage if we choose to make that a beta gate.
+6. 🔴 Realistic concurrent-player/boss-PQ load plus DB/scheduler/resource-growth and reconnect/network-failure testing.
+7. 🟡 Boss/PQ live regression matrix.
+8. 🟡 Combat formula/runtime parity.
+9. 🟡 Remaining explicit disconnect/replay/race transaction edge cases.
+10. 🟡 Advancement/boss-prerequisite quest playthroughs.
+11. 🟡 Rankings stale/deleted/renamed behavior plus final website admin/session/CSRF/rate-limit checks.
+12. 🟡 Packet/admin/web security pass.
+13. 🟡 Economy/boss-drop/source-sink balance.
 
 # 47. Public Launch Readiness
 
@@ -906,10 +920,10 @@ Main remaining blockers:
 - ✅ Current managed client overlay reproducible/published through the maintained client workflow.
 - ✅ Production registration/login, live server/channel status integration, and download/manifest links verified.
 - ✅ Clean-machine installation verified.
-- 🟡 Launcher-only/single-client enforcement still requires verification on the newly published hardened managed build.
+- 🟡 Launcher-only/single-client enforcement still requires runtime verification on the newly published hardened managed build.
 - ✅ Live channel count/config verified with actual client channel switching across all channels.
 - 🟡 Remaining website/CMS validation is rankings stale/deleted/renamed behavior plus final admin/session/CSRF/rate-limit checks.
-- 🟡 Economy/security/performance/load validation complete.
+- 🟡 Complete remaining economy/security/performance/load validation.
 - ✅ Backup/restore/rollback foundation validated.
 - ✅ Player/staff documentation baseline published and indexed.
 - 🟡 Final launch approval after beta telemetry/balance/security review.
@@ -942,51 +956,54 @@ Main remaining blockers:
 - ✅ Workflow-definition cleanup removed/disabled junk-trigger paths and moved heavyweight guards/audits to manual execution.
 - ✅ PR #366 Discord implementation salvaged without merging its stale branch ancestry.
 - ✅ Native Discord Rich Presence passed Windows validation and shipped in the managed client overlay.
-- ✅ Richer Discord character/level/job/field source support added from verified `Angel.idb` v83 contracts, with game-thread sampling, field-ID cross-checking, logout clearing, prompt revision refresh, and source regression guards; managed-client build/runtime verification remains pending.
+- ✅ Richer Discord character/level/job/field support from verified `Angel.idb` v83 contracts was built and published in the September 11 managed client; runtime gameplay verification remains.
 - ✅ Old client/maintenance branches removed; repository returned to one canonical `master` line.
-- ✅ Final production rebuild/restart deployed exact source SHA `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a`.
-- ✅ Final production release validated 44,237 v95 XML files, login 8484, all 20 channels, and all player-facing relay ports.
+- ✅ September 11 production rebuild/restart deployed exact source SHA `b20fcc8c48acca3325ddb45f5daf48ea78c480a5`.
+- ✅ September 11 production release validated 44,237 v95 XML files, login 8484, all 20 channels, and all player-facing relay ports.
 - ✅ Documentation audit/consolidation completed and merged through PR #385.
 - ✅ Maintained player installation/support, progression/content, and account-recovery guides completed.
 - ✅ Maintained GM permissions, moderation/appeals, staff account-recovery, event operations, recovery/restore, emergency-shutdown, and database-administration runbooks completed.
-- ✅ Maintained human-readable and machine-readable known-issues registers created.
-- ✅ `gachalist`, `loot`, and `mobskill` corrected to GM rank 2 on canonical `master`; source-level regression coverage added.
-- ✅ `!startevent [playerLimit]` parsing corrected on canonical `master`; regression coverage added for default, valid custom, and invalid input paths.
+- ✅ Maintained human-readable and machine-readable known-issues registers created and resynchronized after the September 11 rollout.
+- ✅ `gachalist`, `loot`, and `mobskill` corrected to GM rank 2, regression-covered, and deployed; controlled live permission smoke remains.
+- ✅ `!startevent [playerLimit]` parsing corrected, regression-covered, and deployed; controlled live custom-limit smoke remains.
 - ✅ Preventive account/character integrity guard and read-only orphan audit added to canonical `master`; production audit/remediation/application remains pending.
 - ✅ Patch/hotfix, launcher manifest/version, and DB migration release policy documented.
 - ✅ Production registration/login, live server/channel status integration, and download/manifest links runtime-verified.
 - ✅ Multi-hour/day soak and simultaneous login/channel-change behavior runtime-verified.
 - ✅ Launcher self-update, damaged-file repair, clean-machine installation, and full player channel switching runtime-verified.
 - ✅ Normal Trade, storage, Hired Merchant, PlayerShop, and Cash Shop transfer/re-entry flows runtime-verified.
-- ✅ Managed stock launcher/client source hardened to require launcher handoff and block multi-client with process/mutex checks, native lifetime mutex, and exclusive single-use launch-ticket consumption.
+- ✅ Managed stock launcher/client hardened to require launcher handoff and block multi-client with process/mutex checks, native lifetime mutex, and exclusive single-use launch-ticket consumption; hardened artifacts are published.
+- ✅ Native HD resolution/fullscreen work compiled and shipped in the current managed client.
+- ✅ Live `EverLeaf.exe` icon publication and public artifact verification completed.
+- ✅ September 11 website CMS and production web deployment completed green.
 - ✅ Consolidated feature audit corrected from retired `origin/client-dev` to canonical `origin/master` and extended with launcher/single-client guard markers.
 
 # Immediate Priority Queue
 
-1. **Deploy + verify current server source fixes** — verify ordinary-player rejection plus GM2+ access for `gachalist`, `loot`, and `mobskill`, and verify default/custom `!startevent` capacities.
+1. **Live-smoke deployed command fixes** — verify ordinary-player rejection plus GM2+ access for `gachalist`, `loot`, and `mobskill`, and verify default/custom `!startevent` capacities.
 2. **Production account/character integrity pass** — run the read-only orphan audit, review/remediate any historical orphan trees after backup, then apply and verify the `ON DELETE RESTRICT` relationship guard.
-3. **Publish + verify launcher/client enforcement** — rebuild/publish the managed launcher/native client and verify direct `EverLeaf.exe` rejection, normal launcher launch, second-client rejection, and rapid/race second-launch rejection on a clean player machine.
+3. **Runtime-verify published launcher/client enforcement** — direct `EverLeaf.exe` rejection, normal launcher launch, second-client rejection, rapid/race second-launch rejection, interrupted-update handling, and crash/disconnect behavior on a clean player machine.
 4. **Boss runtime regression** — Zakum, Horntail, Papulatus, Pink Bean, Fallen Cygnus/Empress, plus prerequisite/entry/death/re-entry behavior.
 5. **Systematic class/skill runtime matrix** — Explorer, Cygnus, Aran, Evan; attacks, buffs, passives, summons, movement, party effects, status interactions.
 6. **Advancement + boss-prerequisite quests** — live progression, repeat/abuse/disconnect paths.
 7. **NPC / portal / reactor runtime sweep** — focus on high-impact travel, advancement, boss, storage/shop/event/custom paths.
 8. **Transaction/exploit edge cases** — quest reward replay, NPC-shop extremes, drop/pickup races, cross-system persistence races, and explicit disconnect/race paths not already verified.
-9. **Client runtime regression** — interrupted-update rollback/retry, crash/disconnect, windowing, Alt+Enter, launcher-only/single-client enforcement, and richer Discord gameplay activity after the current client batch is built/published.
+9. **Client runtime regression** — resolution selector, fullscreen/Alt+Enter, multi-monitor/minimize/restore, launcher-only/single-client enforcement, and richer Discord gameplay activity on the published September 11 client.
 10. **Source-first authentication/security audit** — packet/state/admin/web review with targeted live confirmation only where static inspection cannot prove behavior; decide whether server-backed launcher-session proof is required.
 11. **Two-client social/transaction matrix** — party, buddy, guild, cross-channel updates, and remaining transaction edge cases using separate test machines/approved QA setup rather than player multi-client on one machine.
 12. **PQ multi-client regression** — after core two-client systems are clean, using separate test machines/approved QA setup.
-13. **Website rankings/admin-security final verification and page-by-page polish** — registration/login, live status, and download/manifest integration are already verified.
+13. **Website rankings/admin-security final verification and page-by-page polish** — registration/login, live status, download/manifest integration, CMS CI, and production web deployment are already verified.
 14. **Economy/balance pass** — post-200 pacing, boss rewards, rare scrolls, Verdant/PQ Points, meso generation/sinks, Gachapon.
 15. **Remaining performance/load/network testing last** — realistic concurrent load, boss/PQ load, DB/scheduler/resource-growth profiling, and reconnect/network-failure testing; soak and simultaneous login/channel-change behavior are already verified.
 16. **Kaentake review → Phase 2 client decision** — connected login/world/character panorama, broader branding/UI redesign, direct Evan/future class cards remain deferred until that review.
 
 # Current Completion Assessment
 
-EverLeaf has moved beyond repository consolidation, broad static-content import, the first major transaction-hardening stage, and the documentation cleanup stage. Core v95 backport work, Future Henesys/Stronghold/Fallen Cygnus, backup/DR, level-250 progression, survivability replacement, AP/SP/mastery hardening, Aran High Defense, PQ/event reward idempotency, storage settlement, Family Reputation duplication, event unregister replay, Wheel/event death bypass, native Discord Rich Presence, richer Discord character/level/job/field source support, client publication, Git-backed website deployment, workflow cleanup, branch consolidation, player/staff runbooks, maintained known-issues documentation, the source-side GM2 restriction for `gachalist`, `loot`, and `mobskill`, corrected `!startevent` limit parsing, the preventive account/character relationship guard/audit, and launcher-only/one-client-per-machine stock-client hardening are implemented on canonical `master`. Production registration/login, live server/channel status integration, download/manifest links, multi-hour/day soak, simultaneous login/channel-change behavior, launcher self-update, damaged-file repair, clean-machine installation, full player channel switching, normal Trade/storage/Hired Merchant/PlayerShop flows, and Cash Shop transfer/re-entry have also been runtime-verified.
+EverLeaf has moved beyond repository consolidation, broad static-content import, the first major transaction-hardening stage, and the documentation cleanup stage. Core v95 backport work, Future Henesys/Stronghold/Fallen Cygnus, backup/DR, level-250 progression, survivability replacement, AP/SP/mastery hardening, Aran High Defense, PQ/event reward idempotency, storage settlement, Family Reputation duplication, event unregister replay, Wheel/event death bypass, native Discord Rich Presence, richer Discord character/level/job/field support, native HD display work, client publication, Git-backed website deployment, workflow cleanup, branch consolidation, player/staff runbooks, maintained known-issues documentation, the GM2 restriction for `gachalist`, `loot`, and `mobskill`, corrected `!startevent` limit parsing, the preventive account/character relationship guard/audit, and launcher-only/one-client-per-machine stock-client hardening are implemented on canonical `master`. Production registration/login, live server/channel status integration, download/manifest links, multi-hour/day soak, simultaneous login/channel-change behavior, launcher self-update, damaged-file repair, clean-machine installation, full player channel switching, normal Trade/storage/Hired Merchant/PlayerShop flows, and Cash Shop transfer/re-entry have also been runtime-verified.
 
-The exact final canonical server source SHA `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a` was rebuilt and deployed to production. The final release is healthy with the canonical 44,237-file v95 XML baseline, login server, all 20 channels, and player-facing relay ports verified. Source/documentation/client commits after that deployment—including the GM2 command restriction, `!startevent` fix, account/character guard, launcher/single-client hardening, and richer Discord gameplay activity—do not change the currently running/published production artifacts until another deliberate guarded deployment/client publication/migration occurs.
+The September 11 guarded production deployment rebuilt and deployed exact server source SHA `b20fcc8c48acca3325ddb45f5daf48ea78c480a5`; the release is healthy with the canonical 44,237-file v95 XML baseline, login server, all 20 channels, and player-facing relay ports verified. The managed client was separately rebuilt and published from `49bea10c092f8ff69df6bdc93f863852fa63671e`, including the current launcher/native hardening, HD display work, and richer Discord activity. The live application icon and production website rollout also completed successfully.
 
-The largest remaining uncertainty is now **runtime behavior under broader multi-client gameplay and heavier load**: boss/PQ lifecycle, full class/combat parity, advancement/prerequisite quest behavior, remaining persistence/concurrency and anti-dupe race testing, launcher-only/single-client enforcement and richer Discord activity on the next hardened managed build, rankings/admin-security website checks, realistic concurrent load, DB/scheduler/resource-growth profiling, and reconnect/network-failure behavior. The GM2 and `!startevent` fixes remain pending production deployment/live verification; the account/character guard remains pending a production orphan audit, deliberate remediation if needed, and migration application; the launcher/single-client hardening and richer Discord activity remain pending managed-client publication and runtime verification.
+The largest remaining uncertainty is now **runtime behavior under broader multi-client gameplay and heavier load**: boss/PQ lifecycle, full class/combat parity, advancement/prerequisite quest behavior, remaining persistence/concurrency and anti-dupe race testing, launcher-only/single-client enforcement on a clean player machine, HD resolution/fullscreen/Alt+Enter behavior, richer Discord activity, rankings/admin-security website checks, realistic concurrent load, DB/scheduler/resource-growth profiling, and reconnect/network-failure behavior. The GM2 and `!startevent` fixes are deployed but still need controlled live smoke verification; the account/character guard remains pending a production orphan audit, deliberate remediation if needed, and migration application.
 
 ## Operating rule
 
