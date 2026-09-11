@@ -1,0 +1,121 @@
+name: Sync rollout status docs
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/sync-status-docs.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Update master checklist from verified rollout state
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path('docs/EVERLEAF_MASTER_CHECKLIST.md')
+          text = path.read_text(encoding='utf-8')
+
+          def once(old, new):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one match, got {count}: {old!r}')
+              text = text.replace(old, new, 1)
+
+          text, n = re.subn(
+              r'^Last synchronized: \*\*2026-09-10\*\*.*$',
+              'Last synchronized: **2026-09-11** after the production launcher/client/icon/web/game rollout. The current managed client and richer Discord/display work are published, the guarded game deployment/restart passed, the website deployment is green, and the active issue registers now contain unresolved runtime/security/load/data-validation work only.',
+              text,
+              count=1,
+              flags=re.M,
+          )
+          if n != 1:
+              raise SystemExit(f'expected one Last synchronized line, got {n}')
+
+          once('- Current running game release source SHA: `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a`',
+               '- Current running game release source SHA: `b20fcc8c48acca3325ddb45f5daf48ea78c480a5`')
+          once('- Current running game release: `/opt/everleaf/releases/92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a-34484572759-2`',
+               '- Current running game release: immutable release produced by **Deploy EverLeaf Game Production #62** from `b20fcc8c48acca3325ddb45f5daf48ea78c480a5`')
+          once('- Final deployment rebuilt the server JAR, staged the canonical v95 WZ tree, backed up production, switched `/opt/everleaf/current`, restarted `everleaf.service`, verified login + all 20 local channels, verified all relay ports, and recorded the deployed release.',
+               '- September 11 production deployment rebuilt the server JAR, staged the canonical v95 WZ tree, backed up production, switched `/opt/everleaf/current`, restarted `everleaf.service`, verified login + all 20 local channels, verified all relay ports, and recorded the deployed release.')
+          once('- Live managed client was rebuilt, validated, published, and includes the current native Discord Rich Presence integration.',
+               '- Live managed client was rebuilt, validated, and published by **Publish EverLeaf client #63** from `49bea10c092f8ff69df6bdc93f863852fa63671e`; it includes the current launcher/native hardening, display work, and richer Discord Rich Presence implementation.\n- Live `EverLeaf.exe` application icon publication completed successfully in **Apply EverLeaf app icon live #7** from `9591068a1be6da728339ca6a42c2612089350d5c`.\n- Production website CMS checks and deployment are green from `1af360340c7bdb72f85330bd4aeb581005225b0a`.')
+          once('- 🟢 Final guarded production deployment succeeded from `92a646d6c42a4f5e100f8a0b2ccc6f1bfcabd45a`.',
+               '- 🟢 Final guarded production deployment succeeded from `b20fcc8c48acca3325ddb45f5daf48ea78c480a5` (production deploy #62).')
+          once('- 🟡 Publish and runtime-verify launcher-only/direct-EXE rejection and single-client/race rejection on a clean player machine.',
+               '- 🟡 Runtime-verify launcher-only/direct-EXE rejection and single-client/race rejection on a clean player machine; the hardened launcher/client is already published.')
+          once('- 🟡 Deploy/live-verify the `!startevent` limit fix with a controlled GM event.',
+               '- 🟡 Live-smoke the deployed `!startevent` limit fix with a controlled GM event.')
+          once('- ✅ Live managed `dinput8.dll` overlay rebuilt, packaged, published, and endpoint-verified for the prior release baseline.',
+               '- ✅ Current managed client/native overlay rebuilt, packaged, published, and public-endpoint verified on September 11.')
+          once('- 🟡 Rebuild/publish the current launcher/native hardening and runtime-test direct EXE rejection plus second-client/race rejection.',
+               '- ✅ Current launcher/native hardening is built and published.\n- 🟡 Runtime-test direct EXE rejection plus second-client/race rejection on the published build.')
+          once('- 🟡 Borderless/fullscreen runtime sweep.\n- 🟡 Alt+Enter runtime testing across clean installs.',
+               '- ✅ Native resolution-selector/HD display implementation compiled and shipped in the current managed client.\n- 🟡 Runtime-sweep the resolution selector, borderless/fullscreen behavior, and Alt+Enter transitions across clean installs; confirm no 800×600 fallback or UI/input-coordinate corruption.')
+          once('- 🟡 Build/publish the current richer-activity client source and runtime-verify login, character entry, level/job updates, map changes, channel changes, logout, reconnect and Discord reconnect behavior.',
+               '- ✅ Richer character/level/job/field Discord activity is built and published in the current managed client.\n- 🟡 Runtime-verify login, character entry, level/job updates, map changes, channel changes, logout, reconnect and Discord reconnect behavior.')
+          once('- ✅ September 10 live client publication generated the managed overlay, updated the patch manifest, published to Oracle patch storage, and verified public patch endpoints.',
+               '- ✅ September 11 live client publication generated the managed overlay, updated the patch manifest, published to Oracle patch storage, and verified public patch endpoints.')
+          once('- 🟡 Publish and clean-machine verify direct-EXE rejection, normal launcher launch, second-launch rejection, and rapid/race second-launch rejection.',
+               '- ✅ Launcher build/tests, self-contained publish, Inno installer compile, security invariants, and portable packaging passed on the Windows runner.\n- ✅ Hardened launcher/client artifacts are published.\n- ✅ EverLeaf application icon is embedded in the live `EverLeaf.exe` and the public patch artifact was verified.\n- 🟡 Clean-machine runtime-verify direct-EXE rejection, normal launcher launch, second-launch rejection, and rapid/race second-launch rejection.')
+          once('- ✅ Production download/launcher manifest links verified.\n- 🟡 Final page-by-page visual polish, especially rankings, Wiki, and login presentation.',
+               '- ✅ Production download/launcher manifest links verified.\n- ✅ September 11 CMS CI and production web deployment are green.\n- 🟡 Final page-by-page visual polish, especially rankings, Wiki, and login presentation.')
+          once('- 🟡 Execute the migration test suite on an actual MySQL test runner; the new regression coverage is committed but no CI status is attached to the direct commits yet.',
+               '- ✅ Check EverLeaf Migrations #23 passed the migration suite on MySQL 8, including the account/character relationship guard coverage.')
+          once('- 🟡 Deploy the GM2 permission fix to production and verify an ordinary player is denied while GM2+ can invoke all three commands.',
+               '- ✅ GM2 permission fix is deployed in the current production game release.\n- 🟡 Live-smoke ordinary-player rejection and GM2+ access for `gachalist`, `loot`, and `mobskill`.')
+          once('- 🟡 Publish/runtime-verify the launcher-only/single-client hardening; server-backed authorization remains a separate future layer if required against modified clients.',
+               '- ✅ Launcher-only/single-client hardening is published in the current managed launcher/client.\n- 🟡 Runtime-verify the published direct-EXE/single-client/race behavior; server-backed authorization remains a separate future layer if required against modified clients.')
+          once('- 🟡 Run the newly added Java/MySQL/launcher/native regression coverage on actual test runners, including the updated richer Discord client coverage.',
+               '- ✅ MySQL migration, launcher, native-client, richer Discord, packaging, and production deployment workflows have passed on actual runners for the September 11 rollout.\n- 🟡 Continue targeted runtime/gameplay regression where static/build CI cannot substitute for live behavior.')
+          once('- ✅ Native Discord basic Rich Presence integrated and published; richer character/level/job/field activity is source-complete on canonical `master`.',
+               '- ✅ Native Discord Rich Presence, including richer character/level/job/field activity, is built and published in the current managed client.')
+          once('- ✅ `gachalist`, `loot`, and `mobskill` are corrected to GM rank 2 on canonical `master` with regression coverage.',
+               '- ✅ `gachalist`, `loot`, and `mobskill` are corrected to GM rank 2, regression-covered, and deployed to production.')
+          once('- ✅ `!startevent` optional participant-limit parsing is corrected on canonical `master` with regression coverage.',
+               '- ✅ `!startevent` optional participant-limit parsing is corrected, regression-covered, and deployed to production.')
+          once('- ✅ Launcher-only and one-client-per-machine policy is source-hardened for the managed stock launcher/client.',
+               '- ✅ Launcher-only and one-client-per-machine policy is source-hardened, built, and published for the managed stock launcher/client.')
+          once('- 🟡 Publish/clean-machine verify launcher-only direct-EXE rejection, normal launcher launch, and second-client/race rejection.',
+               '- 🟡 Clean-machine runtime-verify launcher-only direct-EXE rejection, normal launcher launch, and second-client/race rejection.')
+          once('- 🟡 Build/publish and runtime-verify richer Discord character/level/job/field activity, including logout/channel/map transitions and Discord reconnect.',
+               '- 🟡 Runtime-verify the published richer Discord character/level/job/field activity, including logout/channel/map transitions and Discord reconnect.')
+          once('- 🟡 Deploy and live-verify the GM2 command-permission and `!startevent` fixes before broad external testing.',
+               '- 🟡 Live-smoke the deployed GM2 command-permission and `!startevent` fixes before broad external testing.')
+          once('1. 🟡 Deploy and live-verify the GM2 restriction for `gachalist`, `loot`, and `mobskill`; confirm ordinary-player rejection and GM2+ access.',
+               '1. 🟡 Live-smoke the deployed GM2 restriction for `gachalist`, `loot`, and `mobskill`; confirm ordinary-player rejection and GM2+ access.')
+          once('3. 🟡 Publish and clean-machine verify launcher-only + single-client enforcement, including rapid/race second-launch rejection.',
+               '3. 🟡 Clean-machine runtime-verify the published launcher-only + single-client enforcement, including rapid/race second-launch rejection.')
+          once('4. 🔴 Automated live-client/E2E coverage if we choose to make that a beta gate.',
+               '4. 🟡 Runtime-verify the newly published HD resolution/fullscreen/Alt+Enter path and richer Discord gameplay activity.\n5. 🔴 Automated live-client/E2E coverage if we choose to make that a beta gate.')
+          # Renumber the remaining public-beta list after inserting one item.
+          for old, new in [('5. 🔴 Realistic', '6. 🔴 Realistic'), ('6. 🟡 Boss/PQ', '7. 🟡 Boss/PQ'), ('7. 🟡 Combat', '8. 🟡 Combat'), ('8. 🟡 Remaining', '9. 🟡 Remaining'), ('9. 🟡 Advancement', '10. 🟡 Advancement'), ('10. 🟡 Rankings', '11. 🟡 Rankings'), ('11. 🟡 Packet', '12. 🟡 Packet'), ('12. 🟡 Economy', '13. 🟡 Economy')]:
+              if old not in text:
+                  raise SystemExit(f'missing public-beta numbering token {old!r}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8')
+
+      - name: Commit checklist and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/sync-status-docs.yml
+          git config user.name 'EverLeaf Release Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add docs/EVERLEAF_MASTER_CHECKLIST.md .github/workflows/sync-status-docs.yml
+          git diff --cached --check
+          git commit -m 'Sync master checklist after production rollout'
+          git push origin HEAD:master
