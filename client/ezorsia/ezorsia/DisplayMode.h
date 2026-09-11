@@ -3,7 +3,6 @@
 #include "Client.h"
 #include "INIReader.h"
 #include "CrashDiagnostics.h"
-#include "DisplayResolution.h"
 
 namespace DisplayMode {
 namespace detail {
@@ -166,36 +165,20 @@ inline void CenterWindowedClient(HWND window) {
     std::cout << "EverLeaf Client v2: centered windowed client" << std::endl;
 }
 
-inline void ToggleRendererDisplayMode(HWND window) {
-    if (!window) return;
-
-    const bool wasFullscreen = DisplayResolution::IsFullscreen();
-    if (!wasFullscreen) {
-        // Preserve the framed placement before entering exclusive fullscreen.
-        CaptureWindowedState(window);
-    }
-
-    if (!DisplayResolution::ToggleFullscreen()) {
-        CrashDiagnostics::LogEvent("Alt+Enter renderer mode switch failed");
-        MessageBoxW(window, L"EverLeaf could not switch display modes at the selected resolution.", L"EverLeaf display settings", MB_OK | MB_ICONWARNING);
+inline void ToggleBorderlessWindow(HWND window) {
+    if (!window || !Client::WindowedMode) {
         return;
     }
 
-    if (wasFullscreen) {
-        // The renderer is windowed again. Restore the player's previous framed
-        // placement and then recenter the selected client resolution.
-        if (!RestoreWindowedState(window)) {
-            CenterWindowedClient(window);
-        }
-        else {
-            CenterWindowedClient(window);
-        }
+    if (gBorderlessActive) {
+        RestoreWindowedState(window);
+        return;
     }
-    else {
-        // Maple's Gr2D owns the actual exclusive mode; remove desktop chrome so
-        // the HWND does not fight the renderer during the device reset.
-        ApplyBorderlessWindow(window);
-    }
+
+    // Preserve the player's current framed location before each transition so
+    // later toggles return to the correct monitor and position.
+    CaptureWindowedState(window);
+    ApplyBorderlessWindow(window);
 }
 
 inline LRESULT CALLBACK EverLeafWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -206,7 +189,7 @@ inline LRESULT CALLBACK EverLeafWindowProc(HWND window, UINT message, WPARAM wPa
         (lParam & (1L << 30)) == 0;
 
     if (altEnter) {
-        ToggleRendererDisplayMode(window);
+        ToggleBorderlessWindow(window);
         return 0;
     }
 
@@ -241,8 +224,8 @@ inline bool InstallAltEnterToggle(HWND window) {
     }
 
     gOriginalWindowProc = reinterpret_cast<WNDPROC>(previous);
-    CrashDiagnostics::LogEvent("Alt+Enter renderer display toggle enabled");
-    std::cout << "EverLeaf Client v2: Alt+Enter renderer display toggle enabled" << std::endl;
+    CrashDiagnostics::LogEvent("Alt+Enter display toggle enabled");
+    std::cout << "EverLeaf Client v2: Alt+Enter display toggle enabled" << std::endl;
     return true;
 }
 
@@ -274,21 +257,19 @@ inline DWORD WINAPI Worker(LPVOID) {
     while (GetTickCount64() - started < kDisplayWindowTimeoutMs) {
         HWND window = FindEverLeafGameWindow();
         if (window) {
-            if (centerWindow && Client::WindowedMode) {
+            if (centerWindow) {
                 CenterWindowedClient(window);
             }
             CaptureWindowedState(window);
 
-            if (borderless && Client::WindowedMode) {
+            if (borderless) {
                 ApplyBorderlessWindow(window);
             }
             else {
                 gBorderlessActive = false;
             }
 
-            // Install in both startup modes so Alt+Enter can always return from
-            // fullscreen as well as enter it from the default windowed mode.
-            if (enableAltEnter) {
+            if (enableAltEnter && Client::WindowedMode) {
                 InstallAltEnterToggle(window);
             }
             return 0;
