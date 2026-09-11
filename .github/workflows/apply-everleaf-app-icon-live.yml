@@ -19,7 +19,7 @@ env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
   RCEDIT_URL: https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe
-  ICON_SHA256: b5aaa689bc617b518d04ca8506b3db556fda719fae2e97c742d608827e5ffef9
+  ICON_SHA256: 3fdea6b7873dfff399d7a6600c864ad1a5933706392adb7c53415301ac774ceb
 
 jobs:
   deploy-client-icon:
