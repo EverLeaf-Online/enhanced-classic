@@ -17,6 +17,7 @@ jobs:
           $bootstrap = Get-Content "client/ezorsia/ezorsia/dllmain.cpp" -Raw
           $safe = Get-Content "client/ezorsia/ezorsia/SafeEarlyHooks.h" -Raw
           $display = Get-Content "client/ezorsia/ezorsia/DisplayMode.h" -Raw
+          $resolution = Get-Content "client/ezorsia/ezorsia/DisplayResolution.h" -Raw
           $wide = Get-Content "client/ezorsia/ezorsia/WidescreenCorrections.h" -Raw
           $frame = Get-Content "client/ezorsia/ezorsia/FrameLimiter.cpp" -Raw
           $diagnostics = Get-Content "client/ezorsia/ezorsia/CrashDiagnostics.cpp" -Raw
@@ -28,12 +29,15 @@ jobs:
 
           foreach ($required in @(
             '#include "SafeEarlyHooks.h"',
+            '#include "DisplayResolution.h"',
             '#include "DisplayMode.h"',
             '#include "WidescreenCorrections.h"',
             '#include "CrashDiagnostics.h"',
             '#include "FrameLimiter.h"',
             'EverLeafEarlyHooks::HookWSPStartup',
             'EverLeafEarlyHooks::HookCreateWindowExA',
+            'DisplayResolution::Install()',
+            'DisplayResolution::Shutdown()',
             'DisplayMode::EnableSystemDpiAwareness()',
             'DisplayMode::StartWorker()',
             'WidescreenCorrections::Apply()',
@@ -68,6 +72,31 @@ jobs:
             'CallWindowProcA'
           )) {
             if (-not $display.Contains($required)) { throw "Missing display contract: $required" }
+          }
+          foreach ($forbidden in @('ToggleRendererDisplayMode', 'DisplayResolution::ToggleFullscreen')) {
+            if ($display.Contains($forbidden)) { throw "Unsafe Alt+Enter renderer path present: $forbidden" }
+          }
+
+          foreach ($required in @(
+            'kApplySysOptAddress = 0x0049EA33',
+            'kSysOptOnCreateAddress = 0x00994163',
+            'kSysOptDestructorAddress = 0x007FF4AA',
+            '{ 1280, 720, "1280 x 720" }',
+            'WritePrivateProfileStringA("general", "width"',
+            'WritePrivateProfileStringA("general", "height"',
+            'Resolution saved. It will be applied the next time EverLeaf starts.',
+            'safe in-game resolution selector hooks installed'
+          )) {
+            if (-not $resolution.Contains($required)) { throw "Missing safe resolution settings contract: $required" }
+          }
+          foreach ($forbidden in @(
+            'SetGr2DMode',
+            'ToggleFullscreen',
+            'kGr2DGlobal',
+            'kD3DDeviceNotReset',
+            'D3DERR_DEVICENOTRESET'
+          )) {
+            if ($resolution.Contains($forbidden)) { throw "Unsafe runtime renderer mutation present: $forbidden" }
           }
 
           foreach ($required in @(
