@@ -1,8 +1,8 @@
-name: Prepare Account Milestone Release
+name: Sync Live Account Milestone Checklist
 
 on:
   push:
-    branches: [feature/account-milestone-rings-20260911]
+    branches: [master]
     paths:
       - '.github/workflows/prepare-account-milestone-release.yml'
 
@@ -10,57 +10,76 @@ permissions:
   contents: write
 
 jobs:
-  prepare:
+  sync:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: feature/account-milestone-rings-20260911
+          ref: master
           fetch-depth: 0
 
-      - name: Sync checklist and production deploy trigger
+      - name: Mark account milestone progression live
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
+          deployed_sha = '1a3a07ed7d9a05a6342bd9cb52d5204995140eb8'
+          deployed_release = '/opt/everleaf/releases/1a3a07ed7d9a05a6342bd9cb52d5204995140eb8-34575094743-1'
           checklist = Path('docs/EVERLEAF_MASTER_CHECKLIST.md')
           text = checklist.read_text()
+
+          text = re.sub(
+              r'^Last synchronized: .*$',
+              'Last synchronized: **2026-09-11** after the live account milestone progression rollout. Monster Book, quest, bounded evolving-ring, and capped Account Legacy progression are deployed on production; Deploy EverLeaf Game Production #63 rebuilt/restarted the server successfully and verified login plus all 20 channels and relay ports.',
+              text,
+              count=1,
+              flags=re.MULTILINE,
+          )
+          text = re.sub(
+              r'^- Current running game release source SHA: `[^`]+`$',
+              f'- Current running game release source SHA: `{deployed_sha}`',
+              text,
+              count=1,
+              flags=re.MULTILINE,
+          )
+          text = re.sub(
+              r'^- Current running game release: .*$',
+              f'- Current running game release: `{deployed_release}` produced by **Deploy EverLeaf Game Production #63**.',
+              text,
+              count=1,
+              flags=re.MULTILINE,
+          )
+
           anchor = '- ✅ Maintained player-facing progression/Verdant/PQ Points documentation exists.\n'
           block = (
-              '- ✅ Account-wide Monster Book milestone rings use unique-card thresholds of 50 / 150 / 300.\n'
-              '- ✅ Account-wide quest milestone rings use unique completed-quest thresholds of 50 / 150 / 300.\n'
-              '- ✅ Bounded evolving milestone rings use the existing Moon Stone, Shining Star, and Gold Heart three-tier client assets with EverLeaf-only owner markers.\n'
-              '- ✅ Account Legacy linked-level progression uses only the top four non-GM characters, caps each at level 200, caps tracked score at 800, and unlocks tiers at 200 / 400 / 600.\n'
-              '- ✅ `@progress milestones` exposes account progress; per-character ring synchronization is idempotent, add-before-remove, and never consumes unrelated vanilla ring copies.\n'
+              '- 🟢 Account-wide Monster Book milestone rings are live, using unique-card thresholds of 50 / 150 / 300.\n'
+              '- 🟢 Account-wide quest milestone rings are live, using unique completed-quest thresholds of 50 / 150 / 300.\n'
+              '- 🟢 Bounded evolving milestone rings are live using the existing Moon Stone, Shining Star, and Gold Heart three-tier client assets with EverLeaf-only owner markers.\n'
+              '- 🟢 Account Legacy linked-level progression is live: only the top four non-GM characters count, each is capped at level 200, tracked score caps at 800, and reward tiers unlock at 200 / 400 / 600.\n'
+              '- 🟢 `@progress milestones` exposes account progress and `@progress milestones sync [all|book|quest|legacy]` synchronizes earned rings; synchronization is idempotent, add-before-remove, refuses unsafe equipped-ring evolution, and never consumes unrelated vanilla ring copies.\n'
+              '- ✅ Account milestone progression is derived from existing persisted Monster Book, quest-completion, and character-level data; no new production schema migration is required.\n'
           )
           if block not in text:
               if anchor not in text:
                   raise SystemExit('progression checklist anchor not found')
               text = text.replace(anchor, anchor + block, 1)
-          checklist.write_text(text)
 
-          deploy = Path('.github/workflows/deploy-game-production.yml')
-          dtext = deploy.read_text()
-          marker = '# Account milestone ring rollout requested 2026-09-11 after validated PR #388.\n'
-          if marker not in dtext:
-              lines = dtext.splitlines(keepends=True)
-              insert_at = 0
-              while insert_at < len(lines) and lines[insert_at].startswith('#'):
-                  insert_at += 1
-              lines.insert(insert_at, marker)
-              dtext = ''.join(lines)
-          deploy.write_text(dtext)
+          text = text.replace('`b20fcc8c48acca3325ddb45f5daf48ea78c480a5` (production deploy #62)', f'`{deployed_sha}` (production deploy #63)')
+          text = text.replace('**Deploy EverLeaf Game Production #62** from `b20fcc8c48acca3325ddb45f5daf48ea78c480a5`', f'**Deploy EverLeaf Game Production #63** from `{deployed_sha}`')
+
+          checklist.write_text(text)
           PY
 
           git config user.name 'EverLeaf Release Bot'
           git config user.email 'everleaf-release@users.noreply.github.com'
-          git add docs/EVERLEAF_MASTER_CHECKLIST.md .github/workflows/deploy-game-production.yml
+          git add docs/EVERLEAF_MASTER_CHECKLIST.md
           if git diff --cached --quiet; then
-            echo 'Release preparation already synchronized.'
+            echo 'Checklist already synchronized.'
             exit 0
           fi
-          git commit -m 'Prepare account milestone production rollout'
-          git push origin HEAD:feature/account-milestone-rings-20260911
+          git commit -m 'Sync live account milestone progression status'
+          git push origin HEAD:master
