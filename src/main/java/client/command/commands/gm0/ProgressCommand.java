@@ -7,14 +7,28 @@ import everleaf.progression.WeeklyProgressionPolicy;
 import service.enhanced.EndgameProgressionSnapshot;
 import service.enhanced.EverleafIdentity;
 
-/** Shows a player's current Everleaf extended-endgame progression state. */
+import java.util.Arrays;
+
+/** Shows a player's current Everleaf extended-endgame and account milestone progression state. */
 public class ProgressCommand extends Command {
     {
-        setDescription("Show your Everleaf level 200-250 progression status.");
+        setDescription("Show level 200-250 progress or account milestone rings.");
     }
 
     @Override
     public void execute(Client client, String[] params) {
+        if (params.length > 0) {
+            String action = params[0];
+            if ("milestones".equals(action)) {
+                new MilestonesCommand().execute(client, Arrays.copyOfRange(params, 1, params.length));
+                return;
+            }
+            if ("sync".equals(action) || "claim".equals(action)) {
+                new MilestonesCommand().execute(client, params);
+                return;
+            }
+        }
+
         int level = client.getPlayer().getLevel();
         EndgameProgressionSnapshot snapshot = EndgameProgressionSnapshot.forLevel(level);
 
@@ -24,6 +38,7 @@ public class ProgressCommand extends Command {
             client.getPlayer().yellowMessage("Level " + level + " | Classic progression");
             client.getPlayer().yellowMessage("Everleaf endgame begins at level 200.");
             client.getPlayer().yellowMessage("Levels remaining: " + (200 - level));
+            client.getPlayer().yellowMessage("Account collections: use @progress milestones.");
             return;
         }
 
@@ -46,5 +61,6 @@ public class ProgressCommand extends Command {
         }
 
         client.getPlayer().yellowMessage("Unlocked tracks: " + snapshot.unlocks().size());
+        client.getPlayer().yellowMessage("Account collections: use @progress milestones.");
     }
 }
