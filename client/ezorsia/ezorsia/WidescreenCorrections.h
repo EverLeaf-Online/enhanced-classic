@@ -49,13 +49,10 @@ inline bool MatchesInheritedWrongValues() {
 }
 } // namespace detail
 
-inline bool Apply() {
-    if (!detail::MatchesInheritedWrongValues()) {
-        CrashDiagnostics::LogEvent("widescreen correction preflight mismatch; values unchanged");
-        std::cout << "EverLeaf Client v2: widescreen correction preflight mismatch; leaving values unchanged" << std::endl;
-        return false;
-    }
-
+// Reapply the already-verified axis corrections for the current EverLeaf
+// resolution.  Unlike Apply(), this is intentionally idempotent so the
+// in-game resolution selector can update these operands at runtime.
+inline void ApplyCurrent() {
     Memory::WriteInt(
         detail::kCWndHorizontalLowerBound,
         static_cast<unsigned int>(-Client::m_nGameWidth)
@@ -80,7 +77,16 @@ inline bool Apply() {
         detail::kLoginDialogVerticalPosition,
         static_cast<unsigned int>((Client::m_nGameHeight / 2) - 130)
     );
+}
 
+inline bool Apply() {
+    if (!detail::MatchesInheritedWrongValues()) {
+        CrashDiagnostics::LogEvent("widescreen correction preflight mismatch; values unchanged");
+        std::cout << "EverLeaf Client v2: widescreen correction preflight mismatch; leaving values unchanged" << std::endl;
+        return false;
+    }
+
+    ApplyCurrent();
     CrashDiagnostics::LogEvent("verified widescreen axis corrections applied");
     std::cout << "EverLeaf Client v2: applied verified widescreen axis corrections" << std::endl;
     return true;
