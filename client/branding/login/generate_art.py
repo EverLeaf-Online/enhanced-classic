@@ -88,25 +88,32 @@ def build_frame(path):
 
 
 def build_signboard(path):
-    image = wood_texture((368, 236), 7)
+    # Neutral graphite/silver panel for the Kaentake-based EverLeaf login.
+    # Keep the forest/logo green; the interactive chrome itself is intentionally
+    # grey so the login UI no longer competes with the background artwork.
+    image = Image.new("RGBA", (368, 236), (47, 50, 54, 224))
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle((2, 2, 365, 233), radius=12, outline=(29, 23, 8, 255), width=4)
-    draw.rounded_rectangle((7, 7, 360, 228), radius=9, outline=(151, 117, 52, 255), width=2)
-    draw.rounded_rectangle((11, 10, 356, 80), radius=7, fill=(33, 39, 16, 118), outline=(112, 137, 45, 185), width=1)
-    draw.text((17, 18), "Login ID", font=font(10, True), fill=(244, 239, 211, 255),
-              stroke_width=1, stroke_fill=(25, 16, 7, 255))
-    draw.text((17, 53), "Password", font=font(10, True), fill=(244, 239, 211, 255),
-              stroke_width=1, stroke_fill=(25, 16, 7, 255))
+    draw.rounded_rectangle((2, 2, 365, 233), radius=12,
+                           fill=(47, 50, 54, 224), outline=(24, 26, 29, 255), width=4)
+    draw.rounded_rectangle((7, 7, 360, 228), radius=9,
+                           outline=(143, 149, 156, 230), width=2)
+    draw.rounded_rectangle((11, 10, 356, 80), radius=7,
+                           fill=(35, 38, 42, 235), outline=(103, 109, 116, 220), width=1)
+    draw.text((17, 18), "Login ID", font=font(10, True), fill=(238, 240, 242, 255),
+              stroke_width=1, stroke_fill=(20, 22, 24, 255))
+    draw.text((17, 53), "Password", font=font(10, True), fill=(238, 240, 242, 255),
+              stroke_width=1, stroke_fill=(20, 22, 24, 255))
     for top in (10, 45):
         draw.rounded_rectangle((63, top, 213, top + 31), radius=5,
-                               fill=(23, 27, 14, 255), outline=(134, 108, 47, 255), width=2)
-    draw.line((12, 88, 356, 88), fill=(151, 117, 52, 175), width=1)
-    draw.line((12, 126, 356, 126), fill=(36, 22, 8, 180), width=1)
+                               fill=(26, 29, 32, 255), outline=(126, 132, 139, 255), width=2)
+    draw.line((12, 88, 356, 88), fill=(132, 138, 145, 185), width=1)
+    draw.line((12, 126, 356, 126), fill=(26, 28, 31, 210), width=1)
     centered_text(draw, (10, 183, 358, 207), "EVERLEAF • ENHANCED CLASSIC",
-                  font(11, True), fill=(207, 230, 119, 235), stroke_width=1,
-                  stroke_fill=(25, 43, 14, 220))
+                  font(11, True), fill=(224, 227, 230, 240), stroke_width=1,
+                  stroke_fill=(28, 31, 34, 230))
     centered_text(draw, (10, 207, 358, 225), "EXPLORE • GROW • ADVENTURE",
-                  font(8, True), fill=(238, 230, 192, 210), stroke_width=1)
+                  font(8, True), fill=(201, 205, 209, 220), stroke_width=1,
+                  stroke_fill=(28, 31, 34, 220))
     image.save(path, "PNG", optimize=True)
 
 

@@ -31,7 +31,15 @@ if (-not $text.Contains('loginlayout.cpp')) {
         $text = $text.Replace("    resolution.cpp`n", "    resolution.cpp`n    loginlayout.cpp`n")
     }
 }
-if (-not $text.Contains('loginlayout.cpp')) { throw 'Could not add loginlayout.cpp to src/CMakeLists.txt' }
+if (-not $text.Contains('startup.cpp')) {
+    $text = $text.Replace("    loginlayout.cpp`r`n", "    loginlayout.cpp`r`n    startup.cpp`r`n")
+    if (-not $text.Contains('startup.cpp')) {
+        $text = $text.Replace("    loginlayout.cpp`n", "    loginlayout.cpp`n    startup.cpp`n")
+    }
+}
+if (-not $text.Contains('loginlayout.cpp') -or -not $text.Contains('startup.cpp')) {
+    throw 'Could not add EverLeaf client modules to src/CMakeLists.txt'
+}
 [IO.File]::WriteAllText($cmake, $text, [Text.UTF8Encoding]::new($false))
 
 $hook = Join-Path $SourceRoot 'src/hook.h'
@@ -39,13 +47,23 @@ $text = [IO.File]::ReadAllText($hook)
 if (-not $text.Contains('void AttachLoginLayoutMod();')) {
     $text = $text.Replace("void AttachTempStatMod();", "void AttachTempStatMod();`r`nvoid AttachLoginLayoutMod();")
 }
+if (-not $text.Contains('void AttachEverLeafStartupMod();')) {
+    $text = $text.Replace("void AttachLoginLayoutMod();", "void AttachLoginLayoutMod();`r`nvoid AttachEverLeafStartupMod();")
+}
 if (-not $text.Contains('    AttachLoginLayoutMod();')) {
     $text = $text.Replace("    AttachTempStatMod();", "    AttachTempStatMod();`r`n    AttachLoginLayoutMod();")
 }
-if (-not $text.Contains('void AttachLoginLayoutMod();') -or -not $text.Contains('    AttachLoginLayoutMod();')) {
-    throw 'Could not wire AttachLoginLayoutMod into src/hook.h'
+if (-not $text.Contains('    AttachEverLeafStartupMod();')) {
+    $text = $text.Replace("    AttachLoginLayoutMod();", "    AttachLoginLayoutMod();`r`n    AttachEverLeafStartupMod();")
+}
+if (-not $text.Contains('void AttachLoginLayoutMod();') -or
+    -not $text.Contains('void AttachEverLeafStartupMod();') -or
+    -not $text.Contains('    AttachLoginLayoutMod();') -or
+    -not $text.Contains('    AttachEverLeafStartupMod();')) {
+    throw 'Could not wire EverLeaf client modules into src/hook.h'
 }
 [IO.File]::WriteAllText($hook, $text, [Text.UTF8Encoding]::new($false))
 
 Copy-Item (Join-Path $PSScriptRoot 'loginlayout.cpp') (Join-Path $SourceRoot 'src/loginlayout.cpp') -Force
+Copy-Item (Join-Path $PSScriptRoot 'startup.cpp') (Join-Path $SourceRoot 'src/startup.cpp') -Force
 Write-Host 'EverLeaf Kaentake integration patch applied.'
