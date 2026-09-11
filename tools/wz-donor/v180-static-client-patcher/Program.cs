@@ -126,8 +126,8 @@ using (var donor = OpenDonor(donorPath))
             throw new InvalidOperationException($"Target collision: {rel}");
         var source = FindImage(donor.WzDirectory, rel)
             ?? throw new InvalidDataException($"Donor path missing: {rel}");
-        donorDigests[rel] = ImageDigest(source.Value.image);
-        EnsureDirs(target.WzDirectory, source.Value.dirs).AddImage(source.Value.image.DeepClone());
+        donorDigests[rel] = ImageDigest(source.image);
+        EnsureDirs(target.WzDirectory, source.dirs).AddImage(source.image.DeepClone());
     }
     target.SaveToDisk(outputPath);
 }
@@ -142,7 +142,7 @@ using (var output = OpenTarget(outputPath))
     {
         var image = FindImage(output.WzDirectory, rel)
             ?? throw new InvalidDataException($"Saved output lost: {rel}");
-        var outputDigest = ImageDigest(image.Value.image);
+        var outputDigest = ImageDigest(image.image);
         if (!string.Equals(outputDigest, donorDigests[rel], StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException($"Donor/output image digest mismatch: {rel}");
         verified++;
