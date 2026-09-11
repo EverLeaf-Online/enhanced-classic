@@ -4,7 +4,7 @@ on:
   push:
     branches: [master]
     paths:
-      - 'client/branding/everleaf-app-icon.ico.gz.b64'
+      - 'client/branding/everleaf-app-icon.ico.gz.b64.part*'
       - '.github/workflows/apply-everleaf-app-icon-live.yml'
   workflow_dispatch:
 
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout master
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: master
 
@@ -36,9 +36,11 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'; New-Item -ItemType Directory -Force -Path $root | Out-Null
-          $encoded='client/branding/everleaf-app-icon.ico.gz.b64'
+          $parts=@(Get-ChildItem 'client/branding/everleaf-app-icon.ico.gz.b64.part*' -File | Sort-Object Name)
+          if($parts.Count -eq 0){throw 'EverLeaf icon source parts are missing'}
           $icon=Join-Path $root 'everleaf-icon.ico'
-          $compressed=[Convert]::FromBase64String((Get-Content -LiteralPath $encoded -Raw).Trim())
+          $payload=(($parts | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join '') -replace '\s',''
+          $compressed=[Convert]::FromBase64String($payload)
           $input=[IO.MemoryStream]::new($compressed)
           try {
             $gzip=[IO.Compression.GZipStream]::new($input,[IO.Compression.CompressionMode]::Decompress)
