@@ -37,9 +37,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          test "$ACTUAL_SHA" = "$GITHUB_SHA"
+          echo "EVERLEAF_GAME_RELEASE_SHA_OK $ACTUAL_SHA"
+          echo "RELEASE_SHA=$ACTUAL_SHA" >> "$GITHUB_ENV"
           echo "RELEASE_SHORT=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_ENV"
-          echo "RELEASE_SLOT=$(git rev-parse HEAD)-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          echo "RELEASE_SLOT=$ACTUAL_SHA-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
       - name: Apply EverLeaf release transforms
         shell: bash
