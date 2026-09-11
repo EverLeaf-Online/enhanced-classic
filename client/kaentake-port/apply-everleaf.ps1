@@ -1,5 +1,5 @@
-$ErrorActionPreference = 'Stop'
 param([Parameter(Mandatory=$true)][string]$SourceRoot)
+$ErrorActionPreference = 'Stop'
 
 function Replace-Exact([string]$Path, [string]$Old, [string]$New) {
     $full = Join-Path $SourceRoot $Path
@@ -31,6 +31,7 @@ if (-not $text.Contains('loginlayout.cpp')) {
         $text = $text.Replace("    resolution.cpp`n", "    resolution.cpp`n    loginlayout.cpp`n")
     }
 }
+if (-not $text.Contains('loginlayout.cpp')) { throw 'Could not add loginlayout.cpp to src/CMakeLists.txt' }
 [IO.File]::WriteAllText($cmake, $text, [Text.UTF8Encoding]::new($false))
 
 $hook = Join-Path $SourceRoot 'src/hook.h'
@@ -40,6 +41,9 @@ if (-not $text.Contains('void AttachLoginLayoutMod();')) {
 }
 if (-not $text.Contains('    AttachLoginLayoutMod();')) {
     $text = $text.Replace("    AttachTempStatMod();", "    AttachTempStatMod();`r`n    AttachLoginLayoutMod();")
+}
+if (-not $text.Contains('void AttachLoginLayoutMod();') -or -not $text.Contains('    AttachLoginLayoutMod();')) {
+    throw 'Could not wire AttachLoginLayoutMod into src/hook.h'
 }
 [IO.File]::WriteAllText($hook, $text, [Text.UTF8Encoding]::new($false))
 
