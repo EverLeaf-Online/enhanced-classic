@@ -6,6 +6,8 @@ on:
     branches: [master]
     paths:
       - ".github/workflows/publish-everleaf-client.yml"
+      - "client/**"
+      - "config.ini"
 
 concurrency:
   group: everleaf-client-production
