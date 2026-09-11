@@ -1,6 +1,7 @@
 # Production deployment: preserve the validated full-v95 server XML baseline.
 # Relay cutover: deployment SSH stays on origin; player-facing game traffic uses relay.
 # Final canonical master rebuild requested 2026-09-10 after repository consolidation.
+# Account milestone ring rollout requested 2026-09-11 after validated PR #388.
 name: Deploy EverLeaf Game Production
 
 on:
