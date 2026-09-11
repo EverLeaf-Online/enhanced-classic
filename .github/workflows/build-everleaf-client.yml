@@ -4,14 +4,16 @@ on:
   push:
     branches: [master]
     paths:
-      - "client/ezorsia/**"
+      - "client/native/**"
       - "client/scripts/**"
+      - "client/managed-client-baseline.json"
       - ".github/workflows/build-everleaf-client.yml"
   pull_request:
     branches: [master]
     paths:
-      - "client/ezorsia/**"
+      - "client/native/**"
       - "client/scripts/**"
+      - "client/managed-client-baseline.json"
       - ".github/workflows/build-everleaf-client.yml"
   workflow_dispatch:
 
@@ -29,45 +31,37 @@ jobs:
         shell: pwsh
         run: python client/scripts/apply-community-ui-preference.py
 
-      - name: Apply EverLeaf Client v2 rebrand
+      - name: Apply EverLeaf native rebrand
         shell: pwsh
         run: python client/scripts/apply-client-v2-rebrand.py
 
       - name: Configure MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Verify client source wiring
+      - name: Verify modular client source wiring
         shell: pwsh
         run: |
-          $bootstrap = Get-Content 'client/ezorsia/ezorsia/dllmain.cpp' -Raw
-          foreach ($needle in @(
-            'WaitForClientImage()',
-            'BootstrapWatchdog',
-            'InstallEarlyHooks()',
-            '#include "DisplayMode.h"',
-            'DisplayMode::EnableSystemDpiAwareness()',
-            'DisplayMode::StartWorker()',
-            '#include "DiscordPresence.h"',
-            'DiscordPresence::Start();',
-            'DiscordPresence::Stop();'
-          )) {
-            if (-not $bootstrap.Contains($needle)) { throw "Missing client bootstrap marker: $needle" }
+          $bootstrap = Get-Content 'client/native/core/dllmain.cpp' -Raw
+          foreach ($needle in @('WaitForClientImage()','BootstrapWatchdog','InstallEarlyHooks()','DisplayMode::StartWorker()','DiscordPresence::Start();','DiscordPresence::Stop();')) {
+            if (-not $bootstrap.Contains($needle)) { throw "Missing core bootstrap marker: $needle" }
           }
-
-          $project = Get-Content 'client/ezorsia/ezorsia/ezorsia.vcxproj' -Raw
-          foreach ($needle in @('DiscordPresence.h','DiscordPresence.cpp')) {
-            if (-not $project.Contains($needle)) { throw "Visual Studio project missing $needle" }
+          $bridge = Get-Content 'client/native/core/DiscordPresence.cpp' -Raw
+          if (-not $bridge.Contains('LoadLibraryW(L"Discord.dll")')) { throw 'Core does not load Discord.dll independently' }
+          $proxy = Get-Content 'client/native/proxy/Proxy.cpp' -Raw
+          foreach ($needle in @('EverLeafMS.dll','DirectInput8Create','GetdfDIJoystick')) {
+            if (-not $proxy.Contains($needle)) { throw "Missing dinput8 proxy marker: $needle" }
           }
-
-          $config = Get-Content 'client/ezorsia/ezorsia/config.ini' -Raw
-          if (-not ($config -match '(?m)^DiscordRichPresence=true\r?$')) {
-            throw 'DiscordRichPresence=true is missing from config.ini'
+          $discord = Get-Content 'client/native/discord/DiscordEntry.cpp' -Raw
+          foreach ($needle in @('EverLeafDiscord_Start','EverLeafDiscord_Stop','EverLeafDiscord_SetActivity')) {
+            if (-not $discord.Contains($needle)) { throw "Missing Discord export: $needle" }
           }
+          $config = Get-Content 'client/native/core/config.ini' -Raw
+          if (-not ($config -match '(?m)^DiscordRichPresence=true\r?$')) { throw 'DiscordRichPresence=true is missing from config.ini' }
 
       - name: Test Discord IPC frames and acknowledgements
         shell: pwsh
         run: |
-          $source = Get-Content 'client/ezorsia/ezorsia/DiscordPresence.cpp' -Raw
+          $source = Get-Content 'client/native/discord/DiscordPresence.cpp' -Raw
           $source.Replace('#include "stdafx.h"','#include <windows.h>') | Set-Content 'client/scripts/discord-presence-test-source.inc'
           $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
           if (-not $vs) { throw 'Visual Studio installation not found' }
@@ -82,23 +76,29 @@ jobs:
 
       - name: Build source-pinned Win32 release
         shell: pwsh
-        run: msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+        run: msbuild "client/native/EverLeaf Client.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
 
-      - name: Verify compiled EverLeaf branding
+      - name: Verify build outputs
         shell: pwsh
-        run: python client/scripts/verify-client-v2-branding.py client/ezorsia/out/Release/dinput8.dll
+        run: |
+          foreach ($dll in @('dinput8.dll','EverLeafMS.dll','Discord.dll')) {
+            $path = "client/native/out/Release/$dll"
+            if (-not (Test-Path $path)) { throw "Missing build output: $path" }
+            Get-FileHash $path -Algorithm SHA256
+          }
+          python client/scripts/verify-client-v2-branding.py client/native/out/Release/EverLeafMS.dll
 
       - name: Build managed client package
         shell: pwsh
         run: |
-          $dll = 'client/ezorsia/out/Release/dinput8.dll'
-          if (-not (Test-Path $dll)) { throw "Missing build output: $dll" }
           $package = 'EverleafClient'
           & 'client/scripts/build-managed-package.ps1' -RepositoryRoot $PWD -OutputDirectory $package
+          foreach ($file in @('config.ini','dinput8.dll','EverLeafMS.dll','Discord.dll','EverLeaf_UI.wz','managed-client-baseline.json')) {
+            if (-not (Test-Path "$package/$file")) { throw "Missing managed overlay: $file" }
+          }
           $config = Get-Content "$package/config.ini" -Raw
           if (-not ($config -match 'PreferCommunityUI=true')) { throw 'Managed client does not default to Community UI' }
           if (-not ($config -match '(?m)^DiscordRichPresence=true\r?$')) { throw 'Managed client does not enable Discord Rich Presence' }
-          if (-not (Test-Path "$package/EverLeaf_UI.wz")) { throw 'Missing branded EverLeaf UI file' }
           Compress-Archive -Path "$package/*" -DestinationPath 'EverleafClient-source-built.zip'
           Get-FileHash 'EverleafClient-source-built.zip' -Algorithm SHA256
 
