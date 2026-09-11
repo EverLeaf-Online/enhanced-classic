@@ -1,0 +1,66 @@
+name: Prepare Account Milestone Release
+
+on:
+  push:
+    branches: [feature/account-milestone-rings-20260911]
+    paths:
+      - '.github/workflows/prepare-account-milestone-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/account-milestone-rings-20260911
+          fetch-depth: 0
+
+      - name: Sync checklist and production deploy trigger
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          checklist = Path('docs/EVERLEAF_MASTER_CHECKLIST.md')
+          text = checklist.read_text()
+          anchor = '- ✅ Maintained player-facing progression/Verdant/PQ Points documentation exists.\n'
+          block = (
+              '- ✅ Account-wide Monster Book milestone rings use unique-card thresholds of 50 / 150 / 300.\n'
+              '- ✅ Account-wide quest milestone rings use unique completed-quest thresholds of 50 / 150 / 300.\n'
+              '- ✅ Bounded evolving milestone rings use the existing Moon Stone, Shining Star, and Gold Heart three-tier client assets with EverLeaf-only owner markers.\n'
+              '- ✅ Account Legacy linked-level progression uses only the top four non-GM characters, caps each at level 200, caps tracked score at 800, and unlocks tiers at 200 / 400 / 600.\n'
+              '- ✅ `@progress milestones` exposes account progress; per-character ring synchronization is idempotent, add-before-remove, and never consumes unrelated vanilla ring copies.\n'
+          )
+          if block not in text:
+              if anchor not in text:
+                  raise SystemExit('progression checklist anchor not found')
+              text = text.replace(anchor, anchor + block, 1)
+          checklist.write_text(text)
+
+          deploy = Path('.github/workflows/deploy-game-production.yml')
+          dtext = deploy.read_text()
+          marker = '# Account milestone ring rollout requested 2026-09-11 after validated PR #388.\n'
+          if marker not in dtext:
+              lines = dtext.splitlines(keepends=True)
+              insert_at = 0
+              while insert_at < len(lines) and lines[insert_at].startswith('#'):
+                  insert_at += 1
+              lines.insert(insert_at, marker)
+              dtext = ''.join(lines)
+          deploy.write_text(dtext)
+          PY
+
+          git config user.name 'EverLeaf Release Bot'
+          git config user.email 'everleaf-release@users.noreply.github.com'
+          git add docs/EVERLEAF_MASTER_CHECKLIST.md .github/workflows/deploy-game-production.yml
+          if git diff --cached --quiet; then
+            echo 'Release preparation already synchronized.'
+            exit 0
+          fi
+          git commit -m 'Prepare account milestone production rollout'
+          git push origin HEAD:feature/account-milestone-rings-20260911
