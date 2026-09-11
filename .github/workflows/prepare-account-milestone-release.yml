@@ -82,4 +82,4 @@ jobs:
             exit 0
           fi
           git commit -m 'Sync live account milestone progression status'
-          git push origin HEAD:master
+          git push origin HEAD:refs/heads/docs/sync-live-milestones-20260911
