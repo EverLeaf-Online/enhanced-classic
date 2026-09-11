@@ -18,7 +18,7 @@ test("account access moves out of the removed top navigation",()=>{
 test("account dashboard exposes the main player actions",()=>{
   assert.match(account,/PLAY \/ DOWNLOAD/);
   assert.match(account,/VOTE FOR NX/);
-  assert.match(account,/href="\/help">SUPPORT/);
+  assert.match(account,/href="\/help"[^>]*>\s*SUPPORT/);
   assert.match(account,/Pending Vote NX/);
 });
 
