@@ -24,8 +24,8 @@
     },
     {
       "path": "config.ini",
-      "source": "client/native/core/config.ini",
-      "redistributable": true
+      "redistributable": true,
+      "source": "client/kaentake-port/config.ini"
     },
     {
       "path": "Custom.wz",
