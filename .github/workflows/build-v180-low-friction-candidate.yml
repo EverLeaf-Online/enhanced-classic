@@ -1,0 +1,162 @@
+name: Stage GMS v180 low-friction WZ candidate
+
+on:
+  push:
+    branches: [donor/v180-low-friction-stage-20260911]
+    paths:
+      - '.github/workflows/build-v180-low-friction-candidate.yml'
+      - 'tools/wz-donor/v180-static-client-patcher/Program.cs'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-v180-low-friction-stage
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  TARGET_ROOT: /opt/everleaf/patches/files
+  DONOR_ROOT: /opt/everleaf/donors/GMS-v180/GMS-v180/MapleStory
+  MANIFEST_ROOT: /opt/everleaf/donors/v180-backport
+  STAGE_ROOT: /opt/everleaf/donors/v180-backport/client-candidate
+
+jobs:
+  stage:
+    runs-on: windows-2025
+    timeout-minutes: 240
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 30
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Validate donor and prepare isolated Oracle stage
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ssh everleaf-oracle "set -e; test -s '$env:DONOR_ROOT/ZLZ.dll'; test -s '$env:DONOR_ROOT/Character.wz'; test -s '$env:TARGET_ROOT/Character.wz'; test -s '$env:MANIFEST_ROOT/LOW_FRICTION_MANIFEST.json'; sudo rm -rf '$env:STAGE_ROOT'; sudo mkdir -p '$env:STAGE_ROOT'; sudo chown -R ubuntu:ubuntu '$env:STAGE_ROOT'"
+          if($LASTEXITCODE){throw 'Oracle staging preparation failed'}
+
+      - name: Build MapleLib static patcher
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafV180StaticPatcher'; New-Item -ItemType Directory -Force -Path $tool | Out-Null
+          Copy-Item tools/wz-donor/v180-static-client-patcher/Program.cs (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net10.0-windows</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <EnableWindowsTargeting>true</EnableWindowsTargeting>
+            </PropertyGroup>
+            <ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafV180StaticPatcher.csproj')
+          dotnet build (Join-Path $tool 'EverLeafV180StaticPatcher.csproj') -c Release
+
+      - name: Fetch path manifests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $m=Join-Path $env:RUNNER_TEMP 'manifests'; New-Item -ItemType Directory -Force -Path $m | Out-Null
+          $names=@('character_hair','character_face','map_backgrounds','map_objects','world_map_art','ui_art','effects','sounds','morphs','taming_mobs','string_images')
+          foreach($name in $names){scp "everleaf-oracle`:$env:MANIFEST_ROOT/$name.txt" (Join-Path $m "$name.txt"); if($LASTEXITCODE){throw "Manifest fetch failed: $name"}}
+
+      - name: Build and upload verified WZ candidates one family at a time
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $project=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafV180StaticPatcher/EverLeafV180StaticPatcher.csproj'
+          $manifestDir=Join-Path $env:RUNNER_TEMP 'manifests'
+          $families=@(
+            @{File='Character.wz'; Lists=@('character_hair','character_face')},
+            @{File='Map.wz'; Lists=@('map_backgrounds','map_objects','world_map_art')},
+            @{File='UI.wz'; Lists=@('ui_art')},
+            @{File='Effect.wz'; Lists=@('effects')},
+            @{File='Sound.wz'; Lists=@('sounds')},
+            @{File='Morph.wz'; Lists=@('morphs')},
+            @{File='TamingMob.wz'; Lists=@('taming_mobs')},
+            @{File='String.wz'; Lists=@('string_images')}
+          )
+          foreach($spec in $families){
+            $family=$spec.File
+            Write-Host "===== $family ====="
+            $work=Join-Path $env:RUNNER_TEMP ('v180-' + ($family -replace '\.','-'))
+            if(Test-Path $work){Remove-Item -Recurse -Force $work}
+            $target=Join-Path $work 'target'; $donor=Join-Path $work 'donor'; $out=Join-Path $work 'out'
+            New-Item -ItemType Directory -Force -Path $target,$donor,$out | Out-Null
+            scp "everleaf-oracle`:$env:TARGET_ROOT/$family" (Join-Path $target $family); if($LASTEXITCODE){throw "Target fetch failed: $family"}
+            scp "everleaf-oracle`:$env:DONOR_ROOT/$family" (Join-Path $donor $family); if($LASTEXITCODE){throw "Donor fetch failed: $family"}
+            scp "everleaf-oracle`:$env:DONOR_ROOT/ZLZ.dll" (Join-Path $donor 'ZLZ.dll'); if($LASTEXITCODE){throw "ZLZ fetch failed: $family"}
+            $pathList=Join-Path $work 'paths.txt'
+            $lines=@(); foreach($name in $spec.Lists){$lines += Get-Content (Join-Path $manifestDir "$name.txt")}
+            $lines | Where-Object {$_.Trim()} | Sort-Object -Unique | Set-Content -Encoding ascii $pathList
+            $outputWz=Join-Path $out $family
+            $outputManifest=Join-Path $out (($family -replace '\.wz$','') + '.manifest.json')
+            dotnet run --project $project -c Release --no-build -- (Join-Path $target $family) (Join-Path $donor $family) $pathList $outputWz $outputManifest
+            if($LASTEXITCODE){throw "Static candidate build failed: $family"}
+            scp $outputWz "everleaf-oracle`:$env:STAGE_ROOT/$family"; if($LASTEXITCODE){throw "Candidate upload failed: $family"}
+            scp $outputManifest "everleaf-oracle`:$env:STAGE_ROOT/$([IO.Path]::GetFileName($outputManifest))"; if($LASTEXITCODE){throw "Manifest upload failed: $family"}
+            Remove-Item -Recurse -Force $work
+          }
+
+      - name: Final isolated-stage verification
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $script=@'
+          set -euo pipefail
+          ROOT="__ROOT__"
+          test -s "$ROOT/Character.wz"
+          test -s "$ROOT/Map.wz"
+          test -s "$ROOT/UI.wz"
+          test -s "$ROOT/Effect.wz"
+          test -s "$ROOT/Sound.wz"
+          test -s "$ROOT/Morph.wz"
+          test -s "$ROOT/TamingMob.wz"
+          test -s "$ROOT/String.wz"
+          test -s "$ROOT/Character.manifest.json"
+          test -s "$ROOT/Map.manifest.json"
+          for m in "$ROOT"/*.manifest.json; do grep -q '"productionApplyAllowed": false' "$m"; grep -q '"donorImageDigestsMatch": true' "$m"; done
+          sha256sum "$ROOT"/*.wz > "$ROOT/SHA256SUMS"
+          printf 'GMS v180 low-friction client candidate. STAGING ONLY. No production apply.\n' > "$ROOT/README.txt"
+          echo 'V180_STATIC_STAGE_OK'
+          du -sh "$ROOT"
+          cat "$ROOT/SHA256SUMS"
+          '@
+          $script=$script.Replace('__ROOT__',$env:STAGE_ROOT)
+          $tmp=Join-Path $env:RUNNER_TEMP 'verify-v180-stage.sh'; [IO.File]::WriteAllText($tmp,($script -replace "`r",''))
+          scp $tmp 'everleaf-oracle:/tmp/verify-v180-stage.sh'; if($LASTEXITCODE){throw 'Verification upload failed'}
+          ssh everleaf-oracle 'bash /tmp/verify-v180-stage.sh'; if($LASTEXITCODE){throw 'Final staging verification failed'}
