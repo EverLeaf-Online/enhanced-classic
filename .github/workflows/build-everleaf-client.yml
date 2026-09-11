@@ -1,6 +1,18 @@
 name: Build EverLeaf v83 client
 
 on:
+  push:
+    branches: [master]
+    paths:
+      - "client/ezorsia/**"
+      - "client/scripts/**"
+      - ".github/workflows/build-everleaf-client.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "client/ezorsia/**"
+      - "client/scripts/**"
+      - ".github/workflows/build-everleaf-client.yml"
   workflow_dispatch:
 
 permissions:
