@@ -1,5 +1,5 @@
-#include "../core/stdafx.h"
-#include "../core/DiscordPresence.h"
+#include <windows.h>
+#include "DiscordPresence.h"
 
 extern "C" __declspec(dllexport) void __cdecl EverLeafDiscord_Start() {
     DiscordPresence::Start();
