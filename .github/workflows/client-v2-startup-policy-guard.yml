@@ -1,10 +1,10 @@
-name: Client v2 startup policy guard
+name: EverLeaf native startup policy guard
 
 on:
   pull_request:
     branches: [master]
     paths:
-      - "client/ezorsia/ezorsia/Client.cpp"
+      - "client/native/core/Client.cpp"
       - "client/scripts/apply-client-v2-rebrand.py"
       - ".github/workflows/client-v2-startup-policy-guard.yml"
   workflow_dispatch:
@@ -26,14 +26,14 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          source = Path('client/ezorsia/ezorsia/Client.cpp').read_text(encoding='utf-8')
+          source = Path('client/native/core/Client.cpp').read_text(encoding='utf-8')
           transform = Path('client/scripts/apply-client-v2-rebrand.py').read_text(encoding='utf-8')
 
           required = [
-              'Client v2: PE/UAC process-creation policy is handled before launch',
+              'EverLeaf: PE/UAC process-creation policy is handled before launch',
               'runtime_uac_block',
               'runtime_laa_write',
-              'Dead process-creation runtime patch survived Client v2 transform',
+              'Dead process-creation runtime patch survived EverLeaf transform',
           ]
           for marker in required:
               if marker not in (source + transform):
@@ -47,5 +47,5 @@ jobs:
               if marker in source:
                   raise SystemExit(f'Dead runtime process-creation patch survived transform: {marker}')
 
-          print('Client v2 startup policy contract passed')
+          print('EverLeaf native startup policy contract passed')
           PY
