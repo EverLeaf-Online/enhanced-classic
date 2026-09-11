@@ -41,16 +41,16 @@ jobs:
         shell: pwsh
         run: python client/scripts/apply-community-ui-preference.py
 
-      - name: Apply EverLeaf Client v2 rebrand and startup policy
+      - name: Apply EverLeaf native rebrand and startup policy
         shell: pwsh
         run: python client/scripts/apply-client-v2-rebrand.py
 
-      - name: Verify relay bootstrap and login layout source
+      - name: Verify relay bootstrap and modular source
         shell: pwsh
         run: |
-          $main = Get-Content "client/ezorsia/ezorsia/MainMain.cpp" -Raw
-          $client = Get-Content "client/ezorsia/ezorsia/Client.cpp" -Raw
-          $layout = Get-Content "client/ezorsia/ezorsia/EverLeafLoginLayout.cpp" -Raw
+          $main = Get-Content "client/native/core/MainMain.cpp" -Raw
+          $client = Get-Content "client/native/core/Client.cpp" -Raw
+          $layout = Get-Content "client/native/core/EverLeafLoginLayout.cpp" -Raw
           foreach ($src in @($main, $client)) {
             if (-not $src.Contains('129.159.114.146')) { throw 'Relay bootstrap IP missing after transform' }
             if ($src.Contains('132.145.141.79')) { throw 'Origin game IP survived client transform' }
@@ -58,31 +58,41 @@ jobs:
           foreach ($needle in @('DialogPosition','LoginPosition','SavePosition','FindPosition','ResetPosition','RegisterPosition','HomePosition','QuitPosition','centered native login layout applied')) {
             if (-not $layout.Contains($needle)) { throw "Missing tested login layout marker: $needle" }
           }
+          $bridge = Get-Content "client/native/core/DiscordPresence.cpp" -Raw
+          if (-not $bridge.Contains('LoadLibraryW(L"Discord.dll")')) { throw 'Discord bridge is not isolated into Discord.dll' }
+          $proxy = Get-Content "client/native/proxy/Proxy.cpp" -Raw
+          if (-not $proxy.Contains('EverLeafMS.dll')) { throw 'dinput8 proxy does not bootstrap EverLeafMS.dll' }
 
       - name: Configure MSBuild
         uses: microsoft/setup-msbuild@v2
 
       - name: Build source-pinned Win32 release
         shell: pwsh
-        run: msbuild "client/ezorsia/Ezorsia V2.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+        run: msbuild "client/native/EverLeaf Client.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
 
-      - name: Verify compiled EverLeaf branding
+      - name: Verify compiled EverLeaf modules
         shell: pwsh
-        run: python client/scripts/verify-client-v2-branding.py client/ezorsia/out/Release/dinput8.dll
+        run: |
+          foreach ($dll in @('dinput8.dll','EverLeafMS.dll','Discord.dll')) {
+            $path = "client/native/out/Release/$dll"
+            if (-not (Test-Path $path)) { throw "Missing build output: $path" }
+            Get-FileHash $path -Algorithm SHA256
+          }
+          python client/scripts/verify-client-v2-branding.py client/native/out/Release/EverLeafMS.dll
 
       - name: Build managed client overlay
         shell: pwsh
         run: |
           $package = "EverleafClient"
           & "client/scripts/build-managed-package.ps1" -RepositoryRoot $PWD -OutputDirectory $package
-          $required = @("config.ini", "dinput8.dll", "EverLeaf_UI.wz", "managed-client-baseline.json")
+          $required = @("config.ini", "dinput8.dll", "EverLeafMS.dll", "Discord.dll", "EverLeaf_UI.wz", "managed-client-baseline.json")
           $actual = @(Get-ChildItem $package -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath((Resolve-Path $package), $_.FullName).Replace('\\','/') })
           foreach ($name in $required) { if ($name -notin $actual) { throw "Missing managed overlay: $name" } }
           if ($actual.Count -ne $required.Count) { throw "Managed overlay contains unexpected files: $($actual -join ', ')" }
           $config = Get-Content "$package/config.ini" -Raw
           if (-not ($config -match 'PreferCommunityUI=true')) { throw "Managed client does not default to Community UI" }
-          if (-not ($config -match '(?m)^width=1280\r?$') -or -not ($config -match '(?m)^height=720\r?$')) { throw "Managed client must default to the aligned 1280x720 Client v2 viewport" }
-          if (-not ($config -match '(?m)^ModernLoginUI=true\r?$')) { throw "EverLeaf HD login package requires the tested native login alignment hooks" }
+          if (-not ($config -match '(?m)^width=1280\r?$') -or -not ($config -match '(?m)^height=720\r?$')) { throw "Managed client must default to 1280x720" }
+          if (-not ($config -match '(?m)^ModernLoginUI=true\r?$')) { throw "EverLeaf HD login package requires native login hooks" }
           Compress-Archive -Path "$package/*" -DestinationPath "EverleafClient-overlay.zip"
           Get-FileHash "EverleafClient-overlay.zip" -Algorithm SHA256
 
@@ -110,7 +120,6 @@ jobs:
           else
             ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$SSH_DIR/known_hosts"
           fi
-          chmod 600 ~/.ssh/known_hosts 2>/dev/null || true
           chmod 600 "$SSH_DIR/known_hosts"
           ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
             "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
@@ -141,44 +150,47 @@ jobs:
           PAYLOAD="$STAGE/payload"
           BACKUP="$STAGE/backup"
           GENERATED="$STAGE/manifest.json"
-          echo '[publish] unpacking payload'
+          OVERLAY_FILES="config.ini dinput8.dll EverLeafMS.dll Discord.dll EverLeaf_UI.wz"
           mkdir -p "$PAYLOAD" "$BACKUP"
           unzip -qo "$STAGE/EverleafClient-overlay.zip" -d "$PAYLOAD"
-          echo '[publish] validating payload'
-          for f in config.ini dinput8.dll EverLeaf_UI.wz managed-client-baseline.json; do test -s "$PAYLOAD/$f"; done
-          test "$(find "$PAYLOAD" -type f | wc -l)" -eq 4
+          for f in $OVERLAY_FILES managed-client-baseline.json; do test -s "$PAYLOAD/$f"; done
+          test "$(find "$PAYLOAD" -type f | wc -l)" -eq 6
           tr -d '\r' < "$PAYLOAD/config.ini" | grep -q '^ModernLoginUI=true$'
-          node -e "const b=require(process.argv[1]); if(!Array.isArray(b.managedFiles)||b.managedFiles.length!==36) process.exit(1)" "$PAYLOAD/managed-client-baseline.json"
-          echo '[publish] creating rollback backup'
+          node -e "const b=require(process.argv[1]); if(!Array.isArray(b.managedFiles)||b.managedFiles.length!==38) process.exit(1)" "$PAYLOAD/managed-client-baseline.json"
+
           cp "$PATCH_ROOT/manifest.json" "$BACKUP/manifest.json"
           cp "$PATCH_ROOT/managed-client-baseline.json" "$BACKUP/managed-client-baseline.json"
-          for f in config.ini dinput8.dll EverLeaf_UI.wz; do cp "$FILES/$f" "$BACKUP/$f"; done
+          for f in $OVERLAY_FILES; do
+            if [ -f "$FILES/$f" ]; then cp "$FILES/$f" "$BACKUP/$f"; fi
+          done
           rollback() {
             echo 'Client publish verification failed; rolling back overlay.' >&2
-            for f in config.ini dinput8.dll EverLeaf_UI.wz; do sudo install -m 644 "$BACKUP/$f" "$FILES/$f"; done
+            for f in $OVERLAY_FILES; do
+              if [ -f "$BACKUP/$f" ]; then sudo install -m 644 "$BACKUP/$f" "$FILES/$f"; else sudo rm -f "$FILES/$f"; fi
+            done
             sudo install -m 644 "$BACKUP/managed-client-baseline.json" "$PATCH_ROOT/managed-client-baseline.json"
             sudo install -m 644 "$BACKUP/manifest.json" "$PATCH_ROOT/manifest.json"
           }
           trap rollback ERR
-          echo '[publish] installing overlay'
-          for f in config.ini dinput8.dll EverLeaf_UI.wz; do
+
+          for f in $OVERLAY_FILES; do
             sudo install -m 644 "$PAYLOAD/$f" "$FILES/$f.new"
             sudo mv -f "$FILES/$f.new" "$FILES/$f"
           done
           sudo install -m 644 "$PAYLOAD/managed-client-baseline.json" "$PATCH_ROOT/managed-client-baseline.json.new"
           sudo mv -f "$PATCH_ROOT/managed-client-baseline.json.new" "$PATCH_ROOT/managed-client-baseline.json"
-          echo '[publish] rebuilding manifest'
+
           LAUNCHER_PATCH_ROOT="$PATCH_ROOT" \
           LAUNCHER_BASELINE_PATH="$PATCH_ROOT/managed-client-baseline.json" \
           LAUNCHER_MANIFEST_PATH="$GENERATED" \
           LAUNCHER_PORTABLE_PATH="$PATCH_ROOT/downloads/EverLeafLauncher-portable.zip" \
           LAUNCHER_VERSION_PATH="$PATCH_ROOT/downloads/EverLeafLauncher-version.txt" \
           node /opt/everleaf/web/scripts/build-patch-manifest.js "$RELEASE_SHA"
-          node -e "const m=require(process.argv[1]); if(m.version!==process.env.RELEASE_SHA||m.files.length!==36) process.exit(1)" "$GENERATED"
+          node -e "const m=require(process.argv[1]); if(m.version!==process.env.RELEASE_SHA||m.files.length!==38) process.exit(1)" "$GENERATED"
           sudo install -m 644 "$GENERATED" "$PATCH_ROOT/manifest.json.new"
           sudo mv -f "$PATCH_ROOT/manifest.json.new" "$PATCH_ROOT/manifest.json"
-          echo '[publish] verifying local web endpoints'
-          for f in config.ini dinput8.dll EverLeaf_UI.wz; do
+
+          for f in $OVERLAY_FILES; do
             expected="$(sha256sum "$FILES/$f" | awk '{print $1}')"
             curl -fsS "http://127.0.0.1:3000/patches/$f" -o "$STAGE/live-$f"
             actual="$(sha256sum "$STAGE/live-$f" | awk '{print $1}')"
@@ -186,7 +198,7 @@ jobs:
           done
           curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
           trap - ERR
-          echo "EverLeaf client overlay published: $RELEASE_SHA"
+          echo "EverLeaf modular client overlay published: $RELEASE_SHA"
           rm -rf "$STAGE"
           REMOTE
 
@@ -195,8 +207,8 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --max-time 20 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" >/dev/null
-          for f in config.ini dinput8.dll EverLeaf_UI.wz; do
+          for f in config.ini dinput8.dll EverLeafMS.dll Discord.dll EverLeaf_UI.wz; do
             curl --fail --silent --show-error --location --max-time 60 "https://$EVERLEAF_PUBLIC_HOST/patches/$f" -o "public-$f"
             test -s "public-$f"
           done
-          echo "EverLeaf public client patch endpoints verified for $GITHUB_SHA"
+          echo "EverLeaf public modular client patch endpoints verified for $GITHUB_SHA"
