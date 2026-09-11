@@ -1,0 +1,145 @@
+name: Stage GMS v180 donor-only item candidate
+
+on:
+  push:
+    branches: [donor/v180-low-friction-stage-20260911]
+    paths:
+      - '.github/workflows/build-v180-item-candidate.yml'
+      - 'tools/wz-donor/v180-item-client-patcher/Program.cs'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-v180-item-stage
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  TARGET_ROOT: /opt/everleaf/patches/files
+  DONOR_ROOT: /opt/everleaf/donors/GMS-v180/GMS-v180/MapleStory
+  MANIFEST_ROOT: /opt/everleaf/donors/v180-backport
+  STAGE_ROOT: /opt/everleaf/donors/v180-backport/item-candidate
+
+jobs:
+  stage-items:
+    runs-on: windows-2025
+    timeout-minutes: 300
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 30
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Validate sources and prepare isolated stage
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $script=@'
+          set -euo pipefail
+          test -s "__DONOR__/ZLZ.dll"
+          test -s "__DONOR__/Item.wz"
+          test -s "__DONOR__/String.wz"
+          test -s "__TARGET__/Item.wz"
+          test -s "__TARGET__/String.wz"
+          test -s "__MANIFEST__/items_all.tsv"
+          sudo rm -rf "__STAGE__"
+          sudo mkdir -p "__STAGE__"
+          sudo chown -R ubuntu:ubuntu "__STAGE__"
+          '@
+          $script=$script.Replace('__DONOR__',$env:DONOR_ROOT).Replace('__TARGET__',$env:TARGET_ROOT).Replace('__MANIFEST__',$env:MANIFEST_ROOT).Replace('__STAGE__',$env:STAGE_ROOT)
+          $tmp=Join-Path $env:RUNNER_TEMP 'validate-v180-items.sh'; [IO.File]::WriteAllText($tmp,($script -replace "`r",''))
+          scp $tmp 'everleaf-oracle:/tmp/validate-v180-items.sh'; if($LASTEXITCODE){throw 'validation script upload failed'}
+          ssh everleaf-oracle 'bash /tmp/validate-v180-items.sh'; if($LASTEXITCODE){throw 'source validation failed'}
+
+      - name: Build item patcher
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafV180ItemPatcher'; New-Item -ItemType Directory -Force -Path $tool | Out-Null
+          Copy-Item tools/wz-donor/v180-item-client-patcher/Program.cs (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net10.0-windows</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <EnableWindowsTargeting>true</EnableWindowsTargeting>
+            </PropertyGroup>
+            <ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafV180ItemPatcher.csproj')
+          dotnet build (Join-Path $tool 'EverLeafV180ItemPatcher.csproj') -c Release
+
+      - name: Fetch target donor and item manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'v180-items'; $target=Join-Path $root 'target'; $donor=Join-Path $root 'donor'; New-Item -ItemType Directory -Force -Path $target,$donor | Out-Null
+          foreach($f in @('Item.wz','String.wz')){scp "everleaf-oracle`:$env:TARGET_ROOT/$f" (Join-Path $target $f); if($LASTEXITCODE){throw "target fetch failed: $f"}}
+          foreach($f in @('Item.wz','String.wz','ZLZ.dll')){scp "everleaf-oracle`:$env:DONOR_ROOT/$f" (Join-Path $donor $f); if($LASTEXITCODE){throw "donor fetch failed: $f"}}
+          scp "everleaf-oracle`:$env:MANIFEST_ROOT/items_all.tsv" (Join-Path $root 'items_all.tsv'); if($LASTEXITCODE){throw 'item manifest fetch failed'}
+
+      - name: Build and verify item candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'v180-items'; $out=Join-Path $root 'out'; New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $project=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafV180ItemPatcher/EverLeafV180ItemPatcher.csproj'
+          dotnet run --project $project -c Release --no-build -- (Join-Path $root 'target/Item.wz') (Join-Path $root 'target/String.wz') (Join-Path $root 'donor/Item.wz') (Join-Path $root 'donor/String.wz') (Join-Path $root 'items_all.tsv') $out (Join-Path $out 'ITEM_MANIFEST.json')
+          if($LASTEXITCODE){throw 'item candidate build failed'}
+          test-path (Join-Path $out 'Item.wz') | Out-Null
+          test-path (Join-Path $out 'String.wz') | Out-Null
+
+      - name: Upload isolated item candidate to Oracle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $out=Join-Path $env:RUNNER_TEMP 'v180-items/out'
+          foreach($f in @('Item.wz','String.wz','ITEM_MANIFEST.json')){scp (Join-Path $out $f) "everleaf-oracle`:$env:STAGE_ROOT/$f"; if($LASTEXITCODE){throw "candidate upload failed: $f"}}
+          $verify=@'
+          set -euo pipefail
+          ROOT="__ROOT__"
+          test -s "$ROOT/Item.wz"
+          test -s "$ROOT/String.wz"
+          test -s "$ROOT/ITEM_MANIFEST.json"
+          grep -q '"productionApplyAllowed": false' "$ROOT/ITEM_MANIFEST.json"
+          grep -q '"allMergedNodesVerified": true' "$ROOT/ITEM_MANIFEST.json"
+          sha256sum "$ROOT/Item.wz" "$ROOT/String.wz" > "$ROOT/SHA256SUMS"
+          printf 'GMS v180 donor-only Item.wz/String.wz candidate. STAGING ONLY. No production apply.\n' > "$ROOT/README.txt"
+          echo V180_ITEM_STAGE_OK
+          du -sh "$ROOT"
+          '@
+          $verify=$verify.Replace('__ROOT__',$env:STAGE_ROOT)
+          $tmp=Join-Path $env:RUNNER_TEMP 'verify-v180-items.sh'; [IO.File]::WriteAllText($tmp,($verify -replace "`r",''))
+          scp $tmp 'everleaf-oracle:/tmp/verify-v180-items.sh'; if($LASTEXITCODE){throw 'verification upload failed'}
+          ssh everleaf-oracle 'bash /tmp/verify-v180-items.sh'; if($LASTEXITCODE){throw 'final item staging verification failed'}
