@@ -23,18 +23,22 @@ public static class LauncherConfiguration
     public static readonly Uri ApiBase = new("https://everleafms.online/");
     public static readonly Uri ManifestUri = new(ApiBase, "v1/launcher/manifest");
     public const string GameExecutable = "EverLeaf.exe";
-    public const string LegacyGameExecutable = "MapleStory.exe";
+    public const string RuntimeExecutable = "MapleStory.exe";
+    public static readonly IReadOnlySet<string> ObsoleteClientFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "dinput8.dll", "Discord.dll", "EverLeafMS.dll", "EverLeaf_UI.wz"
+    };
     public const string LauncherExecutable = "EverLeafLauncher.exe";
     public static readonly IReadOnlySet<string> RequiredGameFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        "Base.wz", "Canvas.dll", "Character.wz", "config.ini", "dinput8.dll",
-        "Effect.wz", "Etc.wz", "EverLeaf_UI.wz", "Gr2D_DX8.dll", "ijl15.dll",
-        "Item.wz", "l3codeca.acm", "List.wz", "Map.wz", "EverLeaf.exe",
-        "Mob.wz", "Morph.wz", "mss32.dll", "NameSpace.dll", "nmcogame.dll",
-        "nmconew.dll", "Npc.wz", "PCOM.dll", "Quest.wz", "Reactor.wz",
-        "ResMan.dll", "Shape2D.dll", "Skill.wz", "Sound.wz", "Sound_DX8.dll",
-        "String.wz", "suipre.dll", "TamingMob.wz", "UI.wz", "WzFlashRenderer.dll",
-        "ZLZ.dll"
+        "aossdk.dll", "Base.wz", "bz32ex.dll", "Canvas.dll", "Character.wz",
+        "config.ini", "Custom.wz", "Effect.wz", "Etc.wz", "EverLeaf.dll",
+        "EverLeaf.exe", "Gr2D_DX8.dll", "ijl15.dll", "Item.wz", "l3codeca.acm",
+        "List.wz", "Map.wz", "MapleStory.exe", "Mob.wz", "Morph.wz",
+        "mss32.dll", "NameSpace.dll", "nmcogame.dll", "nmconew.dll", "Npc.wz",
+        "PCOM.dll", "Quest.wz", "Reactor.wz", "ResMan.dll", "Shape2D.dll",
+        "Skill.wz", "Sound.wz", "Sound_DX8.dll", "String.wz", "suipre.dll",
+        "TamingMob.wz", "UI.wz", "v3hunt.dll", "WzFlashRenderer.dll", "ZLZ.dll"
     };
 
     // Public half of EverLeaf's launcher-manifest signing key. The corresponding
@@ -118,7 +122,7 @@ public sealed class PatchService : IDisposable
             completedBytes += Math.Max(1, file.Size);
         }
 
-        RemoveLegacyGameExecutable();
+        RemoveObsoleteClientFiles();
         progress.Report((100, $"EverLeaf is up to date — {manifest.Version}"));
     }
 
@@ -150,14 +154,16 @@ public sealed class PatchService : IDisposable
         return manifest;
     }
 
-    internal void RemoveLegacyGameExecutable()
+    internal void RemoveObsoleteClientFiles()
     {
-        var current = Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable);
-        var legacy = Path.Combine(_gameDirectory, LauncherConfiguration.LegacyGameExecutable);
-        if (File.Exists(current) && File.Exists(legacy))
+        // The Kaentake-based EverLeaf runtime needs MapleStory.exe as its original
+        // v83 host process. Only remove files from the retired dinput8/EverLeafMS stack.
+        foreach (var name in LauncherConfiguration.ObsoleteClientFiles)
         {
-            MakeWritable(legacy);
-            File.Delete(legacy);
+            var path = Path.Combine(_gameDirectory, name);
+            if (!File.Exists(path)) continue;
+            MakeWritable(path);
+            File.Delete(path);
         }
     }
 

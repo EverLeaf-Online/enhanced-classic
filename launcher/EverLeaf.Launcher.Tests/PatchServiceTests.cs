@@ -38,21 +38,20 @@ public sealed class PatchServiceTests
     }
 
     [Fact]
-    public void RemovesOnlyTheLegacyExecutableAfterEverLeafExists()
+    public void PreservesMapleStoryRuntimeAndRemovesRetiredClientStack()
     {
         using var temp = new TemporaryDirectory();
-        var current = System.IO.Path.Combine(temp.Path, LauncherConfiguration.GameExecutable);
-        var legacy = System.IO.Path.Combine(temp.Path, LauncherConfiguration.LegacyGameExecutable);
-        File.WriteAllText(legacy, "legacy");
+        var runtime = System.IO.Path.Combine(temp.Path, LauncherConfiguration.RuntimeExecutable);
+        File.WriteAllText(runtime, "original v83 host process");
+        foreach (var name in LauncherConfiguration.ObsoleteClientFiles)
+            File.WriteAllText(System.IO.Path.Combine(temp.Path, name), "retired");
         using var service = new PatchService(temp.Path);
 
-        service.RemoveLegacyGameExecutable();
-        Assert.True(File.Exists(legacy));
+        service.RemoveObsoleteClientFiles();
 
-        File.WriteAllText(current, "verified current client");
-        service.RemoveLegacyGameExecutable();
-        Assert.True(File.Exists(current));
-        Assert.False(File.Exists(legacy));
+        Assert.True(File.Exists(runtime));
+        foreach (var name in LauncherConfiguration.ObsoleteClientFiles)
+            Assert.False(File.Exists(System.IO.Path.Combine(temp.Path, name)));
     }
 
     [Fact]
@@ -93,7 +92,7 @@ public sealed class PatchServiceTests
     }
 
     [Fact]
-    public void RequiresTheCompleteThirtySixFileClient()
+    public void RequiresTheCompleteFortyFileClient()
     {
         using var temp = new TemporaryDirectory();
         using var service = new PatchService(temp.Path);
@@ -102,7 +101,7 @@ public sealed class PatchServiceTests
             .ToArray();
 
         service.ValidateManifest(new PatchManifest("complete", complete));
-        Assert.Equal(36, complete.Length);
+        Assert.Equal(40, complete.Length);
         Assert.Throws<InvalidOperationException>(() =>
             service.ValidateManifest(new PatchManifest("missing-one", complete.Skip(1).ToArray())));
     }

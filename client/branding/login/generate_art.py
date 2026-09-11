@@ -88,41 +88,46 @@ def build_frame(path):
 
 
 def build_signboard(path):
-    image = wood_texture((368, 236), 7)
+    # Neutral graphite/silver panel for the Kaentake-based EverLeaf login.
+    # Keep the forest/logo green; the interactive chrome itself is intentionally
+    # grey so the login UI no longer competes with the background artwork.
+    image = Image.new("RGBA", (368, 236), (47, 50, 54, 224))
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle((2, 2, 365, 233), radius=12, outline=(29, 23, 8, 255), width=4)
-    draw.rounded_rectangle((7, 7, 360, 228), radius=9, outline=(151, 117, 52, 255), width=2)
-    draw.rounded_rectangle((11, 10, 356, 80), radius=7, fill=(33, 39, 16, 118), outline=(112, 137, 45, 185), width=1)
-    draw.text((17, 18), "Login ID", font=font(10, True), fill=(244, 239, 211, 255),
-              stroke_width=1, stroke_fill=(25, 16, 7, 255))
-    draw.text((17, 53), "Password", font=font(10, True), fill=(244, 239, 211, 255),
-              stroke_width=1, stroke_fill=(25, 16, 7, 255))
+    draw.rounded_rectangle((2, 2, 365, 233), radius=12,
+                           fill=(47, 50, 54, 224), outline=(24, 26, 29, 255), width=4)
+    draw.rounded_rectangle((7, 7, 360, 228), radius=9,
+                           outline=(143, 149, 156, 230), width=2)
+    draw.rounded_rectangle((11, 10, 356, 80), radius=7,
+                           fill=(35, 38, 42, 235), outline=(103, 109, 116, 220), width=1)
+    draw.text((17, 18), "Login ID", font=font(10, True), fill=(238, 240, 242, 255),
+              stroke_width=1, stroke_fill=(20, 22, 24, 255))
+    draw.text((17, 53), "Password", font=font(10, True), fill=(238, 240, 242, 255),
+              stroke_width=1, stroke_fill=(20, 22, 24, 255))
     for top in (10, 45):
         draw.rounded_rectangle((63, top, 213, top + 31), radius=5,
-                               fill=(23, 27, 14, 255), outline=(134, 108, 47, 255), width=2)
-    draw.line((12, 88, 356, 88), fill=(151, 117, 52, 175), width=1)
-    draw.line((12, 126, 356, 126), fill=(36, 22, 8, 180), width=1)
+                               fill=(26, 29, 32, 255), outline=(126, 132, 139, 255), width=2)
+    draw.line((12, 88, 356, 88), fill=(132, 138, 145, 185), width=1)
+    draw.line((12, 126, 356, 126), fill=(26, 28, 31, 210), width=1)
     centered_text(draw, (10, 183, 358, 207), "EVERLEAF • ENHANCED CLASSIC",
-                  font(11, True), fill=(207, 230, 119, 235), stroke_width=1,
-                  stroke_fill=(25, 43, 14, 220))
+                  font(11, True), fill=(224, 227, 230, 240), stroke_width=1,
+                  stroke_fill=(28, 31, 34, 230))
     centered_text(draw, (10, 207, 358, 225), "EXPLORE • GROW • ADVENTURE",
-                  font(8, True), fill=(238, 230, 192, 210), stroke_width=1)
+                  font(8, True), fill=(201, 205, 209, 220), stroke_width=1,
+                  stroke_fill=(28, 31, 34, 220))
     image.save(path, "PNG", optimize=True)
 
 
 def button(path, size, text, state, green=False, text_size=None):
     width, height = size
-    palettes = ({
-        "normal": ((84, 121, 21), (154, 187, 57)),
-        "mouseOver": ((105, 145, 27), (193, 217, 79)),
-        "pressed": ((61, 91, 14), (125, 158, 38)),
-        "disabled": ((69, 75, 58), (104, 111, 82)),
-    } if green else {
-        "normal": ((62, 45, 23), (134, 97, 45)),
-        "mouseOver": ((79, 59, 27), (169, 123, 55)),
-        "pressed": ((45, 33, 16), (108, 78, 35)),
-        "disabled": ((65, 61, 50), (103, 95, 75)),
-    })
+    # EverLeaf's login controls use a neutral charcoal/silver palette.  The
+    # `green` argument is retained for compatibility with older call sites,
+    # but all login actions intentionally share one visual language now.
+    palettes = {
+        "normal": ((66, 70, 74), (132, 138, 145)),
+        "mouseOver": ((83, 88, 93), (176, 183, 190)),
+        "pressed": ((49, 53, 57), (108, 114, 120)),
+        "disabled": ((68, 70, 72), (94, 98, 102)),
+    }
     fill, edge = palettes[state]
     image = Image.new("RGB", size, fill)
     draw = ImageDraw.Draw(image)
@@ -141,12 +146,12 @@ def button(path, size, text, state, green=False, text_size=None):
 
 
 def build_check(path, checked):
-    image = Image.new("RGB", (18, 23), (54, 42, 21))
+    image = Image.new("RGB", (18, 23), (58, 61, 64))
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle((1, 3, 16, 18), radius=3, fill=(28, 48, 15),
-                           outline=(145, 177, 48), width=2)
+    draw.rounded_rectangle((1, 3, 16, 18), radius=3, fill=(52, 56, 60),
+                           outline=(151, 158, 165), width=2)
     if checked:
-        draw.line((4, 10, 8, 15, 15, 6), fill=(211, 235, 91), width=3, joint="curve")
+        draw.line((4, 10, 8, 15, 15, 6), fill=(232, 235, 238), width=3, joint="curve")
     image.save(path, "PNG", optimize=True)
 
 

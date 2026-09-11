@@ -35,7 +35,7 @@
           </Border>
           <TextBlock Text="Install once. Always play on the latest EverLeaf client." FontSize="38" FontWeight="Bold"
                      TextWrapping="Wrap" Margin="0,18,0,12"/>
-          <TextBlock Text="Place this launcher in an empty folder. It installs all 36 required game files, verifies every update, and then starts EverLeaf."
+          <TextBlock Text="Place this launcher in an empty folder. It installs all 40 required game files, verifies every update, and then starts EverLeaf."
                      FontSize="16" Foreground="#BDD0C8" TextWrapping="Wrap" LineHeight="25"/>
         </StackPanel>
 

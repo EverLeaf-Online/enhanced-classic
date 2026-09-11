@@ -56,8 +56,10 @@ jobs:
           $keyPath = Join-Path $HOME '.ssh/id_everleaf'
           $sshExe = 'C:\Program Files\Git\usr\bin\ssh.exe'
           $scpExe = 'C:\Program Files\Git\usr\bin\scp.exe'
-          $baseline = Get-Content 'client/managed-client-baseline.json' -Raw | ConvertFrom-Json
-          if ($baseline.schemaVersion -ne 1) { throw 'Unsupported managed client baseline schema' }
+          $baselineJson = & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "cat /opt/everleaf/patches/managed-client-baseline.json"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to read published managed client baseline from Oracle' }
+          $baseline = ($baselineJson -join "`n") | ConvertFrom-Json
+          if ($baseline.schemaVersion -ne 1) { throw 'Unsupported published managed client baseline schema' }
           $names = @($baseline.managedFiles | ForEach-Object { [string]$_.path })
           if ($names -notcontains 'EverLeaf.exe' -or $names -notcontains 'Item.wz' -or $names -notcontains 'String.wz') {
             throw 'Managed baseline is missing required client files'
