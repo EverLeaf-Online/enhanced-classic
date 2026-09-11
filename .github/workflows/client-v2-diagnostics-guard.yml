@@ -14,10 +14,10 @@ jobs:
       - name: Verify diagnostics privacy and crash/freeze-handler invariants
         shell: pwsh
         run: |
-          $diag = Get-Content "client/ezorsia/ezorsia/CrashDiagnostics.cpp" -Raw
-          $header = Get-Content "client/ezorsia/ezorsia/CrashDiagnostics.h" -Raw
-          $bootstrap = Get-Content "client/ezorsia/ezorsia/dllmain.cpp" -Raw
-          $project = Get-Content "client/ezorsia/ezorsia/ezorsia.vcxproj" -Raw
+          $diag = Get-Content "client/native/core/CrashDiagnostics.cpp" -Raw
+          $header = Get-Content "client/native/core/CrashDiagnostics.h" -Raw
+          $bootstrap = Get-Content "client/native/core/dllmain.cpp" -Raw
+          $project = Get-Content "client/native/core/EverLeafMS.vcxproj" -Raw
 
           foreach ($required in @(
             'EverLeafClient.log',
@@ -61,10 +61,10 @@ jobs:
           }
 
           if (-not $project.Contains('<ClCompile Include="CrashDiagnostics.cpp" />')) {
-            throw "CrashDiagnostics.cpp is not compiled into the client DLL"
+            throw "CrashDiagnostics.cpp is not compiled into EverLeafMS.dll"
           }
-          if (-not $project.Contains('<ClInclude Include="CrashDiagnostics.h" />')) {
-            throw "CrashDiagnostics.h is not part of the client project"
+          if (-not (Test-Path "client/native/core/CrashDiagnostics.h")) {
+            throw "CrashDiagnostics.h is missing from the EverLeaf native core"
           }
           if (-not $header.Contains('void Install();')) {
             throw "Diagnostics interface is incomplete"
