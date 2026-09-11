@@ -9,7 +9,7 @@ the launcher becomes the game directory.
 2. Extract the portable launcher into that folder.
 3. Open `EverLeafLauncher.exe` and press **Install EverLeaf**.
 4. The launcher authenticates EverLeaf's signed HTTPS manifest and checks available disk space.
-5. It downloads all 36 required files and verifies each one before replacement.
+5. It downloads all 40 required files and verifies each one before replacement.
 6. Existing installations automatically check every file by size and streaming SHA-256.
 7. After all required files match production, Play starts `EverLeaf.exe`.
 8. Future launcher releases update automatically from the RSA-signed manifest,

@@ -21,7 +21,7 @@ Replace-Exact 'src/launcher.rc' 'VALUE "FileDescription",  "Kaentake"' 'VALUE "F
 Replace-Exact 'src/launcher.rc' 'VALUE "InternalName",     "Kaentake"' 'VALUE "InternalName",     "EverLeaf"'
 Replace-Exact 'src/launcher.rc' 'VALUE "OriginalFilename", "Kaentake.exe"' 'VALUE "OriginalFilename", "EverLeaf.exe"'
 Replace-Exact 'src/launcher.rc' 'VALUE "ProductName",      "Kaentake"' 'VALUE "ProductName",      "EverLeaf"'
-Replace-Exact 'src/launcher.rc' 'VALUE "LegalCopyright",   "Kaentake"' 'VALUE "LegalCopyright",   "Kaentake contributors / EverLeaf integration"'
+Replace-Exact 'src/launcher.rc' 'VALUE "LegalCopyright",   "Kaentake"' 'VALUE "LegalCopyright",   "EverLeaf Online"'
 
 $cmake = Join-Path $SourceRoot 'src/CMakeLists.txt'
 $text = [IO.File]::ReadAllText($cmake)

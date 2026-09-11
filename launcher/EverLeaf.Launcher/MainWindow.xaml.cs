@@ -220,8 +220,8 @@ public partial class MainWindow : Window
         await patcher.VerifyAndRepairAsync(progress, CancellationToken.None);
         PatchProgress.Value = 100;
         PatchStatusText.Text = _launcherReady
-            ? "All 36 required EverLeaf game files verified."
-            : "All 36 required EverLeaf game files verified. Launcher update check is still required before Play.";
+            ? "All 40 required EverLeaf game files verified."
+            : "All 40 required EverLeaf game files verified. Launcher update check is still required before Play.";
         _clientReady = true;
         _installMode = false;
     }
