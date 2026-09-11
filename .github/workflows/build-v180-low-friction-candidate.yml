@@ -62,7 +62,23 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          ssh everleaf-oracle "set -e; test -s '$env:DONOR_ROOT/ZLZ.dll'; for f in Character.wz Map.wz Mob.wz Npc.wz Reactor.wz UI.wz Effect.wz Sound.wz Morph.wz TamingMob.wz String.wz; do test -s '$env:DONOR_ROOT/'\$f; test -s '$env:TARGET_ROOT/'\$f; done; test -s '$env:MANIFEST_ROOT/LOW_FRICTION_MANIFEST.json'; sudo rm -rf '$env:STAGE_ROOT'; sudo mkdir -p '$env:STAGE_ROOT'; sudo chown -R ubuntu:ubuntu '$env:STAGE_ROOT'"
+          $checks = @(
+            "$env:DONOR_ROOT/ZLZ.dll",
+            "$env:DONOR_ROOT/Character.wz", "$env:TARGET_ROOT/Character.wz",
+            "$env:DONOR_ROOT/Map.wz", "$env:TARGET_ROOT/Map.wz",
+            "$env:DONOR_ROOT/Mob.wz", "$env:TARGET_ROOT/Mob.wz",
+            "$env:DONOR_ROOT/Npc.wz", "$env:TARGET_ROOT/Npc.wz",
+            "$env:DONOR_ROOT/Reactor.wz", "$env:TARGET_ROOT/Reactor.wz",
+            "$env:DONOR_ROOT/UI.wz", "$env:TARGET_ROOT/UI.wz",
+            "$env:DONOR_ROOT/Effect.wz", "$env:TARGET_ROOT/Effect.wz",
+            "$env:DONOR_ROOT/Sound.wz", "$env:TARGET_ROOT/Sound.wz",
+            "$env:DONOR_ROOT/Morph.wz", "$env:TARGET_ROOT/Morph.wz",
+            "$env:DONOR_ROOT/TamingMob.wz", "$env:TARGET_ROOT/TamingMob.wz",
+            "$env:DONOR_ROOT/String.wz", "$env:TARGET_ROOT/String.wz",
+            "$env:MANIFEST_ROOT/LOW_FRICTION_MANIFEST.json"
+          )
+          foreach($p in $checks){ ssh everleaf-oracle "test -s '$p'"; if($LASTEXITCODE){throw "Missing Oracle input: $p"} }
+          ssh everleaf-oracle "sudo rm -rf '$env:STAGE_ROOT' && sudo mkdir -p '$env:STAGE_ROOT' && sudo chown -R ubuntu:ubuntu '$env:STAGE_ROOT'"
           if($LASTEXITCODE){throw 'Oracle staging preparation failed'}
 
       - name: Build MapleLib static patcher
