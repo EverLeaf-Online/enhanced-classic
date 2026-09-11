@@ -43,9 +43,16 @@ if (-not $text.Contains('discordpresence.cpp')) {
         $text = $text.Replace("    startup.cpp`n", "    startup.cpp`n    discordpresence.cpp`n")
     }
 }
+if (-not $text.Contains('weblinks.cpp')) {
+    $text = $text.Replace("    discordpresence.cpp`r`n", "    discordpresence.cpp`r`n    weblinks.cpp`r`n")
+    if (-not $text.Contains('weblinks.cpp')) {
+        $text = $text.Replace("    discordpresence.cpp`n", "    discordpresence.cpp`n    weblinks.cpp`n")
+    }
+}
 if (-not $text.Contains('loginlayout.cpp') -or
     -not $text.Contains('startup.cpp') -or
-    -not $text.Contains('discordpresence.cpp')) {
+    -not $text.Contains('discordpresence.cpp') -or
+    -not $text.Contains('weblinks.cpp')) {
     throw 'Could not add EverLeaf client modules to src/CMakeLists.txt'
 }
 [IO.File]::WriteAllText($cmake, $text, [Text.UTF8Encoding]::new($false))
@@ -61,6 +68,9 @@ if (-not $text.Contains('void AttachEverLeafStartupMod();')) {
 if (-not $text.Contains('void AttachEverLeafDiscordPresenceMod();')) {
     $text = $text.Replace("void AttachEverLeafStartupMod();", "void AttachEverLeafStartupMod();`r`nvoid AttachEverLeafDiscordPresenceMod();")
 }
+if (-not $text.Contains('void AttachEverLeafWebLinksMod();')) {
+    $text = $text.Replace("void AttachEverLeafDiscordPresenceMod();", "void AttachEverLeafDiscordPresenceMod();`r`nvoid AttachEverLeafWebLinksMod();")
+}
 if (-not $text.Contains('    AttachLoginLayoutMod();')) {
     $text = $text.Replace("    AttachTempStatMod();", "    AttachTempStatMod();`r`n    AttachLoginLayoutMod();")
 }
@@ -70,12 +80,17 @@ if (-not $text.Contains('    AttachEverLeafStartupMod();')) {
 if (-not $text.Contains('    AttachEverLeafDiscordPresenceMod();')) {
     $text = $text.Replace("    AttachEverLeafStartupMod();", "    AttachEverLeafStartupMod();`r`n    AttachEverLeafDiscordPresenceMod();")
 }
+if (-not $text.Contains('    AttachEverLeafWebLinksMod();')) {
+    $text = $text.Replace("    AttachEverLeafDiscordPresenceMod();", "    AttachEverLeafDiscordPresenceMod();`r`n    AttachEverLeafWebLinksMod();")
+}
 if (-not $text.Contains('void AttachLoginLayoutMod();') -or
     -not $text.Contains('void AttachEverLeafStartupMod();') -or
     -not $text.Contains('void AttachEverLeafDiscordPresenceMod();') -or
+    -not $text.Contains('void AttachEverLeafWebLinksMod();') -or
     -not $text.Contains('    AttachLoginLayoutMod();') -or
     -not $text.Contains('    AttachEverLeafStartupMod();') -or
-    -not $text.Contains('    AttachEverLeafDiscordPresenceMod();')) {
+    -not $text.Contains('    AttachEverLeafDiscordPresenceMod();') -or
+    -not $text.Contains('    AttachEverLeafWebLinksMod();')) {
     throw 'Could not wire EverLeaf client modules into src/hook.h'
 }
 [IO.File]::WriteAllText($hook, $text, [Text.UTF8Encoding]::new($false))
@@ -83,4 +98,5 @@ if (-not $text.Contains('void AttachLoginLayoutMod();') -or
 Copy-Item (Join-Path $PSScriptRoot 'loginlayout.cpp') (Join-Path $SourceRoot 'src/loginlayout.cpp') -Force
 Copy-Item (Join-Path $PSScriptRoot 'startup.cpp') (Join-Path $SourceRoot 'src/startup.cpp') -Force
 Copy-Item (Join-Path $PSScriptRoot 'discordpresence.cpp') (Join-Path $SourceRoot 'src/discordpresence.cpp') -Force
+Copy-Item (Join-Path $PSScriptRoot 'weblinks.cpp') (Join-Path $SourceRoot 'src/weblinks.cpp') -Force
 Write-Host 'EverLeaf Kaentake integration patch applied.'
