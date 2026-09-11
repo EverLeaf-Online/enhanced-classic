@@ -40,10 +40,10 @@ so the game-file patcher never attempts to replace itself.
 - `/patches/<file>` holds repair copies of every file in the managed baseline.
 - `/v1/launcher/manifest` returns the signed production file identities.
 
-Repository-built client overlays (`dinput8.dll`, `config.ini`, and
-`EverLeaf_UI.wz`) update their corresponding files without deleting the static
-bootstrap files already present on the production patch server.
+The managed client now uses the EverLeaf Kaentake-based runtime: `EverLeaf.exe`
+launches the original v83 `MapleStory.exe`, injects `EverLeaf.dll`, and mounts
+`Custom.wz` for isolated client/UI overrides.
 
-Existing legacy folders may contain `MapleStory.exe`. On their first successful
-repair, the launcher verifies the production client as `EverLeaf.exe` and removes
-only that legacy executable.
+On the first successful repair after migration, the launcher preserves
+`MapleStory.exe` and removes only the retired proxy stack (`dinput8.dll`,
+`EverLeafMS.dll`, `Discord.dll`, and `EverLeaf_UI.wz`).

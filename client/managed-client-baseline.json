@@ -2,43 +2,166 @@
   "schemaVersion": 1,
   "distributionAuthorization": "Project owner confirmed redistribution rights on 2026-08-28.",
   "managedFiles": [
-    { "path": "Base.wz", "redistributable": true },
-    { "path": "Canvas.dll", "redistributable": true },
-    { "path": "Character.wz", "redistributable": true },
-    { "path": "config.ini", "source": "client/native/core/config.ini", "redistributable": true },
-    { "path": "dinput8.dll", "source": "client/native/out/Release/dinput8.dll", "redistributable": true },
-    { "path": "Discord.dll", "source": "client/native/out/Release/Discord.dll", "redistributable": true },
-    { "path": "Effect.wz", "redistributable": true },
-    { "path": "Etc.wz", "redistributable": true },
-    { "path": "EverLeafMS.dll", "source": "client/native/out/Release/EverLeafMS.dll", "redistributable": true },
-    { "path": "EverLeaf_UI.wz", "source": "client/native/core/EverLeaf_UI.wz", "redistributable": true },
-    { "path": "Gr2D_DX8.dll", "redistributable": true },
-    { "path": "ijl15.dll", "redistributable": true },
-    { "path": "Item.wz", "redistributable": true },
-    { "path": "l3codeca.acm", "redistributable": true },
-    { "path": "List.wz", "redistributable": true },
-    { "path": "Map.wz", "redistributable": true },
-    { "path": "EverLeaf.exe", "bootstrapPath": "MapleStory.exe", "redistributable": true },
-    { "path": "Mob.wz", "redistributable": true },
-    { "path": "Morph.wz", "redistributable": true },
-    { "path": "mss32.dll", "redistributable": true },
-    { "path": "NameSpace.dll", "redistributable": true },
-    { "path": "nmcogame.dll", "redistributable": true },
-    { "path": "nmconew.dll", "redistributable": true },
-    { "path": "Npc.wz", "redistributable": true },
-    { "path": "PCOM.dll", "redistributable": true },
-    { "path": "Quest.wz", "redistributable": true },
-    { "path": "Reactor.wz", "redistributable": true },
-    { "path": "ResMan.dll", "redistributable": true },
-    { "path": "Shape2D.dll", "redistributable": true },
-    { "path": "Skill.wz", "redistributable": true },
-    { "path": "Sound.wz", "redistributable": true },
-    { "path": "Sound_DX8.dll", "redistributable": true },
-    { "path": "String.wz", "redistributable": true },
-    { "path": "suipre.dll", "redistributable": true },
-    { "path": "TamingMob.wz", "redistributable": true },
-    { "path": "UI.wz", "redistributable": true },
-    { "path": "WzFlashRenderer.dll", "redistributable": true },
-    { "path": "ZLZ.dll", "redistributable": true }
+    {
+      "path": "aossdk.dll",
+      "redistributable": true
+    },
+    {
+      "path": "Base.wz",
+      "redistributable": true
+    },
+    {
+      "path": "bz32ex.dll",
+      "redistributable": true
+    },
+    {
+      "path": "Canvas.dll",
+      "redistributable": true
+    },
+    {
+      "path": "Character.wz",
+      "redistributable": true
+    },
+    {
+      "path": "config.ini",
+      "source": "client/native/core/config.ini",
+      "redistributable": true
+    },
+    {
+      "path": "Custom.wz",
+      "redistributable": true
+    },
+    {
+      "path": "Effect.wz",
+      "redistributable": true
+    },
+    {
+      "path": "Etc.wz",
+      "redistributable": true
+    },
+    {
+      "path": "EverLeaf.dll",
+      "redistributable": true
+    },
+    {
+      "path": "EverLeaf.exe",
+      "redistributable": true
+    },
+    {
+      "path": "Gr2D_DX8.dll",
+      "redistributable": true
+    },
+    {
+      "path": "ijl15.dll",
+      "redistributable": true
+    },
+    {
+      "path": "Item.wz",
+      "redistributable": true
+    },
+    {
+      "path": "l3codeca.acm",
+      "redistributable": true
+    },
+    {
+      "path": "List.wz",
+      "redistributable": true
+    },
+    {
+      "path": "Map.wz",
+      "redistributable": true
+    },
+    {
+      "path": "MapleStory.exe",
+      "redistributable": true
+    },
+    {
+      "path": "Mob.wz",
+      "redistributable": true
+    },
+    {
+      "path": "Morph.wz",
+      "redistributable": true
+    },
+    {
+      "path": "mss32.dll",
+      "redistributable": true
+    },
+    {
+      "path": "NameSpace.dll",
+      "redistributable": true
+    },
+    {
+      "path": "nmcogame.dll",
+      "redistributable": true
+    },
+    {
+      "path": "nmconew.dll",
+      "redistributable": true
+    },
+    {
+      "path": "Npc.wz",
+      "redistributable": true
+    },
+    {
+      "path": "PCOM.dll",
+      "redistributable": true
+    },
+    {
+      "path": "Quest.wz",
+      "redistributable": true
+    },
+    {
+      "path": "Reactor.wz",
+      "redistributable": true
+    },
+    {
+      "path": "ResMan.dll",
+      "redistributable": true
+    },
+    {
+      "path": "Shape2D.dll",
+      "redistributable": true
+    },
+    {
+      "path": "Skill.wz",
+      "redistributable": true
+    },
+    {
+      "path": "Sound.wz",
+      "redistributable": true
+    },
+    {
+      "path": "Sound_DX8.dll",
+      "redistributable": true
+    },
+    {
+      "path": "String.wz",
+      "redistributable": true
+    },
+    {
+      "path": "suipre.dll",
+      "redistributable": true
+    },
+    {
+      "path": "TamingMob.wz",
+      "redistributable": true
+    },
+    {
+      "path": "UI.wz",
+      "redistributable": true
+    },
+    {
+      "path": "v3hunt.dll",
+      "redistributable": true
+    },
+    {
+      "path": "WzFlashRenderer.dll",
+      "redistributable": true
+    },
+    {
+      "path": "ZLZ.dll",
+      "redistributable": true
+    }
   ]
 }

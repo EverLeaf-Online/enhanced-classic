@@ -69,12 +69,12 @@ public partial class MainWindow : Window
         }
 
         var gameExists = File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable))
-                         || File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.LegacyGameExecutable));
+                         || File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.RuntimeExecutable));
         if (!gameExists)
         {
             _installMode = true;
             PatchStatusText.Text = _launcherReady
-                ? "Ready to install all 36 required EverLeaf files in this folder."
+                ? "Ready to install the complete EverLeaf client in this folder."
                 : "Launcher update check required before Play. Repair remains available.";
         }
 
