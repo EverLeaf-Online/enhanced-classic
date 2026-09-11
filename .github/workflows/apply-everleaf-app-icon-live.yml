@@ -18,7 +18,7 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   EVERLEAF_DEPLOY_USER: ubuntu
-  RCEDIT_URL: https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe
+  RESOURCE_HACKER_URL: https://www.angusj.com/resourcehacker/resource_hacker.zip
   ICON_SHA256: 3fdea6b7873dfff399d7a6600c864ad1a5933706392adb7c53415301ac774ceb
 
 jobs:
@@ -86,7 +86,6 @@ jobs:
           $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'
           scp 'everleaf-oracle:/opt/everleaf/patches/files/EverLeaf.exe' (Join-Path $root 'EverLeaf.original.exe')
           if($LASTEXITCODE){throw 'Live EverLeaf.exe fetch failed'}
-          Copy-Item (Join-Path $root 'EverLeaf.original.exe') (Join-Path $root 'EverLeaf.exe')
           $before=(Get-FileHash (Join-Path $root 'EverLeaf.original.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
           "Original EverLeaf.exe SHA-256: $before" | Add-Content $env:GITHUB_STEP_SUMMARY
 
@@ -96,22 +95,40 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'
-          $rcedit=Join-Path $root 'rcedit-x64.exe'
-          Write-Host 'Downloading rcedit with bounded network timeouts...'
-          & curl.exe -L --fail --silent --show-error --connect-timeout 15 --max-time 120 $env:RCEDIT_URL -o $rcedit
-          if($LASTEXITCODE){throw "rcedit download failed with exit code $LASTEXITCODE"}
-          if((Get-Item $rcedit).Length -lt 1000000){throw 'rcedit download is unexpectedly small'}
-          Write-Host 'RCEDIT_DOWNLOAD_OK'
+          $zip=Join-Path $root 'resource_hacker.zip'
+          $rhDir=Join-Path $root 'resource-hacker'
+          Write-Host 'Downloading Resource Hacker with bounded network timeouts...'
+          & curl.exe -L --fail --silent --show-error --connect-timeout 15 --max-time 120 $env:RESOURCE_HACKER_URL -o $zip
+          if($LASTEXITCODE){throw "Resource Hacker download failed with exit code $LASTEXITCODE"}
+          if((Get-Item $zip).Length -lt 1000000){throw 'Resource Hacker download is unexpectedly small'}
+          Expand-Archive -LiteralPath $zip -DestinationPath $rhDir -Force
+          $resourceHacker=Get-ChildItem -LiteralPath $rhDir -Filter 'ResourceHacker.exe' -Recurse -File | Select-Object -First 1 -ExpandProperty FullName
+          if(-not $resourceHacker){throw 'ResourceHacker.exe was not found in the official archive'}
+          Write-Host 'RESOURCE_HACKER_READY'
+
+          $original=Join-Path $root 'EverLeaf.original.exe'
+          $stripped=Join-Path $root 'EverLeaf.noicon.exe'
           $candidate=Join-Path $root 'EverLeaf.exe'
           $iconPath=Join-Path $root 'everleaf-icon.ico'
-          Write-Host 'Applying icon with a 120 second process timeout...'
-          $process=Start-Process -FilePath $rcedit -ArgumentList @($candidate,'--set-icon',$iconPath) -PassThru
-          if(-not $process.WaitForExit(120000)){
-            try { $process.Kill($true) } catch {}
-            throw 'rcedit timed out after 120 seconds'
+
+          function Invoke-ResourceHacker([string[]]$arguments,[int]$timeoutMs) {
+            $process=Start-Process -FilePath $resourceHacker -ArgumentList $arguments -PassThru -WindowStyle Hidden
+            if(-not $process.WaitForExit($timeoutMs)){
+              try { $process.Kill($true) } catch {}
+              throw "Resource Hacker timed out after $([int]($timeoutMs/1000)) seconds"
+            }
+            if($process.ExitCode -ne 0){throw "Resource Hacker failed with exit code $($process.ExitCode)"}
           }
-          if($process.ExitCode -ne 0){throw "rcedit failed with exit code $($process.ExitCode)"}
-          $before=(Get-FileHash (Join-Path $root 'EverLeaf.original.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          # Remove old icon groups first so Windows cannot continue choosing a legacy group.
+          Invoke-ResourceHacker @('-open',$original,'-save',$stripped,'-action','delete','-mask','ICONGROUP,,') 60000
+          if(-not (Test-Path -LiteralPath $stripped)){throw 'Resource Hacker did not produce the icon-stripped executable'}
+
+          # Import the verified multi-size EverLeaf icon as the canonical application icon group.
+          Invoke-ResourceHacker @('-open',$stripped,'-save',$candidate,'-action','addoverwrite','-res',$iconPath,'-mask','ICONGROUP,MAINICON,') 60000
+          if(-not (Test-Path -LiteralPath $candidate)){throw 'Resource Hacker did not produce the patched executable'}
+
+          $before=(Get-FileHash $original -Algorithm SHA256).Hash.ToLowerInvariant()
           $after=(Get-FileHash $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
           if($after -eq $before){throw 'Client executable hash did not change after icon patch'}
           if((Get-Item $candidate).Length -lt 1000000){throw 'Patched EverLeaf.exe is unexpectedly small'}
