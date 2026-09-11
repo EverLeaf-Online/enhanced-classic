@@ -12,71 +12,6 @@ The master development checklist remains authoritative for project-wide readines
 - **Low** — minor behavior, polish, or operational inconvenience.
 - **Validation** — not yet a confirmed defect, but an area that still lacks enough runtime evidence for public-beta confidence.
 
-## Fixed on canonical `master`, pending production/client deployment
-
-### High — `gachalist`, `loot`, and `mobskill` were registered at rank 0
-
-**Status:** Source-fixed; production deployment/verification pending
-
-The three commands live in the `gm2` command package and are intended to be GM-only. They were previously registered through the overload that defaulted their minimum rank to 0, which allowed ordinary-player invocation through the `@` prefix.
-
-Canonical `master` now explicitly registers all three at **GM rank 2**:
-
-- `gachalist`
-- `loot`
-- `mobskill`
-
-`src/test/java/client/command/CommandsExecutorGm2PermissionTest.java` guards the registrations so they cannot silently fall back to the rank-0 overload.
-
-Until a production game-server deployment containing the fix is confirmed, operators should still treat any ordinary-player use of these commands on the currently running release as unintended and preserve relevant evidence.
-
-### Low — `!startevent` ignored a single player-limit argument
-
-**Status:** Source-fixed; production deployment/verification pending
-
-The previous implementation only parsed `params[0]` when more than one parameter was supplied, so `!startevent 25` silently retained the default capacity of 50.
-
-Canonical `master` now accepts either no argument (default **50**) or exactly one positive integer player limit. Zero, negative, non-numeric, and extra arguments are rejected with syntax guidance. `src/test/java/client/command/commands/gm3/StartEventCommandTest.java` covers the default, valid custom limits, and invalid inputs.
-
-### Medium — launcher-only and single-client policy needed fail-closed enforcement
-
-**Status:** Source-hardened; managed launcher/client publication and runtime verification pending
-
-EverLeaf policy is **launcher-only** and **one game client per machine at a time**. Players are not supposed to open `EverLeaf.exe` directly or run multiple EverLeaf clients simultaneously.
-
-Canonical `master` now hardens the stock managed client/launcher path in several layers:
-
-- the launcher checks for an existing `EverLeaf` process before repair and immediately before Play;
-- the launcher also checks the native machine-wide client mutex `Global\EverLeafMS.Client.SingleInstance` and refuses a second launch;
-- the native `dinput8.dll` bootstrap acquires that machine-wide mutex and keeps it open for the lifetime of the client, so a second stock client exits even if two launcher instances race;
-- the `.everleaf-launch` handoff remains mandatory for the managed native client;
-- launch-ticket consumption now opens the ticket exclusively with `FILE_FLAG_DELETE_ON_CLOSE`, preventing two client processes from consuming the same ticket concurrently;
-- the native bootstrap enforces both launcher-ticket and single-client checks from the normal post-unpack hook and both dinput export entry paths;
-- `ClientLaunchPolicyTests` and the manual `client-v2-integration-guard` protect the source contract.
-
-This should be validated with the published managed launcher/client by testing: direct `EverLeaf.exe` launch rejection, normal launcher launch, opening a second launcher while the game is running, and a deliberate rapid/race second-launch attempt.
-
-**Security boundary:** these controls enforce the policy for the EverLeaf-managed stock binaries. A player who can arbitrarily patch/replace their local executable or bootstrap DLL is outside what a purely client-side guard can make tamper-proof. If EverLeaf later requires cryptographically server-backed proof that an unmodified launcher authorized each login, that requires a server-validated launch-session protocol rather than pretending a local mutex/ticket alone is unbreakable.
-
-### Low — richer Discord Rich Presence gameplay activity was gated on v83 contracts
-
-**Status:** Source-fixed; managed client publication and runtime verification pending
-
-The published client already provides EverLeaf-native basic Discord Rich Presence. Canonical `master` now adds richer gameplay activity after pinning the required GMS v83 contracts from the project-supplied `Angel.idb` and cross-checking them against independent v83 client work.
-
-The source now:
-
-- samples gameplay state from `CUserLocal::Update` on Maple's game thread rather than reading Maple objects from the Discord IPC worker;
-- reads the character name, level, job code, and field ID through pinned v83 getters rather than guessed struct offsets;
-- cross-checks `CUserLocal::GetFieldID()` against `CWvsContext::GetCurFieldID()` before publishing map activity;
-- requires an active field/local-user/context state and fails closed to the existing generic EverLeaf activity during login, logout, transitions, pointer/layout failures, or field-ID disagreement;
-- formats supported EverLeaf v83 jobs from the server's maintained `Job` IDs instead of importing post-v83 job IDs from external references;
-- retains the existing local Discord named-pipe IPC implementation, with no Discord bot token, OAuth secret, Game SDK DLL, or database access.
-
-The pinned v83 addresses used by this feature are source-build-specific and must not be carried to another client version without re-verification. Regression coverage now checks supported job labels/gameplay formatting in addition to the existing Discord IPC framing/acknowledgement tests, and the native Discord workflow contains source-contract markers for the verified addresses and fail-closed map cross-check.
-
-Runtime closure is intentionally still pending until the batched client build/publish pass. Verify Discord behavior across login, character entry, level/job state, map changes, channel changes, logout, reconnect, and Discord-not-running/reconnect cases, and confirm stale character/map activity is cleared during transitions.
-
 ## Confirmed unresolved issues
 
 ### Medium — historical account purge/deletion can leave character data
@@ -85,7 +20,7 @@ Runtime closure is intentionally still pending until the batched client build/pu
 
 The legacy base schema does not enforce a foreign-key relationship from `characters.accountid` to `accounts.id`. A direct manual `DELETE` of an account row can therefore leave character rows behind, and deleting the character row through a blind database cascade would also bypass EverLeaf's existing application-level character cleanup for inventory, quests, pets, social state, merchant state, and related records.
 
-Canonical `master` now contains:
+Canonical `master` contains:
 
 - `tools/everleaf-ops/audit-account-character-integrity.sql` — read-only audit for orphaned characters and key dependent-row integrity;
 - `database/sql/migration/everleaf_account_character_integrity.sql` — a fail-closed relationship guard that installs `characters.accountid -> accounts.id` with **ON DELETE RESTRICT / ON UPDATE RESTRICT** only when the existing data is clean;
@@ -94,25 +29,6 @@ Canonical `master` now contains:
 The migration deliberately refuses to install if historical orphaned characters already exist. It also refuses to silently replace an unexpected pre-existing foreign-key rule.
 
 This issue is **not closed in production yet**. Before applying the migration, run the read-only audit against production, identify any existing orphaned rows, back up the database, remediate those rows through an explicit reviewed cleanup plan, then apply and verify the guard. Do not mass-delete historical orphan trees automatically.
-
-### Medium — Alt+Enter/fullscreen does not preserve the HD display mode
-
-**Status:** Confirmed client defect; display subsystem rework pending
-
-The current player build launches in windowed mode. The most recent runtime observation is that **Alt+Enter does not switch the client to fullscreen**, while enabling fullscreen through Maple's in-game settings drops the display back to the legacy low-resolution/800-wide mode instead of preserving the configured HD resolution.
-
-EverLeaf's current `DisplayMode.h` only layers Win32 framed/borderless behavior over the existing renderer, while the normal v83 System Options path can still reinitialize the underlying Gr2D screen mode. That makes the present behavior a real display-mode defect rather than an unverified transition case.
-
-The replacement target is Kaentake-informed but independently implemented because the reference repository does not publish a license. EverLeaf should provide a native in-game resolution selector and keep the chosen resolution authoritative across display-mode changes. The supported selector should include at least:
-
-- 800×600
-- 1024×768
-- **1280×720** — current EverLeaf default
-- 1366×768
-- 1600×900
-- 1920×1080
-
-Close this issue only after the managed client is rebuilt/published and runtime testing confirms that the in-game selector persists, fullscreen uses the selected HD resolution rather than falling back to 800×600, and Alt+Enter reliably transitions between the supported windowed/fullscreen behavior without corrupting UI placement or input coordinates.
 
 ## Current user-facing limitations
 
@@ -132,7 +48,13 @@ The accepted Evan flow remains Beginner creation followed by the in-game NPC con
 
 ## Public-beta validation risks
 
-The following are not automatically confirmed bugs, but they remain known risk areas because full runtime coverage is incomplete. Completed checks are intentionally omitted from this active list.
+The following are not automatically confirmed bugs, but they remain known risk areas because full runtime coverage is incomplete. Completed build, publish, deployment, and CI checks are intentionally omitted from this active list.
+
+### GM command live smoke
+
+**Status:** Validation required
+
+The GM2 permission fixes for `gachalist`, `loot`, and `mobskill` and the `!startevent` participant-limit fix are deployed to production with regression coverage. One controlled live smoke remains: confirm an ordinary player cannot invoke the GM2 utilities, GM2+ can invoke them, and `!startevent 25` actually starts with a limit of 25.
 
 ### Boss and Party Quest lifecycle
 
@@ -152,11 +74,25 @@ A systematic runtime matrix across Explorer, Cygnus, Aran, and Evan attacks, buf
 
 Remaining checks are limited to explicit disconnect/replay/race paths not yet separately verified, including quest reward replay, drop/pickup races, concurrent custom-currency operations, and cross-system persistence races.
 
-### Launcher/client remaining runtime edge cases
+### Launcher-only and single-client runtime enforcement
 
-**Status:** Validation required
+**Status:** Published; runtime validation required
 
-Remaining checks are interrupted-update rollback/retry, direct-EXE rejection, single-client enforcement, and crash/disconnect handling. The observed Alt+Enter/fullscreen/resolution behavior is tracked above as a confirmed defect instead of being left in this validation bucket.
+The managed launcher/client hardening is built and published. Remaining player-machine checks are direct `EverLeaf.exe` rejection, normal launcher launch, second-launch rejection, rapid/race second-launch rejection, interrupted-update rollback/retry, and crash/disconnect handling.
+
+These controls enforce policy for the EverLeaf-managed stock binaries. A player who arbitrarily patches or replaces local binaries is outside what a purely client-side mutex/ticket can make tamper-proof; cryptographic server-backed launcher authorization would require a separate server-validated launch-session protocol.
+
+### Display mode / resolution runtime verification
+
+**Status:** Implemented and published; runtime validation required
+
+The Kaentake-informed, independently implemented display work is now in the published managed client. Runtime-test the in-game resolution selector, persistence of the selected HD resolution, fullscreen behavior, and Alt+Enter transitions across the supported modes. Confirm there is no fallback to 800×600 and no UI placement or input-coordinate corruption.
+
+### Discord Rich Presence gameplay runtime verification
+
+**Status:** Implemented and published; runtime validation required
+
+The richer native presence implementation is now in the published managed client. Verify character name, level, job, and field activity across login, character entry, level/job changes, map changes, channel changes, logout, reconnect, and Discord-not-running/reconnect cases, and confirm stale activity is cleared during transitions.
 
 ### Website/account release hardening
 
