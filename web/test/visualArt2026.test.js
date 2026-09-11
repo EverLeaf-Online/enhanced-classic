@@ -15,7 +15,7 @@ test('shared shell keeps local artwork but no longer loads the legacy visual ski
   assert.match(header,/hero-left\.webp/);
   assert.match(header,/hero-right\.webp/);
   assert.match(header,/og:image[^\n]*hero-forest\.webp/);
-  assert.match(header,/twitter:image[^\n]*hero-forest\.webp/);
+  assert.doesNotMatch(header,/twitter:/i);
 });
 
 test('visual art assets remain bundled for route content',()=>{
