@@ -2,7 +2,7 @@
 
 This file preserves design intent for future quality-of-life work without acting as a second roadmap. **Implementation status belongs only in [`../EVERLEAF_MASTER_CHECKLIST.md`](../EVERLEAF_MASTER_CHECKLIST.md).**
 
-Completed work such as attack-while-moving and No Breath is intentionally not tracked here as an unchecked proposal.
+Completed work such as attack-while-moving, No Breath, and the bounded account milestone ring system is intentionally not tracked here as an unchecked proposal.
 
 ## Movement and combat convenience
 
@@ -14,11 +14,14 @@ Potential future work:
 
 ## Long-term character progression
 
-Potential systems include:
+The first long-term account progression layer is implemented:
 
-- Monster Book / quest milestone rings.
-- Evolving rings with bounded upgrade tiers.
-- Linked-level/account milestones with caps that reward alts without making large rosters mandatory.
+- Monster Book milestones use unique cards discovered across the account and unlock three bounded Moon Stone Ring tiers at 50 / 150 / 300 unique cards.
+- Quest milestones use unique completed quest IDs across the account and unlock three bounded Shining Star Ring tiers at 50 / 150 / 300 completed quests.
+- Account Legacy progression sums only the four highest-level non-GM characters, caps each character at level 200, and unlocks three Gold Heart Ring tiers at 200 / 400 / 600 linked-level score. The tracked score cannot exceed 800, and power stops increasing after tier 3.
+- Every character on the account can synchronize the currently unlocked rings through `@progress milestones` and `@progress milestones sync all`, giving alts a bounded account-earned benefit without rewarding unlimited mule creation.
+- Ring evolution is server-authoritative, add-before-remove, and only replaces EverLeaf-tagged milestone copies. Unrelated vanilla copies of the underlying ring assets are not consumed.
+- The implementation reuses ring assets already present in the maintained client baseline, so it does not require a new WZ/client package or database migration.
 
 The no-mandatory-HP-washing baseline is already implemented; future HP progression should extend that policy rather than recreate washing pressure.
 

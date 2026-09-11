@@ -25,6 +25,8 @@ public final class EverleafProgressionRuntime {
                 new PqPointService(PQ_POINT_REPOSITORY);
         private static final AccountEntitlementService ACCOUNT_ENTITLEMENT_SERVICE =
                 new AccountEntitlementService(DatabaseConnection.getDataSource());
+        private static final AccountMilestoneService ACCOUNT_MILESTONE_SERVICE =
+                new AccountMilestoneService(DatabaseConnection.getDataSource());
         private static final EncounterRepository ENCOUNTER_REPOSITORY =
                 new JdbcEncounterRepository(DatabaseConnection.getDataSource());
         private static final EncounterService ENCOUNTER_SERVICE =
@@ -70,6 +72,10 @@ public final class EverleafProgressionRuntime {
 
     public static AccountEntitlementService accountEntitlementService() {
         return Holder.ACCOUNT_ENTITLEMENT_SERVICE;
+    }
+
+    public static AccountMilestoneService accountMilestoneService() {
+        return Holder.ACCOUNT_MILESTONE_SERVICE;
     }
 
     public static EncounterService encounterService() {

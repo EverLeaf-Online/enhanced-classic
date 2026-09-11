@@ -50,6 +50,29 @@ Use:
 
 to view your current post-200 tier and next milestone where supported by the live release.
 
+## Account milestone rings
+
+EverLeaf rewards long-term collection progress and a small, meaningful alt roster without making a huge mule army mandatory.
+
+Three account-wide tracks are available:
+
+- **Monster Book:** 50 / 150 / 300 unique cards unlock three Moon Stone Ring tiers.
+- **Quest milestones:** 50 / 150 / 300 unique completed quests unlock three Shining Star Ring tiers.
+- **Account Legacy:** the levels of your four highest-level non-GM characters are counted, with each character capped at level 200. Scores of 200 / 400 / 600 unlock three Gold Heart Ring tiers. The tracked score caps at 800 and there is no fourth power tier.
+
+Monster Book cards and quests are counted uniquely across the account, so collecting the same card or completing the same quest on multiple characters does not multiply progress.
+
+Use:
+
+```text
+@progress milestones
+@progress milestones sync all
+```
+
+The first command shows your account totals and unlocked ring tiers. The second claims or evolves every ring tier currently earned for the character you are playing. You can also sync one track with `book`, `quest`, or `legacy`.
+
+Milestone rings are bounded progression rewards, not tradeable item faucets. If a milestone ring needs to evolve, unequip it first. The server grants the new tier before removing the older EverLeaf milestone copy so a failed upgrade cannot eat the previous ring.
+
 ## Weekly progression
 
 EverLeaf uses a hybrid weekly model:
@@ -180,6 +203,8 @@ Common progression/support commands include:
 @help / @commands
 @rates / @showrates
 @progress
+@progress milestones
+@progress milestones sync all
 @weekly / @weeklies
 @marks / @verdant
 @marks history
