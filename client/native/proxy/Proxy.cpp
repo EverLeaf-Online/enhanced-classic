@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <strsafe.h>
+#include <cwchar>
 
 namespace {
 INIT_ONCE gOnce = INIT_ONCE_STATIC_INIT;
@@ -21,29 +22,48 @@ BOOL CALLBACK ResolveSystemDinput8(PINIT_ONCE, PVOID, PVOID*) {
 
 void EnsureSystemDinput8() {
     PVOID unused = nullptr;
-    if (!InitOnceExecuteOnce(&gOnce, ResolveSystemDinput8, nullptr, &unused)) ExitProcess(ERROR_MOD_NOT_FOUND);
+    if (!InitOnceExecuteOnce(&gOnce, ResolveSystemDinput8, nullptr, &unused)) {
+        ExitProcess(ERROR_MOD_NOT_FOUND);
+    }
 }
 
 DWORD WINAPI LoadEverLeafCore(LPVOID) {
     wchar_t exePath[MAX_PATH] = {};
     GetModuleFileNameW(nullptr, exePath, MAX_PATH);
-    wchar_t* slash = wcsrchr(exePath, L'\\');
+    wchar_t* slash = std::wcsrchr(exePath, L'\\');
     if (slash) *(slash + 1) = L'\0';
-    StringCchCatW(exePath, MAX_PATH, L"EverLeafMS.dll");
-    if (!LoadLibraryW(exePath)) {
-        MessageBoxW(nullptr, L"EverLeafMS.dll is missing or could not be loaded. Run Install / Repair Files in EverLeafLauncher.", L"EverLeaf client bootstrap error", MB_OK | MB_ICONERROR);
+    if (FAILED(StringCchCatW(exePath, MAX_PATH, L"EverLeafMS.dll")) || !LoadLibraryW(exePath)) {
+        MessageBoxW(nullptr,
+            L"EverLeafMS.dll is missing or could not be loaded. Run Install / Repair Files in EverLeafLauncher.",
+            L"EverLeaf client bootstrap error", MB_OK | MB_ICONERROR);
         ExitProcess(ERROR_MOD_NOT_FOUND);
     }
     return 0;
 }
 }
 
+extern "C" __declspec(noinline) FARPROC __cdecl EverLeafResolveDirectInput8Create() {
+    EnsureSystemDinput8();
+    return gDirectInput8Create;
+}
+
+extern "C" __declspec(noinline) FARPROC __cdecl EverLeafResolveGetdfDIJoystick() {
+    EnsureSystemDinput8();
+    return gGetdfDIJoystick;
+}
+
 extern "C" __declspec(dllexport) __declspec(naked) void DirectInput8Create() {
-    __asm { pushfd pushad call EnsureSystemDinput8 popad popfd jmp dword ptr [gDirectInput8Create] }
+    __asm {
+        call EverLeafResolveDirectInput8Create
+        jmp eax
+    }
 }
 
 extern "C" __declspec(dllexport) __declspec(naked) void GetdfDIJoystick() {
-    __asm { pushfd pushad call EnsureSystemDinput8 popad popfd jmp dword ptr [gGetdfDIJoystick] }
+    __asm {
+        call EverLeafResolveGetdfDIJoystick
+        jmp eax
+    }
 }
 
 BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
