@@ -64,24 +64,46 @@ static WzImageProperty? FindDirect(WzImage image, int id)
     return null;
 }
 
-static (WzImage image, WzImageProperty property)? FindItemEntry(WzFile wz, string category, int id)
+static IEnumerable<ImageLocation> EnumerateImages(WzDirectory dir, string[] prefix)
 {
-    var dir = wz.WzDirectory.GetDirectoryByName(category);
-    if (dir == null) return null;
     foreach (var image in dir.WzImages)
+        yield return new ImageLocation(image, prefix);
+    foreach (var sub in dir.WzDirectories)
     {
-        var p = FindDirect(image, id);
-        if (p != null) return (image, p);
+        var next = prefix.Concat(new[] { sub.Name }).ToArray();
+        foreach (var row in EnumerateImages(sub, next)) yield return row;
+    }
+}
+
+static WzDirectory? FindDirectoryPath(WzDirectory root, IEnumerable<string> dirs)
+{
+    var cur = root;
+    foreach (var name in dirs)
+    {
+        cur = cur.GetDirectoryByName(name);
+        if (cur == null) return null;
+    }
+    return cur;
+}
+
+static ItemLocation? FindItemEntry(WzFile wz, string category, int id)
+{
+    var categoryDir = wz.WzDirectory.GetDirectoryByName(category);
+    if (categoryDir == null) return null;
+    foreach (var row in EnumerateImages(categoryDir, Array.Empty<string>()))
+    {
+        var p = FindDirect(row.Image, id);
+        if (p != null) return new ItemLocation(row.Image, p, row.Dirs);
     }
     return null;
 }
 
-static (WzImage image, WzImageProperty property)? FindStringEntry(WzFile wz, int id)
+static ItemLocation? FindStringEntry(WzFile wz, int id)
 {
-    foreach (var image in wz.WzDirectory.WzImages)
+    foreach (var row in EnumerateImages(wz.WzDirectory, Array.Empty<string>()))
     {
-        var p = FindDirect(image, id);
-        if (p != null) return (image, p);
+        var p = FindDirect(row.Image, id);
+        if (p != null) return new ItemLocation(row.Image, p, row.Dirs);
     }
     return null;
 }
@@ -108,6 +130,19 @@ using (var donorString = OpenDonor(donorStringPath))
     donorItemVersion = donorItem.Version;
     donorStringVersion = donorString.Version;
 
+    Console.WriteLine("DONOR_ITEM_ROOT_DIRS=" + string.Join(",", donorItem.WzDirectory.WzDirectories.Select(d => d.Name)));
+    foreach (var category in requested.Select(x => x.Category).Distinct(StringComparer.OrdinalIgnoreCase))
+    {
+        var d = donorItem.WzDirectory.GetDirectoryByName(category);
+        Console.WriteLine($"DONOR_CATEGORY {category}: dir={(d == null ? "missing" : "present")}, images={(d?.WzImages.Count ?? 0)}, subdirs={(d?.WzDirectories.Count ?? 0)}");
+        if (d != null)
+        {
+            var first = EnumerateImages(d, Array.Empty<string>()).FirstOrDefault();
+            if (first.Image != null)
+                Console.WriteLine($"DONOR_CATEGORY_SAMPLE {category}: {string.Join('/', first.Dirs.Append(first.Image.Name))} props={first.Image.WzProperties.Count} first={string.Join(',', first.Image.WzProperties.Take(5).Select(p => p.Name))}");
+        }
+    }
+
     foreach (var req in requested)
     {
         if (FindItemEntry(targetItem, req.Category, req.Id) != null || FindStringEntry(targetString, req.Id) != null)
@@ -119,18 +154,27 @@ using (var donorString = OpenDonor(donorStringPath))
         var donorItemEntry = FindItemEntry(donorItem, req.Category, req.Id);
         if (donorItemEntry == null) { skippedMissingDonorItem.Add(req); continue; }
         var targetCategory = targetItem.WzDirectory.GetDirectoryByName(req.Category);
-        var targetImage = targetCategory?.GetImageByName(donorItemEntry.Value.image.Name);
+        var targetItemDir = targetCategory == null ? null : FindDirectoryPath(targetCategory, donorItemEntry.Value.Dirs);
+        var targetImage = targetItemDir?.GetImageByName(donorItemEntry.Value.Image.Name);
         if (targetImage == null) { skippedMissingTargetContainer.Add(req); continue; }
 
         var donorStringEntry = FindStringEntry(donorString, req.Id);
         if (donorStringEntry == null) { skippedMissingString.Add(req); continue; }
-        var targetStringImage = targetString.WzDirectory.GetImageByName(donorStringEntry.Value.image.Name);
+        var targetStringDir = FindDirectoryPath(targetString.WzDirectory, donorStringEntry.Value.Dirs);
+        var targetStringImage = targetStringDir?.GetImageByName(donorStringEntry.Value.Image.Name);
         if (targetStringImage == null) { skippedStringContainerMissing.Add(req); continue; }
 
-        targetImage.AddProperty(donorItemEntry.Value.property.DeepClone());
-        targetStringImage.AddProperty(donorStringEntry.Value.property.DeepClone());
-        merged.Add(new MergedItem(req.Category, req.Id, donorItemEntry.Value.image.Name, donorStringEntry.Value.image.Name));
+        targetImage.AddProperty(donorItemEntry.Value.Property.DeepClone());
+        targetStringImage.AddProperty(donorStringEntry.Value.Property.DeepClone());
+        merged.Add(new MergedItem(
+            req.Category,
+            req.Id,
+            string.Join('/', donorItemEntry.Value.Dirs.Append(donorItemEntry.Value.Image.Name)),
+            string.Join('/', donorStringEntry.Value.Dirs.Append(donorStringEntry.Value.Image.Name))));
     }
+
+    if (merged.Count == 0)
+        throw new InvalidOperationException($"No donor-only items merged; refusing false-success candidate. missingDonor={skippedMissingDonorItem.Count}, collisions={skippedCollision.Count}");
 
     targetItem.SaveToDisk(outputItemPath);
     targetString.SaveToDisk(outputStringPath);
@@ -156,7 +200,7 @@ using (var checkString = OpenTarget(outputStringPath))
 var byCategory = merged.GroupBy(x => x.Category).ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 var manifest = new
 {
-    schemaVersion = 1,
+    schemaVersion = 2,
     kind = "gms-v180-item-node-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -192,6 +236,7 @@ var manifest = new
         sourceUnchanged = true,
         outputsReparsed = true,
         allMergedNodesVerified = verified == merged.Count,
+        nonEmptyCandidate = merged.Count > 0,
         productionApplyAllowed = false,
     },
     missingTargetContainer = skippedMissingTargetContainer.Take(500).ToArray(),
@@ -209,4 +254,6 @@ Console.WriteLine("approved=false / productionApplyAllowed=false");
 return 0;
 
 internal readonly record struct ItemRequest(string Category, int Id);
+internal readonly record struct ImageLocation(WzImage Image, string[] Dirs);
+internal readonly record struct ItemLocation(WzImage Image, WzImageProperty Property, string[] Dirs);
 internal readonly record struct MergedItem(string Category, int Id, string ItemImage, string StringImage);
