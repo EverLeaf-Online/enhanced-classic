@@ -2,7 +2,7 @@
 
 Repository-backed working checklist for the current EverLeaf release line.
 
-Last synchronized: **2026-09-11** after the production launcher/client/icon/web/game rollout. The current managed client and richer Discord/display work are published, the guarded game deployment/restart passed, the website deployment is green, and the active issue registers now contain unresolved runtime/security/load/data-validation work only.
+Last synchronized: **2026-09-11** after the live account milestone progression rollout. Monster Book, quest, bounded evolving-ring, and capped Account Legacy progression are deployed on production; Deploy EverLeaf Game Production #63 rebuilt/restarted the server successfully and verified login plus all 20 channels and relay ports.
 
 ## Current production baseline
 
@@ -10,8 +10,8 @@ Last synchronized: **2026-09-11** after the production launcher/client/icon/web/
 - Canonical branch: `master`
 - Repository branch state: **`master` is the sole canonical line; temporary documentation refs may remain but contain no unique work**
 - Open pull requests: **none**
-- Current running game release source SHA: `b20fcc8c48acca3325ddb45f5daf48ea78c480a5`
-- Current running game release: immutable release produced by **Deploy EverLeaf Game Production #62** from `b20fcc8c48acca3325ddb45f5daf48ea78c480a5`
+- Current running game release source SHA: `1a3a07ed7d9a05a6342bd9cb52d5204995140eb8`
+- Current running game release: `/opt/everleaf/releases/1a3a07ed7d9a05a6342bd9cb52d5204995140eb8-34575094743-1` produced by **Deploy EverLeaf Game Production #63**.
 - Production source checkout: `/opt/everleaf/server`
 - Active release symlink: `/opt/everleaf/current`
 - Game service: `everleaf.service`
@@ -60,7 +60,7 @@ Last synchronized: **2026-09-11** after the production launcher/client/icon/web/
 - ✅ Build manifest generation exists.
 - ✅ Repository secret/artifact ignore hardening is present.
 - ✅ Production WZ staging hardlink failure has a safe copy/reflink fallback.
-- 🟢 Final guarded production deployment succeeded from `b20fcc8c48acca3325ddb45f5daf48ea78c480a5` (production deploy #62).
+- 🟢 Final guarded production deployment succeeded from `1a3a07ed7d9a05a6342bd9cb52d5204995140eb8` (production deploy #63).
 
 # 2. Core Server / Infrastructure
 
@@ -200,6 +200,12 @@ Last synchronized: **2026-09-11** after the production launcher/client/icon/web/
 - ✅ Verdant Marks ledger uses unique account/reason protection.
 - ✅ Verdant Marks are account-bound DB currency, not transferable inventory.
 - ✅ Maintained player-facing progression/Verdant/PQ Points documentation exists.
+- 🟢 Account-wide Monster Book milestone rings are live, using unique-card thresholds of 50 / 150 / 300.
+- 🟢 Account-wide quest milestone rings are live, using unique completed-quest thresholds of 50 / 150 / 300.
+- 🟢 Bounded evolving milestone rings are live using the existing Moon Stone, Shining Star, and Gold Heart three-tier client assets with EverLeaf-only owner markers.
+- 🟢 Account Legacy linked-level progression is live: only the top four non-GM characters count, each is capped at level 200, tracked score caps at 800, and reward tiers unlock at 200 / 400 / 600.
+- 🟢 `@progress milestones` exposes account progress and `@progress milestones sync [all|book|quest|legacy]` synchronizes earned rings; synchronization is idempotent, add-before-remove, refuses unsafe equipped-ring evolution, and never consumes unrelated vanilla ring copies.
+- ✅ Account milestone progression is derived from existing persisted Monster Book, quest-completion, and character-level data; no new production schema migration is required.
 - 🟡 Balance 201–249 pacing from real gameplay telemetry.
 - 🟡 Verify post-200 milestone pacing and reward balance live.
 
