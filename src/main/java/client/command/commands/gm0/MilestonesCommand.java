@@ -39,7 +39,7 @@ public class MilestonesCommand extends Command {
 
         String action = params[0];
         if (!"sync".equals(action) && !"claim".equals(action)) {
-            player.yellowMessage("Usage: @milestones [sync|claim] [book|quest|legacy|all]");
+            player.yellowMessage("Usage: @progress milestones [sync|claim] [book|quest|legacy|all]");
             return;
         }
 
@@ -69,7 +69,7 @@ public class MilestonesCommand extends Command {
                         + " characters and caps each at level " + AccountMilestoneService.LINKED_LEVEL_CAP_PER_CHARACTER
                         + " (current contributors: " + snapshot.linkedCharacters() + ")."
         );
-        player.yellowMessage("Use @milestones sync all to claim or evolve every unlocked ring on this character.");
+        player.yellowMessage("Use @progress milestones sync all to claim or evolve every unlocked ring on this character.");
     }
 
     private static void showTrack(Character player, AccountMilestoneSnapshot snapshot,
