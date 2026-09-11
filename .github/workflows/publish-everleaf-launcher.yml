@@ -5,14 +5,14 @@ on:
     branches: [master]
     paths:
       - "launcher/**"
-      - "client/branding/everleaf-app-icon.ico.gz.b64"
+      - "client/branding/everleaf-app-icon.ico.gz.b64.part*"
       - "tools/apply_launcher_integrity_fixes.py"
       - ".github/workflows/publish-everleaf-launcher.yml"
   pull_request:
     branches: [master]
     paths:
       - "launcher/**"
-      - "client/branding/everleaf-app-icon.ico.gz.b64"
+      - "client/branding/everleaf-app-icon.ico.gz.b64.part*"
       - "tools/apply_launcher_integrity_fixes.py"
       - ".github/workflows/publish-everleaf-launcher.yml"
   workflow_dispatch:
@@ -41,11 +41,13 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $encodedPath = 'client/branding/everleaf-app-icon.ico.gz.b64'
+          $parts = @(Get-ChildItem 'client/branding/everleaf-app-icon.ico.gz.b64.part*' -File | Sort-Object Name)
           $iconPath = 'launcher/assets/everleaf-icon.ico'
-          if (-not (Test-Path -LiteralPath $encodedPath)) { throw 'EverLeaf icon source is missing.' }
+          $expectedHash = '3fdea6b7873dfff399d7a6600c864ad1a5933706392adb7c53415301ac774ceb'
+          if ($parts.Count -eq 0) { throw 'EverLeaf icon source parts are missing.' }
           New-Item -ItemType Directory -Path (Split-Path -Parent $iconPath) -Force | Out-Null
-          $compressed = [Convert]::FromBase64String((Get-Content -LiteralPath $encodedPath -Raw).Trim())
+          $payload = (($parts | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join '') -replace '\s',''
+          $compressed = [Convert]::FromBase64String($payload)
           $input = [IO.MemoryStream]::new($compressed)
           try {
             $gzip = [IO.Compression.GZipStream]::new($input, [IO.Compression.CompressionMode]::Decompress)
@@ -55,10 +57,8 @@ jobs:
             } finally { $gzip.Dispose() }
           } finally { $input.Dispose() }
           $hash = (Get-FileHash -LiteralPath $iconPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($hash -ne 'b5aaa689bc617b518d04ca8506b3db556fda719fae2e97c742d608827e5ffef9') {
-            throw "EverLeaf icon SHA-256 mismatch: $hash"
-          }
-          Write-Host "EverLeaf app icon ready: $hash"
+          if ($hash -ne $expectedHash) { throw "EverLeaf icon SHA-256 mismatch: $hash" }
+          Write-Host "EverLeaf transparent app icon ready: $hash"
 
       - name: Apply launcher integrity fixes
         run: python tools/apply_launcher_integrity_fixes.py
