@@ -25,7 +25,7 @@ env:
 jobs:
   stage:
     runs-on: windows-2025
-    timeout-minutes: 240
+    timeout-minutes: 300
     steps:
       - name: Checkout staging branch
         uses: actions/checkout@v4
@@ -62,7 +62,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          ssh everleaf-oracle "set -e; test -s '$env:DONOR_ROOT/ZLZ.dll'; test -s '$env:DONOR_ROOT/Character.wz'; test -s '$env:TARGET_ROOT/Character.wz'; test -s '$env:MANIFEST_ROOT/LOW_FRICTION_MANIFEST.json'; sudo rm -rf '$env:STAGE_ROOT'; sudo mkdir -p '$env:STAGE_ROOT'; sudo chown -R ubuntu:ubuntu '$env:STAGE_ROOT'"
+          ssh everleaf-oracle "set -e; test -s '$env:DONOR_ROOT/ZLZ.dll'; for f in Character.wz Map.wz Mob.wz Npc.wz Reactor.wz UI.wz Effect.wz Sound.wz Morph.wz TamingMob.wz String.wz; do test -s '$env:DONOR_ROOT/'\$f; test -s '$env:TARGET_ROOT/'\$f; done; test -s '$env:MANIFEST_ROOT/LOW_FRICTION_MANIFEST.json'; sudo rm -rf '$env:STAGE_ROOT'; sudo mkdir -p '$env:STAGE_ROOT'; sudo chown -R ubuntu:ubuntu '$env:STAGE_ROOT'"
           if($LASTEXITCODE){throw 'Oracle staging preparation failed'}
 
       - name: Build MapleLib static patcher
@@ -86,12 +86,12 @@ jobs:
           '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafV180StaticPatcher.csproj')
           dotnet build (Join-Path $tool 'EverLeafV180StaticPatcher.csproj') -c Release
 
-      - name: Fetch path manifests
+      - name: Fetch complete low-friction path manifests
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $m=Join-Path $env:RUNNER_TEMP 'manifests'; New-Item -ItemType Directory -Force -Path $m | Out-Null
-          $names=@('character_hair','character_face','map_backgrounds','map_objects','world_map_art','ui_art','effects','sounds','morphs','taming_mobs','string_images')
+          $names=@('character_all_low_friction','maps_all','mobs_all','npcs_all','reactors_all','ui_all','effects_all','sounds_all','morphs_all','taming_mobs_all','string_images_all')
           foreach($name in $names){scp "everleaf-oracle`:$env:MANIFEST_ROOT/$name.txt" (Join-Path $m "$name.txt"); if($LASTEXITCODE){throw "Manifest fetch failed: $name"}}
 
       - name: Build and upload verified WZ candidates one family at a time
@@ -101,14 +101,17 @@ jobs:
           $project=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafV180StaticPatcher/EverLeafV180StaticPatcher.csproj'
           $manifestDir=Join-Path $env:RUNNER_TEMP 'manifests'
           $families=@(
-            @{File='Character.wz'; Lists=@('character_hair','character_face')},
-            @{File='Map.wz'; Lists=@('map_backgrounds','map_objects','world_map_art')},
-            @{File='UI.wz'; Lists=@('ui_art')},
-            @{File='Effect.wz'; Lists=@('effects')},
-            @{File='Sound.wz'; Lists=@('sounds')},
-            @{File='Morph.wz'; Lists=@('morphs')},
-            @{File='TamingMob.wz'; Lists=@('taming_mobs')},
-            @{File='String.wz'; Lists=@('string_images')}
+            @{File='Character.wz'; Lists=@('character_all_low_friction')},
+            @{File='Map.wz'; Lists=@('maps_all')},
+            @{File='Mob.wz'; Lists=@('mobs_all')},
+            @{File='Npc.wz'; Lists=@('npcs_all')},
+            @{File='Reactor.wz'; Lists=@('reactors_all')},
+            @{File='UI.wz'; Lists=@('ui_all')},
+            @{File='Effect.wz'; Lists=@('effects_all')},
+            @{File='Sound.wz'; Lists=@('sounds_all')},
+            @{File='Morph.wz'; Lists=@('morphs_all')},
+            @{File='TamingMob.wz'; Lists=@('taming_mobs_all')},
+            @{File='String.wz'; Lists=@('string_images_all')}
           )
           foreach($spec in $families){
             $family=$spec.File
@@ -139,20 +142,11 @@ jobs:
           $script=@'
           set -euo pipefail
           ROOT="__ROOT__"
-          test -s "$ROOT/Character.wz"
-          test -s "$ROOT/Map.wz"
-          test -s "$ROOT/UI.wz"
-          test -s "$ROOT/Effect.wz"
-          test -s "$ROOT/Sound.wz"
-          test -s "$ROOT/Morph.wz"
-          test -s "$ROOT/TamingMob.wz"
-          test -s "$ROOT/String.wz"
-          test -s "$ROOT/Character.manifest.json"
-          test -s "$ROOT/Map.manifest.json"
+          for f in Character Map Mob Npc Reactor UI Effect Sound Morph TamingMob String; do test -s "$ROOT/$f.wz"; test -s "$ROOT/$f.manifest.json"; done
           for m in "$ROOT"/*.manifest.json; do grep -q '"productionApplyAllowed": false' "$m"; grep -q '"donorImageDigestsMatch": true' "$m"; done
           sha256sum "$ROOT"/*.wz > "$ROOT/SHA256SUMS"
-          printf 'GMS v180 low-friction client candidate. STAGING ONLY. No production apply.\n' > "$ROOT/README.txt"
-          echo 'V180_STATIC_STAGE_OK'
+          printf 'GMS v180 broad low-friction client candidate. STAGING ONLY. Includes donor-only Character/equipment/appearance, maps, mobs, NPCs, reactors, UI, effects, sound, morphs, taming mobs and String image groups. Item-property merge is staged separately. No production apply.\n' > "$ROOT/README.txt"
+          echo 'V180_LOW_FRICTION_STAGE_OK'
           du -sh "$ROOT"
           cat "$ROOT/SHA256SUMS"
           '@
