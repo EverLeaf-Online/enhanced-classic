@@ -10,7 +10,7 @@ on:
 
 concurrency:
   group: everleaf-app-icon-live
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -24,7 +24,7 @@ env:
 jobs:
   deploy-client-icon:
     runs-on: windows-2025
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - name: Checkout master
         uses: actions/checkout@v5
@@ -91,16 +91,26 @@ jobs:
           "Original EverLeaf.exe SHA-256: $before" | Add-Content $env:GITHUB_STEP_SUMMARY
 
       - name: Patch and validate client icon
+        timeout-minutes: 5
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'
           $rcedit=Join-Path $root 'rcedit-x64.exe'
-          Invoke-WebRequest -UseBasicParsing -Uri $env:RCEDIT_URL -OutFile $rcedit
+          Write-Host 'Downloading rcedit with bounded network timeouts...'
+          & curl.exe -L --fail --silent --show-error --connect-timeout 15 --max-time 120 $env:RCEDIT_URL -o $rcedit
+          if($LASTEXITCODE){throw "rcedit download failed with exit code $LASTEXITCODE"}
           if((Get-Item $rcedit).Length -lt 1000000){throw 'rcedit download is unexpectedly small'}
+          Write-Host 'RCEDIT_DOWNLOAD_OK'
           $candidate=Join-Path $root 'EverLeaf.exe'
-          & $rcedit $candidate '--set-icon' (Join-Path $root 'everleaf-icon.ico')
-          if($LASTEXITCODE){throw "rcedit failed with exit code $LASTEXITCODE"}
+          $iconPath=Join-Path $root 'everleaf-icon.ico'
+          Write-Host 'Applying icon with a 120 second process timeout...'
+          $process=Start-Process -FilePath $rcedit -ArgumentList @($candidate,'--set-icon',$iconPath) -PassThru
+          if(-not $process.WaitForExit(120000)){
+            try { $process.Kill($true) } catch {}
+            throw 'rcedit timed out after 120 seconds'
+          }
+          if($process.ExitCode -ne 0){throw "rcedit failed with exit code $($process.ExitCode)"}
           $before=(Get-FileHash (Join-Path $root 'EverLeaf.original.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
           $after=(Get-FileHash $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
           if($after -eq $before){throw 'Client executable hash did not change after icon patch'}
@@ -180,13 +190,15 @@ jobs:
           if($LASTEXITCODE){throw 'Live client icon publish failed'}
 
       - name: Verify public client executable
+        timeout-minutes: 5
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $root=Join-Path $env:RUNNER_TEMP 'everleaf-app-icon'
           $expected=(Get-FileHash (Join-Path $root 'EverLeaf.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
           $public=Join-Path $root 'public-EverLeaf.exe'
-          Invoke-WebRequest -UseBasicParsing -Uri 'https://everleafms.online/patches/EverLeaf.exe' -OutFile $public
+          & curl.exe -L --fail --silent --show-error --connect-timeout 15 --max-time 120 'https://everleafms.online/patches/EverLeaf.exe' -o $public
+          if($LASTEXITCODE){throw "Public EverLeaf.exe download failed with exit code $LASTEXITCODE"}
           $actual=(Get-FileHash $public -Algorithm SHA256).Hash.ToLowerInvariant()
           if($actual -ne $expected){throw "Public EverLeaf.exe hash mismatch expected=$expected actual=$actual"}
           Add-Type -AssemblyName System.Drawing
