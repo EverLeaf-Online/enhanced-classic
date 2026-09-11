@@ -1,6 +1,6 @@
 # EverLeaf Progression, Rewards, and Economy
 
-This document consolidates the maintained design for level 200–250 progression, survivability, account-bound progression currencies, NX rewards, and controlled high-value reward sources. Current implementation status belongs in [`../EVERLEAF_MASTER_CHECKLIST.md`](../EVERLEAF_MASTER_CHECKLIST.md).
+This document consolidates the maintained design for level 200–250 progression, survivability, account-bound progression currencies, NX rewards, collection/account milestones, and controlled high-value reward sources. Current implementation status belongs in [`../EVERLEAF_MASTER_CHECKLIST.md`](../EVERLEAF_MASTER_CHECKLIST.md).
 
 ## Design principles
 
@@ -11,6 +11,7 @@ This document consolidates the maintained design for level 200–250 progression
 - Use multiple reward lanes so one activity is not the entire endgame.
 - Prefer account-bound or purpose-specific currencies when unrestricted items/mesos would create inflation or RMT pressure.
 - Make reward claims transactional and idempotent where retries, disconnects, or concurrent actions can occur.
+- Reward meaningful alt progression with hard caps rather than rewarding unlimited mule creation.
 
 ## Post-200 tiers
 
@@ -30,9 +31,46 @@ EverLeaf intentionally spreads post-200 value across several lanes:
 2. Weekly objectives and Verdant Marks.
 3. Quest/story unlocks and meaningful quest rewards.
 4. Party Quest and group-play rewards, including PQ Points.
-5. Collections/exploration/achievements.
+5. Collections/exploration/achievements, including account milestone rings.
 6. Guild/social objectives.
 7. Cosmetics and prestige that do not create paid power.
+
+## Account milestone rings
+
+EverLeaf has three bounded account-wide milestone tracks. Progress is read from authoritative persisted character data, while each character may synchronize the ring tiers earned by the account.
+
+### Monster Book track
+
+- Counts **unique Monster Book card IDs across all non-GM characters on the account**. Finding duplicate copies or completing the same card on multiple alts does not multiply account progress.
+- Tier 1: **50** unique cards — Moon Stone Ring 1 Carat (`1112300`).
+- Tier 2: **150** unique cards — Moon Stone Ring 2 Carats (`1112301`).
+- Tier 3: **300** unique cards — Moon Stone Ring 3 Carats (`1112302`).
+
+### Quest track
+
+- Counts **unique completed quest IDs across all non-GM characters on the account**. Repeating or abandoning a quest cannot inflate the account total because only persisted completed quest IDs are counted distinctly.
+- Tier 1: **50** unique completed quests — Shining Star Ring 1 Carat (`1112303`).
+- Tier 2: **150** unique completed quests — Shining Star Ring 2 Carats (`1112304`).
+- Tier 3: **300** unique completed quests — Shining Star Ring 3 Carats (`1112305`).
+
+### Account Legacy / linked-level track
+
+- Uses only the **four highest-level non-GM characters** on the account.
+- Each character contributes at most **200 levels**, so the tracked account score is capped at **800** even if the account has many more characters or levels past 200.
+- Tier 1: **200** linked-level score — Gold Heart Ring 1 Carat (`1112306`).
+- Tier 2: **400** linked-level score — Gold Heart Ring 2 Carats (`1112307`).
+- Tier 3: **600** linked-level score — Gold Heart Ring 3 Carats (`1112308`).
+- Power stops increasing at tier 3. A fourth developed character provides flexibility toward the cap but does not create a fourth power tier.
+
+### Synchronization and safety
+
+- `@progress milestones` shows the account's collection and linked-level progress.
+- `@progress milestones sync all` synchronizes all currently unlocked rings to the character; `book`, `quest`, or `legacy` may be used to synchronize one track.
+- A lower-tier milestone ring evolves by granting the unlocked tier first and only then removing the older EverLeaf-tagged copy, so a failed grant cannot destroy the previous reward.
+- An equipped milestone ring must be unequipped before evolution.
+- EverLeaf milestone copies carry track-specific owner markers. The upgrader only removes those marked copies and does not consume unrelated vanilla copies of the same ring IDs.
+- The selected ring families are already present in the maintained v83/v95 client baseline and are trade-blocked, unique, non-sale equipment, so this layer does not require a new WZ/client package or a database migration.
+- Reclaim/synchronization is intentionally character-local and non-economic: milestone rings cannot be used as a tradable item faucet.
 
 ## Hybrid weekly model
 
