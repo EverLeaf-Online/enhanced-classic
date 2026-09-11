@@ -1,4 +1,4 @@
-name: Client v2 frame limiter guard
+name: EverLeaf native frame limiter guard
 
 on:
   workflow_dispatch:
@@ -14,11 +14,11 @@ jobs:
       - name: Verify presentation-only FPS limiter invariants
         shell: pwsh
         run: |
-          $frame = Get-Content "client/ezorsia/ezorsia/FrameLimiter.cpp" -Raw
-          $bootstrap = Get-Content "client/ezorsia/ezorsia/dllmain.cpp" -Raw
-          $config = Get-Content "client/ezorsia/ezorsia/config.ini" -Raw
-          $project = Get-Content "client/ezorsia/ezorsia/ezorsia.vcxproj" -Raw
-          $replacement = Get-Content "client/ezorsia/ezorsia/ReplacementFuncs.h" -Raw
+          $frame = Get-Content "client/native/core/FrameLimiter.cpp" -Raw
+          $bootstrap = Get-Content "client/native/core/dllmain.cpp" -Raw
+          $config = Get-Content "client/native/core/config.ini" -Raw
+          $project = Get-Content "client/native/core/EverLeafMS.vcxproj" -Raw
+          $replacement = Get-Content "client/native/core/ReplacementFuncs.h" -Raw
 
           foreach ($required in @(
             'constexpr DWORD kRenderFrameAddress = 0x00777326',
@@ -47,10 +47,10 @@ jobs:
           }
 
           if (-not $bootstrap.Contains('FrameLimiter::Install()')) {
-            throw "Client bootstrap does not install the frame limiter"
+            throw "EverLeaf bootstrap does not install the frame limiter"
           }
           if (-not $project.Contains('<ClCompile Include="FrameLimiter.cpp" />')) {
-            throw "FrameLimiter.cpp is not compiled into the client DLL"
+            throw "FrameLimiter.cpp is not compiled into EverLeafMS.dll"
           }
 
           if ($frame.Contains('m_tUpdateTime') -or $frame.Contains('+= 30')) {
