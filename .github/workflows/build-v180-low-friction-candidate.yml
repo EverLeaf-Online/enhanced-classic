@@ -78,7 +78,7 @@ jobs:
             "$env:MANIFEST_ROOT/LOW_FRICTION_MANIFEST.json"
           )
           foreach($p in $checks){ ssh everleaf-oracle "test -s '$p'"; if($LASTEXITCODE){throw "Missing Oracle input: $p"} }
-          ssh everleaf-oracle "sudo rm -rf '$env:STAGE_ROOT' && sudo mkdir -p '$env:STAGE_ROOT' && sudo chown -R ubuntu:ubuntu '$env:STAGE_ROOT'"
+          ssh everleaf-oracle "sudo mkdir -p '$env:STAGE_ROOT' && sudo chown -R ubuntu:ubuntu '$env:STAGE_ROOT'"
           if($LASTEXITCODE){throw 'Oracle staging preparation failed'}
 
       - name: Build MapleLib static patcher
@@ -117,9 +117,6 @@ jobs:
           $project=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafV180StaticPatcher/EverLeafV180StaticPatcher.csproj'
           $manifestDir=Join-Path $env:RUNNER_TEMP 'manifests'
           $families=@(
-            @{File='Mob.wz'; Lists=@('mobs_all')},
-            @{File='Character.wz'; Lists=@('character_all_low_friction')},
-            @{File='Map.wz'; Lists=@('maps_all')},
             @{File='Npc.wz'; Lists=@('npcs_all')},
             @{File='Reactor.wz'; Lists=@('reactors_all')},
             @{File='UI.wz'; Lists=@('ui_all')},

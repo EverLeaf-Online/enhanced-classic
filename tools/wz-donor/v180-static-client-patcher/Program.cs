@@ -270,16 +270,16 @@ static bool AppendCanvasToken(List<string> tokens, string path, WzCanvasProperty
     return hasModernLink;
 }
 
-static void AppendSemanticProperty(List<string> tokens, WzImageProperty p, string path, bool resolveUol)
+static void AppendSemanticProperty(List<string> tokens, WzImageProperty p, string path, bool resolveUol, int uolDepth = 0)
 {
     if (p is WzUOLProperty uol)
     {
-        if (resolveUol && ResolveUolObject(uol) is WzImageProperty resolved)
+        if (resolveUol && uolDepth < 64 && ResolveUolObject(uol) is WzImageProperty resolved && !ReferenceEquals(resolved, uol))
         {
-            // Compare a resolved UOL as the property it points to, but do not recursively
-            // resolve nested UOLs. This makes a materialized property semantically equivalent
+            // Compare a resolved UOL as the property it points to, recursively
+            // resolve nested UOLs with a depth guard. This makes a materialized property semantically equivalent
             // to its donor link while bounding traversal across circular/cross-linked graphs.
-            AppendSemanticProperty(tokens, resolved, path, false);
+            AppendSemanticProperty(tokens, resolved, path, true, uolDepth + 1);
             return;
         }
         tokens.Add($"{path}|UOL|{uol.Value ?? string.Empty}");
@@ -313,7 +313,7 @@ static void AppendSemanticProperty(List<string> tokens, WzImageProperty p, strin
         {
             if (resolvedModernCanvasLink && (string.Equals(child.Name, WzCanvasProperty.InlinkPropertyName, StringComparison.OrdinalIgnoreCase) || string.Equals(child.Name, WzCanvasProperty.OutlinkPropertyName, StringComparison.OrdinalIgnoreCase)))
                 continue;
-            AppendSemanticProperty(tokens, child, path + "/" + child.Name, resolveUol);
+            AppendSemanticProperty(tokens, child, path + "/" + child.Name, resolveUol, uolDepth);
         }
     }
 }
@@ -609,7 +609,7 @@ using (var donor = OpenDonor(donorPath))
 var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 16,
+    schemaVersion = 17,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -629,7 +629,7 @@ var manifest = new
     source = new { path = targetPath, sha256 = targetHashBefore, version = targetVersion, size = new FileInfo(targetPath).Length },
     donor = new { path = donorPath, sha256 = donorHash, version = donorVersion, size = new FileInfo(donorPath).Length },
     output = new { path = outputPath, sha256 = Sha(outputPath), size = new FileInfo(outputPath).Length },
-    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticPremultipliedAlphaNormalization = true, semanticResolvedUolDependencyVerification = true, allResolvableUolsMaterializedForLegacyWrite = true, modernCanvasLinksMaterializedWhenResolvable = true, customLegacyOutlinkResolver = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
+    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticPremultipliedAlphaNormalization = true, semanticResolvedUolDependencyVerification = true, recursiveUolSemanticNormalization = true, allResolvableUolsMaterializedForLegacyWrite = true, modernCanvasLinksMaterializedWhenResolvable = true, customLegacyOutlinkResolver = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
     images = staged.Select(x => new { requestedPath = x.RequestedPath, resolvedPath = x.ResolvedPath }).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
