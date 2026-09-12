@@ -2,16 +2,16 @@
 
 #include "Memory.h"
 #include "CrashDiagnostics.h"
+#include "CustomWzLookup.h"
 
 #include <windows.h>
 #include <oleauto.h>
 #include <string>
 #include <iostream>
 
-// Phase 11 of the Kaentake resource-manager backport: mount an optional
-// EverLeaf_Custom.wz into a private child namespace after the stock v83 resource
-// manager initializes. This phase deliberately does NOT change normal root lookup
-// behavior yet; lookup fallback and property merge remain later phases.
+// Kaentake-inspired private EverLeaf custom WZ mount. Phase 11 introduced the
+// isolated namespace; phase 12 indexes that namespace and enables lookup fallback
+// only for paths that are known to exist in EverLeaf_Custom.wz.
 namespace CustomWzOverride {
 namespace detail {
 
@@ -288,8 +288,15 @@ inline void __fastcall InitializeResManHook(void* self, void*) {
     gInitializeResMan(self);
     if (!MountCustomPackage()) {
         // The stock v83 resource manager is already initialized. Custom WZ failure
-        // is non-fatal until the override path is explicitly enabled later.
+        // is non-fatal and normal root lookup remains unchanged.
         CrashDiagnostics::LogEvent("EverLeaf custom WZ mount unavailable; stock resources kept");
+        return;
+    }
+
+    if (gMounted && !CustomWzLookup::Prepare(gCustomNameSpace)) {
+        // Keep the package private if indexing/signature resolution fails. This is
+        // safer than allowing an unverified custom WZ to shadow stock resources.
+        CrashDiagnostics::LogEvent("EverLeaf custom WZ lookup fallback unavailable; private mount retained");
     }
 }
 
@@ -320,6 +327,7 @@ inline void* CustomNameSpace() {
 }
 
 inline void Shutdown() {
+    CustomWzLookup::Shutdown();
     detail::ReleaseObject(detail::gCustomNameSpace);
     detail::gMounted = false;
 }
