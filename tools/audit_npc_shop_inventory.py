@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """Static integrity audit for canonical NPC shop mappings and listings.
 
-The audit evaluates the base database seed plus EverLeaf's shop-update SQL in
-execution order. It catches undefined shops, empty shops, duplicate positions,
-duplicate item listings, invalid price/pitch rows, and shop NPCs with no WZ
-asset. Zero-meso rows are valid when `pitch` is positive.
+The audit evaluates the base database seed, EverLeaf's shop-update SQL, and the
+shop-integrity cleanup migration in execution order. It catches undefined
+shops, empty shops, duplicate positions, duplicate item listings, invalid
+price/pitch rows, and shop NPCs with no WZ asset. Zero-meso rows are valid when
+`pitch` is positive.
 """
 from __future__ import annotations
 
 import re
-import sys
-import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
 
@@ -18,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SQL_FILES = [
     ROOT / "database/sql/1-db_database.sql",
     ROOT / "database/sql/3-db_shopupdate.sql",
+    ROOT / "database/sql/migration/everleaf_npc_shop_cleanup.sql",
 ]
 NPC_ROOT = ROOT / "wz/Npc.wz"
 
@@ -42,6 +42,26 @@ def apply_sql(shops: dict[int, int], rows: list[dict[str, int]], text: str) -> N
         if delete:
             shop_id = int(delete.group(1))
             rows[:] = [row for row in rows if row["shopid"] != shop_id]
+            continue
+
+        # Model targeted/idempotent shop-item position migrations so the audit
+        # represents the effective canonical schema after maintained migrations.
+        update_position = re.search(
+            r"UPDATE\s+`?shopitems`?\s+SET\s+`?position`?\s*=\s*(\d+)\s+"
+            r"WHERE\s+`?shopid`?\s*=\s*(\d+)\s+AND\s+`?itemid`?\s*=\s*(\d+)\s+"
+            r"AND\s+`?position`?\s*=\s*(\d+)",
+            stmt,
+            re.I | re.S,
+        )
+        if update_position:
+            new_position, shop_id, item_id, old_position = map(int, update_position.groups())
+            for row in rows:
+                if (
+                    row["shopid"] == shop_id
+                    and row["itemid"] == item_id
+                    and row["position"] == old_position
+                ):
+                    row["position"] = new_position
             continue
 
         shop_insert = re.search(
