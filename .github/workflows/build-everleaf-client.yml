@@ -48,6 +48,7 @@ jobs:
             'InstallEarlyHooks()',
             'DisplayMode::StartWorker()',
             'FieldRenderCorrections::Apply()',
+            'FieldViewRange::Install()',
             'DiscordPresence::Start();',
             'DiscordPresence::Stop();'
           )) {
@@ -103,6 +104,25 @@ jobs:
             'ApplyCurrent()'
           )) {
             if (-not $fieldRender.Contains($needle)) { throw "Missing field-render correction contract: $needle" }
+          }
+
+          $fieldView = Get-Content 'client/native/core/FieldViewRange.h' -Raw
+          foreach ($needle in @(
+            'kRestoreViewRangeAddress = 0x00641EF1',
+            'kPhysicalSpaceSingletonAddress = 0x00BEBFA0',
+            'kPhysicalSpaceMbrOffset = 0x24',
+            'kFieldInfoPropertyOffset = 0x2C',
+            'kViewRangeOffset = 0xF0',
+            'get_item(const wchar_t*, VARIANT*)',
+            'L"VRLeft"',
+            'L"VRTop"',
+            'L"VRRight"',
+            'L"VRBottom"',
+            'VariantChangeType',
+            'NormalizeCollapsedRange(next)',
+            'gRestoreViewRange(self)'
+          )) {
+            if (-not $fieldView.Contains($needle)) { throw "Missing dynamic field view-range contract: $needle" }
           }
 
           $bridge = Get-Content 'client/native/core/DiscordPresence.cpp' -Raw
