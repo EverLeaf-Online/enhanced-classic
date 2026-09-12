@@ -46,11 +46,12 @@ static WzFile OpenTarget(string p)
 
 static WzFile OpenDonor(string p)
 {
-    if (!File.Exists(Path.Combine(Path.GetDirectoryName(p)!, "ZLZ.dll")))
-        throw new FileNotFoundException("v180 donor requires ZLZ.dll beside the WZ file.");
-    var w = new WzFile(p, WzMapleVersion.GETFROMZLZ);
+    // WzComparerR2 independently auto-detects this GMS v180 donor as
+    // BMS-keyed PKG1 data. GETFROMZLZ reads an unrelated/custom IV from
+    // ZLZ.dll and corrupts MapleLib directory names.
+    var w = new WzFile(p, WzMapleVersion.BMS);
     var st = w.ParseWzFile();
-    if (st != WzFileParseStatus.Success) { w.Dispose(); throw new InvalidDataException($"Donor parse failed {Path.GetFileName(p)}: {st}"); }
+    if (st != WzFileParseStatus.Success) { w.Dispose(); throw new InvalidDataException($"Donor parse failed {Path.GetFileName(p)} with BMS key: {st}"); }
     return w;
 }
 
@@ -181,11 +182,12 @@ using (var output = OpenTarget(outputPath))
 var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 2,
+    schemaVersion = 3,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
     family = Path.GetFileName(targetPath),
+    donorCryptoKey = "BMS",
     requestedCount = requested.Length,
     stagedCount = staged.Count,
     verifiedCount = verified,
