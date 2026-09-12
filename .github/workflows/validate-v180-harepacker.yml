@@ -1,0 +1,54 @@
+name: Validate v180 tooling with HaRepacker
+
+on:
+  push:
+    branches: [donor/v180-low-friction-stage-20260911]
+    paths:
+      - '.github/workflows/validate-v180-harepacker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-harepacker:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - name: Checkout EverLeaf staging branch
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Clone HaRepacker-resurrected with submodules
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/lastbattle/Harepacker-resurrected.git "$env:RUNNER_TEMP/Harepacker-resurrected"
+          git -C "$env:RUNNER_TEMP/Harepacker-resurrected" rev-parse HEAD
+
+      - name: Build HaRepacker and HaCreator
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'Harepacker-resurrected'
+          dotnet build (Join-Path $root 'HaRepacker/Harepacker-resurrected.csproj') -c Release -r win-x64 --no-self-contained
+          if($LASTEXITCODE){throw 'HaRepacker build failed'}
+          dotnet build (Join-Path $root 'HaCreator/HaCreator.csproj') -c Release -r win-x64 --no-self-contained
+          if($LASTEXITCODE){throw 'HaCreator build failed'}
+
+      - name: Verify Private Server XML and map-import paths exist
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'Harepacker-resurrected'
+          $main=Get-Content -Raw (Join-Path $root 'HaRepacker/GUI/MainForm.cs')
+          if($main -notmatch 'WzClassicXmlSerializer'){throw 'Private Server XML serializer hook not found'}
+          $map=Get-Content -Raw (Join-Path $root 'HaCreator/Wz/MapImportService.cs')
+          foreach($token in @('ImportMap','BuildPlan','ExecutePlan','MapImportAssetKind.Tile','MapImportAssetKind.Background','MapImportAssetKind.Reactor','MapImportAssetKind.Mob','MapImportAssetKind.Npc','MapImportAssetKind.String','MapImportAssetKind.Sound')){
+            if($map -notmatch [regex]::Escape($token)){throw "Map import dependency hook missing: $token"}
+          }
+          Write-Host 'HaRepacker build and v180-relevant validation hooks verified.'
