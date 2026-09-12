@@ -403,7 +403,7 @@ static Dictionary<string, WzImageProperty> RawPropertyMap(WzImage image)
     return map;
 }
 
-static int MaterializeIncompatibleUolDependencies(WzImage donorImage, WzImage candidateImage)
+static int MaterializeResolvedUolDependencies(WzImage donorImage, WzImage candidateImage)
 {
     var donorProps = RawPropertyMap(donorImage);
     var candidateProps = RawPropertyMap(candidateImage);
@@ -417,10 +417,10 @@ static int MaterializeIncompatibleUolDependencies(WzImage donorImage, WzImage ca
 
         var donorResolved = ResolveUolObject(donorUol) as WzImageProperty;
         if (donorResolved == null) continue;
-        var candidateResolved = ResolveUolObject(candidateUol) as WzImageProperty;
-        if (candidateResolved != null && string.Equals(PropertySemanticDigest(donorResolved), PropertySemanticDigest(candidateResolved), StringComparison.OrdinalIgnoreCase))
-            continue;
 
+        // v180 relative UOLs can resolve differently after the donor image is serialized
+        // into a legacy v83 WZ. Materialize every resolvable UOL in donor-only images so
+        // the saved candidate no longer depends on legacy UOL traversal behavior.
         replacements.Add((candidateUol, donorResolved));
     }
 
@@ -428,8 +428,33 @@ static int MaterializeIncompatibleUolDependencies(WzImage donorImage, WzImage ca
     {
         if (candidateUol.Parent is not IPropertyContainer parent)
             throw new InvalidDataException($"Cannot materialize UOL without property-container parent: {candidateUol.FullPath}");
+
         var replacement = donorResolved.DeepClone();
         replacement.Name = candidateUol.Name;
+
+        // If the resolved UOL target is itself a modern linked canvas, collapse the
+        // link at the same time. This is required for patterns such as Horntail's
+        // attack frames where attack1/N -> fly/N -> _outlink into another v180 image.
+        if (donorResolved is WzCanvasProperty donorCanvas &&
+            replacement is WzCanvasProperty replacementCanvas &&
+            (donorCanvas.ContainsInlinkProperty() || donorCanvas.ContainsOutlinkProperty()))
+        {
+            var effectivePng = ResolveEffectiveCanvasPng(donorCanvas);
+            if (effectivePng == null)
+                throw new InvalidDataException($"Cannot resolve modern canvas behind UOL: {candidateUol.FullPath}");
+            var standardBytes = effectivePng.GetCompressedBytesForExtraction(false);
+            if (standardBytes == null || standardBytes.Length == 0)
+                throw new InvalidDataException($"Resolved UOL canvas has no compressed payload: {candidateUol.FullPath}");
+            var materializedPng = new WzPngProperty();
+            materializedPng.SetCompressedBytes(standardBytes, effectivePng.Width, effectivePng.Height, effectivePng.Format);
+            materializedPng.ListWzUsed = false;
+            replacementCanvas.PngProperty = materializedPng;
+            var inlink = replacementCanvas[WzCanvasProperty.InlinkPropertyName];
+            if (inlink != null) replacementCanvas.RemoveProperty(inlink);
+            var outlink = replacementCanvas[WzCanvasProperty.OutlinkPropertyName];
+            if (outlink != null) replacementCanvas.RemoveProperty(outlink);
+        }
+
         parent.RemoveProperty(candidateUol);
         parent.AddProperty(replacement);
     }
@@ -536,12 +561,12 @@ using (var donor = OpenDonor(donorPath))
     }
     if (staged.Count == 0) throw new InvalidOperationException("Refusing empty static candidate.");
 
-    // A donor-only image can UOL-link into a shared image whose old v83 contents are incomplete.
-    // Preserve the donor semantics without replacing the shared target image by materializing only
-    // those UOL targets that do not resolve equivalently after the donor-only image is attached.
+    // Legacy v83 serialization can change how v180 relative UOLs resolve. Materialize every
+    // resolvable UOL inside donor-only images before writing so the candidate preserves donor
+    // semantics without relying on legacy UOL traversal behavior.
     foreach (var pair in clonePairs)
     {
-        materializedUolDependencyCount += MaterializeIncompatibleUolDependencies(pair.Donor, pair.Candidate);
+        materializedUolDependencyCount += MaterializeResolvedUolDependencies(pair.Donor, pair.Candidate);
         var canvasLinks = MaterializeModernCanvasLinks(pair.Donor, pair.Candidate);
         modernCanvasLinkCount += canvasLinks.Found;
         materializedModernCanvasLinkCount += canvasLinks.Materialized;
@@ -584,7 +609,7 @@ using (var donor = OpenDonor(donorPath))
 var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 15,
+    schemaVersion = 16,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -596,7 +621,7 @@ var manifest = new
     basenameFallbackCount = fallbackCount,
     semanticCanvasVerificationFallbackCount = semanticFallbackCount,
     sanitizedNullStringOrUolCount = sanitizedScalarCount,
-    materializedIncompatibleUolDependencyCount = materializedUolDependencyCount,
+    materializedResolvedUolDependencyCount = materializedUolDependencyCount,
     modernCanvasLinkCount,
     materializedModernCanvasLinkCount,
     unresolvedModernCanvasLinkCount,
@@ -604,7 +629,7 @@ var manifest = new
     source = new { path = targetPath, sha256 = targetHashBefore, version = targetVersion, size = new FileInfo(targetPath).Length },
     donor = new { path = donorPath, sha256 = donorHash, version = donorVersion, size = new FileInfo(donorPath).Length },
     output = new { path = outputPath, sha256 = Sha(outputPath), size = new FileInfo(outputPath).Length },
-    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticPremultipliedAlphaNormalization = true, semanticResolvedUolDependencyVerification = true, modernCanvasLinksMaterializedWhenResolvable = true, customLegacyOutlinkResolver = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
+    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticPremultipliedAlphaNormalization = true, semanticResolvedUolDependencyVerification = true, allResolvableUolsMaterializedForLegacyWrite = true, modernCanvasLinksMaterializedWhenResolvable = true, customLegacyOutlinkResolver = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
     images = staged.Select(x => new { requestedPath = x.RequestedPath, resolvedPath = x.ResolvedPath }).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
