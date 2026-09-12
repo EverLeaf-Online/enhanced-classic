@@ -1,0 +1,67 @@
+name: Validate EverLeaf custom WZ runtime checker
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "client/scripts/check-custom-wz-runtime.ps1"
+      - ".github/workflows/client-v2-custom-wz-runtime-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-runtime-checker:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Verify present absent and rejection modes
+        shell: pwsh
+        run: |
+          $checker = Join-Path $PWD 'client/scripts/check-custom-wz-runtime.ps1'
+          $root = Join-Path $env:RUNNER_TEMP 'custom-wz-runtime-checker'
+          $present = Join-Path $root 'present'
+          $absent = Join-Path $root 'absent'
+          $invalid = Join-Path $root 'invalid'
+          New-Item -ItemType Directory -Force -Path $present, $absent, $invalid | Out-Null
+
+          function Write-TestWz([string]$directory) {
+            $bytes = New-Object byte[] 64
+            $signature = [System.Text.Encoding]::ASCII.GetBytes('PKG1')
+            [Array]::Copy($signature, 0, $bytes, 0, $signature.Length)
+            [System.IO.File]::WriteAllBytes((Join-Path $directory 'EverLeaf_Custom.wz'), $bytes)
+          }
+
+          Write-TestWz $present
+          @(
+            'EverLeaf custom WZ mount hook installed',
+            'EverLeaf custom WZ mounted in private namespace',
+            'custom WZ override index built',
+            'custom WZ local-object fallback enabled',
+            'custom WZ partial property merge enabled'
+          ) | Set-Content (Join-Path $present 'EverLeafClient.log') -Encoding utf8
+
+          & pwsh -NoProfile -File $checker -ClientDirectory $present -Expected present
+          if ($LASTEXITCODE -ne 0) { throw 'Present-mode runtime checker rejected a valid log' }
+
+          @(
+            'EverLeaf custom WZ mount hook installed',
+            'EverLeaf_Custom.wz not present; custom namespace disabled'
+          ) | Set-Content (Join-Path $absent 'EverLeafClient.log') -Encoding utf8
+
+          & pwsh -NoProfile -File $checker -ClientDirectory $absent -Expected absent
+          if ($LASTEXITCODE -ne 0) { throw 'Absent-mode runtime checker rejected the valid fail-closed path' }
+
+          Write-TestWz $invalid
+          @(
+            'EverLeaf custom WZ mount hook installed',
+            'EverLeaf custom WZ mounted in private namespace'
+          ) | Set-Content (Join-Path $invalid 'EverLeafClient.log') -Encoding utf8
+
+          & pwsh -NoProfile -File $checker -ClientDirectory $invalid -Expected present
+          if ($LASTEXITCODE -eq 0) { throw 'Runtime checker accepted an incomplete custom-WZ initialization log' }
+
+          Write-Host 'Custom WZ runtime checker synthetic cases passed'
