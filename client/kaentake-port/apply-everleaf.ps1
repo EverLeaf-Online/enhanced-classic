@@ -14,8 +14,44 @@ Replace-Exact 'src/constants.h' '#define CONSTANTS_WINDOW_NAME "Kaentake"' '#def
 Replace-Exact 'src/constants.h' '#define CONSTANTS_DLL_NAME    "Kaentake.dll"' '#define CONSTANTS_DLL_NAME    "EverLeaf.dll"'
 Replace-Exact 'src/launcher.cpp' '"kaentake.dll"' '"EverLeaf.dll"'
 Replace-Exact 'src/stringpool.cpp' 'REPLACE_STRING(1163, "Kaentake");' 'REPLACE_STRING(1163, "EverLeaf");'
+Replace-Exact 'src/system.cpp' 'typedef decltype(&CreateMutexA) CreateMutexA_t;' @'
+// Old GMS v83 DirectInput calls GetModuleFileNameW with the executable image base.
+// On modern Windows that can intermittently fail with E_INVALIDARG (-2147024809).
+// Passing NULL is documented to mean the current executable and is equivalent here.
+typedef decltype(&GetModuleFileNameW) GetModuleFileNameW_t;
+static GetModuleFileNameW_t GetModuleFileNameW_orig = reinterpret_cast<GetModuleFileNameW_t>(GetAddress("KERNEL32", "GetModuleFileNameW"));
+
+DWORD WINAPI GetModuleFileNameW_hook(HMODULE hModule, LPWSTR lpFilename, DWORD nSize) {
+    if (hModule && hModule == GetModuleHandleW(nullptr)) {
+        hModule = nullptr;
+    }
+    return GetModuleFileNameW_orig(hModule, lpFilename, nSize);
+}
+
+
+typedef decltype(&CreateMutexA) CreateMutexA_t;
+'@
+Replace-Exact 'src/system.cpp' '    ATTACH_HOOK(SetUnhandledExceptionFilter_orig, SetUnhandledExceptionFilter_hook);' @'
+    ATTACH_HOOK(SetUnhandledExceptionFilter_orig, SetUnhandledExceptionFilter_hook);
+    ATTACH_HOOK(GetModuleFileNameW_orig, GetModuleFileNameW_hook);
+'@
 Replace-Exact 'src/launcher.manifest' 'name="Kaentake"' 'name="EverLeaf"'
 Replace-Exact 'src/launcher.manifest' '<description>Kaentake</description>' '<description>EverLeaf</description>'
+Replace-Exact 'src/system.cpp' '#include <intrin.h>' @'
+#include <intrin.h>
+#include <shellapi.h>
+
+#pragma comment(lib, "shell32.lib")
+'@
+Replace-Exact 'src/system.cpp' '    g_WndProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(hWnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&WndProc_hook)));' @'
+    g_WndProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(hWnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&WndProc_hook)));
+    HICON hLarge = nullptr;
+    HICON hSmall = nullptr;
+    if (ExtractIconExA("EverLeaf.exe", 0, &hLarge, &hSmall, 1) > 0) {
+        if (hLarge) SendMessageA(hWnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(hLarge));
+        if (hSmall) SendMessageA(hWnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(hSmall));
+    }
+'@
 Replace-Exact 'src/launcher.rc' 'VALUE "CompanyName",      "Kaentake"' 'VALUE "CompanyName",      "EverLeaf Online"'
 Replace-Exact 'src/launcher.rc' 'VALUE "FileDescription",  "Kaentake"' 'VALUE "FileDescription",  "EverLeaf Client"'
 Replace-Exact 'src/launcher.rc' 'VALUE "InternalName",     "Kaentake"' 'VALUE "InternalName",     "EverLeaf"'
@@ -115,4 +151,22 @@ Copy-Item (Join-Path $PSScriptRoot 'startup.cpp') (Join-Path $SourceRoot 'src/st
 Copy-Item (Join-Path $PSScriptRoot 'discordpresence.cpp') (Join-Path $SourceRoot 'src/discordpresence.cpp') -Force
 Copy-Item (Join-Path $PSScriptRoot 'weblinks.cpp') (Join-Path $SourceRoot 'src/weblinks.cpp') -Force
 Copy-Item (Join-Path $PSScriptRoot 'diagnostics.cpp') (Join-Path $SourceRoot 'src/diagnostics.cpp') -Force
+
+$iconParts = @(Get-ChildItem (Join-Path (Split-Path $PSScriptRoot -Parent) 'branding/everleaf-app-icon.ico.gz.b64.part*') -File | Sort-Object Name)
+if ($iconParts.Count -eq 0) { throw 'EverLeaf icon source parts are missing.' }
+$iconPayload = (($iconParts | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join '') -replace '\s',''
+$iconCompressed = [Convert]::FromBase64String($iconPayload)
+$iconInput = [IO.MemoryStream]::new($iconCompressed)
+try {
+    $iconGzip = [IO.Compression.GZipStream]::new($iconInput, [IO.Compression.CompressionMode]::Decompress)
+    try {
+        $iconPath = Join-Path $SourceRoot 'src/launcher.ico'
+        $iconOutput = [IO.File]::Create($iconPath)
+        try { $iconGzip.CopyTo($iconOutput) } finally { $iconOutput.Dispose() }
+    } finally { $iconGzip.Dispose() }
+} finally { $iconInput.Dispose() }
+$iconHash = (Get-FileHash -LiteralPath (Join-Path $SourceRoot 'src/launcher.ico') -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($iconHash -ne '3fdea6b7873dfff399d7a6600c864ad1a5933706392adb7c53415301ac774ceb') {
+    throw "EverLeaf launcher icon SHA-256 mismatch: $iconHash"
+}
 Write-Host 'EverLeaf Kaentake integration patch applied.'
