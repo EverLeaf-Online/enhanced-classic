@@ -88,7 +88,7 @@ jobs:
           '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafV180StaticPatcher.csproj')
           dotnet build (Join-Path $tool 'EverLeafV180StaticPatcher.csproj') -c Release
 
-      - name: Fetch WZ inputs and manifests
+      - name: Fetch WZ inputs and deduplicate manifests
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
@@ -98,6 +98,23 @@ jobs:
           foreach($f in @('Map.wz','Map2.wz','Mob.wz','Mob2.wz','ZLZ.dll')){scp "everleaf-oracle`:$env:DONOR_ROOT/$f" (Join-Path $donor $f); if($LASTEXITCODE){throw "donor fetch failed: $f"}}
           foreach($f in @('maps_all.txt','map2_into_map.txt','mobs_all.txt','mob2_into_mob.txt')){scp "everleaf-oracle`:$env:MANIFEST_ROOT/$f" (Join-Path $m $f); if($LASTEXITCODE){throw "manifest fetch failed: $f"}}
 
+          # Map2/Mob2 can repeat images already supplied by the main v180 WZ.
+          # A sequential fold must add only split-file paths not already added in stage 1.
+          $mapMain=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+          Get-Content (Join-Path $m 'maps_all.txt') | ForEach-Object { if($_.Trim()){[void]$mapMain.Add($_.Trim())} }
+          $map2=@(Get-Content (Join-Path $m 'map2_into_map.txt') | ForEach-Object {$_.Trim()} | Where-Object {$_ -and -not $mapMain.Contains($_)} | Sort-Object -Unique)
+          if($map2.Count -eq 0){throw 'Map2 filtered manifest is empty'}
+          $map2 | Set-Content -Encoding ascii (Join-Path $m 'map2_into_map.filtered.txt')
+
+          $mobMain=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+          Get-Content (Join-Path $m 'mobs_all.txt') | ForEach-Object { if($_.Trim()){[void]$mobMain.Add($_.Trim())} }
+          $mob2=@(Get-Content (Join-Path $m 'mob2_into_mob.txt') | ForEach-Object {$_.Trim()} | Where-Object {$_ -and -not $mobMain.Contains($_)} | Sort-Object -Unique)
+          if($mob2.Count -eq 0){throw 'Mob2 filtered manifest is empty'}
+          $mob2 | Set-Content -Encoding ascii (Join-Path $m 'mob2_into_mob.filtered.txt')
+
+          Write-Host "Map2 original=$((Get-Content (Join-Path $m 'map2_into_map.txt')).Count) filtered=$($map2.Count)"
+          Write-Host "Mob2 original=$((Get-Content (Join-Path $m 'mob2_into_mob.txt')).Count) filtered=$($mob2.Count)"
+
       - name: Fold Map and Map2
         shell: pwsh
         run: |
@@ -106,7 +123,7 @@ jobs:
           $s1=Join-Path $root 'map-stage1'; $s2=Join-Path $root 'map-final'; New-Item -ItemType Directory -Force -Path $s1,$s2 | Out-Null
           dotnet run --project $p -c Release --no-build -- (Join-Path $root 'target/Map.wz') (Join-Path $root 'donor/Map.wz') (Join-Path $root 'manifests/maps_all.txt') (Join-Path $s1 'Map.wz') (Join-Path $s1 'Map-v180-main.manifest.json')
           if($LASTEXITCODE){throw 'Map.wz main donor fold failed'}
-          dotnet run --project $p -c Release --no-build -- (Join-Path $s1 'Map.wz') (Join-Path $root 'donor/Map2.wz') (Join-Path $root 'manifests/map2_into_map.txt') (Join-Path $s2 'Map.wz') (Join-Path $s2 'Map-v180-split.manifest.json')
+          dotnet run --project $p -c Release --no-build -- (Join-Path $s1 'Map.wz') (Join-Path $root 'donor/Map2.wz') (Join-Path $root 'manifests/map2_into_map.filtered.txt') (Join-Path $s2 'Map.wz') (Join-Path $s2 'Map-v180-split.manifest.json')
           if($LASTEXITCODE){throw 'Map2.wz fold failed'}
 
       - name: Fold Mob and Mob2
@@ -117,7 +134,7 @@ jobs:
           $s1=Join-Path $root 'mob-stage1'; $s2=Join-Path $root 'mob-final'; New-Item -ItemType Directory -Force -Path $s1,$s2 | Out-Null
           dotnet run --project $p -c Release --no-build -- (Join-Path $root 'target/Mob.wz') (Join-Path $root 'donor/Mob.wz') (Join-Path $root 'manifests/mobs_all.txt') (Join-Path $s1 'Mob.wz') (Join-Path $s1 'Mob-v180-main.manifest.json')
           if($LASTEXITCODE){throw 'Mob.wz main donor fold failed'}
-          dotnet run --project $p -c Release --no-build -- (Join-Path $s1 'Mob.wz') (Join-Path $root 'donor/Mob2.wz') (Join-Path $root 'manifests/mob2_into_mob.txt') (Join-Path $s2 'Mob.wz') (Join-Path $s2 'Mob-v180-split.manifest.json')
+          dotnet run --project $p -c Release --no-build -- (Join-Path $s1 'Mob.wz') (Join-Path $root 'donor/Mob2.wz') (Join-Path $root 'manifests/mob2_into_mob.filtered.txt') (Join-Path $s2 'Mob.wz') (Join-Path $s2 'Mob-v180-split.manifest.json')
           if($LASTEXITCODE){throw 'Mob2.wz fold failed'}
 
       - name: Upload verified final folded candidates
@@ -140,7 +157,7 @@ jobs:
           test -s "$ROOT/Map.wz"; test -s "$ROOT/Mob.wz"
           for m in "$ROOT"/*.manifest.json; do grep -q '"productionApplyAllowed": false' "$m"; grep -q '"donorImageDigestsMatch": true' "$m"; done
           sha256sum "$ROOT/Map.wz" "$ROOT/Mob.wz" > "$ROOT/SHA256SUMS"
-          printf 'GMS v180 Map.wz+Map2.wz and Mob.wz+Mob2.wz folded into v83-format staging candidates. No production apply.\n' > "$ROOT/README.txt"
+          printf 'GMS v180 Map.wz+Map2.wz and Mob.wz+Mob2.wz folded into v83-format staging candidates. Duplicate split-file paths are removed before second-stage merge. No production apply.\n' > "$ROOT/README.txt"
           echo V180_SPLIT_FOLD_STAGE_OK
           du -sh "$ROOT"
           '@
