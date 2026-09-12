@@ -46,9 +46,6 @@ static WzFile OpenTarget(string p)
 
 static WzFile OpenDonor(string p)
 {
-    // WzComparerR2 independently auto-detects this GMS v180 donor as
-    // BMS-keyed PKG1 data. GETFROMZLZ reads an unrelated/custom IV from
-    // ZLZ.dll and corrupts MapleLib directory names.
     var w = new WzFile(p, WzMapleVersion.BMS);
     var st = w.ParseWzFile();
     if (st != WzFileParseStatus.Success) { w.Dispose(); throw new InvalidDataException($"Donor parse failed {Path.GetFileName(p)} with BMS key: {st}"); }
@@ -71,8 +68,7 @@ static ImageLocation? FindImageExact(WzDirectory root, string relativePath)
 
 static IEnumerable<ImageLocation> EnumerateImages(WzDirectory root, string[] prefix)
 {
-    foreach (var image in root.WzImages)
-        yield return new ImageLocation(image, prefix);
+    foreach (var image in root.WzImages) yield return new ImageLocation(image, prefix);
     foreach (var sub in root.WzDirectories)
     {
         var next = prefix.Concat(new[] { sub.Name }).ToArray();
@@ -84,13 +80,11 @@ static ImageLocation ResolveDonorImage(WzDirectory root, string requestedPath)
 {
     var exact = FindImageExact(root, requestedPath);
     if (exact != null) return exact.Value;
-
     var baseName = requestedPath.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()
         ?? throw new InvalidDataException($"Invalid donor path: {requestedPath}");
     var hits = EnumerateImages(root, Array.Empty<string>())
         .Where(x => string.Equals(x.Image.Name, baseName, StringComparison.OrdinalIgnoreCase))
-        .Take(3)
-        .ToArray();
+        .Take(3).ToArray();
     if (hits.Length == 1) return hits[0];
     if (hits.Length == 0) throw new InvalidDataException($"Donor path missing: {requestedPath}");
     throw new InvalidDataException($"Donor path ambiguous after basename fallback: {requestedPath}; matches={string.Join(',', hits.Select(h => h.FullPath))}");
@@ -108,9 +102,9 @@ static WzDirectory EnsureDirs(WzDirectory root, IEnumerable<string> dirs)
     return d;
 }
 
-static void HashText(IncrementalHash h, string s)
+static void HashText(IncrementalHash h, string? s)
 {
-    h.AppendData(Encoding.UTF8.GetBytes(s));
+    h.AppendData(Encoding.UTF8.GetBytes(s ?? string.Empty));
     h.AppendData(new byte[] { 0 });
 }
 
@@ -128,8 +122,8 @@ static string ImageDigest(WzImage img)
                 h.AppendData(canvas.PngProperty.GetCompressedBytesForExtraction(false));
             else if (p.WzProperties == null)
             {
-                try { HashText(h, p.GetString() ?? ""); }
-                catch { HashText(h, p.WzValue?.ToString() ?? ""); }
+                try { HashText(h, p.GetString()); }
+                catch { HashText(h, p.WzValue?.ToString()); }
             }
             if (p.WzProperties != null) Walk(p.WzProperties);
         }
@@ -138,10 +132,27 @@ static string ImageDigest(WzImage img)
     return Convert.ToHexString(h.GetHashAndReset()).ToLowerInvariant();
 }
 
+static int SanitizeForWrite(WzImage image)
+{
+    var repaired = 0;
+    void Walk(IEnumerable<WzImageProperty> ps)
+    {
+        foreach (var p in ps)
+        {
+            if (p is WzStringProperty s && s.Value == null) { s.Value = string.Empty; repaired++; }
+            if (p is WzUOLProperty u && u.Value == null) { u.Value = string.Empty; repaired++; }
+            if (p.WzProperties != null) Walk(p.WzProperties);
+        }
+    }
+    Walk(image.WzProperties);
+    return repaired;
+}
+
 var targetHashBefore = Sha(targetPath);
 var donorHash = Sha(donorPath);
 short targetVersion, donorVersion;
 var staged = new List<StagedImage>();
+var sanitizedScalarCount = 0;
 
 using (var target = OpenTarget(targetPath))
 using (var donor = OpenDonor(donorPath))
@@ -154,9 +165,11 @@ using (var donor = OpenDonor(donorPath))
         var actualPath = source.FullPath;
         if (FindImageExact(target.WzDirectory, actualPath) != null)
             throw new InvalidOperationException($"Target collision at resolved donor path: requested={requestedPath}, resolved={actualPath}");
-        var digest = ImageDigest(source.Image);
-        EnsureDirs(target.WzDirectory, source.Dirs).AddImage(source.Image.DeepClone());
-        staged.Add(new StagedImage(requestedPath, actualPath, digest));
+        var donorDigest = ImageDigest(source.Image);
+        var clone = source.Image.DeepClone();
+        sanitizedScalarCount += SanitizeForWrite(clone);
+        EnsureDirs(target.WzDirectory, source.Dirs).AddImage(clone);
+        staged.Add(new StagedImage(requestedPath, actualPath, donorDigest));
     }
     if (staged.Count == 0) throw new InvalidOperationException("Refusing empty static candidate.");
     target.SaveToDisk(outputPath);
@@ -182,7 +195,7 @@ using (var output = OpenTarget(outputPath))
 var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 3,
+    schemaVersion = 4,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -192,6 +205,7 @@ var manifest = new
     stagedCount = staged.Count,
     verifiedCount = verified,
     basenameFallbackCount = fallbackCount,
+    sanitizedNullStringOrUolCount = sanitizedScalarCount,
     source = new { path = targetPath, sha256 = targetHashBefore, version = targetVersion, size = new FileInfo(targetPath).Length },
     donor = new { path = donorPath, sha256 = donorHash, version = donorVersion, size = new FileInfo(donorPath).Length },
     output = new { path = outputPath, sha256 = Sha(outputPath), size = new FileInfo(outputPath).Length },
@@ -199,7 +213,7 @@ var manifest = new
     images = staged.Select(x => new { requestedPath = x.RequestedPath, resolvedPath = x.ResolvedPath }).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
-Console.WriteLine($"STAGED {Path.GetFileName(targetPath)}: {verified:N0}/{requested.Length:N0} donor-only images verified; fallback={fallbackCount:N0}");
+Console.WriteLine($"STAGED {Path.GetFileName(targetPath)}: {verified:N0}/{requested.Length:N0} donor-only images verified; fallback={fallbackCount:N0}; sanitized={sanitizedScalarCount:N0}");
 Console.WriteLine($"OUTPUT {outputPath}");
 Console.WriteLine("approved=false / productionApplyAllowed=false");
 return 0;
