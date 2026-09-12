@@ -45,6 +45,42 @@ jobs:
           foreach ($needle in @('WaitForClientImage()','BootstrapWatchdog','InstallEarlyHooks()','DisplayMode::StartWorker()','DiscordPresence::Start();','DiscordPresence::Stop();')) {
             if (-not $bootstrap.Contains($needle)) { throw "Missing core bootstrap marker: $needle" }
           }
+
+          $displayResolution = Get-Content 'client/native/core/DisplayResolution.h' -Raw
+          foreach ($needle in @(
+            '#include "RuntimeResolution.h"',
+            '#include "ResolutionUIBounds.h"',
+            'RuntimeResolution::Apply(selected.width, selected.height)',
+            'ResolutionUIBounds::SetActiveResolution(selected.width, selected.height)',
+            'ResolutionUIBounds::Install(Client::m_nGameWidth, Client::m_nGameHeight)'
+          )) {
+            if (-not $displayResolution.Contains($needle)) { throw "Missing live-resolution wiring marker: $needle" }
+          }
+
+          $runtimeResolution = Get-Content 'client/native/core/RuntimeResolution.h' -Raw
+          foreach ($needle in @(
+            'GetModuleHandleA("Gr2D_DX8.dll")',
+            'kGetFieldAddress = 0x00437A0C',
+            'kRestoreViewRangeAddress = 0x00641EF1',
+            'kReloadBackAddress = 0x00644491',
+            'SetRendererMode(previousWidth, previousHeight)',
+            'WidescreenCorrections::ApplyCurrent()'
+          )) {
+            if (-not $runtimeResolution.Contains($needle)) { throw "Missing runtime-resolution contract: $needle" }
+          }
+
+          $uiBounds = Get-Content 'client/native/core/ResolutionUIBounds.h' -Raw
+          foreach ($needle in @(
+            'kUIWindowCount = 34',
+            'kContextMenuCreateCallSite = 0x009966E3',
+            'kCreateUtilDlgExAddress = 0x009A3E38',
+            'ClampConfigObject',
+            'InstallContextMenuBounds()',
+            'InstallUtilityDialogBounds()'
+          )) {
+            if (-not $uiBounds.Contains($needle)) { throw "Missing resolution UI-bounds contract: $needle" }
+          }
+
           $bridge = Get-Content 'client/native/core/DiscordPresence.cpp' -Raw
           if (-not $bridge.Contains('LoadLibraryW(L"Discord.dll")')) { throw 'Core does not load Discord.dll independently' }
           $proxy = Get-Content 'client/native/proxy/Proxy.cpp' -Raw
@@ -56,7 +92,9 @@ jobs:
             if (-not $discord.Contains($needle)) { throw "Missing Discord export: $needle" }
           }
           $config = Get-Content 'client/native/core/config.ini' -Raw
-          if (-not ($config -match '(?m)^DiscordRichPresence=true\r?$')) { throw 'DiscordRichPresence=true is missing from config.ini' }
+          foreach ($setting in @('DiscordRichPresence=true','LiveResolution=true','MatchMonitorResolutionOnFullscreen=true')) {
+            if (-not ($config -match "(?m)^$([regex]::Escape($setting))\r?$")) { throw "$setting is missing from config.ini" }
+          }
 
       - name: Test Discord IPC frames and acknowledgements
         shell: pwsh
@@ -99,6 +137,8 @@ jobs:
           $config = Get-Content "$package/config.ini" -Raw
           if (-not ($config -match 'PreferCommunityUI=true')) { throw 'Managed client does not default to Community UI' }
           if (-not ($config -match '(?m)^DiscordRichPresence=true\r?$')) { throw 'Managed client does not enable Discord Rich Presence' }
+          if (-not ($config -match '(?m)^LiveResolution=true\r?$')) { throw 'Managed client does not enable live resolution' }
+          if (-not ($config -match '(?m)^MatchMonitorResolutionOnFullscreen=true\r?$')) { throw 'Managed client does not enable monitor-matched borderless rendering' }
           Compress-Archive -Path "$package/*" -DestinationPath 'EverleafClient-source-built.zip'
           Get-FileHash 'EverleafClient-source-built.zip' -Algorithm SHA256
 
