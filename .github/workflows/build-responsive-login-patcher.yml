@@ -34,9 +34,11 @@ jobs:
           $lib = "$env:RUNNER_TEMP/libwz"
           $build = "$env:RUNNER_TEMP/responsive-login-build"
           cmake -S $src -B $build -A x64 "-DLIBWZ_SOURCE=$lib"
-          cmake --build $build --config Release --target everleaf-responsive-login-wz --parallel 2
+          cmake --build $build --config Release --target everleaf-responsive-login-wz everleaf-system-options-wz --parallel 2
           $exe = Join-Path $build 'Release/everleaf-responsive-login-wz.exe'
+          $sysExe = Join-Path $build 'Release/everleaf-system-options-wz.exe'
           if (-not (Test-Path $exe)) { throw "responsive login patcher output missing" }
+          if (-not (Test-Path $sysExe)) { throw "System Options patcher output missing" }
 
           & 'client/tools/login-wz-patcher/Make-Responsive-Login.ps1' -SelfTest
           if ($LASTEXITCODE -ne 0) { throw "responsive login padding self-test failed ($LASTEXITCODE)" }
@@ -44,13 +46,17 @@ jobs:
           $package = "$env:RUNNER_TEMP/responsive-login-package"
           New-Item -ItemType Directory -Force $package | Out-Null
           Copy-Item $exe (Join-Path $package 'everleaf-responsive-login-wz.exe')
+          Copy-Item $sysExe (Join-Path $package 'everleaf-system-options-wz.exe')
           Copy-Item 'client/tools/login-wz-patcher/Make-Responsive-Login.ps1' $package
           Copy-Item 'client/tools/login-wz-patcher/Apply-Responsive-Login.bat' $package
           Copy-Item 'client/tools/login-wz-patcher/Restore-Responsive-Login.bat' $package
+          Copy-Item 'client/tools/login-wz-patcher/Make-Native-Resolution-Row.ps1' $package
+          Copy-Item 'client/tools/login-wz-patcher/Apply-Native-Resolution-Row.bat' $package
+          Copy-Item 'client/tools/login-wz-patcher/Restore-Native-Resolution-Row.bat' $package
 
       - uses: actions/upload-artifact@v4
         with:
-          name: everleaf-responsive-login-wz-patcher
+          name: everleaf-display-wz-patchers
           path: ${{ runner.temp }}/responsive-login-package/*
           if-no-files-found: error
           retention-days: 7
