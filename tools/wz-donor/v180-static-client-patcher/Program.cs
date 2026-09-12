@@ -436,15 +436,20 @@ static (int Found, int Materialized, int Unresolved) MaterializeModernCanvasLink
             continue;
         }
 
-        // Do not transplant donor compressed bytes directly into a v83/GMS target.
-        // Modern donor PNG payloads can be list/encryption-context dependent; copying
-        // their compressed payload verbatim can reparse with different pixels. Decode
-        // once from the donor, then recompress through the target canvas' PNG property.
-        using (var resolvedBitmap = effectivePng.GetImage(false))
+        // Materialize the resolved donor canvas without carrying donor list.wz crypto
+        // state into the v83 target. Convert the compressed payload to standard zlib
+        // and attach it directly so decoded pixels remain byte-for-byte equivalent;
+        // this avoids GDI+ decode/re-encode alpha/premultiplication drift.
+        var standardBytes = effectivePng.GetCompressedBytesForExtraction(false);
+        if (standardBytes == null || standardBytes.Length == 0)
         {
-            candidateCanvas.PngProperty.Format = effectivePng.Format;
-            candidateCanvas.PngProperty.PNG = (Bitmap)resolvedBitmap.Clone();
+            unresolved++;
+            continue;
         }
+        var materializedPng = new WzPngProperty();
+        materializedPng.SetCompressedBytes(standardBytes, effectivePng.Width, effectivePng.Height, effectivePng.Format);
+        materializedPng.ListWzUsed = false;
+        candidateCanvas.PngProperty = materializedPng;
         var inlink = candidateCanvas[WzCanvasProperty.InlinkPropertyName];
         if (inlink != null) candidateCanvas.RemoveProperty(inlink);
         var outlink = candidateCanvas[WzCanvasProperty.OutlinkPropertyName];
