@@ -227,22 +227,29 @@ static void AppendPngToken(List<string> tokens, string path, WzPngProperty png)
         var len = Math.Abs(data.Stride) * data.Height;
         var bytes = new byte[len];
         Marshal.Copy(data.Scan0, bytes, 0, len);
-        // Rendering-semantic normalization: RGB values under fully transparent
-        // pixels are invisible and can legitimately change during WZ canvas
-        // materialization/recompression. Ignore only those hidden channels;
-        // alpha and every visible/partially-visible pixel remain byte-exact.
+        // Rendering-semantic normalization: compare straight-alpha canvases in
+        // premultiplied-alpha space. WZ/GDI+ decode-write cycles can legitimately
+        // alter hidden RGB (alpha=0) and straight RGB for translucent pixels while
+        // preserving the exact color contribution that is rendered. Keep alpha
+        // byte-exact and keep opaque RGB byte-exact; normalize only RGB when A < 255.
         for (var row = 0; row < data.Height; row++)
         {
             var baseIndex = row * Math.Abs(data.Stride);
             for (var x = 0; x < bmp.Width; x++)
             {
                 var i = baseIndex + (x * 4); // BGRA
-                if (bytes[i + 3] == 0)
+                var alpha = bytes[i + 3];
+                if (alpha == 255) continue;
+                if (alpha == 0)
                 {
                     bytes[i] = 0;
                     bytes[i + 1] = 0;
                     bytes[i + 2] = 0;
+                    continue;
                 }
+                bytes[i] = (byte)((bytes[i] * alpha + 127) / 255);
+                bytes[i + 1] = (byte)((bytes[i + 1] * alpha + 127) / 255);
+                bytes[i + 2] = (byte)((bytes[i + 2] * alpha + 127) / 255);
             }
         }
         tokens.Add($"{path}|Canvas|{bmp.Width}x{bmp.Height}|{Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()}");
@@ -577,7 +584,7 @@ using (var donor = OpenDonor(donorPath))
 var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 14,
+    schemaVersion = 15,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -597,7 +604,7 @@ var manifest = new
     source = new { path = targetPath, sha256 = targetHashBefore, version = targetVersion, size = new FileInfo(targetPath).Length },
     donor = new { path = donorPath, sha256 = donorHash, version = donorVersion, size = new FileInfo(donorPath).Length },
     output = new { path = outputPath, sha256 = Sha(outputPath), size = new FileInfo(outputPath).Length },
-    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticResolvedUolDependencyVerification = true, modernCanvasLinksMaterializedWhenResolvable = true, customLegacyOutlinkResolver = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
+    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticPremultipliedAlphaNormalization = true, semanticResolvedUolDependencyVerification = true, modernCanvasLinksMaterializedWhenResolvable = true, customLegacyOutlinkResolver = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
     images = staged.Select(x => new { requestedPath = x.RequestedPath, resolvedPath = x.ResolvedPath }).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
