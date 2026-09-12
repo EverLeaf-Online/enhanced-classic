@@ -227,6 +227,24 @@ static void AppendPngToken(List<string> tokens, string path, WzPngProperty png)
         var len = Math.Abs(data.Stride) * data.Height;
         var bytes = new byte[len];
         Marshal.Copy(data.Scan0, bytes, 0, len);
+        // Rendering-semantic normalization: RGB values under fully transparent
+        // pixels are invisible and can legitimately change during WZ canvas
+        // materialization/recompression. Ignore only those hidden channels;
+        // alpha and every visible/partially-visible pixel remain byte-exact.
+        for (var row = 0; row < data.Height; row++)
+        {
+            var baseIndex = row * Math.Abs(data.Stride);
+            for (var x = 0; x < bmp.Width; x++)
+            {
+                var i = baseIndex + (x * 4); // BGRA
+                if (bytes[i + 3] == 0)
+                {
+                    bytes[i] = 0;
+                    bytes[i + 1] = 0;
+                    bytes[i + 2] = 0;
+                }
+            }
+        }
         tokens.Add($"{path}|Canvas|{bmp.Width}x{bmp.Height}|{Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()}");
     }
     finally { bmp.UnlockBits(data); }
