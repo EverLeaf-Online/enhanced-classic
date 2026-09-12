@@ -6,6 +6,7 @@ on:
     paths:
       - "client/native/core/CustomWzOverride.h"
       - "client/native/core/CustomWzLookup.h"
+      - "client/native/core/CustomWzPropertyMerge.h"
       - "client/native/core/dllmain.cpp"
       - ".github/workflows/client-v2-custom-wz-guard.yml"
   workflow_dispatch:
@@ -20,17 +21,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Verify private mount and lookup contracts
+      - name: Verify private mount lookup and merge contracts
         shell: python
         run: |
           from pathlib import Path
 
           mount = Path("client/native/core/CustomWzOverride.h").read_text(encoding="utf-8")
           lookup = Path("client/native/core/CustomWzLookup.h").read_text(encoding="utf-8")
+          merge = Path("client/native/core/CustomWzPropertyMerge.h").read_text(encoding="utf-8")
           bootstrap = Path("client/native/core/dllmain.cpp").read_text(encoding="utf-8")
 
           mount_needles = [
               '#include "CustomWzLookup.h"',
+              '#include "CustomWzPropertyMerge.h"',
               'kInitializeResManAddress = 0x009F7159',
               'kRootNameSpaceHolderAddress = 0x00BF14E0',
               'kPcomApiTableAddress = 0x00BF0CC0',
@@ -39,6 +42,8 @@ jobs:
               'gInitializeResMan(self);',
               'MountCustomPackage()',
               'CustomWzLookup::Prepare(gCustomNameSpace)',
+              'CustomWzPropertyMerge::Install(gCustomNameSpace)',
+              'CustomWzPropertyMerge::Shutdown();',
               'CustomWzLookup::Shutdown();',
           ]
           for needle in mount_needles:
@@ -70,6 +75,30 @@ jobs:
               if needle not in lookup:
                   raise SystemExit(f"Missing custom WZ lookup contract: {needle}")
 
+          merge_needles = [
+              'kArchiveAbsoluteUolIndex = 6',
+              'kNameSpaceItemIndex = 3',
+              'kPropertyItemIndex = 5',
+              'kPropertyNewEnumIndex = 7',
+              'kPropertyAddIndex = 9',
+              '0x986515D9, 0x0A0B, 0x4929',
+              'GetModuleHandleA("PCOM.dll")',
+              '0x83, 0xEC, 0x68',
+              'const char mask[] = "x????x????xxx"',
+              'static thread_local bool gMerging = false',
+              'getAbsoluteUol(archive, &absoluteUol)',
+              'getCustomItem(',
+              'IID_IEnumVARIANT',
+              'IsNestedProperty(customValue)',
+              'noReplace.boolVal = VARIANT_FALSE',
+              'const HRESULT stockHr = gSerialize(self, archive)',
+              'MergeMatchingProperty(',
+              'Memory::SetHook(',
+          ]
+          for needle in merge_needles:
+              if needle not in merge:
+                  raise SystemExit(f"Missing custom WZ property-merge contract: {needle}")
+
           marker = 'inline void __fastcall InitializeResManHook(void* self, void*) {'
           if marker not in mount:
               raise SystemExit('InitializeResMan owner hook is missing')
@@ -78,10 +107,19 @@ jobs:
               raise SystemExit('Stock InitializeResMan must run before the custom mount')
           if hook_body.index('if (!MountCustomPackage())') > hook_body.index('CustomWzLookup::Prepare(gCustomNameSpace)'):
               raise SystemExit('Custom mount must complete before override indexing/fallback setup')
+          if hook_body.index('CustomWzLookup::Prepare(gCustomNameSpace)') > hook_body.index('CustomWzPropertyMerge::Install(gCustomNameSpace)'):
+              raise SystemExit('Lookup validation must complete before property merge installation')
+
+          serialize_marker = 'inline HRESULT __stdcall SerializeHook('
+          if serialize_marker not in merge:
+              raise SystemExit('Property serializer hook is missing')
+          serialize_body = merge.split(serialize_marker, 1)[1].split('} // namespace detail', 1)[0]
+          if serialize_body.index('const HRESULT stockHr = gSerialize(self, archive)') > serialize_body.index('MergeMatchingProperty('):
+              raise SystemExit('Stock property serialization must run before custom merge')
 
           if 'CustomWzOverride::Install()' not in bootstrap:
               raise SystemExit('Bootstrap no longer installs the EverLeaf custom WZ owner')
           if 'Hook_sub_9F7159(true)' in bootstrap:
               raise SystemExit('Legacy pass-through InitializeResMan hook was reintroduced')
 
-          print('EverLeaf custom WZ mount/lookup contracts verified')
+          print('EverLeaf custom WZ mount/lookup/property-merge contracts verified')

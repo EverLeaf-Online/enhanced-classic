@@ -3,15 +3,16 @@
 #include "Memory.h"
 #include "CrashDiagnostics.h"
 #include "CustomWzLookup.h"
+#include "CustomWzPropertyMerge.h"
 
 #include <windows.h>
 #include <oleauto.h>
 #include <string>
 #include <iostream>
 
-// Kaentake-inspired private EverLeaf custom WZ mount. Phase 11 introduced the
-// isolated namespace; phase 12 indexes that namespace and enables lookup fallback
-// only for paths that are known to exist in EverLeaf_Custom.wz.
+// Kaentake-inspired private EverLeaf custom WZ pipeline. Phase 11 mounts the
+// package privately, phase 12 indexes known override paths and adds stock-first
+// lookup fallback, and phase 13 adds guarded scalar/non-property child merging.
 namespace CustomWzOverride {
 namespace detail {
 
@@ -293,10 +294,22 @@ inline void __fastcall InitializeResManHook(void* self, void*) {
         return;
     }
 
-    if (gMounted && !CustomWzLookup::Prepare(gCustomNameSpace)) {
+    if (!gMounted) {
+        return;
+    }
+
+    if (!CustomWzLookup::Prepare(gCustomNameSpace)) {
         // Keep the package private if indexing/signature resolution fails. This is
         // safer than allowing an unverified custom WZ to shadow stock resources.
         CrashDiagnostics::LogEvent("EverLeaf custom WZ lookup fallback unavailable; private mount retained");
+        return;
+    }
+
+    if (!CustomWzPropertyMerge::Install(gCustomNameSpace)) {
+        // Lookup fallback has already been validated. Property merging is an
+        // independent optional enhancement; failure must not disable lookup or
+        // stock resource loading.
+        CrashDiagnostics::LogEvent("EverLeaf custom WZ property merge unavailable; lookup fallback retained");
     }
 }
 
@@ -327,6 +340,7 @@ inline void* CustomNameSpace() {
 }
 
 inline void Shutdown() {
+    CustomWzPropertyMerge::Shutdown();
     CustomWzLookup::Shutdown();
     detail::ReleaseObject(detail::gCustomNameSpace);
     detail::gMounted = false;
