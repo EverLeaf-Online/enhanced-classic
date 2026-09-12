@@ -92,7 +92,7 @@ static bool ResolveImagePath(wz::WzDirectory* root, const std::vector<std::strin
 
 static bool CopyImage(wz::WzDirectory* baseRoot, wz::WzDirectory* donorRoot, const Entry& e) {
     auto parts=Split(e.path);
-    if(parts.size()<2 || parts.back().find(".img")==std::string::npos) { std::cerr << "Bad image path " << e.path << "\n"; return false; }
+    if(parts.empty() || parts.back().find(".img")==std::string::npos) { std::cerr << "Bad image path " << e.path << "\n"; return false; }
     const std::string imageName=parts.back(); parts.pop_back();
     auto* donorDir=ResolveDir(donorRoot,parts,false);
     auto* baseDir=ResolveDir(baseRoot,parts,true);
@@ -154,7 +154,7 @@ static bool CopyProperty(wz::WzDirectory* baseRoot, wz::WzDirectory* donorRoot, 
 static bool VerifyEntry(wz::WzDirectory* root, const Entry& e) {
     auto parts=Split(e.path);
     if(e.type==EntryType::Image) {
-        if(parts.size()<2) return false;
+        if(parts.empty()) return false;
         auto image=parts.back(); parts.pop_back();
         auto* dir=ResolveDir(root,parts,false);
         return dir && dir->GetImageByName(image);
