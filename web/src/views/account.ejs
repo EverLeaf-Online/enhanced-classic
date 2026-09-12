@@ -28,6 +28,8 @@ const jobIcon=(name='')=>{
   return '/assets/everleaf-remaster.svg';
 };
 
+const avatar=(c)=>`/character-avatar/${Number(c.id)}.png?job=${Number(c.job||0)}`;
+
 const voteRewards=(typeof rewards!=="undefined"&&rewards)
   ? rewards
   : {nxCredit:0,pendingVoteNx:0};
@@ -191,7 +193,8 @@ const isWebAdmin=
 
                   <img
                     src="<%=jobIcon(c.jobName)%>"
-                    alt=""
+                    data-live-avatar="<%=avatar(c)%>"
+                    alt="<%=c.name%>'s EverLeaf character portrait"
                     class="characterJobIcon"
                   >
 
