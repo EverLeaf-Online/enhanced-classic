@@ -1,0 +1,87 @@
+name: Validate EverLeaf custom WZ override contracts
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "client/native/core/CustomWzOverride.h"
+      - "client/native/core/CustomWzLookup.h"
+      - "client/native/core/dllmain.cpp"
+      - ".github/workflows/client-v2-custom-wz-guard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Verify private mount and lookup contracts
+        shell: python
+        run: |
+          from pathlib import Path
+
+          mount = Path("client/native/core/CustomWzOverride.h").read_text(encoding="utf-8")
+          lookup = Path("client/native/core/CustomWzLookup.h").read_text(encoding="utf-8")
+          bootstrap = Path("client/native/core/dllmain.cpp").read_text(encoding="utf-8")
+
+          mount_needles = [
+              '#include "CustomWzLookup.h"',
+              'kInitializeResManAddress = 0x009F7159',
+              'kRootNameSpaceHolderAddress = 0x00BF14E0',
+              'kPcomApiTableAddress = 0x00BF0CC0',
+              'kCustomFileName = L"EverLeaf_Custom.wz"',
+              'kCustomRootName = L"EverLeafCustom"',
+              'gInitializeResMan(self);',
+              'MountCustomPackage()',
+              'CustomWzLookup::Prepare(gCustomNameSpace)',
+              'CustomWzLookup::Shutdown();',
+          ]
+          for needle in mount_needles:
+              if needle not in mount:
+                  raise SystemExit(f"Missing custom WZ mount contract: {needle}")
+
+          lookup_needles = [
+              'kNameSpaceItemIndex = 3',
+              'kNameSpaceNewEnumIndex = 5',
+              'kPropertyItemIndex = 5',
+              'kPropertyNewEnumIndex = 7',
+              'kMaxOverrideDepth = 64',
+              'kMaxOverrideCount = 200000',
+              '0x2AEEEB36, 0xA4E1, 0x4E2B',
+              '0x986515D9, 0x0A0B, 0x4929',
+              'IID_IEnumVARIANT',
+              'std::sort(gOverridePaths.begin(), gOverridePaths.end())',
+              'std::unique(gOverridePaths.begin(), gOverridePaths.end())',
+              'std::binary_search(',
+              'GetModuleHandleA("NameSpace.dll")',
+              'const char mask[] = "x????x????xxx"',
+              'OnGetLocalObjectHook(',
+              'const HRESULT stockHr = gOnGetLocalObject(',
+              'if (SUCCEEDED(stockHr) || !gCustomNameSpace || !HasOverride(path))',
+              'const HRESULT customHr = gOnGetLocalObject(',
+              'Memory::SetHook(',
+          ]
+          for needle in lookup_needles:
+              if needle not in lookup:
+                  raise SystemExit(f"Missing custom WZ lookup contract: {needle}")
+
+          marker = 'inline void __fastcall InitializeResManHook(void* self, void*) {'
+          if marker not in mount:
+              raise SystemExit('InitializeResMan owner hook is missing')
+          hook_body = mount.split(marker, 1)[1].split('} // namespace detail', 1)[0]
+          if hook_body.index('gInitializeResMan(self);') > hook_body.index('if (!MountCustomPackage())'):
+              raise SystemExit('Stock InitializeResMan must run before the custom mount')
+          if hook_body.index('if (!MountCustomPackage())') > hook_body.index('CustomWzLookup::Prepare(gCustomNameSpace)'):
+              raise SystemExit('Custom mount must complete before override indexing/fallback setup')
+
+          if 'CustomWzOverride::Install()' not in bootstrap:
+              raise SystemExit('Bootstrap no longer installs the EverLeaf custom WZ owner')
+          if 'Hook_sub_9F7159(true)' in bootstrap:
+              raise SystemExit('Legacy pass-through InitializeResMan hook was reintroduced')
+
+          print('EverLeaf custom WZ mount/lookup contracts verified')
