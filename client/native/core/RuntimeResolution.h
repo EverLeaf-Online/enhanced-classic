@@ -27,10 +27,6 @@ constexpr size_t kScreenModeOffset = 0x20;
 constexpr size_t kInitializedOffset = 0x90;
 constexpr size_t kErrorCodeOffset = 0x94;
 constexpr int kDeviceNotReset = static_cast<int>(0x88760869u);
-constexpr int kMinWidth = 800;
-constexpr int kMinHeight = 600;
-constexpr int kMaxWidth = 1920;
-constexpr int kMaxHeight = 1080;
 
 // Pinned GMS v83 field helpers used by Kaentake after a successful screen-mode
 // change. EverLeaf's UpdateResolution() patches the RestoreViewRange operands for
@@ -52,8 +48,13 @@ using FindScreenModeFn = int(__thiscall*)(void*, ScreenMode*, int, int, int, int
 static FindScreenModeFn gFindScreenMode = nullptr;
 
 inline bool IsSupportedSize(int width, int height) {
-    return width >= kMinWidth && width <= kMaxWidth &&
-           height >= kMinHeight && height <= kMaxHeight;
+    return
+        (width == 800 && height == 600) ||
+        (width == 1024 && height == 768) ||
+        (width == 1280 && height == 720) ||
+        (width == 1366 && height == 768) ||
+        (width == 1600 && height == 900) ||
+        (width == 1920 && height == 1080);
 }
 
 inline uintptr_t FindScreenModePattern() {
@@ -264,9 +265,31 @@ inline void ApplyEverLeafRuntimeCorrections(int width, int height) {
     RefreshWindowGeometry(width, height);
 }
 
+inline void BestEffortCorrectionState(int width, int height) {
+    Client::m_nGameWidth = width;
+    Client::m_nGameHeight = height;
+    __try {
+        ApplyEverLeafRuntimeCorrections(width, height);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        // Keep the core width/height globals and the verified axis corrections
+        // coherent even if one of the broad inherited HD patches was the source
+        // of the original exception.
+        Client::m_nGameWidth = width;
+        Client::m_nGameHeight = height;
+        WidescreenCorrections::ApplyCurrent();
+        CrashDiagnostics::LogEvent("best-effort live resolution correction state applied");
+    }
+}
+
 } // namespace detail
 
 inline bool Apply(int width, int height) {
+    if (!detail::IsSupportedSize(width, height)) {
+        CrashDiagnostics::LogEvent("unsupported live resolution rejected");
+        return false;
+    }
+
     if (width == Client::m_nGameWidth && height == Client::m_nGameHeight) {
         return true;
     }
@@ -286,14 +309,19 @@ inline bool Apply(int width, int height) {
         return true;
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
-        // Gr2D has already accepted the mode; restore EverLeaf's bookkeeping and
-        // patch operands as far as possible so a failed correction pass does not
-        // leave width/height globals describing a different mode.
-        Client::m_nGameWidth = previousWidth;
-        Client::m_nGameHeight = previousHeight;
-        Client::UpdateResolution();
-        WidescreenCorrections::ApplyCurrent();
-        CrashDiagnostics::LogEvent("live resolution correction pass failed");
+        // Gr2D already accepted the requested mode. Attempt to put the renderer
+        // itself back before restoring EverLeaf's bookkeeping; if that rollback
+        // fails, keep bookkeeping aligned with the new renderer instead of lying
+        // about the active mode.
+        const bool rendererRolledBack = detail::SetRendererMode(previousWidth, previousHeight);
+        const int coherentWidth = rendererRolledBack ? previousWidth : width;
+        const int coherentHeight = rendererRolledBack ? previousHeight : height;
+        detail::BestEffortCorrectionState(coherentWidth, coherentHeight);
+
+        CrashDiagnostics::LogEvent(
+            rendererRolledBack
+                ? "live resolution correction failed; renderer rolled back"
+                : "live resolution correction failed; renderer rollback failed");
         return false;
     }
 }
