@@ -49,9 +49,8 @@ static WzFile OpenTarget(string path)
 
 static WzFile OpenDonor(string path)
 {
-    // WzComparerR2 independently auto-detects the GMS v180 donor as BMS-keyed
-    // PKG1 data. ZLZ.dll contains an unrelated/custom IV for this client and
-    // causes MapleLib GETFROMZLZ to decode directory names as garbage.
+    // WzComparerR2 independently auto-detects this GMS v180 archive as
+    // BMS-keyed PKG1 data. GETFROMZLZ decodes the directory table incorrectly.
     var wz = new WzFile(path, WzMapleVersion.BMS);
     var st = wz.ParseWzFile();
     if (st != WzFileParseStatus.Success) { wz.Dispose(); throw new InvalidDataException($"Donor parse failed {Path.GetFileName(path)} with BMS key: {st}"); }
@@ -76,13 +75,14 @@ static IEnumerable<ImageLocation> EnumerateImages(WzDirectory dir, string[] pref
     }
 }
 
-static WzDirectory? FindDirectoryPath(WzDirectory root, IEnumerable<string> dirs)
+static WzDirectory EnsureDirectoryPath(WzDirectory root, IEnumerable<string> dirs)
 {
     var cur = root;
     foreach (var name in dirs)
     {
-        cur = cur.GetDirectoryByName(name);
-        if (cur == null) return null;
+        var next = cur.GetDirectoryByName(name);
+        if (next == null) { next = new WzDirectory(name); cur.AddDirectory(next); }
+        cur = next;
     }
     return cur;
 }
@@ -109,16 +109,28 @@ static ItemLocation? FindStringEntry(WzFile wz, int id)
     return null;
 }
 
+static WzImage GetOrCreateImage(WzDirectory root, IEnumerable<string> dirs, string imageName, HashSet<string> created, string family)
+{
+    var dir = EnsureDirectoryPath(root, dirs);
+    var image = dir.GetImageByName(imageName);
+    if (image != null) return image;
+    image = new WzImage(imageName);
+    dir.AddImage(image);
+    created.Add($"{family}:{string.Join('/', dirs.Append(imageName))}");
+    return image;
+}
+
 var targetItemHashBefore = Sha(targetItemPath);
 var targetStringHashBefore = Sha(targetStringPath);
 var donorItemHash = Sha(donorItemPath);
 var donorStringHash = Sha(donorStringPath);
 var merged = new List<MergedItem>();
-var skippedMissingDonorItem = new List<ItemRequest>();
-var skippedMissingTargetContainer = new List<ItemRequest>();
-var skippedMissingString = new List<ItemRequest>();
-var skippedStringContainerMissing = new List<ItemRequest>();
-var skippedCollision = new List<ItemRequest>();
+var missingDonorItem = new List<ItemRequest>();
+var missingDonorString = new List<ItemRequest>();
+var existingItemCollision = new List<ItemRequest>();
+var createdContainers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+var reusedExistingStrings = 0;
+var copiedDonorStrings = 0;
 short targetItemVersion, targetStringVersion, donorItemVersion, donorStringVersion;
 
 using (var targetItem = OpenTarget(targetItemPath))
@@ -131,51 +143,65 @@ using (var donorString = OpenDonor(donorStringPath))
     donorItemVersion = donorItem.Version;
     donorStringVersion = donorString.Version;
 
-    Console.WriteLine("DONOR_ITEM_ROOT_DIRS=" + string.Join(",", donorItem.WzDirectory.WzDirectories.Select(d => d.Name)));
-    foreach (var category in requested.Select(x => x.Category).Distinct(StringComparer.OrdinalIgnoreCase))
-    {
-        var d = donorItem.WzDirectory.GetDirectoryByName(category);
-        Console.WriteLine($"DONOR_CATEGORY {category}: dir={(d == null ? "missing" : "present")}, images={(d?.WzImages.Count ?? 0)}, subdirs={(d?.WzDirectories.Count ?? 0)}");
-        if (d != null)
-        {
-            var first = EnumerateImages(d, Array.Empty<string>()).FirstOrDefault();
-            if (first.Image != null)
-                Console.WriteLine($"DONOR_CATEGORY_SAMPLE {category}: {string.Join('/', first.Dirs.Append(first.Image.Name))} props={first.Image.WzProperties.Count} first={string.Join(',', first.Image.WzProperties.Take(5).Select(p => p.Name))}");
-        }
-    }
-
     foreach (var req in requested)
     {
-        if (FindItemEntry(targetItem, req.Category, req.Id) != null || FindStringEntry(targetString, req.Id) != null)
+        // The TSV is donor-only by Item.wz inventory. Treat only an existing
+        // target Item.wz node as a collision; an existing String.wz row is useful
+        // and should be reused rather than blocking the item import.
+        if (FindItemEntry(targetItem, req.Category, req.Id) != null)
         {
-            skippedCollision.Add(req);
+            existingItemCollision.Add(req);
             continue;
         }
 
         var donorItemEntry = FindItemEntry(donorItem, req.Category, req.Id);
-        if (donorItemEntry == null) { skippedMissingDonorItem.Add(req); continue; }
-        var targetCategory = targetItem.WzDirectory.GetDirectoryByName(req.Category);
-        var targetItemDir = targetCategory == null ? null : FindDirectoryPath(targetCategory, donorItemEntry.Value.Dirs);
-        var targetImage = targetItemDir?.GetImageByName(donorItemEntry.Value.Image.Name);
-        if (targetImage == null) { skippedMissingTargetContainer.Add(req); continue; }
+        if (donorItemEntry == null) { missingDonorItem.Add(req); continue; }
 
+        var category = targetItem.WzDirectory.GetDirectoryByName(req.Category);
+        if (category == null)
+        {
+            category = new WzDirectory(req.Category);
+            targetItem.WzDirectory.AddDirectory(category);
+            createdContainers.Add($"Item:{req.Category}/");
+        }
+        var targetItemImage = GetOrCreateImage(category, donorItemEntry.Value.Dirs, donorItemEntry.Value.Image.Name, createdContainers, "Item");
+        targetItemImage.AddProperty(donorItemEntry.Value.Property.DeepClone());
+
+        var targetStringEntry = FindStringEntry(targetString, req.Id);
         var donorStringEntry = FindStringEntry(donorString, req.Id);
-        if (donorStringEntry == null) { skippedMissingString.Add(req); continue; }
-        var targetStringDir = FindDirectoryPath(targetString.WzDirectory, donorStringEntry.Value.Dirs);
-        var targetStringImage = targetStringDir?.GetImageByName(donorStringEntry.Value.Image.Name);
-        if (targetStringImage == null) { skippedStringContainerMissing.Add(req); continue; }
+        var hasString = false;
+        string? stringImage = null;
+        if (targetStringEntry != null)
+        {
+            reusedExistingStrings++;
+            hasString = true;
+            stringImage = string.Join('/', targetStringEntry.Value.Dirs.Append(targetStringEntry.Value.Image.Name));
+        }
+        else if (donorStringEntry != null)
+        {
+            var targetStringImage = GetOrCreateImage(targetString.WzDirectory, donorStringEntry.Value.Dirs, donorStringEntry.Value.Image.Name, createdContainers, "String");
+            targetStringImage.AddProperty(donorStringEntry.Value.Property.DeepClone());
+            copiedDonorStrings++;
+            hasString = true;
+            stringImage = string.Join('/', donorStringEntry.Value.Dirs.Append(donorStringEntry.Value.Image.Name));
+        }
+        else
+        {
+            missingDonorString.Add(req);
+        }
 
-        targetImage.AddProperty(donorItemEntry.Value.Property.DeepClone());
-        targetStringImage.AddProperty(donorStringEntry.Value.Property.DeepClone());
         merged.Add(new MergedItem(
             req.Category,
             req.Id,
             string.Join('/', donorItemEntry.Value.Dirs.Append(donorItemEntry.Value.Image.Name)),
-            string.Join('/', donorStringEntry.Value.Dirs.Append(donorStringEntry.Value.Image.Name))));
+            stringImage,
+            hasString));
     }
 
     if (merged.Count == 0)
-        throw new InvalidOperationException($"No donor-only items merged; refusing false-success candidate. missingDonor={skippedMissingDonorItem.Count}, collisions={skippedCollision.Count}");
+        throw new InvalidOperationException("No donor-only items merged; refusing false-success candidate.");
+    if (missingDonorItem.Count != 0)
+        throw new InvalidOperationException($"Donor inventory mismatch: {missingDonorItem.Count} requested item nodes were not found in donor binary.");
 
     targetItem.SaveToDisk(outputItemPath);
     targetString.SaveToDisk(outputStringPath);
@@ -184,7 +210,8 @@ using (var donorString = OpenDonor(donorStringPath))
 if (Sha(targetItemPath) != targetItemHashBefore || Sha(targetStringPath) != targetStringHashBefore)
     throw new InvalidOperationException("Source target WZ changed while staging.");
 
-var verified = 0;
+var verifiedItems = 0;
+var verifiedStrings = 0;
 using (var checkItem = OpenTarget(outputItemPath))
 using (var checkString = OpenTarget(outputStringPath))
 {
@@ -192,31 +219,40 @@ using (var checkString = OpenTarget(outputStringPath))
     {
         if (FindItemEntry(checkItem, row.Category, row.Id) == null)
             throw new InvalidDataException($"Output Item.wz lost {row.Category}:{row.Id}");
-        if (FindStringEntry(checkString, row.Id) == null)
-            throw new InvalidDataException($"Output String.wz lost item string {row.Id}");
-        verified++;
+        verifiedItems++;
+        if (row.HasString)
+        {
+            if (FindStringEntry(checkString, row.Id) == null)
+                throw new InvalidDataException($"Output String.wz lost item string {row.Id}");
+            verifiedStrings++;
+        }
     }
 }
 
 var byCategory = merged.GroupBy(x => x.Category).ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 var manifest = new
 {
-    schemaVersion = 3,
+    schemaVersion = 4,
     kind = "gms-v180-item-node-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
     requestedCount = requested.Length,
     mergedCount = merged.Count,
-    verifiedCount = verified,
+    verifiedItemCount = verifiedItems,
+    verifiedStringCount = verifiedStrings,
     mergedByCategory = byCategory,
     donorCryptoKey = "BMS",
+    strings = new
+    {
+        copiedFromDonor = copiedDonorStrings,
+        reusedFromTarget = reusedExistingStrings,
+        missingInDonorAndTarget = missingDonorString.Count,
+    },
+    containers = new { createdCount = createdContainers.Count, created = createdContainers.OrderBy(x => x).ToArray() },
     skipped = new
     {
-        collision = skippedCollision.Count,
-        missingDonorItem = skippedMissingDonorItem.Count,
-        missingTargetContainer = skippedMissingTargetContainer.Count,
-        missingDonorString = skippedMissingString.Count,
-        missingTargetStringContainer = skippedStringContainerMissing.Count,
+        existingItemCollision = existingItemCollision.Count,
+        missingDonorItem = missingDonorItem.Count,
     },
     source = new
     {
@@ -237,25 +273,26 @@ var manifest = new
     {
         sourceUnchanged = true,
         outputsReparsed = true,
-        allMergedNodesVerified = verified == merged.Count,
+        allMergedItemNodesVerified = verifiedItems == merged.Count,
+        allExpectedStringsVerified = verifiedStrings == merged.Count(x => x.HasString),
+        fullRequestedItemCoverage = merged.Count + existingItemCollision.Count == requested.Length,
         nonEmptyCandidate = merged.Count > 0,
         productionApplyAllowed = false,
     },
-    missingTargetContainer = skippedMissingTargetContainer.Take(500).ToArray(),
-    missingTargetStringContainer = skippedStringContainerMissing.Take(500).ToArray(),
+    missingStringItems = missingDonorString.Take(2000).ToArray(),
+    collisions = existingItemCollision.Take(500).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
 Console.WriteLine($"REQUESTED={requested.Length:N0}");
-Console.WriteLine($"MERGED={merged.Count:N0} VERIFIED={verified:N0}");
+Console.WriteLine($"MERGED={merged.Count:N0} VERIFIED_ITEMS={verifiedItems:N0}");
 foreach (var kv in byCategory.OrderBy(x => x.Key)) Console.WriteLine($"{kv.Key}={kv.Value:N0}");
-Console.WriteLine($"SKIP_COLLISION={skippedCollision.Count:N0}");
-Console.WriteLine($"SKIP_MISSING_TARGET_CONTAINER={skippedMissingTargetContainer.Count:N0}");
-Console.WriteLine($"SKIP_MISSING_STRING={skippedMissingString.Count:N0}");
-Console.WriteLine($"SKIP_MISSING_TARGET_STRING_CONTAINER={skippedStringContainerMissing.Count:N0}");
+Console.WriteLine($"STRINGS_DONOR={copiedDonorStrings:N0} STRINGS_REUSED={reusedExistingStrings:N0} STRINGS_MISSING={missingDonorString.Count:N0}");
+Console.WriteLine($"CREATED_CONTAINERS={createdContainers.Count:N0}");
+Console.WriteLine($"ITEM_COLLISIONS={existingItemCollision.Count:N0} MISSING_DONOR_ITEMS={missingDonorItem.Count:N0}");
 Console.WriteLine("approved=false / productionApplyAllowed=false");
 return 0;
 
 internal readonly record struct ItemRequest(string Category, int Id);
 internal readonly record struct ImageLocation(WzImage Image, string[] Dirs);
 internal readonly record struct ItemLocation(WzImage Image, WzImageProperty Property, string[] Dirs);
-internal readonly record struct MergedItem(string Category, int Id, string ItemImage, string StringImage);
+internal readonly record struct MergedItem(string Category, int Id, string ItemImage, string? StringImage, bool HasString);
