@@ -8,6 +8,8 @@
 #include <oleauto.h>
 #include <iostream>
 
+#pragma comment(lib, "oleaut32.lib")
+
 // Guarded Kaentake-style replacement for CMapLoadable::RestoreViewRange on the
 // pinned GMS v83 client. The old EverLeaf HD path only patches three immediates
 // inside the stock routine (and intentionally leaves VRRight disabled because
