@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iostream>
 
 // Kaentake-inspired live resolution bridge for EverLeaf's pinned GMS v83 client.
 //
