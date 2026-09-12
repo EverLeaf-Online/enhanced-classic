@@ -8,6 +8,7 @@
 #include "DisplayResolution.h"
 #include "DisplayMode.h"
 #include "WidescreenCorrections.h"
+#include "FieldRenderCorrections.h"
 #include "AddyLocations.h"
 #include "DiscordPresence.h"
 #include "EverLeafLoginLayout.h"
@@ -148,6 +149,9 @@ void MainFunc() {
 
     CrashDiagnostics::SetPhase("applying-widescreen-corrections");
     if (!WidescreenCorrections::Apply()) CrashDiagnostics::LogEvent("owner-backed widescreen corrections unavailable; continuing without them");
+
+    CrashDiagnostics::SetPhase("applying-field-render-corrections");
+    if (!FieldRenderCorrections::Apply()) CrashDiagnostics::LogEvent("owner-backed field render corrections unavailable; continuing without them");
 
     CrashDiagnostics::SetPhase("installing-resolution-settings");
     if (!DisplayResolution::Install()) CrashDiagnostics::LogEvent("in-game resolution selector unavailable; startup resolution remains active");
