@@ -7,9 +7,9 @@ using System.Text.Json;
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
 
-if (args.Length != 5)
+if (args.Length < 5 || args.Length > 6 || (args.Length == 6 && !string.Equals(args[5], "--empty-target-root", StringComparison.OrdinalIgnoreCase)))
 {
-    Console.Error.WriteLine("Usage: EverLeafV180StaticPatcher <target.wz> <donor.wz> <paths.txt> <output.wz> <manifest.json>");
+    Console.Error.WriteLine("Usage: EverLeafV180StaticPatcher <target.wz> <donor.wz> <paths.txt> <output.wz> <manifest.json> [--empty-target-root]");
     return 2;
 }
 
@@ -18,6 +18,7 @@ var donorPath = Path.GetFullPath(args[1]);
 var pathsPath = Path.GetFullPath(args[2]);
 var outputPath = Path.GetFullPath(args[3]);
 var manifestPath = Path.GetFullPath(args[4]);
+var emptyTargetRoot = args.Length == 6;
 foreach (var p in new[] { targetPath, donorPath, pathsPath })
     if (!File.Exists(p)) throw new FileNotFoundException(p);
 if (File.Exists(outputPath) || File.Exists(manifestPath))
@@ -122,7 +123,27 @@ static WzObject? ResolveUolObject(WzObject? value)
     while (current is WzUOLProperty uol)
     {
         if (!seen.Add(current)) return null;
-        current = uol.LinkValue;
+        var raw = uol.Value;
+        if (string.IsNullOrWhiteSpace(raw) || uol.Parent == null) return null;
+
+        // Maple WZ UOL paths are relative to the containing property. MapleLib's
+        // LinkValue treats a non-.. path as image-root-relative, which misresolves
+        // common frame aliases such as hit/9 -> "4" and can create false cycles.
+        WzObject? next = uol.Parent;
+        foreach (var part in raw.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (part == ".") continue;
+            if (part == "..") { next = next?.Parent; continue; }
+            next = next switch
+            {
+                WzImageProperty property => property[part],
+                WzImage image => image[part],
+                WzDirectory directory => directory[part] ?? directory[part + ".img"],
+                _ => null,
+            };
+            if (next == null) break;
+        }
+        current = next;
     }
     return current;
 }
@@ -545,6 +566,11 @@ using (var donor = OpenDonor(donorPath))
 {
     targetVersion = target.Version;
     donorVersion = donor.Version;
+    if (emptyTargetRoot)
+    {
+        target.WzDirectory.ClearImages();
+        target.WzDirectory.ClearDirectories();
+    }
     var clonePairs = new List<(WzImage Donor, WzImage Candidate)>();
     foreach (var requestedPath in requested)
     {
@@ -613,7 +639,8 @@ var manifest = new
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
-    family = Path.GetFileName(targetPath),
+    family = Path.GetFileName(emptyTargetRoot ? outputPath : targetPath),
+    emptyTargetRoot,
     donorCryptoKey = "BMS",
     requestedCount = requested.Length,
     stagedCount = staged.Count,
@@ -629,7 +656,7 @@ var manifest = new
     source = new { path = targetPath, sha256 = targetHashBefore, version = targetVersion, size = new FileInfo(targetPath).Length },
     donor = new { path = donorPath, sha256 = donorHash, version = donorVersion, size = new FileInfo(donorPath).Length },
     output = new { path = outputPath, sha256 = Sha(outputPath), size = new FileInfo(outputPath).Length },
-    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticPremultipliedAlphaNormalization = true, semanticResolvedUolDependencyVerification = true, recursiveUolSemanticNormalization = true, allResolvableUolsMaterializedForLegacyWrite = true, modernCanvasLinksMaterializedWhenResolvable = true, customLegacyOutlinkResolver = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
+    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticPremultipliedAlphaNormalization = true, semanticResolvedUolDependencyVerification = true, customRelativeUolResolver = true, recursiveUolSemanticNormalization = true, allResolvableUolsMaterializedForLegacyWrite = true, modernCanvasLinksMaterializedWhenResolvable = true, customLegacyOutlinkResolver = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
     images = staged.Select(x => new { requestedPath = x.RequestedPath, resolvedPath = x.ResolvedPath }).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);

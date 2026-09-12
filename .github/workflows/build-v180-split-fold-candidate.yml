@@ -115,16 +115,16 @@ jobs:
           Write-Host "Map2 original=$((Get-Content (Join-Path $m 'map2_into_map.txt')).Count) filtered=$($map2.Count)"
           Write-Host "Mob2 original=$((Get-Content (Join-Path $m 'mob2_into_mob.txt')).Count) filtered=$($mob2.Count)"
 
-      - name: Fold Mob and Mob2
+      - name: Build standalone Mob2 candidate
         shell: pwsh
         run: |
-          $ErrorActionPreference='Stop'
-          $root=Join-Path $env:RUNNER_TEMP 'split-fold'; $p=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafV180StaticPatcher/EverLeafV180StaticPatcher.csproj'
-          $s1=Join-Path $root 'mob-stage1'; $s2=Join-Path $root 'mob-final'; New-Item -ItemType Directory -Force -Path $s1,$s2 | Out-Null
-          dotnet run --project $p -c Release --no-build -- (Join-Path $root 'target/Mob.wz') (Join-Path $root 'donor/Mob.wz') (Join-Path $root 'manifests/mobs_all.txt') (Join-Path $s1 'Mob.wz') (Join-Path $s1 'Mob-v180-main.manifest.json')
-          if($LASTEXITCODE){throw 'Mob.wz main donor fold failed'}
-          dotnet run --project $p -c Release --no-build -- (Join-Path $s1 'Mob.wz') (Join-Path $root 'donor/Mob2.wz') (Join-Path $root 'manifests/mob2_into_mob.filtered.txt') (Join-Path $s2 'Mob.wz') (Join-Path $s2 'Mob-v180-split.manifest.json')
-          if($LASTEXITCODE){throw 'Mob2.wz fold failed'}
+          $ErrorActionPreference="Stop"
+          $root=Join-Path $env:RUNNER_TEMP "split-fold"; $p=Join-Path $env:RUNNER_TEMP "MapleLib/EverLeafV180StaticPatcher/EverLeafV180StaticPatcher.csproj"
+          $out=Join-Path $root "mob2-final"; New-Item -ItemType Directory -Force -Path $out | Out-Null
+          dotnet run --project $p -c Release --no-build -- (Join-Path $root "target/Mob.wz") (Join-Path $root "donor/Mob2.wz") (Join-Path $root "manifests/mob2_into_mob.filtered.txt") (Join-Path $out "Mob2.wz") (Join-Path $out "Mob2-v180.manifest.json") --empty-target-root
+          if($LASTEXITCODE){throw "Mob2.wz standalone conversion failed"}
+          $bytes=(Get-Item (Join-Path $out "Mob2.wz")).Length; if($bytes -ge 4294967296){throw "Mob2.wz exceeds the 4 GiB legacy WZ limit"}
+          Write-Host "V180_MOB2_STANDALONE_OK bytes=$bytes"
 
       - name: Fold Map and Map2
         shell: pwsh
@@ -146,19 +146,18 @@ jobs:
             @{Local=(Join-Path $root 'map-final/Map.wz'); Remote='Map.wz'},
             @{Local=(Join-Path $root 'map-stage1/Map-v180-main.manifest.json'); Remote='Map-v180-main.manifest.json'},
             @{Local=(Join-Path $root 'map-final/Map-v180-split.manifest.json'); Remote='Map-v180-split.manifest.json'},
-            @{Local=(Join-Path $root 'mob-final/Mob.wz'); Remote='Mob.wz'},
-            @{Local=(Join-Path $root 'mob-stage1/Mob-v180-main.manifest.json'); Remote='Mob-v180-main.manifest.json'},
-            @{Local=(Join-Path $root 'mob-final/Mob-v180-split.manifest.json'); Remote='Mob-v180-split.manifest.json'}
+            @{Local=(Join-Path $root 'mob2-final/Mob2.wz'); Remote='Mob2.wz'},
+            @{Local=(Join-Path $root 'mob2-final/Mob2-v180.manifest.json'); Remote='Mob2-v180.manifest.json'}
           )
           foreach($x in $files){scp $x.Local "everleaf-oracle`:$env:STAGE_ROOT/$($x.Remote)"; if($LASTEXITCODE){throw "upload failed: $($x.Remote)"}}
           $verify=@'
           set -euo pipefail
           ROOT="__ROOT__"
-          test -s "$ROOT/Map.wz"; test -s "$ROOT/Mob.wz"
+          test -s "$ROOT/Map.wz"; test -s "$ROOT/Mob2.wz"
           for m in "$ROOT"/*.manifest.json; do grep -q '"productionApplyAllowed": false' "$m"; grep -q '"donorImageDigestsMatch": true' "$m"; done
-          sha256sum "$ROOT/Map.wz" "$ROOT/Mob.wz" > "$ROOT/SHA256SUMS"
-          printf 'GMS v180 Map.wz+Map2.wz and Mob.wz+Mob2.wz folded into v83-format staging candidates. Duplicate split-file paths are removed before second-stage merge. No production apply.\n' > "$ROOT/README.txt"
-          echo V180_SPLIT_FOLD_STAGE_OK
+          sha256sum "$ROOT/Map.wz" "$ROOT/Mob2.wz" > "$ROOT/SHA256SUMS"
+          printf 'GMS v180 Map+Map2 folded into a v83-format Map.wz plus standalone v83-format Mob2.wz to stay below the legacy 4 GiB WZ limit. Mob2 requires the staged EverLeaf client fallback loader. No production apply.\n' > "$ROOT/README.txt"
+          echo V180_SPLIT_STAGE_OK
           du -sh "$ROOT"
           '@
           $verify=$verify.Replace('__ROOT__',$env:STAGE_ROOT)
