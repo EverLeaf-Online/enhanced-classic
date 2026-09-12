@@ -127,9 +127,37 @@ static WzObject? ResolveUolObject(WzObject? value)
     return current;
 }
 
-static void AppendCanvasToken(List<string> tokens, string path, WzCanvasProperty canvas)
+static WzPngProperty? ResolveEffectiveCanvasPng(WzCanvasProperty canvas)
 {
-    var png = canvas.PngProperty;
+    var seen = new HashSet<WzImageProperty>();
+    WzImageProperty current = canvas;
+    for (var depth = 0; depth < 64; depth++)
+    {
+        if (!seen.Add(current)) return null;
+        if (current is WzCanvasProperty currentCanvas)
+        {
+            if (currentCanvas.ContainsInlinkProperty() || currentCanvas.ContainsOutlinkProperty())
+            {
+                var linked = currentCanvas.GetLinkedWzImageProperty();
+                if (linked == null || ReferenceEquals(linked, currentCanvas)) return null;
+                current = linked;
+                continue;
+            }
+            return currentCanvas.PngProperty;
+        }
+        if (current is WzPngProperty png) return png;
+        if (current is WzUOLProperty uol && ResolveUolObject(uol) is WzImageProperty resolved)
+        {
+            current = resolved;
+            continue;
+        }
+        return null;
+    }
+    return null;
+}
+
+static void AppendPngToken(List<string> tokens, string path, WzPngProperty png)
+{
     using var bmp = png.GetImage(false);
     var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
     var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
@@ -141,6 +169,19 @@ static void AppendCanvasToken(List<string> tokens, string path, WzCanvasProperty
         tokens.Add($"{path}|Canvas|{bmp.Width}x{bmp.Height}|{Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()}");
     }
     finally { bmp.UnlockBits(data); }
+}
+
+static bool AppendCanvasToken(List<string> tokens, string path, WzCanvasProperty canvas)
+{
+    var hasModernLink = canvas.ContainsInlinkProperty() || canvas.ContainsOutlinkProperty();
+    var effective = hasModernLink ? ResolveEffectiveCanvasPng(canvas) : canvas.PngProperty;
+    if (effective == null)
+    {
+        AppendPngToken(tokens, path, canvas.PngProperty);
+        return false;
+    }
+    AppendPngToken(tokens, path, effective);
+    return hasModernLink;
 }
 
 static void AppendSemanticProperty(List<string> tokens, WzImageProperty p, string path, bool resolveUol)
@@ -165,9 +206,10 @@ static void AppendSemanticProperty(List<string> tokens, WzImageProperty p, strin
         return;
     }
 
+    var resolvedModernCanvasLink = false;
     if (p is WzCanvasProperty canvas)
     {
-        AppendCanvasToken(tokens, path, canvas);
+        resolvedModernCanvasLink = AppendCanvasToken(tokens, path, canvas);
     }
     else if (p.WzProperties == null)
     {
@@ -182,7 +224,11 @@ static void AppendSemanticProperty(List<string> tokens, WzImageProperty p, strin
     if (p.WzProperties != null)
     {
         foreach (var child in p.WzProperties)
+        {
+            if (resolvedModernCanvasLink && (string.Equals(child.Name, WzCanvasProperty.InlinkPropertyName, StringComparison.OrdinalIgnoreCase) || string.Equals(child.Name, WzCanvasProperty.OutlinkPropertyName, StringComparison.OrdinalIgnoreCase)))
+                continue;
             AppendSemanticProperty(tokens, child, path + "/" + child.Name, resolveUol);
+        }
     }
 }
 
@@ -304,6 +350,42 @@ static int MaterializeIncompatibleUolDependencies(WzImage donorImage, WzImage ca
     return replacements.Count;
 }
 
+static (int Found, int Materialized, int Unresolved) MaterializeModernCanvasLinks(WzImage donorImage, WzImage candidateImage)
+{
+    var donorProps = RawPropertyMap(donorImage);
+    var candidateProps = RawPropertyMap(candidateImage);
+    var found = 0;
+    var materialized = 0;
+    var unresolved = 0;
+
+    foreach (var (path, donorProperty) in donorProps)
+    {
+        if (donorProperty is not WzCanvasProperty donorCanvas) continue;
+        if (!donorCanvas.ContainsInlinkProperty() && !donorCanvas.ContainsOutlinkProperty()) continue;
+        found++;
+        if (!candidateProps.TryGetValue(path, out var candidateProperty) || candidateProperty is not WzCanvasProperty candidateCanvas)
+        {
+            unresolved++;
+            continue;
+        }
+        var effectivePng = ResolveEffectiveCanvasPng(donorCanvas);
+        if (effectivePng == null)
+        {
+            unresolved++;
+            continue;
+        }
+
+        candidateCanvas.PngProperty = (WzPngProperty)effectivePng.DeepClone();
+        var inlink = candidateCanvas[WzCanvasProperty.InlinkPropertyName];
+        if (inlink != null) candidateCanvas.RemoveProperty(inlink);
+        var outlink = candidateCanvas[WzCanvasProperty.OutlinkPropertyName];
+        if (outlink != null) candidateCanvas.RemoveProperty(outlink);
+        materialized++;
+    }
+
+    return (found, materialized, unresolved);
+}
+
 static int SanitizeForWrite(WzImage image)
 {
     var repaired = 0;
@@ -330,6 +412,9 @@ short targetVersion, donorVersion;
 var staged = new List<StagedImage>();
 var sanitizedScalarCount = 0;
 var materializedUolDependencyCount = 0;
+var modernCanvasLinkCount = 0;
+var materializedModernCanvasLinkCount = 0;
+var unresolvedModernCanvasLinkCount = 0;
 
 using (var target = OpenTarget(targetPath))
 using (var donor = OpenDonor(donorPath))
@@ -356,7 +441,13 @@ using (var donor = OpenDonor(donorPath))
     // Preserve the donor semantics without replacing the shared target image by materializing only
     // those UOL targets that do not resolve equivalently after the donor-only image is attached.
     foreach (var pair in clonePairs)
+    {
         materializedUolDependencyCount += MaterializeIncompatibleUolDependencies(pair.Donor, pair.Candidate);
+        var canvasLinks = MaterializeModernCanvasLinks(pair.Donor, pair.Candidate);
+        modernCanvasLinkCount += canvasLinks.Found;
+        materializedModernCanvasLinkCount += canvasLinks.Materialized;
+        unresolvedModernCanvasLinkCount += canvasLinks.Unresolved;
+    }
 
     target.SaveToDisk(outputPath);
 }
@@ -394,7 +485,7 @@ using (var donor = OpenDonor(donorPath))
 var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 12,
+    schemaVersion = 13,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -407,15 +498,18 @@ var manifest = new
     semanticCanvasVerificationFallbackCount = semanticFallbackCount,
     sanitizedNullStringOrUolCount = sanitizedScalarCount,
     materializedIncompatibleUolDependencyCount = materializedUolDependencyCount,
+    modernCanvasLinkCount,
+    materializedModernCanvasLinkCount,
+    unresolvedModernCanvasLinkCount,
     targetCryptoContextInheritedForCreatedDirectories = true,
     source = new { path = targetPath, sha256 = targetHashBefore, version = targetVersion, size = new FileInfo(targetPath).Length },
     donor = new { path = donorPath, sha256 = donorHash, version = donorVersion, size = new FileInfo(donorPath).Length },
     output = new { path = outputPath, sha256 = Sha(outputPath), size = new FileInfo(outputPath).Length },
-    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticResolvedUolDependencyVerification = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
+    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticResolvedUolDependencyVerification = true, modernCanvasLinksMaterializedWhenResolvable = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
     images = staged.Select(x => new { requestedPath = x.RequestedPath, resolvedPath = x.ResolvedPath }).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
-Console.WriteLine($"STAGED {Path.GetFileName(targetPath)}: {verified:N0}/{requested.Length:N0} donor-only images verified; fallback={fallbackCount:N0}; semantic-fallback={semanticFallbackCount:N0}; sanitized={sanitizedScalarCount:N0}; materialized-uol={materializedUolDependencyCount:N0}");
+Console.WriteLine($"STAGED {Path.GetFileName(targetPath)}: {verified:N0}/{requested.Length:N0} donor-only images verified; fallback={fallbackCount:N0}; semantic-fallback={semanticFallbackCount:N0}; sanitized={sanitizedScalarCount:N0}; materialized-uol={materializedUolDependencyCount:N0}; canvas-links={materializedModernCanvasLinkCount:N0}/{modernCanvasLinkCount:N0}; unresolved-canvas-links={unresolvedModernCanvasLinkCount:N0}");
 Console.WriteLine($"OUTPUT {outputPath}");
 Console.WriteLine("approved=false / productionApplyAllowed=false");
 return 0;
