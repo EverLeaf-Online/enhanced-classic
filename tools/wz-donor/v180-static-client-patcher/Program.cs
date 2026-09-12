@@ -171,7 +171,7 @@ using (var output = OpenTarget(outputPath))
     {
         var image = FindImageExact(output.WzDirectory, row.ResolvedPath)
             ?? throw new InvalidDataException($"Saved output lost: requested={row.RequestedPath}, resolved={row.ResolvedPath}");
-        var outputDigest = ImageDigest(image.Value.Image);
+        var outputDigest = ImageDigest(image.Image);
         if (!string.Equals(outputDigest, row.DonorDigest, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException($"Donor/output image digest mismatch: requested={row.RequestedPath}, resolved={row.ResolvedPath}");
         verified++;
