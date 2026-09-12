@@ -10,6 +10,7 @@
 #include "WidescreenCorrections.h"
 #include "FieldRenderCorrections.h"
 #include "FieldViewRange.h"
+#include "LimitedViewCorrections.h"
 #include "AddyLocations.h"
 #include "DiscordPresence.h"
 #include "EverLeafLoginLayout.h"
@@ -156,6 +157,9 @@ void MainFunc() {
 
     CrashDiagnostics::SetPhase("installing-field-view-range");
     if (!FieldViewRange::Install()) CrashDiagnostics::LogEvent("dynamic field view range unavailable; stock v83 behavior remains active");
+
+    CrashDiagnostics::SetPhase("installing-limited-view-corrections");
+    if (!LimitedViewCorrections::Install()) CrashDiagnostics::LogEvent("limited-view draw corrections unavailable; existing v83 draw path remains active");
 
     CrashDiagnostics::SetPhase("installing-resolution-settings");
     if (!DisplayResolution::Install()) CrashDiagnostics::LogEvent("in-game resolution selector unavailable; startup resolution remains active");
