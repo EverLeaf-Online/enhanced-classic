@@ -7,6 +7,7 @@
 #include "WidescreenCorrections.h"
 #include "FieldRenderCorrections.h"
 #include "RuntimeUiSync.h"
+#include "RuntimeStatusBarReflow.h"
 #include "AddyLocations.h"
 
 #include <windows.h>
@@ -262,6 +263,11 @@ inline void ApplyEverLeafRuntimeCorrections(int width, int height) {
     // same stock origin geometry used by a clean launch at this resolution and
     // resync the cursor vector before any more UI work occurs.
     RuntimeUiSync::ApplyCurrent();
+
+    // Existing CUIStatusBar does not rerun its creation path after Gr2D is
+    // resized in place. Reposition that one stock CWnd using EverLeaf's
+    // already-verified height - 578 coordinate instead of replacing origins.
+    RuntimeStatusBarReflow::ApplyCurrent();
 
     Memory::WriteInt(dwToolTipLimitVPos + 1, static_cast<unsigned int>(height - 1));
 
