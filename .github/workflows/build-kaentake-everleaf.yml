@@ -3,7 +3,7 @@ name: Build EverLeaf Kaentake Client
 on:
   push:
     branches:
-      - client/kaentake-integration
+      - 'client/**'
     paths:
       - 'client/kaentake-port/**'
       - 'client/branding/login/generate_art.py'

@@ -32,6 +32,10 @@
       "redistributable": true
     },
     {
+      "path": "dinput8.dll",
+      "redistributable": true
+    },
+    {
       "path": "Effect.wz",
       "redistributable": true
     },
@@ -72,7 +76,7 @@
       "redistributable": true
     },
     {
-      "path": "MapleStory.exe",
+      "path": "EverLeafClient.exe",
       "redistributable": true
     },
     {
