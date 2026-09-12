@@ -93,13 +93,12 @@ jobs:
         run: |
           $package = 'EverleafClient'
           & 'client/scripts/build-managed-package.ps1' -RepositoryRoot $PWD -OutputDirectory $package
-          foreach ($file in @('config.ini','managed-client-baseline.json')) {
+          foreach ($file in @('config.ini','dinput8.dll','EverLeafMS.dll','Discord.dll','EverLeaf_UI.wz','managed-client-baseline.json')) {
             if (-not (Test-Path "$package/$file")) { throw "Missing managed overlay: $file" }
           }
           $config = Get-Content "$package/config.ini" -Raw
-          if (-not ($config -match '(?m)^\[config\]\r?$')) { throw 'Kaentake config section is missing' }
-          if (-not ($config -match '(?m)^host=132\.145\.141\.79\r?$')) { throw 'Production host is missing from config.ini' }
-          if (-not ($config -match '(?m)^port=8484\r?$')) { throw 'Production login port is missing from config.ini' }
+          if (-not ($config -match 'PreferCommunityUI=true')) { throw 'Managed client does not default to Community UI' }
+          if (-not ($config -match '(?m)^DiscordRichPresence=true\r?$')) { throw 'Managed client does not enable Discord Rich Presence' }
           Compress-Archive -Path "$package/*" -DestinationPath 'EverleafClient-source-built.zip'
           Get-FileHash 'EverleafClient-source-built.zip' -Algorithm SHA256
 

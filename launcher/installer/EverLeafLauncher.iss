@@ -41,7 +41,7 @@ function IsGameDir(Dir: String): Boolean;
 begin
   Result :=
     FileExists(AddBackslash(Dir) + 'EverLeaf.exe') or
-    FileExists(AddBackslash(Dir) + 'EverLeafClient.exe');
+    FileExists(AddBackslash(Dir) + 'MapleStory.exe');
 end;
 
 function GetDefaultGameDir(Param: String): String;

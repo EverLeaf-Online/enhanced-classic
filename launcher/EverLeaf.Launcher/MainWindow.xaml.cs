@@ -68,13 +68,12 @@ public partial class MainWindow : Window
             PatchStatusText.Text = "Launcher update check required";
         }
 
-        var gameExists = File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable))
-                         || File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.RuntimeExecutable));
+        var gameExists = File.Exists(Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable));
         if (!gameExists)
         {
             _installMode = true;
             PatchStatusText.Text = _launcherReady
-                ? "Ready to install the complete EverLeaf client in this folder."
+                ? "Ready to install all 38 required EverLeaf files in this folder."
                 : "Launcher update check required before Play. Repair remains available.";
         }
 
@@ -220,8 +219,8 @@ public partial class MainWindow : Window
         await patcher.VerifyAndRepairAsync(progress, CancellationToken.None);
         PatchProgress.Value = 100;
         PatchStatusText.Text = _launcherReady
-            ? "All 40 required EverLeaf game files verified."
-            : "All 40 required EverLeaf game files verified. Launcher update check is still required before Play.";
+            ? "All 38 required EverLeaf game files verified."
+            : "All 38 required EverLeaf game files verified. Launcher update check is still required before Play.";
         _clientReady = true;
         _installMode = false;
     }

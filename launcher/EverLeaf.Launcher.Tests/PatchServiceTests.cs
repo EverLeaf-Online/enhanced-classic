@@ -38,23 +38,23 @@ public sealed class PatchServiceTests
     }
 
     [Fact]
-    public void PreservesEverLeafRuntimeAndDinputAndRemovesRetiredClientStack()
+    public void RemovesObsoleteExperimentalRuntimeOnlyAfterEverLeafExists()
     {
         using var temp = new TemporaryDirectory();
-        var runtime = System.IO.Path.Combine(temp.Path, LauncherConfiguration.RuntimeExecutable);
-        File.WriteAllText(runtime, "EverLeaf v83 host process");
-        var dinput = System.IO.Path.Combine(temp.Path, "dinput8.dll");
-        File.WriteAllText(dinput, "EverLeaf DirectInput runtime");
-        foreach (var name in LauncherConfiguration.ObsoleteClientFiles)
-            File.WriteAllText(System.IO.Path.Combine(temp.Path, name), "retired");
         using var service = new PatchService(temp.Path);
+        var obsolete = LauncherConfiguration.ObsoleteClientFiles
+            .Select(name => System.IO.Path.Combine(temp.Path, name))
+            .ToArray();
+        foreach (var path in obsolete) File.WriteAllText(path, "obsolete");
 
         service.RemoveObsoleteClientFiles();
+        Assert.All(obsolete, path => Assert.True(File.Exists(path)));
 
-        Assert.True(File.Exists(runtime));
-        Assert.True(File.Exists(dinput));
-        foreach (var name in LauncherConfiguration.ObsoleteClientFiles)
-            Assert.False(File.Exists(System.IO.Path.Combine(temp.Path, name)));
+        var current = System.IO.Path.Combine(temp.Path, LauncherConfiguration.GameExecutable);
+        File.WriteAllText(current, "verified current client");
+        service.RemoveObsoleteClientFiles();
+        Assert.True(File.Exists(current));
+        Assert.All(obsolete, path => Assert.False(File.Exists(path)));
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class PatchServiceTests
     }
 
     [Fact]
-    public void RequiresTheCompleteFortyOneFileClient()
+    public void RequiresTheCompleteThirtyEightFileClient()
     {
         using var temp = new TemporaryDirectory();
         using var service = new PatchService(temp.Path);
@@ -104,25 +104,15 @@ public sealed class PatchServiceTests
             .ToArray();
 
         service.ValidateManifest(new PatchManifest("complete", complete));
-        Assert.Equal(41, complete.Length);
+        Assert.Equal(38, complete.Length);
         Assert.Throws<InvalidOperationException>(() =>
             service.ValidateManifest(new PatchManifest("missing-one", complete.Skip(1).ToArray())));
-    }
-
-    [Fact]
-    public void AcceptsPreviousFortyFileManifestForLauncherSelfUpdateTransition()
-    {
-        using var temp = new TemporaryDirectory();
-        using var service = new PatchService(temp.Path);
-        var legacy = LauncherConfiguration.RequiredGameFiles
-            .Where(path => !string.Equals(path, "EverLeafClient.exe", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(path, "dinput8.dll", StringComparison.OrdinalIgnoreCase))
-            .Append("MapleStory.exe")
-            .Select(path => new PatchEntry(path, "/patches/" + path, new string('a', 64), 1))
-            .ToArray();
-
-        service.ValidateManifest(new PatchManifest("legacy-transition", legacy));
-        Assert.Equal(40, legacy.Length);
+        Assert.Contains("EverLeaf.exe", LauncherConfiguration.RequiredGameFiles);
+        Assert.Contains("dinput8.dll", LauncherConfiguration.RequiredGameFiles);
+        Assert.Contains("EverLeafMS.dll", LauncherConfiguration.RequiredGameFiles);
+        Assert.Contains("Discord.dll", LauncherConfiguration.RequiredGameFiles);
+        Assert.DoesNotContain("MapleStory.exe", LauncherConfiguration.RequiredGameFiles);
+        Assert.DoesNotContain("EverLeafClient.exe", LauncherConfiguration.RequiredGameFiles);
     }
 
     [Fact]
