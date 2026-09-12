@@ -101,7 +101,7 @@ namespace {
 
         if (address == kScreenMsgLayoutXOperand) {
             // Keep the active layout write, then mirror its final X coordinate into
-            // the separate MoveScrMsg/reset operand. Original MapleEzorsia patched
+            // the separate MoveScrMsg/reset operand. Original inherited implementation patched
             // both paths, and independent modern v83 work applies the same X
             // translation to LayoutScrMsg and MoveScrMsg.
             if (!WritePatchedValue(address, value)) {

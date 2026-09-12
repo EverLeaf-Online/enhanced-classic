@@ -34,7 +34,7 @@ public:
 //		ijlRead_Proc = GetProcAddress(hModule, "ijlRead");
 //		ijlWrite_Proc = GetProcAddress(hModule, "ijlWrite");
 //	}
-//	else { MessageBox(NULL, L"Failed to find 2ijl15.dll, please follow Ezorsia v2 installation instructions and remember to rename the original file to 2ijl15.dll", L"Missing file", 0); ExitProcess(0); }
+
 //}
 //extern "C" __declspec(dllexport) __declspec(naked) void ijlGetLibVersion()
 //{

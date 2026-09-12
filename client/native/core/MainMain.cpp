@@ -10,7 +10,7 @@ bool MainMain::ownLoginFrame = false;
 bool MainMain::CustomLoginFrame = false;
 bool MainMain::bigLoginFrame = false;
 bool MainMain::ownCashShopFrame = false;
-bool MainMain::EzorsiaV2WzIncluded = false;
+bool MainMain::EverLeafUiResourcesIncluded = false;
 bool MainMain::useV62_ExpTable = false;
 SOCKET MainMain::m_GameSock = INVALID_SOCKET;
 WSPPROC_TABLE MainMain::m_ProcTable = { 0 };//to set your max level you have to go to the function rewrite
@@ -21,13 +21,13 @@ unsigned int MainMain::expTableMemSize = 804;//memory size of array for expTable
 const char* MainMain::use_custom_dll_1 = "CUSTOM.dll";
 const char* MainMain::use_custom_dll_2 = "CUSTOM2.dll";
 const char* MainMain::use_custom_dll_3 = "CUSTOM3.dll";
-bool MainMain::usingEzorsiaV2Wz = false;
+bool MainMain::usingEverLeafUiWz = false;
 HANDLE MainMain::mainTHread;
 
 MainMain::MainMain(std::function<void()> pPostMutexFunc)
 {
 	std::filesystem::path BfilePath("Base.wz"); std::filesystem::path BfilePath2("Data/zmap.img"); std::filesystem::path filePath("config.ini"); //check if needed stuff exists
-	if (std::filesystem::exists(filePath) && reader.ParseError()) { Sleep(20); SuspendThread(MainMain::mainTHread); MessageBox(NULL, L"your config.ini file cannot be properly read, go to troubleshooting section of Ezorsia v2 setup guide at https://github.com/444Ro666/MapleEzorsia-v2 for more details, or delete your config.ini to have a new one generated with default settings", L"bad config file", 0); ExitProcess(0); }
+	if (std::filesystem::exists(filePath) && reader.ParseError()) { Sleep(20); SuspendThread(MainMain::mainTHread); MessageBox(NULL, L"EverLeaf could not read config.ini. Run Install / Repair Files in EverLeafLauncher.exe, or delete config.ini so EverLeaf can recreate the default settings.", L"bad config file", 0); ExitProcess(0); }
 	else if (!std::filesystem::exists(filePath)) {
 		HANDLE hOrg = CreateFileA("config.ini", (GENERIC_READ | GENERIC_WRITE), NULL, NULL, CREATE_ALWAYS, NULL, NULL); DWORD dw;
 		if (hOrg) {
@@ -42,7 +42,7 @@ MainMain::MainMain(std::function<void()> pPostMutexFunc)
 			}
 			else {
 				CloseHandle(hOrg);
-				MessageBox(NULL, L"your config.ini file doesn't exist, please re-download config.ini from Ezorsia v2 releases at https://github.com/444Ro666/MapleEzorsia-v2", L"bad config file", 0);
+				MessageBox(NULL, L"EverLeaf could not create config.ini. Run Install / Repair Files in EverLeafLauncher.exe and try again.", L"bad config file", 0);
 				ExitProcess(0);
 			}
 		}
@@ -50,11 +50,11 @@ MainMain::MainMain(std::function<void()> pPostMutexFunc)
 	if (!std::filesystem::exists(BfilePath) && !std::filesystem::exists(BfilePath2)) { Sleep(20); SuspendThread(MainMain::mainTHread); MessageBox(NULL, L"Either Base.wz is missing from your game directory OR you are loading from .img and zmap.img is not in your Data directory, please reinstall and make sure relevant file(s) exist", L"missing .wz/.img file", 0); ExitProcess(0); }
 	MainMain::CustomLoginFrame = false; // official EverLeaf UI only
 	if (MainMain::CustomLoginFrame) { MainMain::ownLoginFrame = true; MainMain::bigLoginFrame = true; } //use own login if true
-	std::filesystem::path EfilePath("EverLeaf_UI.wz");	//support for other non-big frame users (i.e. ezorsia-like, with login centered, but different frame, isnt currently supported)
-	std::filesystem::path EfilePath2("Data/MapleEzorsiaV2wzfiles.img");
+	std::filesystem::path EfilePath("EverLeaf_UI.wz");	//EverLeaf compatibility UI package path
+	std::filesystem::path EfilePath2("Data/EverLeaf_UI.img");
 	if (std::filesystem::exists(EfilePath)) { 	//only check after "if false" on Client::CustomLoginFrame or things break
-		MainMain::EzorsiaV2WzIncluded = true; MainMain::CustomLoginFrame = true; MainMain::usingEzorsiaV2Wz = true; }
-	else if(std::filesystem::exists(EfilePath2)){ MainMain::EzorsiaV2WzIncluded = true; MainMain::CustomLoginFrame = true; }
+		MainMain::EverLeafUiResourcesIncluded = true; MainMain::CustomLoginFrame = true; MainMain::usingEverLeafUiWz = true; }
+	else if(std::filesystem::exists(EfilePath2)){ MainMain::EverLeafUiResourcesIncluded = true; MainMain::CustomLoginFrame = true; }
 	else {
 		if (std::filesystem::exists(BfilePath)) {
 			HANDLE hOrg = CreateFileA("EverLeaf_UI.wz", (GENERIC_READ | GENERIC_WRITE), NULL, NULL, CREATE_ALWAYS, NULL, NULL); DWORD dw;
@@ -70,14 +70,14 @@ MainMain::MainMain(std::function<void()> pPostMutexFunc)
 				}
 				else {
 					CloseHandle(hOrg);
-					MessageBox(NULL, L"your EverLeaf_UI.wz file doesn't exist, please re-download EverLeaf_UI.wz from Ezorsia v2 releases at https://github.com/444Ro666/MapleEzorsia-v2", L"bad WZ file", 0);
+					MessageBox(NULL, L"EverLeaf could not create EverLeaf_UI.wz. Run Install / Repair Files in EverLeafLauncher.exe and try again.", L"bad WZ file", 0);
 					ExitProcess(0);
 				}
 			}
-			MainMain::EzorsiaV2WzIncluded = true; MainMain::CustomLoginFrame = true; MainMain::usingEzorsiaV2Wz = true;
+			MainMain::EverLeafUiResourcesIncluded = true; MainMain::CustomLoginFrame = true; MainMain::usingEverLeafUiWz = true;
 		}
 		if (std::filesystem::exists(BfilePath2)) {
-			HANDLE hOrg = CreateFileA("Data\\MapleEzorsiaV2wzfiles.img", (GENERIC_READ | GENERIC_WRITE), NULL, NULL, CREATE_ALWAYS, NULL, NULL); DWORD dw;
+			HANDLE hOrg = CreateFileA("Data\\EverLeaf_UI.img", (GENERIC_READ | GENERIC_WRITE), NULL, NULL, CREATE_ALWAYS, NULL, NULL); DWORD dw;
 			if (hOrg) {
 				HMODULE hModule = GetModuleHandle(L"dinput8.dll"); // Get handle to current DLL
 				HRSRC hResource = FindResource(hModule, MAKEINTRESOURCE(IDR_RCDATA3), RT_RCDATA);
@@ -90,11 +90,11 @@ MainMain::MainMain(std::function<void()> pPostMutexFunc)
 				}
 				else {
 					CloseHandle(hOrg);
-					MessageBox(NULL, L"Ezorsia V2 has detected you are loading from .img, but that your MapleEzorsiaV2wzfiles.img file doesn't exist in your Data folder, please re-download MapleEzorsiaV2wzfiles.img from Ezorsia v2 releases at https://github.com/444Ro666/MapleEzorsia-v2", L"bad IMG file", 0);
+					MessageBox(NULL, L"EverLeaf detected IMG-mode resources but EverLeaf_UI.img is unavailable. Run Install / Repair Files in EverLeafLauncher.exe and try again.", L"bad IMG file", 0);
 					ExitProcess(0);
 				}
 			}
-			MainMain::EzorsiaV2WzIncluded = true; MainMain::CustomLoginFrame = true;
+			MainMain::EverLeafUiResourcesIncluded = true; MainMain::CustomLoginFrame = true;
 		}
 	}
 	//Memory::UseVirtuProtect = reader.GetBoolean("general", "UseVirtuProtect", true);//breaks without it so i removed the option, too many options anyway and this wasnt helping anyone

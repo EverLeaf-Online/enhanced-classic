@@ -20,6 +20,25 @@ BOOL CALLBACK ResolveSystemDinput8(PINIT_ONCE, PVOID, PVOID*) {
     return gDirectInput8Create && gGetdfDIJoystick;
 }
 
+void RequireEverLeafHostExecutable() {
+    wchar_t path[MAX_PATH] = {};
+    const DWORD n = GetModuleFileNameW(nullptr, path, MAX_PATH);
+    if (!n || n >= MAX_PATH) {
+        MessageBoxW(nullptr,
+            L"EverLeaf could not verify the running client executable. Run Install / Repair Files in EverLeafLauncher.exe and try again.",
+            L"EverLeaf client identity error", MB_OK | MB_ICONERROR);
+        ExitProcess(ERROR_BAD_EXE_FORMAT);
+    }
+    const wchar_t* slash = std::wcsrchr(path, L'\\');
+    const wchar_t* name = slash ? slash + 1 : path;
+    if (_wcsicmp(name, L"EverLeaf.exe") != 0) {
+        MessageBoxW(nullptr,
+            L"EverLeaf must run as EverLeaf.exe. Do not rename or launch a separate MapleStory.exe/EverLeafClient.exe host.\n\nRun Install / Repair Files in EverLeafLauncher.exe to restore the official client.",
+            L"EverLeaf client identity error", MB_OK | MB_ICONERROR);
+        ExitProcess(ERROR_BAD_EXE_FORMAT);
+    }
+}
+
 void EnsureSystemDinput8() {
     PVOID unused = nullptr;
     if (!InitOnceExecuteOnce(&gOnce, ResolveSystemDinput8, nullptr, &unused)) {
@@ -69,6 +88,7 @@ extern "C" __declspec(dllexport) __declspec(naked) void GetdfDIJoystick() {
 BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
     if (reason == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(module);
+        RequireEverLeafHostExecutable();
         HANDLE thread = CreateThread(nullptr, 0, LoadEverLeafCore, nullptr, 0, nullptr);
         if (thread) CloseHandle(thread);
     }

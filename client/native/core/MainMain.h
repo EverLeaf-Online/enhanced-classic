@@ -12,7 +12,7 @@ public:
 	static FILE* stream;
 	static bool ownLoginFrame;
 	static bool ownCashShopFrame;
-	static bool EzorsiaV2WzIncluded;
+	static bool EverLeafUiResourcesIncluded;
 	static bool useV62_ExpTable;
 	static const char* m_sRedirectIP;
 	static SOCKET m_GameSock;
@@ -23,7 +23,7 @@ public:
 	static const char* use_custom_dll_1;
 	static const char* use_custom_dll_2;
 	static const char* use_custom_dll_3;
-	static bool usingEzorsiaV2Wz;
+	static bool usingEverLeafUiWz;
 	static bool CustomLoginFrame;
 	static bool bigLoginFrame;
 	static HANDLE mainTHread;

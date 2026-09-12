@@ -316,9 +316,9 @@ bool HookIWzNameSpace__Mount(bool bEnable)
 //	_CWvsApp__Dir_BackSlashToSlash_rewrite(sStartPath);	//_sub_9F95FE
 //	_sub_9F9644(sStartPath);//_CWvsApp__Dir_upDir
 //
-//	strcat(sStartPath, "/Ezorsia_v2_files");//sStartPath += "./Ezorsia_v2_files";
+//	strcat(sStartPath, "/EverLeaf_UI");//sStartPath += "./EverLeaf_UI";
 //	//char sStartPath2[MAX_PATH]; strcpy(sStartPath2, sStartPath);
-//	//strcat(sStartPath2, "/");//sStartPath += "./Ezorsia_v2_files";
+//	//strcat(sStartPath2, "/");//sStartPath += "./EverLeaf_UI";
 //
 //	Ztl_bstr_t BsStartPath = Ztl_bstr_t();
 //	_sub_425ADD(&BsStartPath, nullptr, sStartPath);//void __thiscall Ztl_bstr_t::Ztl_bstr_t(Ztl_bstr_t *this, const char *s) //Ztl_bstr_t ctor
@@ -330,7 +330,7 @@ bool HookIWzNameSpace__Mount(bool bEnable)
 //	HRESULT v0 =_sub_9F7964(pDataFileSystem, nullptr, BsStartPath);//HRESULT __thiscall IWzFileSystem::Init(IWzFileSystem *this, Ztl_bstr_t sPath)
 //	std::cout << v0 << " Hook_sub_9F7159 HRESULT 1: " << BsStartPath.m_Data << "   " << sStartPath << std::endl;
 //	
-//	const char* myWzPath = "EzorsiaV2_wz_file.wz";
+//	const char* myWzPath = "EverLeaf_UI.wz";
 //	Ztl_bstr_t BmyWzPath = Ztl_bstr_t();
 //	_sub_425ADD(&BmyWzPath, nullptr, myWzPath);//void __thiscall Ztl_bstr_t::Ztl_bstr_t(Ztl_bstr_t *this, const char *s) //Ztl_bstr_t ctor
 //
@@ -459,32 +459,32 @@ _StringPool__GetString_t _StringPool__GetString_rewrite = [](void* pThis, void* 
 	case 888:
 		*ret = ("Welcome to EverLeaf!"); break;
 	case 1307:	//1307_UI_LOGINIMG_COMMON_FRAME = 51Bh
-		if (MainMain::EzorsiaV2WzIncluded && !MainMain::ownLoginFrame) {
+		if (MainMain::EverLeafUiResourcesIncluded && !MainMain::ownLoginFrame) {
 			switch (Client::m_nGameWidth)
 			{
 			case 1280:	//ty teto for the suggestion to use ZXString<char>::Assign and showing me available resources
-				*ret = ("MapleEzorsiaV2wzfiles.img/Common/frame1280"); break;
+				*ret = ("EverLeaf_UI.img/Common/frame1280"); break;
 			case 1366:
-				*ret = ("MapleEzorsiaV2wzfiles.img/Common/frame1366"); break;
+				*ret = ("EverLeaf_UI.img/Common/frame1366"); break;
 			case 1600:
-				*ret = ("MapleEzorsiaV2wzfiles.img/Common/frame1600"); break;
+				*ret = ("EverLeaf_UI.img/Common/frame1600"); break;
 			case 1920:
-				*ret = ("MapleEzorsiaV2wzfiles.img/Common/frame1920"); break;
+				*ret = ("EverLeaf_UI.img/Common/frame1920"); break;
 			case 1024:
-				*ret = ("MapleEzorsiaV2wzfiles.img/Common/frame1024"); break;
+				*ret = ("EverLeaf_UI.img/Common/frame1024"); break;
 			}
 		}
 		break;
 	case 1301:	//1301_UI_CASHSHOPIMG_BASE_BACKGRND  = 515h
-		if (MainMain::EzorsiaV2WzIncluded && !MainMain::ownCashShopFrame) { *ret = ("MapleEzorsiaV2wzfiles.img/Base/backgrnd"); } break;
+		if (MainMain::EverLeafUiResourcesIncluded && !MainMain::ownCashShopFrame) { *ret = ("EverLeaf_UI.img/Base/backgrnd"); } break;
 	case 1302:	//1302_UI_CASHSHOPIMG_BASE_BACKGRND1 = 516h
-		if (MainMain::EzorsiaV2WzIncluded && !MainMain::ownCashShopFrame) { *ret = ("MapleEzorsiaV2wzfiles.img/Base/backgrnd1"); } break;
+		if (MainMain::EverLeafUiResourcesIncluded && !MainMain::ownCashShopFrame) { *ret = ("EverLeaf_UI.img/Base/backgrnd1"); } break;
 	case 5361:	//5361_UI_CASHSHOPIMG_BASE_BACKGRND2  = 14F1h			
-		if (MainMain::EzorsiaV2WzIncluded && !MainMain::ownCashShopFrame) { *ret = ("MapleEzorsiaV2wzfiles.img/Base/backgrnd2"); } break;
+		if (MainMain::EverLeafUiResourcesIncluded && !MainMain::ownCashShopFrame) { *ret = ("EverLeaf_UI.img/Base/backgrnd2"); } break;
 		//case 1302:	//BACKGRND??????
-		//	if (EzorsiaV2WzIncluded && ownCashShopFrame) { *ret = ("MapleEzorsiaV2wzfiles.img/Base/backgrnd1"); } break;
+		//	if (EverLeafUiResourcesIncluded && ownCashShopFrame) { *ret = ("EverLeaf_UI.img/Base/backgrnd1"); } break;
 		//case 5361:	//SP_1937_UI_UIWINDOWIMG_STAT_BACKGRND2  = 791h	
-		//	if (EzorsiaV2WzIncluded && ownCashShopFrame) { *ret = ("MapleEzorsiaV2wzfiles.img/Base/backgrnd2"); } break;
+		//	if (EverLeafUiResourcesIncluded && ownCashShopFrame) { *ret = ("EverLeaf_UI.img/Base/backgrnd2"); } break;
 	}
 	return ret;
 };
@@ -2407,7 +2407,7 @@ static _sub_5D995B_t _sub_5D995B_Hook = [](void* pThis, void* edx, Ztl_variant_t
 	}
 	//std::cout << "_sub_5D995B vals: " << *(DWORD*)v3 << " / " << *v4 << " / " << *(DWORD*)(&pvarg) << std::endl;
 	auto v5 = (*(int(__stdcall**)(void*, const wchar_t*, Ztl_variant_t*))(*(DWORD*)v3 + 12));//unknown virtual function at offset 12 of IWzNameSpace
-	if (!ZSecureCrypt_Init && MainMain::usingEzorsiaV2Wz)
+	if (!ZSecureCrypt_Init && MainMain::usingEverLeafUiWz)
 	{
 		ZSecureCrypt_Init = true; v4 = v13;
 	}
