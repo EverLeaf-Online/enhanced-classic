@@ -99,14 +99,54 @@ static ItemLocation? FindItemEntry(WzFile wz, string category, int id)
     return null;
 }
 
+static PropertyLocation? FindPropertyRecursive(IEnumerable<WzImageProperty> properties, string targetName, string[] parentPath)
+{
+    foreach (var p in properties)
+    {
+        if (string.Equals(p.Name, targetName, StringComparison.Ordinal))
+            return new PropertyLocation(p, parentPath);
+        if (p.WzProperties != null)
+        {
+            var hit = FindPropertyRecursive(p.WzProperties, targetName, parentPath.Append(p.Name).ToArray());
+            if (hit != null) return hit;
+        }
+    }
+    return null;
+}
+
 static ItemLocation? FindStringEntry(WzFile wz, int id)
 {
     foreach (var row in EnumerateImages(wz.WzDirectory, Array.Empty<string>()))
     {
-        var p = FindDirect(row.Image, id);
-        if (p != null) return new ItemLocation(row.Image, p, row.Dirs);
+        foreach (var name in new[] { id.ToString(), id.ToString("D8") })
+        {
+            var hit = FindPropertyRecursive(row.Image.WzProperties, name, Array.Empty<string>());
+            if (hit != null)
+                return new ItemLocation(row.Image, hit.Value.Property, row.Dirs, hit.Value.ParentPath);
+        }
     }
     return null;
+}
+
+static WzImageProperty EnsurePropertyPath(WzImage image, IEnumerable<string> parentPath)
+{
+    WzObject cur = image;
+    foreach (var name in parentPath)
+    {
+        WzImageProperty? next = null;
+        if (cur is WzImage img) next = img[name];
+        else if (cur is WzImageProperty prop) next = prop[name];
+        if (next == null)
+        {
+            var created = new WzSubProperty(name);
+            if (cur is WzImage img2) img2.AddProperty(created);
+            else if (cur is WzSubProperty sub) sub.AddProperty(created);
+            else throw new InvalidOperationException($"Unsupported String.wz parent container: {cur.GetType().Name}");
+            next = created;
+        }
+        cur = next;
+    }
+    return cur is WzImageProperty p ? p : throw new InvalidOperationException("String.wz property path resolved to image root.");
 }
 
 static WzImage GetOrCreateImage(WzDirectory root, IEnumerable<string> dirs, string imageName, HashSet<string> created, string family)
@@ -180,10 +220,21 @@ using (var donorString = OpenDonor(donorStringPath))
         else if (donorStringEntry != null)
         {
             var targetStringImage = GetOrCreateImage(targetString.WzDirectory, donorStringEntry.Value.Dirs, donorStringEntry.Value.Image.Name, createdContainers, "String");
-            targetStringImage.AddProperty(donorStringEntry.Value.Property.DeepClone());
+            var propertyPath = donorStringEntry.Value.PropertyPath ?? Array.Empty<string>();
+            if (propertyPath.Length == 0)
+            {
+                targetStringImage.AddProperty(donorStringEntry.Value.Property.DeepClone());
+            }
+            else
+            {
+                var parent = EnsurePropertyPath(targetStringImage, propertyPath);
+                if (parent is not WzSubProperty sub)
+                    throw new InvalidOperationException($"String.wz parent path is not a subproperty: {string.Join('/', propertyPath)}");
+                sub.AddProperty(donorStringEntry.Value.Property.DeepClone());
+            }
             copiedDonorStrings++;
             hasString = true;
-            stringImage = string.Join('/', donorStringEntry.Value.Dirs.Append(donorStringEntry.Value.Image.Name));
+            stringImage = string.Join('/', donorStringEntry.Value.Dirs.Append(donorStringEntry.Value.Image.Name).Concat(propertyPath));
         }
         else
         {
@@ -232,7 +283,7 @@ using (var checkString = OpenTarget(outputStringPath))
 var byCategory = merged.GroupBy(x => x.Category).ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 var manifest = new
 {
-    schemaVersion = 5,
+    schemaVersion = 6,
     kind = "gms-v180-item-node-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -294,5 +345,6 @@ return 0;
 
 internal readonly record struct ItemRequest(string Category, int Id);
 internal readonly record struct ImageLocation(WzImage Image, string[] Dirs);
-internal readonly record struct ItemLocation(WzImage Image, WzImageProperty Property, string[] Dirs);
+internal readonly record struct ItemLocation(WzImage Image, WzImageProperty Property, string[] Dirs, string[]? PropertyPath = null);
+internal readonly record struct PropertyLocation(WzImageProperty Property, string[] ParentPath);
 internal readonly record struct MergedItem(string Category, int Id, string ItemImage, string? StringImage, bool HasString);
