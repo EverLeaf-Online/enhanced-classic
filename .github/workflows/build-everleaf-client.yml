@@ -6,6 +6,8 @@ on:
     paths:
       - "client/native/**"
       - "client/scripts/**"
+      - "client/custom-wz/**"
+      - "client/tools/everleaf-custom-wz/**"
       - "client/managed-client-baseline.json"
       - ".github/workflows/build-everleaf-client.yml"
   pull_request:
@@ -13,6 +15,8 @@ on:
     paths:
       - "client/native/**"
       - "client/scripts/**"
+      - "client/custom-wz/**"
+      - "client/tools/everleaf-custom-wz/**"
       - "client/managed-client-baseline.json"
       - ".github/workflows/build-everleaf-client.yml"
   workflow_dispatch:
@@ -236,6 +240,37 @@ jobs:
           if (-not ($config -match '(?m)^DiscordRichPresence=true\r?$')) { throw 'Managed client does not enable Discord Rich Presence' }
           if (-not ($config -match '(?m)^LiveResolution=true\r?$')) { throw 'Managed client does not enable live resolution' }
           if (-not ($config -match '(?m)^MatchMonitorResolutionOnFullscreen=true\r?$')) { throw 'Managed client does not enable monitor-matched borderless rendering' }
+
+          # Phase 16 is candidate-only. The normal managed baseline and live publish
+          # path must not require EverLeaf_Custom.wz until runtime validation is complete.
+          $baseline = Get-Content 'client/managed-client-baseline.json' -Raw | ConvertFrom-Json
+          if ($baseline.managedFiles.path -contains 'EverLeaf_Custom.wz') {
+            throw 'EverLeaf_Custom.wz must remain outside the managed production baseline during phase 16'
+          }
+
+          $manifestRows = Get-Content 'client/custom-wz/manifest.tsv' | Where-Object { $_ -and -not $_.StartsWith('#') }
+          if ($manifestRows.Count -lt 1) { throw 'Custom WZ candidate manifest is empty' }
+          foreach ($row in $manifestRows) {
+            $fields = $row -split "`t", 4
+            if ($fields.Count -ne 4 -or $fields[0] -ne 'EverLeafMeta.img') {
+              throw "Phase-16 candidate WZ may only contain harmless EverLeafMeta.img entries: $row"
+            }
+          }
+
+          & 'client/scripts/build-everleaf-custom-wz.ps1' `
+            -RepositoryRoot $PWD `
+            -OutputPath "$PWD/$package/EverLeaf_Custom.wz" `
+            -WorkRoot "$env:RUNNER_TEMP/everleaf-custom-wz-candidate"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to build candidate EverLeaf_Custom.wz' }
+
+          $customWz = "$package/EverLeaf_Custom.wz"
+          if (-not (Test-Path $customWz -PathType Leaf)) { throw 'Candidate EverLeaf_Custom.wz is missing' }
+          $customBytes = [System.IO.File]::ReadAllBytes((Resolve-Path $customWz))
+          if ($customBytes.Length -lt 32) { throw 'Candidate EverLeaf_Custom.wz is implausibly small' }
+          $customSignature = [System.Text.Encoding]::ASCII.GetString($customBytes, 0, 4)
+          if ($customSignature -ne 'PKG1') { throw "Unexpected candidate WZ signature: $customSignature" }
+          Get-FileHash $customWz -Algorithm SHA256
+
           Compress-Archive -Path "$package/*" -DestinationPath 'EverleafClient-source-built.zip'
           Get-FileHash 'EverleafClient-source-built.zip' -Algorithm SHA256
 
