@@ -32,8 +32,8 @@ jobs:
           foreach ($row in $rows) {
             $fields = $row -split "`t", 4
             if ($fields.Count -ne 4) { throw "Invalid custom WZ manifest row: $row" }
-            if ($fields[0] -notmatch '\.img$') { throw "Invalid custom WZ image name: $($fields[0])" }
-            if ($fields[2] -notin @('string','int')) { throw "Unsupported custom WZ property type: $($fields[2])" }
+            if ($fields[0] -notmatch '\.img$') { throw "Invalid custom WZ image path: $($fields[0])" }
+            if ($fields[2] -notin @('string','int','canvas','vector')) { throw "Unsupported custom WZ property type: $($fields[2])" }
           }
 
       - name: Build and self-verify v83 WZ
@@ -43,6 +43,35 @@ jobs:
             -RepositoryRoot $PWD `
             -OutputPath "$PWD/client/generated/EverLeaf_Custom.wz" `
             -WorkRoot "$env:RUNNER_TEMP/everleaf-custom-wz"
+
+      - name: Smoke test directory canvas and vector support
+        shell: pwsh
+        run: |
+          $smokeRoot = Join-Path $env:RUNNER_TEMP 'everleaf-custom-wz-canvas-smoke'
+          New-Item -ItemType Directory -Force -Path $smokeRoot | Out-Null
+          $pngPath = Join-Path $smokeRoot 'smoke.png'
+          # Valid 2x2, 8-bit RGBA, non-interlaced PNG. libwz's FromPngFile
+          # intentionally accepts RGB/RGBA only; keep this fixture inside that contract.
+          $pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGMUVDL+z8DAwMDEAAUAFGYBaTD3WiQAAAAASUVORK5CYII='
+          [System.IO.File]::WriteAllBytes($pngPath, [Convert]::FromBase64String($pngBase64))
+
+          $manifestPath = Join-Path $smokeRoot 'manifest.tsv'
+          @(
+            "Smoke/Test.img`tui/canvas`tcanvas`tsmoke.png",
+            "Smoke/Test.img`tui/canvas/origin`tvector`t12,-34",
+            "Smoke/Test.img`tui/label`tstring`tEverLeaf"
+          ) | Set-Content $manifestPath -Encoding utf8
+
+          $builder = Join-Path $env:RUNNER_TEMP 'everleaf-custom-wz/build/Release/everleaf-custom-wz-builder.exe'
+          if (-not (Test-Path $builder -PathType Leaf)) { throw "Custom WZ builder missing: $builder" }
+          $smokeWz = Join-Path $smokeRoot 'CanvasSmoke.wz'
+          & $builder $manifestPath $smokeWz
+          if ($LASTEXITCODE -ne 0) { throw 'Directory/canvas/vector WZ smoke test failed' }
+          $bytes = [System.IO.File]::ReadAllBytes($smokeWz)
+          if ($bytes.Length -lt 32 -or [System.Text.Encoding]::ASCII.GetString($bytes, 0, 4) -ne 'PKG1') {
+            throw 'Canvas smoke WZ is not a valid PKG1 output'
+          }
+          Get-FileHash $smokeWz -Algorithm SHA256
 
       - name: Verify output identity
         shell: pwsh
