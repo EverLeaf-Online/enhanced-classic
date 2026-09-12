@@ -115,6 +115,84 @@ static void HashText(IncrementalHash h, string? s)
     h.AppendData(new byte[] { 0 });
 }
 
+static WzObject? ResolveUolObject(WzObject? value)
+{
+    var seen = new HashSet<WzObject>();
+    var current = value;
+    while (current is WzUOLProperty uol)
+    {
+        if (!seen.Add(current)) return null;
+        current = uol.LinkValue;
+    }
+    return current;
+}
+
+static void AppendCanvasToken(List<string> tokens, string path, WzCanvasProperty canvas)
+{
+    var png = canvas.PngProperty;
+    using var bmp = png.GetImage(false);
+    var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+    var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+    try
+    {
+        var len = Math.Abs(data.Stride) * data.Height;
+        var bytes = new byte[len];
+        Marshal.Copy(data.Scan0, bytes, 0, len);
+        tokens.Add($"{path}|Canvas|{bmp.Width}x{bmp.Height}|{Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()}");
+    }
+    finally { bmp.UnlockBits(data); }
+}
+
+static void AppendSemanticProperty(List<string> tokens, WzImageProperty p, string path, bool resolveUol)
+{
+    if (p is WzUOLProperty uol)
+    {
+        if (resolveUol && ResolveUolObject(uol) is WzImageProperty resolved)
+        {
+            AppendSemanticProperty(tokens, resolved, path, true);
+            return;
+        }
+        tokens.Add($"{path}|UOL|{uol.Value ?? string.Empty}");
+        return;
+    }
+
+    if (p is WzShortProperty || p is WzIntProperty || p is WzLongProperty)
+    {
+        tokens.Add($"{path}|IntegralNumber|{Convert.ToInt64(p.WzValue).ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        return;
+    }
+
+    if (p is WzCanvasProperty canvas)
+    {
+        AppendCanvasToken(tokens, path, canvas);
+    }
+    else if (p.WzProperties == null)
+    {
+        string? value;
+        try { value = p.GetString(); }
+        catch { value = p.WzValue?.ToString(); }
+        tokens.Add($"{path}|{p.PropertyType}|{value ?? string.Empty}");
+        return;
+    }
+    else tokens.Add($"{path}|{p.PropertyType}|");
+
+    if (p.WzProperties != null)
+    {
+        foreach (var child in p.WzProperties)
+            AppendSemanticProperty(tokens, child, path + "/" + child.Name, resolveUol);
+    }
+}
+
+static string PropertySemanticDigest(WzImageProperty property)
+{
+    var tokens = new List<string>();
+    AppendSemanticProperty(tokens, property, "$", true);
+    tokens.Sort(StringComparer.Ordinal);
+    using var h = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+    foreach (var token in tokens) HashText(h, token);
+    return Convert.ToHexString(h.GetHashAndReset()).ToLowerInvariant();
+}
+
 static string ImageDigest(WzImage img)
 {
     using var h = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -127,12 +205,14 @@ static string ImageDigest(WzImage img)
             HashText(h, p.PropertyType.ToString());
             if (p is WzCanvasProperty canvas)
                 h.AppendData(canvas.PngProperty.GetCompressedBytesForExtraction(false));
+            else if (p is WzUOLProperty uol)
+                HashText(h, uol.Value);
             else if (p.WzProperties == null)
             {
                 try { HashText(h, p.GetString()); }
                 catch { HashText(h, p.WzValue?.ToString()); }
             }
-            if (p.WzProperties != null) Walk(p.WzProperties);
+            if (p is not WzUOLProperty && p.WzProperties != null) Walk(p.WzProperties);
         }
     }
     Walk(img.WzProperties);
@@ -142,46 +222,8 @@ static string ImageDigest(WzImage img)
 static List<string> SemanticTokens(WzImage img)
 {
     var tokens = new List<string> { $"image|{img.Name}" };
-    void Walk(IEnumerable<WzImageProperty> ps, string parent)
-    {
-        foreach (var p in ps)
-        {
-            var path = parent.Length == 0 ? p.Name : parent + "/" + p.Name;
-            if (p is WzShortProperty || p is WzIntProperty || p is WzLongProperty)
-            {
-                tokens.Add($"{path}|IntegralNumber|{Convert.ToInt64(p.WzValue).ToString(System.Globalization.CultureInfo.InvariantCulture)}");
-            }
-            else if (p is WzUOLProperty uol)
-            {
-                tokens.Add($"{path}|UOL|{uol.Value ?? string.Empty}");
-            }
-            else if (p is WzCanvasProperty canvas)
-            {
-                var png = canvas.PngProperty;
-                using var bmp = png.GetImage(false);
-                var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
-                var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-                try
-                {
-                    var len = Math.Abs(data.Stride) * data.Height;
-                    var bytes = new byte[len];
-                    Marshal.Copy(data.Scan0, bytes, 0, len);
-                    tokens.Add($"{path}|Canvas|{bmp.Width}x{bmp.Height}|{Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()}");
-                }
-                finally { bmp.UnlockBits(data); }
-            }
-            else if (p.WzProperties == null)
-            {
-                string? value;
-                try { value = p.GetString(); }
-                catch { value = p.WzValue?.ToString(); }
-                tokens.Add($"{path}|{p.PropertyType}|{value ?? string.Empty}");
-            }
-            else tokens.Add($"{path}|{p.PropertyType}|");
-            if (p.WzProperties != null) Walk(p.WzProperties, path);
-        }
-    }
-    Walk(img.WzProperties, string.Empty);
+    foreach (var p in img.WzProperties)
+        AppendSemanticProperty(tokens, p, p.Name, true);
     tokens.Sort(StringComparer.Ordinal);
     return tokens;
 }
@@ -210,6 +252,55 @@ static string FirstSemanticDifference(WzImage donor, WzImage output)
     return "semantic-token-streams-identical";
 }
 
+static Dictionary<string, WzImageProperty> RawPropertyMap(WzImage image)
+{
+    var map = new Dictionary<string, WzImageProperty>(StringComparer.Ordinal);
+    void Walk(IEnumerable<WzImageProperty> ps, string parent)
+    {
+        foreach (var p in ps)
+        {
+            var path = parent.Length == 0 ? p.Name : parent + "/" + p.Name;
+            map[path] = p;
+            if (p is not WzUOLProperty && p.WzProperties != null) Walk(p.WzProperties, path);
+        }
+    }
+    Walk(image.WzProperties, string.Empty);
+    return map;
+}
+
+static int MaterializeIncompatibleUolDependencies(WzImage donorImage, WzImage candidateImage)
+{
+    var donorProps = RawPropertyMap(donorImage);
+    var candidateProps = RawPropertyMap(candidateImage);
+    var replacements = new List<(WzUOLProperty Candidate, WzImageProperty DonorResolved)>();
+
+    foreach (var (path, donorProperty) in donorProps)
+    {
+        if (donorProperty is not WzUOLProperty donorUol) continue;
+        if (!candidateProps.TryGetValue(path, out var candidateProperty) || candidateProperty is not WzUOLProperty candidateUol)
+            continue;
+
+        var donorResolved = ResolveUolObject(donorUol) as WzImageProperty;
+        if (donorResolved == null) continue;
+        var candidateResolved = ResolveUolObject(candidateUol) as WzImageProperty;
+        if (candidateResolved != null && string.Equals(PropertySemanticDigest(donorResolved), PropertySemanticDigest(candidateResolved), StringComparison.OrdinalIgnoreCase))
+            continue;
+
+        replacements.Add((candidateUol, donorResolved));
+    }
+
+    foreach (var (candidateUol, donorResolved) in replacements)
+    {
+        if (candidateUol.Parent is not IPropertyContainer parent)
+            throw new InvalidDataException($"Cannot materialize UOL without property-container parent: {candidateUol.FullPath}");
+        var replacement = donorResolved.DeepClone();
+        replacement.Name = candidateUol.Name;
+        parent.RemoveProperty(candidateUol);
+        parent.AddProperty(replacement);
+    }
+    return replacements.Count;
+}
+
 static int SanitizeForWrite(WzImage image)
 {
     var repaired = 0;
@@ -218,7 +309,11 @@ static int SanitizeForWrite(WzImage image)
         foreach (var p in ps)
         {
             if (p is WzStringProperty s && s.Value == null) { s.Value = string.Empty; repaired++; }
-            if (p is WzUOLProperty u && u.Value == null) { u.Value = string.Empty; repaired++; }
+            if (p is WzUOLProperty u)
+            {
+                if (u.Value == null) { u.Value = string.Empty; repaired++; }
+                continue;
+            }
             if (p.WzProperties != null) Walk(p.WzProperties);
         }
     }
@@ -231,12 +326,14 @@ var donorHash = Sha(donorPath);
 short targetVersion, donorVersion;
 var staged = new List<StagedImage>();
 var sanitizedScalarCount = 0;
+var materializedUolDependencyCount = 0;
 
 using (var target = OpenTarget(targetPath))
 using (var donor = OpenDonor(donorPath))
 {
     targetVersion = target.Version;
     donorVersion = donor.Version;
+    var clonePairs = new List<(WzImage Donor, WzImage Candidate)>();
     foreach (var requestedPath in requested)
     {
         var source = ResolveDonorImage(donor.WzDirectory, requestedPath);
@@ -247,9 +344,17 @@ using (var donor = OpenDonor(donorPath))
         var clone = source.Image.DeepClone();
         sanitizedScalarCount += SanitizeForWrite(clone);
         EnsureDirs(target.WzDirectory, target, source.Dirs).AddImage(clone);
+        clonePairs.Add((source.Image, clone));
         staged.Add(new StagedImage(requestedPath, actualPath, donorDigest));
     }
     if (staged.Count == 0) throw new InvalidOperationException("Refusing empty static candidate.");
+
+    // A donor-only image can UOL-link into a shared image whose old v83 contents are incomplete.
+    // Preserve the donor semantics without replacing the shared target image by materializing only
+    // those UOL targets that do not resolve equivalently after the donor-only image is attached.
+    foreach (var pair in clonePairs)
+        materializedUolDependencyCount += MaterializeIncompatibleUolDependencies(pair.Donor, pair.Candidate);
+
     target.SaveToDisk(outputPath);
 }
 
@@ -286,7 +391,7 @@ using (var donor = OpenDonor(donorPath))
 var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 9,
+    schemaVersion = 10,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -298,15 +403,16 @@ var manifest = new
     basenameFallbackCount = fallbackCount,
     semanticCanvasVerificationFallbackCount = semanticFallbackCount,
     sanitizedNullStringOrUolCount = sanitizedScalarCount,
+    materializedIncompatibleUolDependencyCount = materializedUolDependencyCount,
     targetCryptoContextInheritedForCreatedDirectories = true,
     source = new { path = targetPath, sha256 = targetHashBefore, version = targetVersion, size = new FileInfo(targetPath).Length },
     donor = new { path = donorPath, sha256 = donorHash, version = donorVersion, size = new FileInfo(donorPath).Length },
     output = new { path = outputPath, sha256 = Sha(outputPath), size = new FileInfo(outputPath).Length },
-    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticRawUolPathVerification = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
+    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticResolvedUolDependencyVerification = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
     images = staged.Select(x => new { requestedPath = x.RequestedPath, resolvedPath = x.ResolvedPath }).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
-Console.WriteLine($"STAGED {Path.GetFileName(targetPath)}: {verified:N0}/{requested.Length:N0} donor-only images verified; fallback={fallbackCount:N0}; semantic-fallback={semanticFallbackCount:N0}; sanitized={sanitizedScalarCount:N0}");
+Console.WriteLine($"STAGED {Path.GetFileName(targetPath)}: {verified:N0}/{requested.Length:N0} donor-only images verified; fallback={fallbackCount:N0}; semantic-fallback={semanticFallbackCount:N0}; sanitized={sanitizedScalarCount:N0}; materialized-uol={materializedUolDependencyCount:N0}");
 Console.WriteLine($"OUTPUT {outputPath}");
 Console.WriteLine("approved=false / productionApplyAllowed=false");
 return 0;
