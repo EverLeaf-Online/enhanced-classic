@@ -16,8 +16,8 @@
 // System Options hook points, native CCtrlComboBox and placement are based on
 // Kaentake's proven v83 implementation, with EverLeaf's 1280x720 mode added.
 //
-// Phase 2 adds Kaentake's missing behavior: when LiveResolution is enabled the
-// selected mode is applied immediately through the v83 Gr2D screen-mode path,
+// Phase 2 adds Kaentake's missing behavior: supported modes are applied
+// immediately through the v83 Gr2D screen-mode path,
 // then EverLeaf's own HD/UI correction set is recalculated for the new size.
 namespace DisplayResolution {
 namespace detail {
@@ -113,10 +113,6 @@ inline int ConfiguredWidth() {
 
 inline int ConfiguredHeight() {
     return GetPrivateProfileIntA("general", "height", Client::m_nGameHeight, ConfigPath());
-}
-
-inline bool LiveResolutionEnabled() {
-    return GetPrivateProfileIntA("general", "LiveResolution", 1, ConfigPath()) != 0;
 }
 
 inline void SaveResolutionConfig(int width, int height) {
@@ -239,17 +235,6 @@ inline void __fastcall ApplySysOptHook(void* self, void*, void* sysOpt, int appl
         selected.height == configuredHeight &&
         selected.width == Client::m_nGameWidth &&
         selected.height == Client::m_nGameHeight) {
-        return;
-    }
-
-    if (!LiveResolutionEnabled()) {
-        SaveResolutionConfig(selected.width, selected.height);
-        CrashDiagnostics::LogEvent("resolution preference saved for next launch");
-        MessageBoxW(
-            FindGameWindow(),
-            L"Resolution saved. It will be applied the next time EverLeaf starts.",
-            L"EverLeaf display settings",
-            MB_OK | MB_ICONINFORMATION);
         return;
     }
 
