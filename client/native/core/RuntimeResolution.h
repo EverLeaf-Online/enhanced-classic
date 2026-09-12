@@ -7,6 +7,7 @@
 #include "WidescreenCorrections.h"
 #include "FieldRenderCorrections.h"
 #include "RuntimeUiSync.h"
+#include "RuntimeHudAnchors.h"
 #include "AddyLocations.h"
 
 #include <windows.h>
@@ -262,6 +263,7 @@ inline void ApplyEverLeafRuntimeCorrections(int width, int height) {
     // same stock origin geometry used by a clean launch at this resolution and
     // resync the cursor vector before any more UI work occurs.
     RuntimeUiSync::ApplyCurrent();
+    RuntimeHudAnchors::ApplyCurrent();
 
     Memory::WriteInt(dwToolTipLimitVPos + 1, static_cast<unsigned int>(height - 1));
 

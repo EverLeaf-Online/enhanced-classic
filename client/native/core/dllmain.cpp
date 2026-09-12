@@ -7,6 +7,7 @@
 #include "FrameLimiter.h"
 #include "DisplayResolution.h"
 #include "DisplayMode.h"
+#include "RuntimeHudAnchors.h"
 #include "WidescreenCorrections.h"
 #include "FieldRenderCorrections.h"
 #include "FieldViewRange.h"
@@ -164,6 +165,9 @@ void MainFunc() {
     CrashDiagnostics::SetPhase("installing-resolution-settings");
     if (!DisplayResolution::Install()) CrashDiagnostics::LogEvent("in-game resolution selector unavailable; startup resolution remains active");
 
+    CrashDiagnostics::SetPhase("installing-runtime-hud-anchors");
+    if (!RuntimeHudAnchors::Install()) CrashDiagnostics::LogEvent("runtime HUD anchor routing unavailable; stock UI positioning remains active");
+
     if (Client::ModernLoginUI) {
         CrashDiagnostics::SetPhase("applying-login-ui");
         EverLeafLoginLayout::Apply();
@@ -228,6 +232,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         break;
     }
     case DLL_PROCESS_DETACH:
+        RuntimeHudAnchors::Shutdown();
         DisplayResolution::Shutdown();
         DiscordPresence::Stop();
         if (lpReserved == nullptr && gBootstrapComplete) {
