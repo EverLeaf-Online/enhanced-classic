@@ -126,10 +126,11 @@ function withExactId(rows,type,q){
   return [{...raw,variantIds:[Number(raw.id)],variantCount:1},...rows];
 }
 
-function list(type,{q="",itemCategory="all",page=1,limit=40}={}){
-  if(!data.TYPE_META[type])return {rows:[],total:0,page:1,pages:1,limit:40,itemCategory:'all',itemCategoryCounts:{},itemCategoryGroups:[]};
+function list(type,{q="",itemCategory="all",itemCash="all",page=1,limit=40}={}){
+  if(!data.TYPE_META[type])return {rows:[],total:0,page:1,pages:1,limit:40,itemCategory:'all',itemCash:'all',itemCategoryCounts:{},itemCashCounts:{all:0,noncash:0,cash:0},itemCategoryGroups:[]};
   const safeLimit=Math.max(10,Math.min(100,Number(limit)||40));
   const selectedItemCategory=type==='items'?itemTaxonomy.validCategory(itemCategory):'all';
+  const selectedItemCash=type==='items'?itemTaxonomy.validCashMode(itemCash):'all';
   let rows=loadType(type);
   if(String(q).trim()){
     rows=rows
@@ -139,9 +140,25 @@ function list(type,{q="",itemCategory="all",page=1,limit=40}={}){
       .map(row=>row.entity);
     rows=withExactId(rows,type,q);
   }
-  const itemCategoryCounts=type==='items'?itemTaxonomy.counts(rows):{};
-  if(type==='items'&&selectedItemCategory!=='all') rows=rows.filter(entity=>itemTaxonomy.matches(entity,selectedItemCategory));
-  if(type==='items') rows=rows.map(itemTaxonomy.decorate);
+
+  let itemCashCounts={all:0,noncash:0,cash:0};
+  let itemCategoryCounts={};
+  if(type==='items'){
+    const categoryRows=selectedItemCategory==='all'
+      ? rows
+      : rows.filter(entity=>itemTaxonomy.matches(entity,selectedItemCategory));
+    itemCashCounts=itemTaxonomy.cashCounts(categoryRows);
+
+    const cashScopedRows=selectedItemCash==='all'
+      ? rows
+      : rows.filter(entity=>itemTaxonomy.matchesCash(entity,selectedItemCash));
+    itemCategoryCounts=itemTaxonomy.counts(cashScopedRows);
+    rows=selectedItemCategory==='all'
+      ? cashScopedRows
+      : cashScopedRows.filter(entity=>itemTaxonomy.matches(entity,selectedItemCategory));
+    rows=rows.map(itemTaxonomy.decorate);
+  }
+
   const total=rows.length;
   const pages=Math.max(1,Math.ceil(total/safeLimit));
   const safePage=Math.max(1,Math.min(pages,Number(page)||1));
@@ -153,7 +170,9 @@ function list(type,{q="",itemCategory="all",page=1,limit=40}={}){
     pages,
     limit:safeLimit,
     itemCategory:selectedItemCategory,
+    itemCash:selectedItemCash,
     itemCategoryCounts,
+    itemCashCounts,
     itemCategoryGroups:type==='items'?itemTaxonomy.GROUPS:[]
   };
 }

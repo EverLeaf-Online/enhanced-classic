@@ -47,3 +47,18 @@ test('category counts expose both broad and detailed totals',()=>{
   assert.equal(counts['consumable-scroll'],1);
   assert.equal(counts['install-chair'],1);
 });
+
+
+test('cash filter mirrors the game server isCash rules',()=>{
+  const cashEquip=item(1000000,'Blue Beanie','Equipment');
+  const normalEquip=item(1302000,'Sword','Equipment');
+  const consume=item(2000000,'Red Potion','Consumable');
+  const pet=item(5000000,'Brown Kitty','Pet');
+  assert.equal(taxonomy.isCashItem(cashEquip),true);
+  assert.equal(taxonomy.isCashItem(normalEquip),false);
+  assert.equal(taxonomy.isCashItem(consume),false);
+  assert.equal(taxonomy.isCashItem(pet),true);
+  assert.equal(taxonomy.matchesCash(cashEquip,'cash'),true);
+  assert.equal(taxonomy.matchesCash(normalEquip,'noncash'),true);
+  assert.deepEqual(taxonomy.cashCounts([cashEquip,normalEquip,consume,pet]),{all:4,cash:2,noncash:2});
+});

@@ -12,7 +12,8 @@
     "create-admin": "node scripts/create-admin.js",
     "reset-player-password": "node scripts/reset-player-password.js",
     "build-patch-manifest": "node scripts/build-patch-manifest.js",
-    "import-maple-assets": "node scripts/import-maple-assets.js"
+    "import-maple-assets": "node scripts/import-maple-assets.js",
+    "build-wiki-cash-index": "node scripts/build-wiki-cash-index.js"
   },
   "engines": {
     "node": ">=20"

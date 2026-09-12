@@ -767,3 +767,60 @@ body.route-wiki .wikiItemSubTabs a.active span{color:#759f7b!important}
   body.route-wiki .wikiItemFamilyTabs a,
   body.route-wiki .wikiItemSubTabs a{flex:0 0 auto!important;white-space:nowrap!important}
 }
+
+
+/* Independent cash/non-cash selector for the item catalog. */
+body.route-wiki .wikiItemCashFilter{
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  margin-top:4px!important;
+}
+body.route-wiki .wikiItemCashLabel{
+  color:#657166!important;
+  font-size:8px!important;
+  font-weight:800!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+}
+body.route-wiki .wikiItemCashTabs{
+  display:flex!important;
+  align-items:center!important;
+  gap:1px!important;
+}
+body.route-wiki .wikiItemCashTabs a{
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:5px!important;
+  min-height:23px!important;
+  padding:4px 8px!important;
+  border:1px solid #293229!important;
+  border-radius:0!important;
+  background:#0b0f0b!important;
+  color:#748075!important;
+  font-size:8px!important;
+  font-weight:800!important;
+  letter-spacing:.04em!important;
+  text-transform:uppercase!important;
+  text-decoration:none!important;
+}
+body.route-wiki .wikiItemCashTabs a:hover{
+  background:#141a14!important;
+  color:#aab7aa!important;
+  border-color:#394639!important;
+}
+body.route-wiki .wikiItemCashTabs a.active{
+  background:#19221a!important;
+  color:#9bd2a3!important;
+  border-color:#45604a!important;
+}
+body.route-wiki .wikiItemCashTabs a span{
+  color:#5c685d!important;
+  font-size:8px!important;
+}
+body.route-wiki .wikiItemCashTabs a.active span{color:#789f7d!important}
+@media(max-width:620px){
+  body.route-wiki .wikiItemCashFilter{align-items:flex-start!important;flex-direction:column!important;gap:4px!important}
+  body.route-wiki .wikiItemCashTabs{max-width:100%!important;overflow-x:auto!important;padding-bottom:2px!important}
+  body.route-wiki .wikiItemCashTabs a{flex:0 0 auto!important;white-space:nowrap!important}
+}

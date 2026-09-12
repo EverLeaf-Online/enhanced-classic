@@ -1,3 +1,7 @@
+const cashEquipIndex = require("../generated/wiki-cash-equip-ids.json");
+const CASH_EQUIP_IDS = new Set((cashEquipIndex.cashEquipIds || []).map(Number));
+const CASH_MODES = new Set(["all", "noncash", "cash"]);
+
 const GROUPS = [
   {
     label: "Equipment",
@@ -103,6 +107,35 @@ function itemFamily(entity) {
   if (subtype === "Cash") return "cash";
   if (subtype === "Pet") return "pets";
   return "other";
+}
+
+function validCashMode(value) {
+  const mode = String(value || "all").toLowerCase();
+  return CASH_MODES.has(mode) ? mode : "all";
+}
+
+// Mirror server.ItemInformationProvider#isCash exactly: every type-5 item is
+// cash, and type-1 equipment is cash only when Character.wz info/cash=1.
+function isCashItem(entity) {
+  const id = Number(entity?.id);
+  if (!Number.isInteger(id) || id <= 0) return false;
+  const itemType = Math.floor(id / 1000000);
+  if (itemType === 5) return true;
+  if (itemType !== 1) return false;
+  return CASH_EQUIP_IDS.has(id);
+}
+
+function matchesCash(entity, mode = "all") {
+  const selected = validCashMode(mode);
+  if (selected === "all") return true;
+  const cash = isCashItem(entity);
+  return selected === "cash" ? cash : !cash;
+}
+
+function cashCounts(rows = []) {
+  let cash = 0;
+  for (const row of rows) if (isCashItem(row)) cash += 1;
+  return { all: rows.length, cash, noncash: rows.length - cash };
 }
 
 function leafCategory(entity) {
@@ -228,6 +261,10 @@ module.exports = {
   itemFamily,
   leafCategory,
   validCategory,
+  validCashMode,
+  isCashItem,
+  matchesCash,
+  cashCounts,
   matches,
   counts,
   decorate,

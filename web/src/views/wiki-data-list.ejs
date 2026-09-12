@@ -2,16 +2,32 @@
 <%
 const fmt=n=>Number(n||0).toLocaleString();
 const base=`/wiki/${type}`;
-const pageHref=p=>`${base}?${q?`q=${encodeURIComponent(q)}&`:''}${type==='items'&&result.itemCategory!=='all'?`itemCategory=${encodeURIComponent(result.itemCategory)}&`:''}${p>1?`page=${p}`:''}`.replace(/[?&]$/,'');
+const selectedItemCategory=type==='items'?(result.itemCategory||'all'):'all';
+const selectedItemCash=type==='items'?(result.itemCash||'all'):'all';
+const pageHref=p=>{
+  const parts=[];
+  if(q)parts.push(`q=${encodeURIComponent(q)}`);
+  if(type==='items'&&selectedItemCategory!=='all')parts.push(`itemCategory=${encodeURIComponent(selectedItemCategory)}`);
+  if(type==='items'&&selectedItemCash!=='all')parts.push(`itemCash=${encodeURIComponent(selectedItemCash)}`);
+  if(p>1)parts.push(`page=${p}`);
+  return parts.length?`${base}?${parts.join('&')}`:base;
+};
 const mapleAsset=(entityType,id)=>Number(id||0)>0?`/wiki/art/${encodeURIComponent(entityType)}/${Number(id)}`:'';
 const typeFallback={items:'IT',monsters:'MB',maps:'MP',skills:'SK',npcs:'NP',quests:'QU'};
-const selectedItemCategory=type==='items'?(result.itemCategory||'all'):'all';
 const itemParent=selectedItemCategory==='all'?'all':selectedItemCategory==='pets'?'pets':selectedItemCategory.startsWith('equipment')?'equipment':selectedItemCategory.startsWith('consumable')?'consumables':selectedItemCategory.startsWith('install')?'install':selectedItemCategory.startsWith('etc')?'etc':selectedItemCategory.startsWith('cash')?'cash':'all';
 const itemParentFilters=[['all','All Items'],['equipment','Equipment'],['consumables','Consumables'],['install','Chairs / Install'],['etc','ETC'],['cash','Cash'],['pets','Pets']];
 const itemHref=(category,includeQuery=true)=>{
   const parts=[];
   if(includeQuery&&q)parts.push(`q=${encodeURIComponent(q)}`);
   if(category&&category!=='all')parts.push(`itemCategory=${encodeURIComponent(category)}`);
+  if(selectedItemCash!=='all')parts.push(`itemCash=${encodeURIComponent(selectedItemCash)}`);
+  return parts.length?`${base}?${parts.join('&')}`:base;
+};
+const itemCashHref=mode=>{
+  const parts=[];
+  if(q)parts.push(`q=${encodeURIComponent(q)}`);
+  if(selectedItemCategory!=='all')parts.push(`itemCategory=${encodeURIComponent(selectedItemCategory)}`);
+  if(mode&&mode!=='all')parts.push(`itemCash=${encodeURIComponent(mode)}`);
   return parts.length?`${base}?${parts.join('&')}`:base;
 };
 const itemChildMatches=(key,parent)=>parent==='equipment'?key.startsWith('equipment-'):parent==='consumables'?key.startsWith('consumable-'):parent==='install'?key.startsWith('install-'):parent==='etc'?key.startsWith('etc-'):parent==='cash'?key.startsWith('cash-'):false;
@@ -21,9 +37,10 @@ const itemSubfilters=type==='items'&&itemParent!=='all'&&itemParent!=='pets'?res
 <section class="wikiListHero">
   <div class="wrap">
     <div class="wikiBreadcrumb"><a href="/wiki">Wiki</a><span>›</span><strong><%=meta.label%></strong></div>
-    <div class="wikiListHeroGrid"><div><div class="pageEyebrow">EVERLEAF <%=meta.singular.toUpperCase()%> DATABASE</div><h1><%=meta.label%></h1><p><%=meta.description%></p></div><div class="wikiListCount"><strong><%=fmt(result.total)%></strong><span><%=q||result.itemCategory!=='all'?'matching records':'player-useful records'%></span><small>Cleaned live catalog</small></div></div>
+    <div class="wikiListHeroGrid"><div><div class="pageEyebrow">EVERLEAF <%=meta.singular.toUpperCase()%> DATABASE</div><h1><%=meta.label%></h1><p><%=meta.description%></p></div><div class="wikiListCount"><strong><%=fmt(result.total)%></strong><span><%=q||result.itemCategory!=='all'||selectedItemCash!=='all'?'matching records':'player-useful records'%></span><small>Cleaned live catalog</small></div></div>
     <form class="wikiDataSearch wikiListSearch" action="<%=base%>" method="get">
       <% if(type==='items'&&selectedItemCategory!=='all'){ %><input type="hidden" name="itemCategory" value="<%=selectedItemCategory%>"><% } %>
+      <% if(type==='items'&&selectedItemCash!=='all'){ %><input type="hidden" name="itemCash" value="<%=selectedItemCash%>"><% } %>
       <input type="search" name="q" value="<%=q%>" placeholder="Search <%=meta.label.toLowerCase()%> by name or ID…" aria-label="Search <%=meta.label%>">
       <button class="btn primary" type="submit">SEARCH</button>
       <% if(q){ %><a class="btn" href="<%=itemHref(selectedItemCategory,false)%>">CLEAR SEARCH</a><% } %>
@@ -33,6 +50,12 @@ const itemSubfilters=type==='items'&&itemParent!=='all'&&itemParent!=='pets'?res
       <nav class="wikiItemFamilyTabs" aria-label="Item categories">
         <% itemParentFilters.forEach(([key,label])=>{ %><a class="<%=itemParent===key?'active':''%>" href="<%=itemHref(key)%>"><%=label%><span><%=fmt(result.itemCategoryCounts[key])%></span></a><% }) %>
       </nav>
+      <div class="wikiItemCashFilter" aria-label="Cash item filter">
+        <span class="wikiItemCashLabel">Cash status</span>
+        <nav class="wikiItemCashTabs">
+          <% [['all','All'],['noncash','Non-cash'],['cash','Cash']].forEach(([key,label])=>{ %><a class="<%=selectedItemCash===key?'active':''%>" href="<%=itemCashHref(key)%>"><%=label%><span><%=fmt(result.itemCashCounts[key])%></span></a><% }) %>
+        </nav>
+      </div>
       <% if(itemSubfilters.length){ %>
         <nav class="wikiItemSubTabs" aria-label="<%=itemParent%> item subcategories">
           <% itemSubfilters.forEach(([key,label])=>{ %><a class="<%=selectedItemCategory===key?'active':''%>" href="<%=itemHref(key)%>"><%=label%><span><%=fmt(result.itemCategoryCounts[key])%></span></a><% }) %>
