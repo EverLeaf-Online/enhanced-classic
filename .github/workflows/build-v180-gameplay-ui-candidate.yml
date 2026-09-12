@@ -17,6 +17,7 @@ permissions:
 env:
   EVERLEAF_DEPLOY_HOST: 132.145.141.79
   TARGET_ROOT: /opt/everleaf/patches/files
+  SAFE_BASE_UI: /opt/everleaf/patches/backups/v180-gameplay-ui-20260912T1927Z/UI.wz
   DONOR_ROOT: /opt/everleaf/donors/GMS-v180/GMS-v180/MapleStory
   STAGE_ROOT: /opt/everleaf/donors/v180-backport/gameplay-ui-candidate
   LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
@@ -75,7 +76,7 @@ jobs:
           $ErrorActionPreference='Stop'
           $root=Join-Path $env:RUNNER_TEMP 'v180-gameplay-ui'; $target=Join-Path $root 'target'; $donor=Join-Path $root 'donor'; $out=Join-Path $root 'out'
           New-Item -ItemType Directory -Force -Path $target,$donor,$out | Out-Null
-          scp "everleaf-oracle`:$env:TARGET_ROOT/UI.wz" (Join-Path $target 'UI.wz'); if($LASTEXITCODE){throw 'target UI fetch failed'}
+          scp "everleaf-oracle`:$env:SAFE_BASE_UI" (Join-Path $target 'UI.wz'); if($LASTEXITCODE){throw 'safe baseline UI fetch failed'}
           scp "everleaf-oracle`:$env:DONOR_ROOT/UI.wz" (Join-Path $donor 'UI.wz'); if($LASTEXITCODE){throw 'donor UI fetch failed'}
           scp "everleaf-oracle`:$env:DONOR_ROOT/ZLZ.dll" (Join-Path $donor 'ZLZ.dll'); if($LASTEXITCODE){throw 'ZLZ fetch failed'}
           $images = Get-Content tools/wz-donor/v180-gameplay-ui-overlay.spec | ForEach-Object {
@@ -83,12 +84,12 @@ jobs:
             ($line.Split(':',2)[1].Split('/')[0])
           } | Sort-Object -Unique
           $images | Set-Content -Encoding ascii (Join-Path $root 'paths.txt')
-          if($images.Count -ne 9){throw "expected 9 shared UI images, got $($images.Count)"}
+          if($images.Count -ne 7){throw "expected 7 shared UI images, got $($images.Count)"}
           $project=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafV180StaticPatcher/EverLeafV180StaticPatcher.csproj'
           dotnet run --project $project -c Release --no-build -- (Join-Path $target 'UI.wz') (Join-Path $donor 'UI.wz') (Join-Path $root 'paths.txt') (Join-Path $out 'UI-modern-source.wz') (Join-Path $out 'UI-modern-source.manifest.json') --empty-target-root
           if($LASTEXITCODE){throw 'shared UI conversion failed'}
           $m=Get-Content -Raw (Join-Path $out 'UI-modern-source.manifest.json') | ConvertFrom-Json
-          if($m.requestedCount -ne 9 -or $m.stagedCount -ne 9 -or $m.verifiedCount -ne 9){throw 'shared UI conversion coverage mismatch'}
+          if($m.requestedCount -ne 7 -or $m.stagedCount -ne 7 -or $m.verifiedCount -ne 7){throw 'shared UI conversion coverage mismatch'}
           if($m.unresolvedModernCanvasLinkCount -ne 0){throw 'shared UI source has unresolved modern canvas links'}
           if(-not $m.validation.outputReparsed -or -not $m.validation.donorImageDigestsMatch){throw 'shared UI source verification failed'}
 
@@ -147,7 +148,7 @@ jobs:
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/gameplay-ui-overlay"; mkdir -p "$root"
-          scp "everleaf-oracle:$TARGET_ROOT/UI.wz" "$root/base.wz"
+          scp "everleaf-oracle:$SAFE_BASE_UI" "$root/base.wz"
           scp "everleaf-oracle:$STAGE_ROOT/source/UI.wz" "$root/donor.wz"
           "$RUNNER_TEMP/wz-path-build/everleaf-wz-path-patcher" "$root/base.wz" 83 "$root/donor.wz" 83 tools/wz-donor/v180-gameplay-ui-overlay.spec "$root/UI.wz"
           test -s "$root/UI.wz"
@@ -171,8 +172,8 @@ jobs:
             "overlayEntryCount":int(entries),
             "tradeButtonArtworkPreserved":True,
             "tradeButtonRuntimeBehavior":"EverLeaf TRADE-to-Free-Market warp unchanged",
-            "scope":["status-bar","quickslots","guild","minimap","tooltips","buff-icons","omok/match-card-ui","inventory/equip/stat/skill","channel/quest/user windows","selected cash-shop visuals","chat-balloon","name-tag"],
-            "excluded":["FM label artwork","Auction House","Arcane Force","V Matrix","Familiar","Urus","Meso Market","login/world/character-select"]
+            "scope":["minimap","tooltips","buff-icons","omok/match-card-ui","inventory/equip/stat/skill","channel/quest/user windows","shared-controls","guild-bbs/marks","chat-balloon","name-tag"],
+            "excluded":["StatusBar2/StatusBar3 pending native layout adapter","FM label artwork","UserList/Guild tabs","KeyConfig regional labels","CashShop regional labels","Auction House","Arcane Force","V Matrix","Familiar","Urus","Meso Market","login/world/character-select"]
           }
           open(path,'w',encoding='utf-8').write(json.dumps(doc,indent=2)+'\n')
           PY

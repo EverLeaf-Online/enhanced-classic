@@ -1,6 +1,7 @@
 # EverLeaf v180 gameplay UI visual overlay.
-# Uses only existing v83 runtime paths/features. TRADE/FM (StatusBar/BtNPT) is intentionally preserved for later.
-# Donor images are first converted to v83/GMS format with modern canvas links materialized.
+# Only overlays v180 assets that map cleanly onto existing v83 runtime behavior.
+# StatusBar2/3 require native-client layout work and are intentionally excluded here.
+# TRADE/FM artwork is intentionally preserved until the final HUD direction is chosen.
 
 image:BuffIcon.img
 image:GuildBBS.img
@@ -8,25 +9,7 @@ image:GuildMark.img
 image:ChatBalloon.img
 image:NameTag.img
 
-# Modernize the status bar while preserving the current TRADE button artwork until FM visual direction is approved.
-property:StatusBar.img/base
-property:StatusBar.img/gauge
-property:StatusBar.img/BtShop
-property:StatusBar.img/BtMenu
-property:StatusBar.img/BtShort
-property:StatusBar.img/BtWhisper
-property:StatusBar.img/BtClaim
-property:StatusBar.img/EquipKey
-property:StatusBar.img/InvenKey
-property:StatusBar.img/StatKey
-property:StatusBar.img/SkillKey
-property:StatusBar.img/KeySet
-property:StatusBar.img/QuickSlot
-property:StatusBar.img/QuickSlotD
-property:StatusBar.img/key
-property:StatusBar.img/number
-property:StatusBar.img/FontMemo
-
+# Language-neutral shared controls.
 property:Basic.img/Cursor
 property:Basic.img/CheckBox
 property:Basic.img/HScr
@@ -101,12 +84,13 @@ property:Basic.img/ShowLevel
 property:Basic.img/Notice5
 property:Basic.img/ComboBox5
 
-# Existing v83 windows whose complete path trees are present in v180.
-property:UIWindow.img/UserList
+# Existing v83 windows with compatible path trees.
+# UserList is excluded because v180 inserted/reordered social tabs, which shifts
+# Guild/GuildAlliance content on the v83 client. KeyConfig is excluded because
+# the donor has baked Korean labels. CashShop is excluded for the same reason.
 property:UIWindow.img/MiniMap
 property:UIWindow.img/ToolTip
 property:UIWindow.img/Minigame
-property:UIWindow.img/KeyConfig
 property:UIWindow.img/ShortCut
 property:UIWindow.img/Skill
 property:UIWindow.img/Stat
@@ -120,18 +104,3 @@ property:UIWindow.img/UserInfo
 property:UIWindow.img/Messenger
 property:UIWindow.img/Trunk
 property:UIWindow.img/WorldMap
-
-# Selective Cash Shop/preview areas with 100% v83 path coverage in v180.
-property:CashShop.img/CSChar
-property:CashShop.img/CSTab
-property:CashShop.img/CashItem
-property:CashShop.img/PrepaidCashItem
-property:CashShop.img/NewItem
-property:CashShop.img/GuideWords
-property:CashShop.img/CSIcon
-property:CashShop.img/CSDiscount
-property:CashShop.img/CSChangeName
-property:CashShop.img/CSTransferWorld
-property:CashShop.img/CSWebMsg
-property:CashShop.img/CSGift
-property:CashShop.img/CS3thEvent
