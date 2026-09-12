@@ -1,3 +1,6 @@
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -72,7 +75,7 @@ static IEnumerable<ImageLocation> EnumerateImages(WzDirectory root, string[] pre
     foreach (var sub in root.WzDirectories)
     {
         var next = prefix.Concat(new[] { sub.Name }).ToArray();
-        foreach (var row in EnumerateImages(sub, next)) yield return row;
+        foreach (var image in EnumerateImages(sub, next)) yield return image;
     }
 }
 
@@ -136,6 +139,51 @@ static string ImageDigest(WzImage img)
     return Convert.ToHexString(h.GetHashAndReset()).ToLowerInvariant();
 }
 
+static string ImageSemanticDigest(WzImage img)
+{
+    using var h = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+    HashText(h, img.Name);
+    void HashCanvas(WzCanvasProperty canvas)
+    {
+        var png = canvas.PngProperty;
+        HashText(h, png.Width.ToString());
+        HashText(h, png.Height.ToString());
+        HashText(h, png.Format.ToString());
+        using var bmp = png.GetImage(false);
+        var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+        var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            var len = Math.Abs(data.Stride) * data.Height;
+            var bytes = new byte[len];
+            Marshal.Copy(data.Scan0, bytes, 0, len);
+            h.AppendData(bytes);
+        }
+        finally
+        {
+            bmp.UnlockBits(data);
+        }
+    }
+    void Walk(IEnumerable<WzImageProperty> ps)
+    {
+        foreach (var p in ps)
+        {
+            HashText(h, p.Name);
+            HashText(h, p.PropertyType.ToString());
+            if (p is WzCanvasProperty canvas)
+                HashCanvas(canvas);
+            else if (p.WzProperties == null)
+            {
+                try { HashText(h, p.GetString()); }
+                catch { HashText(h, p.WzValue?.ToString()); }
+            }
+            if (p.WzProperties != null) Walk(p.WzProperties);
+        }
+    }
+    Walk(img.WzProperties);
+    return Convert.ToHexString(h.GetHashAndReset()).ToLowerInvariant();
+}
+
 static int SanitizeForWrite(WzImage image)
 {
     var repaired = 0;
@@ -183,7 +231,9 @@ if (Sha(targetPath) != targetHashBefore)
     throw new InvalidOperationException("Source target WZ changed while staging.");
 
 var verified = 0;
+var semanticFallbackCount = 0;
 using (var output = OpenTarget(outputPath))
+using (var donor = OpenDonor(donorPath))
 {
     foreach (var row in staged)
     {
@@ -191,7 +241,15 @@ using (var output = OpenTarget(outputPath))
             ?? throw new InvalidDataException($"Saved output lost: requested={row.RequestedPath}, resolved={row.ResolvedPath}");
         var outputDigest = ImageDigest(image.Image);
         if (!string.Equals(outputDigest, row.DonorDigest, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException($"Donor/output image digest mismatch: requested={row.RequestedPath}, resolved={row.ResolvedPath}");
+        {
+            var donorImage = FindImageExact(donor.WzDirectory, row.ResolvedPath)
+                ?? throw new InvalidDataException($"Donor image disappeared during semantic verification: {row.ResolvedPath}");
+            var donorSemantic = ImageSemanticDigest(donorImage.Value.Image);
+            var outputSemantic = ImageSemanticDigest(image.Image);
+            if (!string.Equals(donorSemantic, outputSemantic, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException($"Donor/output semantic image digest mismatch: requested={row.RequestedPath}, resolved={row.ResolvedPath}");
+            semanticFallbackCount++;
+        }
         verified++;
     }
 }
@@ -199,7 +257,7 @@ using (var output = OpenTarget(outputPath))
 var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 5,
+    schemaVersion = 6,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -209,16 +267,17 @@ var manifest = new
     stagedCount = staged.Count,
     verifiedCount = verified,
     basenameFallbackCount = fallbackCount,
+    semanticCanvasVerificationFallbackCount = semanticFallbackCount,
     sanitizedNullStringOrUolCount = sanitizedScalarCount,
     targetCryptoContextInheritedForCreatedDirectories = true,
     source = new { path = targetPath, sha256 = targetHashBefore, version = targetVersion, size = new FileInfo(targetPath).Length },
     donor = new { path = donorPath, sha256 = donorHash, version = donorVersion, size = new FileInfo(donorPath).Length },
     output = new { path = outputPath, sha256 = Sha(outputPath), size = new FileInfo(outputPath).Length },
-    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, nonEmptyCandidate = true },
+    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, nonEmptyCandidate = true },
     images = staged.Select(x => new { requestedPath = x.RequestedPath, resolvedPath = x.ResolvedPath }).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
-Console.WriteLine($"STAGED {Path.GetFileName(targetPath)}: {verified:N0}/{requested.Length:N0} donor-only images verified; fallback={fallbackCount:N0}; sanitized={sanitizedScalarCount:N0}");
+Console.WriteLine($"STAGED {Path.GetFileName(targetPath)}: {verified:N0}/{requested.Length:N0} donor-only images verified; fallback={fallbackCount:N0}; semantic-canvas-fallback={semanticFallbackCount:N0}; sanitized={sanitizedScalarCount:N0}");
 Console.WriteLine($"OUTPUT {outputPath}");
 Console.WriteLine("approved=false / productionApplyAllowed=false");
 return 0;
