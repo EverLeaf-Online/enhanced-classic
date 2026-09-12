@@ -90,13 +90,20 @@ static ImageLocation ResolveDonorImage(WzDirectory root, string requestedPath)
     throw new InvalidDataException($"Donor path ambiguous after basename fallback: {requestedPath}; matches={string.Join(',', hits.Select(h => h.FullPath))}");
 }
 
-static WzDirectory EnsureDirs(WzDirectory root, IEnumerable<string> dirs)
+static WzDirectory EnsureDirs(WzFile targetFile, WzDirectory root, IEnumerable<string> dirs)
 {
     var d = root;
     foreach (var name in dirs)
     {
         var next = d.GetDirectoryByName(name);
-        if (next == null) { next = new WzDirectory(name); d.AddDirectory(next); }
+        if (next == null)
+        {
+            // New directories must inherit the target WZ IV/version/hash context.
+            // A bare new WzDirectory(name) leaves WzIv null and crashes the writer
+            // as soon as a newly-created Character/Map/etc. subtree is serialized.
+            next = new WzDirectory(name, targetFile);
+            d.AddDirectory(next);
+        }
         d = next;
     }
     return d;
@@ -168,7 +175,7 @@ using (var donor = OpenDonor(donorPath))
         var donorDigest = ImageDigest(source.Image);
         var clone = source.Image.DeepClone();
         sanitizedScalarCount += SanitizeForWrite(clone);
-        EnsureDirs(target.WzDirectory, source.Dirs).AddImage(clone);
+        EnsureDirs(target, target.WzDirectory, source.Dirs).AddImage(clone);
         staged.Add(new StagedImage(requestedPath, actualPath, donorDigest));
     }
     if (staged.Count == 0) throw new InvalidOperationException("Refusing empty static candidate.");
@@ -195,7 +202,7 @@ using (var output = OpenTarget(outputPath))
 var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 4,
+    schemaVersion = 5,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -209,7 +216,7 @@ var manifest = new
     source = new { path = targetPath, sha256 = targetHashBefore, version = targetVersion, size = new FileInfo(targetPath).Length },
     donor = new { path = donorPath, sha256 = donorHash, version = donorVersion, size = new FileInfo(donorPath).Length },
     output = new { path = outputPath, sha256 = Sha(outputPath), size = new FileInfo(outputPath).Length },
-    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, nonEmptyCandidate = true },
+    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, nonEmptyCandidate = true, newDirectoriesInheritTargetCryptoContext = true },
     images = staged.Select(x => new { requestedPath = x.RequestedPath, resolvedPath = x.ResolvedPath }).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
