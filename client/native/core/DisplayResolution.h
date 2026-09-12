@@ -26,9 +26,9 @@ constexpr DWORD kSysOptOnCreateAddress = 0x00994163;
 constexpr DWORD kSysOptDestructorAddress = 0x007FF4AA;
 constexpr DWORD kSysOptButtonYOperand = 0x009945BD;
 constexpr int kSysOptButtonY = 372;
-constexpr int kResolutionComboX = 58;
+constexpr int kResolutionComboX = 76;
 constexpr int kResolutionComboY = 338;
-constexpr int kResolutionComboWidth = 196;
+constexpr int kResolutionComboWidth = 166;
 constexpr int kResolutionComboHeight = 18;
 
 // GMS v83 native CCtrlComboBox contracts used by Kaentake.
@@ -49,12 +49,12 @@ struct ResolutionEntry {
 };
 
 static const ResolutionEntry kResolutions[] = {
-    { 800, 600, "Resolution: 800 x 600" },
-    { 1024, 768, "Resolution: 1024 x 768" },
-    { 1280, 720, "Resolution: 1280 x 720" },
-    { 1366, 768, "Resolution: 1366 x 768" },
-    { 1600, 900, "Resolution: 1600 x 900" },
-    { 1920, 1080, "Resolution: 1920 x 1080" },
+    { 800, 600, "800 x 600" },
+    { 1024, 768, "1024 x 768" },
+    { 1280, 720, "1280 x 720" },
+    { 1366, 768, "1366 x 768" },
+    { 1600, 900, "1600 x 900" },
+    { 1920, 1080, "1920 x 1080" },
 };
 constexpr int kResolutionCount = sizeof(kResolutions) / sizeof(kResolutions[0]);
 constexpr int kEverLeafDefaultResolutionIndex = 2;
@@ -178,8 +178,8 @@ inline bool CreateNativeSelector(void* sysOpt) {
         }
 
         auto createCtrl = reinterpret_cast<ComboCreateFn>(vtable[kComboCreateVtableIndex]);
-        // EverLeaf keeps Kaentake's v83 row but makes the selector self-labeling
-        // because our current System Options artwork has no dedicated Resolution text.
+        // The WZ-backed System Options artwork supplies the Resolution row label;
+        // keep Kaentake's native v83 combo placement and plain value text.
         createCtrl(
             combo,
             sysOpt,
