@@ -74,7 +74,9 @@ jobs:
             'kUIWindowCount = 34',
             'kContextMenuCreateCallSite = 0x009966E3',
             'kCreateUtilDlgExAddress = 0x009A3E38',
+            'kQuestDialogRectAddress = 0x00BE2DF0',
             'ClampConfigObject',
+            'CenterQuestDialogAnchor(width, height)',
             'InstallContextMenuBounds()',
             'InstallUtilityDialogBounds()'
           )) {
