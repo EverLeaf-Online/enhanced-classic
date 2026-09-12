@@ -37,11 +37,16 @@ jobs:
           cmake --build $build --config Release --target everleaf-responsive-login-wz --parallel 2
           $exe = Join-Path $build 'Release/everleaf-responsive-login-wz.exe'
           if (-not (Test-Path $exe)) { throw "responsive login patcher output missing" }
-          Copy-Item $exe "$env:RUNNER_TEMP/everleaf-responsive-login-wz.exe"
+          $package = "$env:RUNNER_TEMP/responsive-login-package"
+          New-Item -ItemType Directory -Force $package | Out-Null
+          Copy-Item $exe (Join-Path $package 'everleaf-responsive-login-wz.exe')
+          Copy-Item 'client/tools/login-wz-patcher/Make-Responsive-Login.ps1' $package
+          Copy-Item 'client/tools/login-wz-patcher/Apply-Responsive-Login.bat' $package
+          Copy-Item 'client/tools/login-wz-patcher/Restore-Responsive-Login.bat' $package
 
       - uses: actions/upload-artifact@v4
         with:
           name: everleaf-responsive-login-wz-patcher
-          path: ${{ runner.temp }}/everleaf-responsive-login-wz.exe
+          path: ${{ runner.temp }}/responsive-login-package/*
           if-no-files-found: error
           retention-days: 7
