@@ -1,0 +1,174 @@
+name: Validate GMS v180 candidates with HaRepacker
+
+on:
+  push:
+    branches: [donor/v180-low-friction-stage-20260911]
+    paths:
+      - '.github/workflows/validate-v180-with-harepacker.yml'
+      - 'tools/wz-donor/v180-harepacker-validator/Program.cs'
+  workflow_dispatch:
+
+concurrency:
+  group: everleaf-v180-harepacker-validation
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  ITEM_STAGE_ROOT: /opt/everleaf/donors/v180-backport/item-candidate
+  VALIDATION_ROOT: /opt/everleaf/donors/v180-backport/harepacker-validation/item
+  HAREPACKER_COMMIT: 4d7fcecbdff0767e333a34d47cbf331caa16416a
+
+jobs:
+  validate-item-candidate:
+    runs-on: windows-2025
+    timeout-minutes: 300
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 30
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Verify staged item inputs and prepare isolated validation output
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $script=@'
+          set -euo pipefail
+          ROOT="__ITEM__"
+          OUT="__OUT__"
+          test -s "$ROOT/Item.wz"
+          test -s "$ROOT/String.wz"
+          test -s "$ROOT/ITEM_MANIFEST.json"
+          grep -q '"mergedCount": 19583' "$ROOT/ITEM_MANIFEST.json"
+          grep -q '"productionApplyAllowed": false' "$ROOT/ITEM_MANIFEST.json"
+          sudo rm -rf "$OUT"
+          sudo mkdir -p "$OUT"
+          sudo chown -R ubuntu:ubuntu "$OUT"
+          '@
+          $script=$script.Replace('__ITEM__',$env:ITEM_STAGE_ROOT).Replace('__OUT__',$env:VALIDATION_ROOT)
+          $tmp=Join-Path $env:RUNNER_TEMP 'prepare-harepacker-validation.sh'
+          [IO.File]::WriteAllText($tmp,($script -replace "`r",''))
+          scp $tmp 'everleaf-oracle:/tmp/prepare-harepacker-validation.sh'; if($LASTEXITCODE){throw 'prepare script upload failed'}
+          ssh everleaf-oracle 'bash /tmp/prepare-harepacker-validation.sh'; if($LASTEXITCODE){throw 'item candidate preflight failed'}
+
+      - name: Clone pinned HaRepacker-resurrected and MapleLib
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $hp=Join-Path $env:RUNNER_TEMP 'Harepacker-resurrected'
+          git clone --filter=blob:none --no-checkout https://github.com/lastbattle/Harepacker-resurrected.git $hp
+          git -C $hp checkout $env:HAREPACKER_COMMIT
+          git -C $hp submodule update --init --depth 1 MapleLib
+          $actual=(git -C $hp rev-parse HEAD).Trim()
+          if($actual -ne $env:HAREPACKER_COMMIT){throw "HaRepacker pin mismatch: $actual"}
+
+      - name: Build HaRepacker private-server validator
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $hp=Join-Path $env:RUNNER_TEMP 'Harepacker-resurrected'
+          $tool=Join-Path $hp 'EverLeafV180Validator'; New-Item -ItemType Directory -Force -Path $tool | Out-Null
+          Copy-Item tools/wz-donor/v180-harepacker-validator/Program.cs (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net10.0-windows</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <EnableWindowsTargeting>true</EnableWindowsTargeting>
+            </PropertyGroup>
+            <ItemGroup><ProjectReference Include="..\MapleLib\MapleLib\MapleLib.csproj" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafV180Validator.csproj')
+          dotnet build (Join-Path $tool 'EverLeafV180Validator.csproj') -c Release
+
+      - name: Fetch staged Item and String candidates
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'harepacker-item-validation'
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          foreach($f in @('Item.wz','String.wz')){
+            scp "everleaf-oracle`:$env:ITEM_STAGE_ROOT/$f" (Join-Path $root $f)
+            if($LASTEXITCODE){throw "candidate fetch failed: $f"}
+          }
+
+      - name: Reparse and export HaRepacker private-server XML
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'harepacker-item-validation'
+          $project=Join-Path $env:RUNNER_TEMP 'Harepacker-resurrected/EverLeafV180Validator/EverLeafV180Validator.csproj'
+          foreach($family in @('Item','String')){
+            $xml=Join-Path $root "$family-private-server-xml"
+            $manifest=Join-Path $root "$family.harepacker-validation.json"
+            dotnet run --project $project -c Release --no-build -- (Join-Path $root "$family.wz") $xml $manifest
+            if($LASTEXITCODE){throw "HaRepacker validation failed: $family.wz"}
+          }
+
+      - name: Package and upload independent validation evidence
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'harepacker-item-validation'
+          foreach($family in @('Item','String')){
+            $xmlDir=Join-Path $root "$family-private-server-xml"
+            $archive=Join-Path $root "$family-private-server-xml.tar.gz"
+            tar -czf $archive -C $xmlDir .
+            if($LASTEXITCODE){throw "XML archive failed: $family"}
+            scp (Join-Path $root "$family.harepacker-validation.json") "everleaf-oracle`:$env:VALIDATION_ROOT/$family.harepacker-validation.json"
+            if($LASTEXITCODE){throw "manifest upload failed: $family"}
+            scp $archive "everleaf-oracle`:$env:VALIDATION_ROOT/$family-private-server-xml.tar.gz"
+            if($LASTEXITCODE){throw "XML archive upload failed: $family"}
+          }
+          $verify=@'
+          set -euo pipefail
+          ROOT="__ROOT__"
+          for f in Item String; do
+            test -s "$ROOT/$f.harepacker-validation.json"
+            test -s "$ROOT/$f-private-server-xml.tar.gz"
+            grep -q '"wzParseStatus": "Success"' "$ROOT/$f.harepacker-validation.json"
+            grep -q '"allImagesParsed": true' "$ROOT/$f.harepacker-validation.json"
+            grep -q '"allXmlWellFormed": true' "$ROOT/$f.harepacker-validation.json"
+            grep -q '"imageAndXmlCountsMatch": true' "$ROOT/$f.harepacker-validation.json"
+          done
+          sha256sum "$ROOT"/*.tar.gz > "$ROOT/SHA256SUMS"
+          printf 'Independent HaRepacker-resurrected validation of staged EverLeaf v180 Item/String candidates. Uses pinned HaRepacker commit 4d7fcecbdff0767e333a34d47cbf331caa16416a and its MapleLib submodule; reparses every image and emits Private Server XML. STAGING ONLY.\n' > "$ROOT/README.txt"
+          echo HAREPACKER_ITEM_VALIDATION_OK
+          du -sh "$ROOT"
+          '@
+          $verify=$verify.Replace('__ROOT__',$env:VALIDATION_ROOT)
+          $tmp=Join-Path $env:RUNNER_TEMP 'verify-harepacker-validation.sh'
+          [IO.File]::WriteAllText($tmp,($verify -replace "`r",''))
+          scp $tmp 'everleaf-oracle:/tmp/verify-harepacker-validation.sh'; if($LASTEXITCODE){throw 'verification script upload failed'}
+          ssh everleaf-oracle 'bash /tmp/verify-harepacker-validation.sh'; if($LASTEXITCODE){throw 'final HaRepacker validation evidence check failed'}
