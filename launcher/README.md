@@ -47,3 +47,5 @@ bootstrap files already present on the production patch server.
 Existing legacy folders may contain `MapleStory.exe`. On their first successful
 repair, the launcher verifies the production client as `EverLeaf.exe` and removes
 only that legacy executable.
+
+Stable runtime note: the launcher manifest is expected to contain exactly 38 managed files.
