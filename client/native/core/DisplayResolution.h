@@ -4,6 +4,7 @@
 #include "Memory.h"
 #include "CrashDiagnostics.h"
 #include "RuntimeResolution.h"
+#include "ResolutionUIBounds.h"
 
 #include <windows.h>
 #include <cstdio>
@@ -247,6 +248,7 @@ inline void __fastcall ApplySysOptHook(void* self, void*, void* sysOpt, int appl
         return;
     }
 
+    ResolutionUIBounds::SetActiveResolution(selected.width, selected.height);
     SaveResolutionConfig(selected.width, selected.height);
     CrashDiagnostics::LogEvent("live resolution applied and persisted");
 }
@@ -286,6 +288,12 @@ inline bool Install() {
             true,
             reinterpret_cast<void**>(&detail::gSysOptDestructor),
             reinterpret_cast<void*>(detail::SysOptDestructorHook))) return false;
+
+    if (!ResolutionUIBounds::Install(Client::m_nGameWidth, Client::m_nGameHeight)) {
+        // Keep the resolution selector usable even if the optional saved-position
+        // hardening cannot attach; the failure is already recorded in diagnostics.
+        CrashDiagnostics::LogEvent("saved UI bounds unavailable; resolution selector kept enabled");
+    }
 
     detail::gInstalled = true;
     CrashDiagnostics::LogEvent("Maple-native in-game resolution selector hooks installed");
