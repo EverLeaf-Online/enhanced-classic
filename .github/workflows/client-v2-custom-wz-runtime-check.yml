@@ -63,5 +63,6 @@ jobs:
 
           & pwsh -NoProfile -File $checker -ClientDirectory $invalid -Expected present
           if ($LASTEXITCODE -eq 0) { throw 'Runtime checker accepted an incomplete custom-WZ initialization log' }
+          $global:LASTEXITCODE = 0
 
           Write-Host 'Custom WZ runtime checker synthetic cases passed'
