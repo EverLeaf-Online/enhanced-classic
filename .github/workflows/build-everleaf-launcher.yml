@@ -2,7 +2,7 @@ name: Build EverLeaf launcher
 
 on:
   push:
-    branches: [master, client/kaentake-integration]
+    branches: [master]
     paths:
       - "launcher/**"
       - "client/branding/everleaf-app-icon.ico.gz.b64.part*"
