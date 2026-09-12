@@ -10,7 +10,7 @@ on:
 
 concurrency:
   group: everleaf-v180-low-friction-stage
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -117,9 +117,9 @@ jobs:
           $project=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafV180StaticPatcher/EverLeafV180StaticPatcher.csproj'
           $manifestDir=Join-Path $env:RUNNER_TEMP 'manifests'
           $families=@(
+            @{File='Mob.wz'; Lists=@('mobs_all')},
             @{File='Character.wz'; Lists=@('character_all_low_friction')},
             @{File='Map.wz'; Lists=@('maps_all')},
-            @{File='Mob.wz'; Lists=@('mobs_all')},
             @{File='Npc.wz'; Lists=@('npcs_all')},
             @{File='Reactor.wz'; Lists=@('reactors_all')},
             @{File='UI.wz'; Lists=@('ui_all')},
