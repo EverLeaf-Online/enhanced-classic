@@ -26,6 +26,10 @@ constexpr DWORD kSysOptOnCreateAddress = 0x00994163;
 constexpr DWORD kSysOptDestructorAddress = 0x007FF4AA;
 constexpr DWORD kSysOptButtonYOperand = 0x009945BD;
 constexpr int kSysOptButtonY = 372;
+constexpr int kResolutionComboX = 58;
+constexpr int kResolutionComboY = 338;
+constexpr int kResolutionComboWidth = 196;
+constexpr int kResolutionComboHeight = 18;
 
 // GMS v83 native CCtrlComboBox contracts used by Kaentake.
 constexpr DWORD kComboCtorAddress = 0x004C4259;
@@ -45,12 +49,12 @@ struct ResolutionEntry {
 };
 
 static const ResolutionEntry kResolutions[] = {
-    { 800, 600, "800 x 600" },
-    { 1024, 768, "1024 x 768" },
-    { 1280, 720, "1280 x 720" },
-    { 1366, 768, "1366 x 768" },
-    { 1600, 900, "1600 x 900" },
-    { 1920, 1080, "1920 x 1080" },
+    { 800, 600, "Resolution: 800 x 600" },
+    { 1024, 768, "Resolution: 1024 x 768" },
+    { 1280, 720, "Resolution: 1280 x 720" },
+    { 1366, 768, "Resolution: 1366 x 768" },
+    { 1600, 900, "Resolution: 1600 x 900" },
+    { 1920, 1080, "Resolution: 1920 x 1080" },
 };
 constexpr int kResolutionCount = sizeof(kResolutions) / sizeof(kResolutions[0]);
 constexpr int kEverLeafDefaultResolutionIndex = 2;
@@ -178,8 +182,18 @@ inline bool CreateNativeSelector(void* sysOpt) {
         }
 
         auto createCtrl = reinterpret_cast<ComboCreateFn>(vtable[kComboCreateVtableIndex]);
-        // Kaentake v83 placement: native combo at (76,338), 166x18, control id 2000.
-        createCtrl(combo, sysOpt, 2000, 0, 76, 338, 166, 18, params);
+        // EverLeaf keeps Kaentake's v83 row but makes the selector self-labeling
+        // because our current System Options artwork has no dedicated Resolution text.
+        createCtrl(
+            combo,
+            sysOpt,
+            2000,
+            0,
+            kResolutionComboX,
+            kResolutionComboY,
+            kResolutionComboWidth,
+            kResolutionComboHeight,
+            params);
 
         if (paramConstructed) {
             reinterpret_cast<ComboParamDtorFn>(kComboParamDtorAddress)(params);
@@ -193,7 +207,7 @@ inline bool CreateNativeSelector(void* sysOpt) {
 
         reinterpret_cast<ComboSetSelectFn>(kComboSetSelectAddress)(
             combo,
-            ResolutionIndexFor(ConfiguredWidth(), ConfiguredHeight()));
+            ResolutionIndexFor(Client::m_nGameWidth, Client::m_nGameHeight));
 
         gResolutionCombo = combo;
         CrashDiagnostics::LogEvent("Maple-native resolution selector created");
