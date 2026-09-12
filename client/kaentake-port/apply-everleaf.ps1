@@ -13,6 +13,7 @@ Replace-Exact 'CMakeLists.txt' 'project(Kaentake)' 'project(EverLeaf)'
 Replace-Exact 'src/constants.h' '#define CONSTANTS_WINDOW_NAME "Kaentake"' '#define CONSTANTS_WINDOW_NAME "EverLeaf"'
 Replace-Exact 'src/constants.h' '#define CONSTANTS_DLL_NAME    "Kaentake.dll"' '#define CONSTANTS_DLL_NAME    "EverLeaf.dll"'
 Replace-Exact 'src/launcher.cpp' '"kaentake.dll"' '"EverLeaf.dll"'
+Replace-Exact 'src/launcher.cpp' '"MapleStory.exe"' '"EverLeafClient.exe"'
 Replace-Exact 'src/stringpool.cpp' 'REPLACE_STRING(1163, "Kaentake");' 'REPLACE_STRING(1163, "EverLeaf");'
 Replace-Exact 'src/system.cpp' 'typedef decltype(&CreateMutexA) CreateMutexA_t;' @'
 // Old GMS v83 DirectInput calls GetModuleFileNameW with the executable image base.

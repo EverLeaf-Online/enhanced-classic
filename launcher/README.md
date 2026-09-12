@@ -9,7 +9,7 @@ the launcher becomes the game directory.
 2. Extract the portable launcher into that folder.
 3. Open `EverLeafLauncher.exe` and press **Install EverLeaf**.
 4. The launcher authenticates EverLeaf's signed HTTPS manifest and checks available disk space.
-5. It downloads all 40 required files and verifies each one before replacement.
+5. It downloads all 41 required files and verifies each one before replacement.
 6. Existing installations automatically check every file by size and streaming SHA-256.
 7. After all required files match production, Play starts `EverLeaf.exe`.
 8. Future launcher releases update automatically from the RSA-signed manifest,
@@ -40,10 +40,12 @@ so the game-file patcher never attempts to replace itself.
 - `/patches/<file>` holds repair copies of every file in the managed baseline.
 - `/v1/launcher/manifest` returns the signed production file identities.
 
-The managed client now uses the EverLeaf Kaentake-based runtime: `EverLeaf.exe`
-launches the original v83 `MapleStory.exe`, injects `EverLeaf.dll`, and mounts
-`Custom.wz` for isolated client/UI overrides.
+The managed client uses the EverLeaf Kaentake-based runtime: `EverLeaf.exe`
+starts `EverLeafClient.exe`, injects `EverLeaf.dll`, and mounts `Custom.wz` for
+isolated client/UI overrides. The player-facing installation no longer contains
+or launches a file named `MapleStory.exe`. `dinput8.dll` is part of the signed
+EverLeaf runtime baseline.
 
-On the first successful repair after migration, the launcher preserves
-`MapleStory.exe` and removes only the retired proxy stack (`dinput8.dll`,
-`EverLeafMS.dll`, `Discord.dll`, and `EverLeaf_UI.wz`).
+On the first successful repair after this migration, the launcher replaces the
+old `MapleStory.exe` host with `EverLeafClient.exe` and removes only retired
+client files (`EverLeafMS.dll`, `Discord.dll`, and `EverLeaf_UI.wz`).

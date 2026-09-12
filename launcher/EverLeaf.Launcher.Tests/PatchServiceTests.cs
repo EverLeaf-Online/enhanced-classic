@@ -38,11 +38,13 @@ public sealed class PatchServiceTests
     }
 
     [Fact]
-    public void PreservesMapleStoryRuntimeAndRemovesRetiredClientStack()
+    public void PreservesEverLeafRuntimeAndDinputAndRemovesRetiredClientStack()
     {
         using var temp = new TemporaryDirectory();
         var runtime = System.IO.Path.Combine(temp.Path, LauncherConfiguration.RuntimeExecutable);
-        File.WriteAllText(runtime, "original v83 host process");
+        File.WriteAllText(runtime, "EverLeaf v83 host process");
+        var dinput = System.IO.Path.Combine(temp.Path, "dinput8.dll");
+        File.WriteAllText(dinput, "EverLeaf DirectInput runtime");
         foreach (var name in LauncherConfiguration.ObsoleteClientFiles)
             File.WriteAllText(System.IO.Path.Combine(temp.Path, name), "retired");
         using var service = new PatchService(temp.Path);
@@ -50,6 +52,7 @@ public sealed class PatchServiceTests
         service.RemoveObsoleteClientFiles();
 
         Assert.True(File.Exists(runtime));
+        Assert.True(File.Exists(dinput));
         foreach (var name in LauncherConfiguration.ObsoleteClientFiles)
             Assert.False(File.Exists(System.IO.Path.Combine(temp.Path, name)));
     }
@@ -92,7 +95,7 @@ public sealed class PatchServiceTests
     }
 
     [Fact]
-    public void RequiresTheCompleteFortyFileClient()
+    public void RequiresTheCompleteFortyOneFileClient()
     {
         using var temp = new TemporaryDirectory();
         using var service = new PatchService(temp.Path);
@@ -101,9 +104,25 @@ public sealed class PatchServiceTests
             .ToArray();
 
         service.ValidateManifest(new PatchManifest("complete", complete));
-        Assert.Equal(40, complete.Length);
+        Assert.Equal(41, complete.Length);
         Assert.Throws<InvalidOperationException>(() =>
             service.ValidateManifest(new PatchManifest("missing-one", complete.Skip(1).ToArray())));
+    }
+
+    [Fact]
+    public void AcceptsPreviousFortyFileManifestForLauncherSelfUpdateTransition()
+    {
+        using var temp = new TemporaryDirectory();
+        using var service = new PatchService(temp.Path);
+        var legacy = LauncherConfiguration.RequiredGameFiles
+            .Where(path => !string.Equals(path, "EverLeafClient.exe", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(path, "dinput8.dll", StringComparison.OrdinalIgnoreCase))
+            .Append("MapleStory.exe")
+            .Select(path => new PatchEntry(path, "/patches/" + path, new string('a', 64), 1))
+            .ToArray();
+
+        service.ValidateManifest(new PatchManifest("legacy-transition", legacy));
+        Assert.Equal(40, legacy.Length);
     }
 
     [Fact]
