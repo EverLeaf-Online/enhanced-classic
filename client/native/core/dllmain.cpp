@@ -11,6 +11,7 @@
 #include "FieldRenderCorrections.h"
 #include "FieldViewRange.h"
 #include "LimitedViewCorrections.h"
+#include "CustomWzOverride.h"
 #include "AddyLocations.h"
 #include "DiscordPresence.h"
 #include "EverLeafLoginLayout.h"
@@ -132,7 +133,7 @@ void MainFunc() {
     requiredHook("CWvsApp::CallUpdate", Hook_sub_9F84D0(true));
     requiredHook("Dir_BackSlashToSlash", HookCWvsApp__Dir_BackSlashToSlash(true));
     requiredHook("IWzFileSystem::Init", Hook_sub_9F7964(true));
-    requiredHook("CWvsApp::InitializeResMan", Hook_sub_9F7159(true));
+    requiredHook("CWvsApp::InitializeResMan", CustomWzOverride::Install());
     requiredHook("StringPool::GetString", Hook_StringPool__GetString(true));
     requiredHook("NEXTLEVEL table", Hook_sub_78C8A6(true));
     requiredHook("IWzNameSpace::Getitem", Hook_sub_5D995B(true));
@@ -228,6 +229,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         break;
     }
     case DLL_PROCESS_DETACH:
+        CustomWzOverride::Shutdown();
         DisplayResolution::Shutdown();
         DiscordPresence::Stop();
         if (lpReserved == nullptr && gBootstrapComplete) {
