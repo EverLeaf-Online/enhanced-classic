@@ -244,7 +244,7 @@ using (var donor = OpenDonor(donorPath))
         {
             var donorImage = FindImageExact(donor.WzDirectory, row.ResolvedPath)
                 ?? throw new InvalidDataException($"Donor image disappeared during semantic verification: {row.ResolvedPath}");
-            var donorSemantic = ImageSemanticDigest(donorImage.Value.Image);
+            var donorSemantic = ImageSemanticDigest(donorImage.Image);
             var outputSemantic = ImageSemanticDigest(image.Image);
             if (!string.Equals(donorSemantic, outputSemantic, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException($"Donor/output semantic image digest mismatch: requested={row.RequestedPath}, resolved={row.ResolvedPath}");
