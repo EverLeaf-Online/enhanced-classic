@@ -694,6 +694,10 @@ body.route-admin ::-webkit-scrollbar-thumb:hover {
   grid-template-columns: minmax(220px,1fr) 190px auto auto;
 }
 
+.wikiCurationFilters.hasItemCategory {
+  grid-template-columns: minmax(220px,1fr) minmax(240px,310px) 190px auto auto;
+}
+
 .wikiCurationCount {
   margin: 0 0 10px;
   color: #87988d;

@@ -696,3 +696,16 @@ body.route-rankings .rankingJobBadge{
   body.route-rankings .rankingHeroMetrics>span{display:flex!important;align-items:center!important;justify-content:space-between!important}
   body.route-rankings .rankingHeroMetrics b{margin-top:0!important}
 }
+
+/* Wiki item taxonomy filters */
+body.route-wiki .wikiItemFilterSearch{
+  grid-template-columns:minmax(220px,300px) minmax(0,1fr) auto auto!important;
+  max-width:none!important;
+}
+body.route-wiki .wikiItemFilterSearch select{min-width:0!important;width:100%!important}
+@media(max-width:620px){
+  body.route-wiki .wikiItemFilterSearch{grid-template-columns:1fr auto!important}
+  body.route-wiki .wikiItemFilterSearch select,
+  body.route-wiki .wikiItemFilterSearch input{grid-column:1/3!important;width:100%!important}
+  body.route-wiki .wikiItemFilterSearch select{display:block!important}
+}

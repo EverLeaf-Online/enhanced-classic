@@ -121,7 +121,8 @@ router.get("/wiki/:type",(req,res,next)=>{
   const type=String(req.params.type||"");
   if(!dataTypes.has(type))return next();
   const q=cleanQuery(req.query.q);
-  const result=data.list(type,{q,page:cleanPage(req.query.page),limit:40});
+  const itemCategory=type==="items"?String(req.query.itemCategory||"all"):"all";
+  const result=data.list(type,{q,itemCategory,page:cleanPage(req.query.page),limit:40});
   res.render("wiki-data-list",{
     settings:settings(),
     types:data.TYPE_META,

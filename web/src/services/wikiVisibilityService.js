@@ -1,5 +1,6 @@
 const { db } = require("../db/cms");
 const data = require("./wikiDataService");
+const itemTaxonomy = require("./wikiItemTaxonomy");
 
 const VISIBILITY = new Set(["hidden", "visible"]);
 const FILTERS = new Set(["all", "visible", "hidden", "automatic-hidden", "manual-hidden", "manual-visible"]);
@@ -217,9 +218,10 @@ function matchesFilter(row, filter) {
   return true;
 }
 
-function catalogList(type, { q = "", filter = "all", page = 1, limit = 50 } = {}) {
+function catalogList(type, { q = "", filter = "all", itemCategory = "all", page = 1, limit = 50 } = {}) {
   const selectedType = validType(type) ? String(type) : "items";
   const selectedFilter = FILTERS.has(String(filter || "")) ? String(filter) : "all";
+  const selectedItemCategory = selectedType === "items" ? itemTaxonomy.validCategory(itemCategory) : "all";
   const overrides = overrideMap(selectedType);
   let rows = data.all(selectedType).map(entity => decorate(entity, overrides));
   if (String(q).trim()) {
@@ -230,12 +232,28 @@ function catalogList(type, { q = "", filter = "all", page = 1, limit = 50 } = {}
       .map(row => row.entity);
   }
   rows = rows.filter(row => matchesFilter(row, selectedFilter));
+  const itemCategoryCounts = selectedType === "items" ? itemTaxonomy.counts(rows) : {};
+  if (selectedType === "items" && selectedItemCategory !== "all") {
+    rows = rows.filter(row => itemTaxonomy.matches(row, selectedItemCategory));
+  }
+  if (selectedType === "items") rows = rows.map(itemTaxonomy.decorate);
   const safeLimit = Math.max(20, Math.min(100, Number(limit) || 50));
   const total = rows.length;
   const pages = Math.max(1, Math.ceil(total / safeLimit));
   const safePage = Math.max(1, Math.min(pages, Number(page) || 1));
   const offset = (safePage - 1) * safeLimit;
-  return { rows: rows.slice(offset, offset + safeLimit), total, page: safePage, pages, limit: safeLimit, filter: selectedFilter, type: selectedType };
+  return {
+    rows: rows.slice(offset, offset + safeLimit),
+    total,
+    page: safePage,
+    pages,
+    limit: safeLimit,
+    filter: selectedFilter,
+    type: selectedType,
+    itemCategory: selectedItemCategory,
+    itemCategoryCounts,
+    itemCategoryGroups: itemTaxonomy.GROUPS
+  };
 }
 
 function stats() {

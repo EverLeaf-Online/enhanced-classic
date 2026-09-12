@@ -1,5 +1,6 @@
 const data=require("./wikiDataService");
 const visibility=require("./wikiVisibilityService");
+const itemTaxonomy=require("./wikiItemTaxonomy");
 
 const cache={builtAt:0,visibilityRevision:-1,types:new Map()};
 
@@ -85,7 +86,7 @@ function loadType(type){
   syncCache();
   if(!data.TYPE_META[type])return [];
   if(cache.types.has(type))return cache.types.get(type);
-  const cleaned=dedupeEntities(data.all(type));
+  const cleaned=dedupeEntities(data.all(type)).map(entity=>type==='items'?itemTaxonomy.decorate(entity):entity);
   cache.types.set(type,cleaned);
   return cleaned;
 }
@@ -125,9 +126,10 @@ function withExactId(rows,type,q){
   return [{...raw,variantIds:[Number(raw.id)],variantCount:1},...rows];
 }
 
-function list(type,{q="",page=1,limit=40}={}){
-  if(!data.TYPE_META[type])return {rows:[],total:0,page:1,pages:1,limit:40};
+function list(type,{q="",itemCategory="all",page=1,limit=40}={}){
+  if(!data.TYPE_META[type])return {rows:[],total:0,page:1,pages:1,limit:40,itemCategory:'all',itemCategoryCounts:{},itemCategoryGroups:[]};
   const safeLimit=Math.max(10,Math.min(100,Number(limit)||40));
+  const selectedItemCategory=type==='items'?itemTaxonomy.validCategory(itemCategory):'all';
   let rows=loadType(type);
   if(String(q).trim()){
     rows=rows
@@ -137,11 +139,23 @@ function list(type,{q="",page=1,limit=40}={}){
       .map(row=>row.entity);
     rows=withExactId(rows,type,q);
   }
+  const itemCategoryCounts=type==='items'?itemTaxonomy.counts(rows):{};
+  if(type==='items'&&selectedItemCategory!=='all') rows=rows.filter(entity=>itemTaxonomy.matches(entity,selectedItemCategory));
+  if(type==='items') rows=rows.map(itemTaxonomy.decorate);
   const total=rows.length;
   const pages=Math.max(1,Math.ceil(total/safeLimit));
   const safePage=Math.max(1,Math.min(pages,Number(page)||1));
   const offset=(safePage-1)*safeLimit;
-  return {rows:rows.slice(offset,offset+safeLimit),total,page:safePage,pages,limit:safeLimit};
+  return {
+    rows:rows.slice(offset,offset+safeLimit),
+    total,
+    page:safePage,
+    pages,
+    limit:safeLimit,
+    itemCategory:selectedItemCategory,
+    itemCategoryCounts,
+    itemCategoryGroups:type==='items'?itemTaxonomy.GROUPS:[]
+  };
 }
 
 function search(query,type="all",limit=60){

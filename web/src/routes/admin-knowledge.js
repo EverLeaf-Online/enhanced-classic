@@ -43,8 +43,9 @@ router.get('/knowledge/catalog',requireAdmin,(req,res)=>{
   const type=wikiData.TYPE_META[requestedType]?requestedType:'items';
   const q=String(req.query.q||'').trim().slice(0,120);
   const filter=String(req.query.filter||'all');
+  const itemCategory=type==='items'?String(req.query.itemCategory||'all'):'all';
   const page=Math.max(1,Number(req.query.page)||1);
-  const result=visibility.catalogList(type,{q,filter,page,limit:50});
+  const result=visibility.catalogList(type,{q,filter,itemCategory,page,limit:50});
   res.render('admin-wiki-catalog',{
     settings:settings(),
     types:wikiData.TYPE_META,
@@ -77,9 +78,11 @@ router.post('/knowledge/catalog/:type/:id/visibility',requireAdmin,(req,res)=>{
   params.set('type',type);
   const q=String(req.body.returnQ||'').trim().slice(0,120);
   const filter=String(req.body.returnFilter||'all');
+  const itemCategory=String(req.body.returnItemCategory||'all');
   const page=Math.max(1,Number(req.body.returnPage)||1);
   if(q)params.set('q',q);
   if(filter&&filter!=='all')params.set('filter',filter);
+  if(type==='items'&&itemCategory&&itemCategory!=='all')params.set('itemCategory',itemCategory);
   if(page>1)params.set('page',String(page));
   params.set('saved','1');
   res.redirect(`/admin/knowledge/catalog?${params.toString()}`);
