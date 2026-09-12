@@ -1,0 +1,65 @@
+name: Build EverLeaf custom WZ
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "client/custom-wz/**"
+      - "client/tools/everleaf-custom-wz/**"
+      - "client/scripts/build-everleaf-custom-wz.ps1"
+      - ".github/workflows/client-v2-custom-wz-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-custom-wz:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Verify clean source boundary
+        shell: pwsh
+        run: |
+          $manifest = Get-Content 'client/custom-wz/manifest.tsv' -Raw
+          foreach ($forbidden in @('MapleEzorsia','Ezorsia','Community.wz','EverLeaf_UI.wz')) {
+            if ($manifest.Contains($forbidden)) { throw "Forbidden donor/legacy reference in custom WZ manifest: $forbidden" }
+          }
+          $rows = Get-Content 'client/custom-wz/manifest.tsv' | Where-Object { $_ -and -not $_.StartsWith('#') }
+          if ($rows.Count -lt 1) { throw 'EverLeaf custom WZ manifest is empty' }
+          foreach ($row in $rows) {
+            $fields = $row -split "`t", 4
+            if ($fields.Count -ne 4) { throw "Invalid custom WZ manifest row: $row" }
+            if ($fields[0] -notmatch '\.img$') { throw "Invalid custom WZ image name: $($fields[0])" }
+            if ($fields[2] -notin @('string','int')) { throw "Unsupported custom WZ property type: $($fields[2])" }
+          }
+
+      - name: Build and self-verify v83 WZ
+        shell: pwsh
+        run: |
+          ./client/scripts/build-everleaf-custom-wz.ps1 `
+            -RepositoryRoot $PWD `
+            -OutputPath "$PWD/client/generated/EverLeaf_Custom.wz" `
+            -WorkRoot "$env:RUNNER_TEMP/everleaf-custom-wz"
+
+      - name: Verify output identity
+        shell: pwsh
+        run: |
+          $path = 'client/generated/EverLeaf_Custom.wz'
+          if (-not (Test-Path $path -PathType Leaf)) { throw 'EverLeaf_Custom.wz is missing' }
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $path))
+          if ($bytes.Length -lt 32) { throw 'EverLeaf_Custom.wz is implausibly small' }
+          $signature = [System.Text.Encoding]::ASCII.GetString($bytes, 0, 4)
+          if ($signature -ne 'PKG1') { throw "Unexpected WZ signature: $signature" }
+          Get-Item $path | Select-Object Name, Length
+          Get-FileHash $path -Algorithm SHA256
+
+      - name: Upload clean custom WZ candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-custom-wz-${{ github.sha }}
+          path: client/generated/EverLeaf_Custom.wz
+          if-no-files-found: error
+          retention-days: 7
