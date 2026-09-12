@@ -60,9 +60,11 @@ jobs:
           foreach ($needle in @(
             '#include "RuntimeResolution.h"',
             '#include "ResolutionUIBounds.h"',
+            '#include "TooltipBounds.h"',
             'RuntimeResolution::Apply(selected.width, selected.height)',
             'ResolutionUIBounds::SetActiveResolution(selected.width, selected.height)',
-            'ResolutionUIBounds::Install(Client::m_nGameWidth, Client::m_nGameHeight)'
+            'ResolutionUIBounds::Install(Client::m_nGameWidth, Client::m_nGameHeight)',
+            'TooltipBounds::Install()'
           )) {
             if (-not $displayResolution.Contains($needle)) { throw "Missing live-resolution wiring marker: $needle" }
           }
@@ -92,6 +94,21 @@ jobs:
             'InstallUtilityDialogBounds()'
           )) {
             if (-not $uiBounds.Contains($needle)) { throw "Missing resolution UI-bounds contract: $needle" }
+          }
+
+          $tooltipBounds = Get-Content 'client/native/core/TooltipBounds.h' -Raw
+          foreach ($needle in @(
+            'kMakeLayerAddress = 0x008F3141',
+            'kTooltipHeightOffset = 0x08',
+            'kTooltipWidthOffset = 0x0C',
+            'kTooltipLayerOffset = 0x10',
+            'kRelMoveVtableIndex = 36',
+            'ClampFinishedLayer(',
+            'MakeLayerHook(',
+            'if (!charToolTip)',
+            'Memory::SetHook('
+          )) {
+            if (-not $tooltipBounds.Contains($needle)) { throw "Missing tooltip bounds contract: $needle" }
           }
 
           $fieldRender = Get-Content 'client/native/core/FieldRenderCorrections.h' -Raw
