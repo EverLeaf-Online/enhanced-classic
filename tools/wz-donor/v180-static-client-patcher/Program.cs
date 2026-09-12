@@ -169,13 +169,24 @@ static string ImageSemanticDigest(WzImage img)
         foreach (var p in ps)
         {
             HashText(h, p.Name);
-            HashText(h, p.PropertyType.ToString());
-            if (p is WzCanvasProperty canvas)
-                HashCanvas(canvas);
-            else if (p.WzProperties == null)
+            // MapleLib can legally re-encode small integral values using a different
+            // WZ scalar width while preserving the exact runtime value. Normalize
+            // integral property classes for semantic verification only.
+            if (p is WzShortProperty || p is WzIntProperty || p is WzLongProperty)
             {
-                try { HashText(h, p.GetString()); }
-                catch { HashText(h, p.WzValue?.ToString()); }
+                HashText(h, "IntegralNumber");
+                HashText(h, Convert.ToInt64(p.WzValue).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+            else
+            {
+                HashText(h, p.PropertyType.ToString());
+                if (p is WzCanvasProperty canvas)
+                    HashCanvas(canvas);
+                else if (p.WzProperties == null)
+                {
+                    try { HashText(h, p.GetString()); }
+                    catch { HashText(h, p.WzValue?.ToString()); }
+                }
             }
             if (p.WzProperties != null) Walk(p.WzProperties);
         }
@@ -257,7 +268,7 @@ using (var donor = OpenDonor(donorPath))
 var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 6,
+    schemaVersion = 7,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -273,7 +284,7 @@ var manifest = new
     source = new { path = targetPath, sha256 = targetHashBefore, version = targetVersion, size = new FileInfo(targetPath).Length },
     donor = new { path = donorPath, sha256 = donorHash, version = donorVersion, size = new FileInfo(donorPath).Length },
     output = new { path = outputPath, sha256 = Sha(outputPath), size = new FileInfo(outputPath).Length },
-    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, nonEmptyCandidate = true },
+    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, nonEmptyCandidate = true },
     images = staged.Select(x => new { requestedPath = x.RequestedPath, resolvedPath = x.ResolvedPath }).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
