@@ -1,0 +1,167 @@
+name: Validate GMS v180 staged backport
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  V180_ROOT: /opt/everleaf/donors/v180-backport
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_everleaf"
+          chmod 600 "$HOME/.ssh/id_everleaf"
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          else
+            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$HOME/.ssh/known_hosts"
+          fi
+          cat > "$HOME/.ssh/config" <<EOF
+          Host everleaf-oracle
+            HostName $EVERLEAF_DEPLOY_HOST
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 30
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          EOF
+
+      - name: Verify staged Mob2 client routing source
+        run: |
+          set -euo pipefail
+          grep -q '"Mob2"' client/native/core/codecaves.h
+          grep -q 'mob2Path = L"Mob2"' client/native/core/ReplacementFuncs.h
+          grep -q 'wcsncmp(v4, L"Mob/"' client/native/core/ReplacementFuncs.h
+
+      - name: Validate complete Oracle staging set
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/validate-v180-stage.py" <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+
+          ROOT = Path('/opt/everleaf/donors/v180-backport')
+          FOUR_GIB = 4 * 1024 * 1024 * 1024
+
+          def load(path: Path) -> dict:
+              if not path.is_file() or path.stat().st_size <= 0:
+                  raise SystemExit(f'MISSING_OR_EMPTY {path}')
+              return json.loads(path.read_text(encoding='utf-8-sig'))
+
+          def require(condition: bool, message: str) -> None:
+              if not condition:
+                  raise SystemExit(f'VALIDATION_FAIL {message}')
+
+          low = ROOT / 'client-candidate'
+          families = ('Character', 'Map', 'Mob', 'Npc', 'Reactor', 'UI', 'Effect', 'Sound', 'Morph', 'TamingMob', 'String')
+          low_summary = {}
+          for family in families:
+              wz = low / f'{family}.wz'
+              manifest_path = low / f'{family}.manifest.json'
+              require(wz.is_file() and wz.stat().st_size > 0, f'{family}.wz missing')
+              require(wz.stat().st_size < FOUR_GIB, f'{family}.wz reaches legacy 4 GiB limit')
+              manifest = load(manifest_path)
+              requested = int(manifest['requestedCount'])
+              staged = int(manifest['stagedCount'])
+              verified = int(manifest['verifiedCount'])
+              require(requested == staged == verified, f'{family} coverage mismatch {requested}/{staged}/{verified}')
+              require(manifest.get('approved') is False, f'{family} unexpectedly approved')
+              require(manifest.get('productionApplyAllowed') is False, f'{family} production apply enabled')
+              require(int(manifest.get('unresolvedModernCanvasLinkCount', 0)) == 0, f'{family} unresolved canvas links remain')
+              require(manifest.get('validation', {}).get('sourceUnchanged') is True, f'{family} sourceUnchanged missing')
+              require(manifest.get('validation', {}).get('outputReparsed') is True, f'{family} output reparse missing')
+              require(manifest.get('validation', {}).get('donorImageDigestsMatch') is True, f'{family} donor verification missing')
+              out_size = int(manifest.get('output', {}).get('size', wz.stat().st_size))
+              require(out_size == wz.stat().st_size, f'{family} manifest/output size mismatch')
+              low_summary[family] = {'verified': verified, 'bytes': wz.stat().st_size}
+          require((low / 'SHA256SUMS').is_file(), 'low-friction SHA256SUMS missing')
+
+          etc_root = ROOT / 'etc-client-candidate'
+          etc_wz = etc_root / 'Etc.wz'
+          etc = load(etc_root / 'Etc.manifest.json')
+          require(etc_wz.is_file() and 0 < etc_wz.stat().st_size < FOUR_GIB, 'Etc.wz missing/oversized')
+          require(int(etc['requestedCount']) == int(etc['stagedCount']) == int(etc['verifiedCount']) == 278, 'Etc coverage mismatch')
+          require(int(etc.get('unresolvedModernCanvasLinkCount', 0)) == 0, 'Etc unresolved canvas links remain')
+          require(etc.get('productionApplyAllowed') is False, 'Etc production apply enabled')
+
+          item_root = ROOT / 'item-candidate'
+          item = load(item_root / 'ITEM_MANIFEST.json')
+          for name in ('Item.wz', 'String.wz', 'SHA256SUMS'):
+              require((item_root / name).is_file() and (item_root / name).stat().st_size > 0, f'item candidate {name} missing')
+          require(int(item['requestedCount']) == int(item['mergedCount']) == int(item['verifiedItemCount']) == 19583, 'Item coverage mismatch')
+          require(item.get('validation', {}).get('fullRequestedItemCoverage') is True, 'Item full coverage flag missing')
+          require(item.get('validation', {}).get('allMergedItemNodesVerified') is True, 'Item node verification missing')
+          require(item.get('productionApplyAllowed') is False, 'Item production apply enabled')
+          require(int(item.get('strings', {}).get('missingInDonorAndTarget', -1)) == 2999, 'Item missing-string inventory changed unexpectedly')
+
+          string_class = load(ROOT / 'ITEM_MISSING_STRING_CLASSIFICATION_V2.json')
+          require(int(string_class['inputCount']) == 2999 and int(string_class['outputCount']) == 2999, 'missing-string classifier coverage mismatch')
+          require(int(string_class['classificationCounts']['recoverable_player_facing']) == 2997, 'recoverable string classification mismatch')
+          require(int(string_class['classificationCounts']['unclassified_empty_placeholder']) == 2, 'empty placeholder classification mismatch')
+
+          split_root = ROOT / 'split-fold-candidate'
+          split_map = split_root / 'Map.wz'
+          mob2 = split_root / 'Mob2.wz'
+          require(split_map.is_file() and 0 < split_map.stat().st_size < FOUR_GIB, 'split Map.wz missing/oversized')
+          require(mob2.is_file() and 0 < mob2.stat().st_size < FOUR_GIB, 'Mob2.wz missing/oversized')
+          for name in ('Map-v180-main.manifest.json', 'Map-v180-split.manifest.json', 'Mob2-v180.manifest.json'):
+              manifest = load(split_root / name)
+              require(manifest.get('approved') is False, f'{name} unexpectedly approved')
+              require(manifest.get('productionApplyAllowed') is False, f'{name} production apply enabled')
+              require(int(manifest['requestedCount']) == int(manifest['stagedCount']) == int(manifest['verifiedCount']), f'{name} coverage mismatch')
+              require(int(manifest.get('unresolvedModernCanvasLinkCount', 0)) == 0, f'{name} unresolved canvas links remain')
+          require(load(split_root / 'Mob2-v180.manifest.json').get('emptyTargetRoot') is True, 'Mob2 candidate is not an isolated overflow package')
+          require((split_root / 'SHA256SUMS').is_file(), 'split SHA256SUMS missing')
+
+          safe_root = ROOT / 'safe-map-server-xml'
+          safe = load(safe_root / 'MANIFEST.json')
+          require(safe.get('approved') is False and safe.get('productionApplyAllowed') is False, 'safe-map approval boundary broken')
+          require(int(safe['selectedMapCount']) == 3762, 'safe-map selected count changed')
+          require(int(safe['selectedTierCounts']['A_STATIC']) == 3109, 'safe-map A tier count changed')
+          require(int(safe['selectedTierCounts']['B_DEPENDENCIES_PRESENT']) == 653, 'safe-map B tier count changed')
+          require(not any(int(v) for v in safe.get('unresolvedCounts', {}).values()), 'safe-map unresolved dependencies remain')
+          for family, count in safe['copiedDonorOnlyXmlCounts'].items():
+              actual = sum(1 for _ in (safe_root / family).rglob('*.img.xml'))
+              require(actual == int(count), f'safe-map {family} XML count mismatch {actual}!={count}')
+
+          hp_root = ROOT / 'harepacker-validation' / 'item'
+          for family in ('Item', 'String'):
+              hp = load(hp_root / f'{family}.harepacker-validation.json')
+              val = hp.get('validation', {})
+              require(hp.get('productionApplyAllowed') is False, f'HaRepacker {family} production apply enabled')
+              require(val.get('wzParseStatus') == 'Success', f'HaRepacker {family} parse failed')
+              require(val.get('allImagesParsed') is True, f'HaRepacker {family} image parse incomplete')
+              require(val.get('allXmlWellFormed') is True, f'HaRepacker {family} malformed XML')
+              require(val.get('imageAndXmlCountsMatch') is True, f'HaRepacker {family} XML count mismatch')
+
+          print('V180_BACKPORT_STAGE_OK')
+          print(json.dumps({
+              'lowFriction': low_summary,
+              'etcVerified': int(etc['verifiedCount']),
+              'itemVerified': int(item['verifiedItemCount']),
+              'safeMaps': int(safe['selectedMapCount']),
+              'splitMapBytes': split_map.stat().st_size,
+              'mob2Bytes': mob2.stat().st_size,
+          }, indent=2, sort_keys=True))
+          PY
+          scp "$RUNNER_TEMP/validate-v180-stage.py" everleaf-oracle:/tmp/validate-v180-stage.py
+          ssh everleaf-oracle 'python3 /tmp/validate-v180-stage.py'
