@@ -13,11 +13,6 @@ on:
 permissions:
   contents: read
 
-env:
-  EVERLEAF_DEPLOY_HOST: 132.145.141.79
-  EVERLEAF_DEPLOY_USER: ubuntu
-  EVERLEAF_PUBLIC_HOST: everleafms.online
-
 jobs:
   build:
     runs-on: windows-2022
@@ -65,84 +60,3 @@ jobs:
             ${{ runner.temp }}\kaentake\build\Release\Custom.wz
           if-no-files-found: error
           retention-days: 7
-
-      - name: Configure production SSH for hotfix
-        if: github.event_name == 'push' && github.ref == 'refs/heads/client/kaentake-integration'
-        shell: bash
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          SSH_DIR="$GITHUB_WORKSPACE/.everleaf-ssh"
-          mkdir -p "$SSH_DIR"
-          chmod 700 "$SSH_DIR"
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id_everleaf"
-          chmod 600 "$SSH_DIR/id_everleaf"
-          if [ -n "$SSH_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
-          else
-            ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > "$SSH_DIR/known_hosts"
-          fi
-          chmod 600 "$SSH_DIR/known_hosts"
-
-      - name: Publish startup and icon hotfix
-        if: github.event_name == 'push' && github.ref == 'refs/heads/client/kaentake-integration'
-        shell: bash
-        run: |
-          set -euo pipefail
-          SSH_DIR="$GITHUB_WORKSPACE/.everleaf-ssh"
-          OUT="$RUNNER_TEMP/kaentake/build/Release"
-          REMOTE_STAGE="/tmp/everleaf-client-hotfix-$GITHUB_SHA"
-          ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
-            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
-          scp -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
-            "$OUT/EverLeaf.exe" "$OUT/EverLeaf.dll" \
-            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST:$REMOTE_STAGE/"
-          EXE_SHA="$(sha256sum "$OUT/EverLeaf.exe" | awk '{print $1}')"
-          DLL_SHA="$(sha256sum "$OUT/EverLeaf.dll" | awk '{print $1}')"
-          ssh -o UserKnownHostsFile="$SSH_DIR/known_hosts" -i "$SSH_DIR/id_everleaf" \
-            "$EVERLEAF_DEPLOY_USER@$EVERLEAF_DEPLOY_HOST" \
-            "RELEASE_SHA='$GITHUB_SHA' EXE_SHA='$EXE_SHA' DLL_SHA='$DLL_SHA' bash -s" <<'REMOTE'
-          set -euo pipefail
-          PATCH=/opt/everleaf/patches
-          STAGE="/tmp/everleaf-client-hotfix-$RELEASE_SHA"
-          BACKUP="/opt/everleaf/backups/client-hotfix-$RELEASE_SHA"
-          sudo install -d -m 755 "$BACKUP"
-          sudo cp -a "$PATCH/files/EverLeaf.exe" "$PATCH/files/EverLeaf.dll" "$PATCH/manifest.json" "$BACKUP/"
-          rollback() {
-            sudo cp -a "$BACKUP/EverLeaf.exe" "$PATCH/files/EverLeaf.exe"
-            sudo cp -a "$BACKUP/EverLeaf.dll" "$PATCH/files/EverLeaf.dll"
-            sudo cp -a "$BACKUP/manifest.json" "$PATCH/manifest.json"
-          }
-          trap rollback ERR
-          test "$(sha256sum "$STAGE/EverLeaf.exe" | awk '{print $1}')" = "$EXE_SHA"
-          test "$(sha256sum "$STAGE/EverLeaf.dll" | awk '{print $1}')" = "$DLL_SHA"
-          sudo install -m 644 "$STAGE/EverLeaf.exe" "$PATCH/files/EverLeaf.exe.new"
-          sudo install -m 644 "$STAGE/EverLeaf.dll" "$PATCH/files/EverLeaf.dll.new"
-          sudo mv -f "$PATCH/files/EverLeaf.exe.new" "$PATCH/files/EverLeaf.exe"
-          sudo mv -f "$PATCH/files/EverLeaf.dll.new" "$PATCH/files/EverLeaf.dll"
-          sudo node /opt/everleaf/web/scripts/build-patch-manifest.js "$RELEASE_SHA"
-          test "$(sha256sum "$PATCH/files/EverLeaf.exe" | awk '{print $1}')" = "$EXE_SHA"
-          test "$(sha256sum "$PATCH/files/EverLeaf.dll" | awk '{print $1}')" = "$DLL_SHA"
-          curl -fsS http://127.0.0.1:3000/v1/launcher/manifest >/dev/null
-          trap - ERR
-          rm -rf "$STAGE"
-          echo "HOTFIX_PUBLISHED EXE=$EXE_SHA DLL=$DLL_SHA BACKUP=$BACKUP"
-          REMOTE
-
-      - name: Verify public hotfix files
-        if: github.event_name == 'push' && github.ref == 'refs/heads/client/kaentake-integration'
-        shell: bash
-        run: |
-          set -euo pipefail
-          OUT="$RUNNER_TEMP/kaentake/build/Release"
-          for f in EverLeaf.exe EverLeaf.dll; do
-            EXPECTED="$(sha256sum "$OUT/$f" | awk '{print $1}')"
-            curl -fsSL --max-time 60 "https://$EVERLEAF_PUBLIC_HOST/patches/$f" -o "/tmp/$f"
-            ACTUAL="$(sha256sum "/tmp/$f" | awk '{print $1}')"
-            test "$ACTUAL" = "$EXPECTED"
-            echo "$f verified: $ACTUAL"
-          done
-          curl -fsS --max-time 20 "https://$EVERLEAF_PUBLIC_HOST/v1/launcher/manifest" >/dev/null
-
