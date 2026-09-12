@@ -156,7 +156,7 @@ jobs:
           set -euo pipefail
           ROOT="__ROOT__"
           for f in Character Map Mob Npc Reactor UI Effect Sound Morph TamingMob String; do test -s "$ROOT/$f.wz"; test -s "$ROOT/$f.manifest.json"; done
-          for m in "$ROOT"/*.manifest.json; do grep -q '"productionApplyAllowed": false' "$m"; grep -q '"donorImageDigestsMatch": true' "$m"; done
+          for m in "$ROOT"/*.manifest.json; do grep -q '"productionApplyAllowed": false' "$m"; grep -q '"donorImageDigestsMatch": true' "$m"; grep -q '"unresolvedModernCanvasLinkCount": 0' "$m"; done
           sha256sum "$ROOT"/*.wz > "$ROOT/SHA256SUMS"
           printf 'GMS v180 broad low-friction client candidate. STAGING ONLY. Includes donor-only Character/equipment/appearance, maps, mobs, NPCs, reactors, UI, effects, sound, morphs, taming mobs and String image groups. Item-property merge is staged separately. No production apply.\n' > "$ROOT/README.txt"
           echo 'V180_LOW_FRICTION_STAGE_OK'
