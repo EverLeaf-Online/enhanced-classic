@@ -87,6 +87,16 @@ app.get("/client-tests/yuna-runtime",(req,res)=>{
   res.download(testPackage,"EverLeaf-YunaRuntime-Test.zip");
 });
 
+// Isolated v180 gameplay-UI visual candidate. This intentionally stays out of
+// the production patch manifest until in-game visual QA is complete.
+app.get("/client-tests/v180-gameplay-ui",(req,res)=>{
+  const testUi="/opt/everleaf/donors/v180-backport/gameplay-ui-candidate/UI.wz";
+  if(!fs.existsSync(testUi))
+    return res.status(503).send("EverLeaf v180 gameplay UI test candidate is not published yet.");
+  res.set("Cache-Control","no-cache");
+  res.download(testUi,"EverLeaf-v180-GameplayUI-Test.wz");
+});
+
 app.use(session({
   store:new SqliteSessionStore(path.join(path.dirname(env.cmsDbPath),"sessions.sqlite")),
   secret:env.sessionSecret,
