@@ -149,7 +149,15 @@ static void AppendSemanticProperty(List<string> tokens, WzImageProperty p, strin
     {
         if (resolveUol && ResolveUolObject(uol) is WzImageProperty resolved)
         {
-            AppendSemanticProperty(tokens, resolved, path, true);
+            // Do not recursively follow nested UOLs while building a semantic token.
+            // Later-version WZs can contain circular/cross-linked property graphs; recursively
+            // expanding them can overflow the stack even though the serialized raw UOL is valid.
+            var resolvedTokens = new List<string>();
+            AppendSemanticProperty(resolvedTokens, resolved, "$", false);
+            resolvedTokens.Sort(StringComparer.Ordinal);
+            using var h = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            foreach (var token in resolvedTokens) HashText(h, token);
+            tokens.Add($"{path}|UOLResolved|{Convert.ToHexString(h.GetHashAndReset()).ToLowerInvariant()}");
             return;
         }
         tokens.Add($"{path}|UOL|{uol.Value ?? string.Empty}");
@@ -186,7 +194,7 @@ static void AppendSemanticProperty(List<string> tokens, WzImageProperty p, strin
 static string PropertySemanticDigest(WzImageProperty property)
 {
     var tokens = new List<string>();
-    AppendSemanticProperty(tokens, property, "$", true);
+    AppendSemanticProperty(tokens, property, "$", false);
     tokens.Sort(StringComparer.Ordinal);
     using var h = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
     foreach (var token in tokens) HashText(h, token);
@@ -391,7 +399,7 @@ using (var donor = OpenDonor(donorPath))
 var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 10,
+    schemaVersion = 11,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
