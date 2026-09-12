@@ -32,6 +32,14 @@ constexpr int kMinHeight = 600;
 constexpr int kMaxWidth = 1920;
 constexpr int kMaxHeight = 1080;
 
+// Pinned GMS v83 field helpers used by Kaentake after a successful screen-mode
+// change. EverLeaf's UpdateResolution() patches the RestoreViewRange operands for
+// the new dimensions; invoking it here makes the already-loaded field consume
+// those new values immediately, then ReloadBack rebuilds the visible background.
+constexpr uintptr_t kGetFieldAddress = 0x00437A0C;
+constexpr uintptr_t kRestoreViewRangeAddress = 0x00641EF1;
+constexpr uintptr_t kReloadBackAddress = 0x00644491;
+
 struct ScreenMode {
     int width;
     int height;
@@ -156,6 +164,27 @@ inline bool SetRendererMode(int width, int height) {
     }
 }
 
+inline void RefreshActiveField() {
+    __try {
+        using GetFieldFn = void*(__cdecl*)();
+        using FieldFn = void(__thiscall*)(void*);
+
+        void* field = reinterpret_cast<GetFieldFn>(kGetFieldAddress)();
+        if (!field) {
+            return;
+        }
+
+        reinterpret_cast<FieldFn>(kRestoreViewRangeAddress)(field);
+        reinterpret_cast<FieldFn>(kReloadBackAddress)(field);
+        CrashDiagnostics::LogEvent("active field refreshed after live resolution");
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        // A live resolution change should not terminate the client merely because
+        // no compatible field is active (login/world/character select included).
+        CrashDiagnostics::LogEvent("active field refresh unavailable after live resolution");
+    }
+}
+
 inline void RefreshWindowGeometry(int width, int height) {
     HWND window = FindWindowA("MapleStoryClass", nullptr);
     if (!window) {
@@ -231,6 +260,7 @@ inline void ApplyEverLeafRuntimeCorrections(int width, int height) {
     Memory::WriteInt(0x0089B798, static_cast<unsigned int>(height - 166));
     Memory::WriteInt(0x0089BA04, static_cast<unsigned int>(width - 300));
 
+    RefreshActiveField();
     RefreshWindowGeometry(width, height);
 }
 
