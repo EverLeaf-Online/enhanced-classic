@@ -2412,6 +2412,16 @@ static _sub_5D995B_t _sub_5D995B_Hook = [](void* pThis, void* edx, Ztl_variant_t
 		ZSecureCrypt_Init = true; v4 = v13;
 	}
 	HRESULT hr = (HRESULT)v5(v3, v4, &pvarg);
+	// v180 Mob.wz exceeds the legacy 4 GiB WZ ceiling when Mob2 is physically folded in.
+	// Keep Mob2 as a separately mounted package and retry only missing Mob/ resources there.
+	if (hr < 0 && v4 && (wcsncmp(v4, L"Mob/", 4) == 0 || wcsncmp(v4, L"Mob\\", 4) == 0))
+	{
+		VariantClear(&pvarg);
+		VariantInit(&pvarg);
+		std::wstring mob2Path = L"Mob2";
+		mob2Path.append(v4 + 3);
+		hr = (HRESULT)v5(v3, mob2Path.c_str(), &pvarg);
+	}
 	//std::cout << "_sub_5D995B vals: " << *(DWORD*)v3 << " / " << *v4 << " / " << *(DWORD*)(&pvarg) << std::endl;//Sleep(22000);
 	if (hr < 0)
 	{

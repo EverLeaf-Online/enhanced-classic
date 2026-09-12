@@ -5,6 +5,7 @@
 const char* resmanLoadOrder[] = {  //suspecting resman load list is an array of const char* rather than a vector
 "Character", //"Character"
 "Mob", //"Mob"
+"Mob2", // v180 overflow companion; missing Mob/ paths fall back here
 "Skill", //"Skill"
 "Reactor", //"Reactor"
 "Npc", //"Npc"
