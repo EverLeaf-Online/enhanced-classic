@@ -6,6 +6,7 @@
 #include "RuntimeResolution.h"
 #include "ResolutionUIBounds.h"
 #include "TooltipBounds.h"
+#include "WindowOrigin.h"
 
 #include <windows.h>
 #include <cstdio>
@@ -178,7 +179,6 @@ inline bool CreateNativeSelector(void* sysOpt) {
         }
 
         auto createCtrl = reinterpret_cast<ComboCreateFn>(vtable[kComboCreateVtableIndex]);
-        // Kaentake v83 placement: native combo at (76,338), 166x18, control id 2000.
         createCtrl(combo, sysOpt, 2000, 0, 76, 338, 166, 18, params);
 
         if (paramConstructed) {
@@ -249,6 +249,9 @@ inline void __fastcall ApplySysOptHook(void* self, void*, void* sysOpt, int appl
         return;
     }
 
+    if (!WindowOrigin::ApplyCurrent()) {
+        CrashDiagnostics::LogEvent("base window origin unavailable after live resolution; continuing");
+    }
     ResolutionUIBounds::SetActiveResolution(selected.width, selected.height);
     SaveResolutionConfig(selected.width, selected.height);
     CrashDiagnostics::LogEvent("live resolution applied and persisted");
@@ -262,8 +265,6 @@ inline void __fastcall SysOptOnCreateHook(void* self, void*, void* data) {
 }
 
 inline void __fastcall SysOptDestructorHook(void* self, void*) {
-    // CUISysOpt owns its child controls after CreateCtrl. Do not separately delete
-    // the combo here; the parent destroys/releases it through Maple's native list.
     gResolutionCombo = nullptr;
     gSysOptDestructor(self);
 }
@@ -273,8 +274,6 @@ inline void __fastcall SysOptDestructorHook(void* self, void*) {
 inline bool Install() {
     if (detail::gInstalled) return true;
 
-    // Shift the stock OK/Cancel row down to make room for the native resolution
-    // combo, matching Kaentake's v83 System Options layout.
     Memory::WriteInt(detail::kSysOptButtonYOperand, detail::kSysOptButtonY);
 
     if (!Memory::SetHook(
@@ -291,15 +290,15 @@ inline bool Install() {
             reinterpret_cast<void*>(detail::SysOptDestructorHook))) return false;
 
     if (!ResolutionUIBounds::Install(Client::m_nGameWidth, Client::m_nGameHeight)) {
-        // Keep the resolution selector usable even if the optional saved-position
-        // hardening cannot attach; the failure is already recorded in diagnostics.
         CrashDiagnostics::LogEvent("saved UI bounds unavailable; resolution selector kept enabled");
     }
 
     if (!TooltipBounds::Install()) {
-        // Tooltip clamping is independent of the selector itself. Keep display
-        // settings available and record the owner-hook failure for diagnostics.
         CrashDiagnostics::LogEvent("tooltip bounds unavailable; resolution selector kept enabled");
+    }
+
+    if (!WindowOrigin::Install()) {
+        CrashDiagnostics::LogEvent("base window origin unavailable; resolution selector kept enabled");
     }
 
     detail::gInstalled = true;
