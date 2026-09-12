@@ -9,8 +9,8 @@
 #include <cstdint>
 
 // Kaentake-style UI bounds for the pinned GMS v83 client. Phase 2 clamps saved
-// CConfig positions; phase 3 adds runtime context-menu placement so a right-click
-// menu cannot open beyond the active resolution after HD/live-resolution changes.
+// CConfig positions; phase 3 adds runtime menu/dialog placement so temporary UI
+// cannot open beyond the active resolution after HD/live-resolution changes.
 namespace ResolutionUIBounds {
 namespace detail {
 
@@ -29,15 +29,32 @@ constexpr size_t kContextMenuButtonCountOffset = 0xCC;
 constexpr int kContextMenuWidth = 100;
 constexpr int kContextMenuRowHeight = 15;
 
+// Kaentake's CUtilDlgEx bounds fix. The stock helper derives its position from
+// sRectQuestDlg and can leave dialogs outside the visible area after a resolution
+// change. Width/height offsets are from the pinned GMS v83 object layout.
+constexpr DWORD kCreateUtilDlgExAddress = 0x009A3E38;
+constexpr DWORD kQuestDialogRectAddress = 0x00BE2DF0;
+constexpr size_t kUtilDlgWidthOffset = 0x98;
+constexpr size_t kUtilDlgHeightOffset = 0x9C;
+
 using GetUIWndPosFn = void(__thiscall*)(void*, int, int*, int*, int*);
 using LoadCharacterFn = void(__thiscall*)(void*, int, unsigned int);
 using CreateWndFn = void(__thiscall*)(void*, int, int, int, int, int, int, void*, int);
+using CreateUtilDlgExFn = void(__thiscall*)(void*);
 
 static GetUIWndPosFn gGetUIWndPos = reinterpret_cast<GetUIWndPosFn>(kGetUIWndPosAddress);
 static LoadCharacterFn gLoadCharacter = reinterpret_cast<LoadCharacterFn>(kLoadCharacterAddress);
+static CreateUtilDlgExFn gCreateUtilDlgEx = reinterpret_cast<CreateUtilDlgExFn>(kCreateUtilDlgExAddress);
 static bool gInstalled = false;
 static int gActiveWidth = 800;
 static int gActiveHeight = 600;
+
+inline int ClampInt(int value, int low, int high) {
+    if (high < low) return low;
+    if (value < low) return low;
+    if (value > high) return high;
+    return value;
+}
 
 inline void GetDefaultPosition(int uiType, int* x, int* y) {
     int defaultX = 0;
@@ -205,10 +222,8 @@ inline void __fastcall ContextMenuCreateHook(
             ? gActiveHeight - menuHeight
             : 0;
 
-        if (cursor.x < 0) cursor.x = 0;
-        if (cursor.y < 0) cursor.y = 0;
-        if (cursor.x > maxX) cursor.x = maxX;
-        if (cursor.y > maxY) cursor.y = maxY;
+        cursor.x = ClampInt(cursor.x, 0, maxX);
+        cursor.y = ClampInt(cursor.y, 0, maxY);
 
         reinterpret_cast<CreateWndFn>(kCWndCreateWndAddress)(
             self,
@@ -246,6 +261,59 @@ inline bool InstallContextMenuBounds() {
         kContextMenuCreateCallSite + 1,
         static_cast<unsigned int>(static_cast<int32_t>(relative)));
     CrashDiagnostics::LogEvent("resolution-aware context menu bounds enabled");
+    return true;
+}
+
+inline void __fastcall CreateUtilDlgExHook(void* self, void*) {
+    if (!self) {
+        return;
+    }
+
+    __try {
+        auto bytes = reinterpret_cast<unsigned char*>(self);
+        const int width = *reinterpret_cast<int*>(bytes + kUtilDlgWidthOffset);
+        const int height = *reinterpret_cast<int*>(bytes + kUtilDlgHeightOffset);
+        const RECT questRect = *reinterpret_cast<RECT*>(kQuestDialogRectAddress);
+
+        // Treat implausible object state as a compatibility mismatch and defer to
+        // the original routine rather than creating a malformed window.
+        if (width <= 0 || height <= 0 || width > 4096 || height > 4096) {
+            gCreateUtilDlgEx(self);
+            return;
+        }
+
+        const int maxX = gActiveWidth > width ? gActiveWidth - width : 0;
+        const int maxY = gActiveHeight > height ? gActiveHeight - height : 0;
+        const int left = ClampInt(questRect.left - width / 2, 0, maxX);
+        const int top = ClampInt(questRect.top - height / 2, 0, maxY);
+
+        reinterpret_cast<CreateWndFn>(kCWndCreateWndAddress)(
+            self,
+            left,
+            top,
+            width,
+            height,
+            10,
+            1,
+            nullptr,
+            1);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        CrashDiagnostics::LogEvent("utility dialog bounds hook raised an exception");
+        gCreateUtilDlgEx(self);
+    }
+}
+
+inline bool InstallUtilityDialogBounds() {
+    if (!Memory::SetHook(
+            true,
+            reinterpret_cast<void**>(&gCreateUtilDlgEx),
+            reinterpret_cast<void*>(CreateUtilDlgExHook))) {
+        CrashDiagnostics::LogEvent("utility dialog bounds hook install failed");
+        return false;
+    }
+
+    CrashDiagnostics::LogEvent("resolution-aware utility dialog bounds enabled");
     return true;
 }
 
@@ -320,6 +388,10 @@ inline bool Install(int width, int height) {
         // Saved-position hardening is still useful on its own. Leave it active
         // and record the context-menu preflight failure for runtime diagnostics.
         CrashDiagnostics::LogEvent("context menu bounds unavailable; saved UI bounds kept enabled");
+    }
+
+    if (!detail::InstallUtilityDialogBounds()) {
+        CrashDiagnostics::LogEvent("utility dialog bounds unavailable; other UI bounds kept enabled");
     }
 
     detail::gInstalled = true;
