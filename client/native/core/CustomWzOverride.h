@@ -172,16 +172,16 @@ inline bool MountCustomPackage() {
     BSTR packageBase = nullptr;
     BSTR mountRoot = nullptr;
 
-    __try {
+    do {
         if (FAILED(reinterpret_cast<IUnknown*>(root)->QueryInterface(
                 kIidWritableNameSpace,
                 reinterpret_cast<void**>(&writableRoot))) || !writableRoot) {
             CrashDiagnostics::LogEvent("root WZ namespace is not writable");
-            __leave;
+            break;
         }
 
         customRootName = SysAllocString(kCustomRootName);
-        if (!customRootName) __leave;
+        if (!customRootName) break;
         auto createChild = reinterpret_cast<CreateChildNameSpaceFn>(
             writableRoot->vtable[kCreateChildNameSpaceIndex]);
         if (!createChild || FAILED(createChild(
@@ -189,26 +189,26 @@ inline bool MountCustomPackage() {
                 customRootName,
                 &customNameSpace)) || !customNameSpace) {
             CrashDiagnostics::LogEvent("failed to create EverLeaf custom child namespace");
-            __leave;
+            break;
         }
 
         if (!CreateObject(L"NameSpace#FileSystem", kIidFileSystem, &fileSystem)) {
             CrashDiagnostics::LogEvent("failed to create WZ file-system object");
-            __leave;
+            break;
         }
         directoryBstr = SysAllocString(directory.c_str());
-        if (!directoryBstr) __leave;
+        if (!directoryBstr) break;
         auto initializeFileSystem = reinterpret_cast<FileSystemInitFn>(
             fileSystem->vtable[kFileSystemInitIndex]);
         if (!initializeFileSystem || FAILED(initializeFileSystem(
                 fileSystem,
                 directoryBstr))) {
             CrashDiagnostics::LogEvent("failed to initialize WZ file-system object");
-            __leave;
+            break;
         }
 
         customFileName = SysAllocString(kCustomFileName);
-        if (!customFileName) __leave;
+        if (!customFileName) break;
         auto getItem = reinterpret_cast<NameSpaceItemFn>(
             fileSystem->vtable[kNameSpaceItemIndex]);
         if (!getItem || FAILED(getItem(
@@ -216,7 +216,7 @@ inline bool MountCustomPackage() {
                 customFileName,
                 &archiveVariant))) {
             CrashDiagnostics::LogEvent("EverLeaf custom WZ archive lookup failed");
-            __leave;
+            break;
         }
 
         IUnknown* archiveUnknown = nullptr;
@@ -230,16 +230,16 @@ inline bool MountCustomPackage() {
                 kIidSeekableArchive,
                 reinterpret_cast<void**>(&archive))) || !archive) {
             CrashDiagnostics::LogEvent("EverLeaf custom WZ is not a seekable archive");
-            __leave;
+            break;
         }
 
         if (!CreateObject(L"NameSpace#Package", kIidPackage, &package)) {
             CrashDiagnostics::LogEvent("failed to create WZ package object");
-            __leave;
+            break;
         }
         packageKey = SysAllocString(L"83");
         packageBase = SysAllocString(kCustomRootName);
-        if (!packageKey || !packageBase) __leave;
+        if (!packageKey || !packageBase) break;
         auto initializePackage = reinterpret_cast<PackageInitFn>(
             package->vtable[kPackageInitIndex]);
         if (!initializePackage || FAILED(initializePackage(
@@ -248,16 +248,16 @@ inline bool MountCustomPackage() {
                 packageBase,
                 archive))) {
             CrashDiagnostics::LogEvent("EverLeaf custom WZ package initialization failed");
-            __leave;
+            break;
         }
 
         mountRoot = SysAllocString(L"/");
-        if (!mountRoot) __leave;
+        if (!mountRoot) break;
         auto mount = reinterpret_cast<NameSpaceMountFn>(
             customNameSpace->vtable[kNameSpaceMountIndex]);
         if (!mount || FAILED(mount(customNameSpace, mountRoot, package, 1))) {
             CrashDiagnostics::LogEvent("EverLeaf custom WZ package mount failed");
-            __leave;
+            break;
         }
 
         gCustomNameSpace = customNameSpace;
@@ -266,11 +266,7 @@ inline bool MountCustomPackage() {
         success = true;
         CrashDiagnostics::LogEvent("EverLeaf custom WZ mounted in private namespace");
         std::cout << "EverLeaf Client v2: mounted EverLeaf_Custom.wz privately" << std::endl;
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER) {
-        CrashDiagnostics::LogEvent("EverLeaf custom WZ mount raised an exception");
-        success = false;
-    }
+    } while (false);
 
     if (customRootName) SysFreeString(customRootName);
     if (directoryBstr) SysFreeString(directoryBstr);
