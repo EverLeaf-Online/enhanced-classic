@@ -43,7 +43,17 @@ app.use("/webhooks",require("./routes/webhooks"));
 app.use(express.urlencoded({extended:false,limit:"50kb"}));
 app.use(express.json({limit:"50kb"}));
 app.use(express.static(path.join(__dirname,"../public"),{maxAge:env.nodeEnv==="production"?"1h":0}));
-app.use(rateLimit({windowMs:60_000,max:120,standardHeaders:true,legacyHeaders:false}));
+// Keep normal browsing out of the global limiter. Wiki/catalog pages fan out into
+// dozens of image GETs, so counting safe reads can lock out a real player after
+// only a few page views. State-changing traffic is still throttled here, while
+// login/register/recovery keep their stricter limiter below.
+app.use(rateLimit({
+  windowMs:60_000,
+  max:120,
+  standardHeaders:true,
+  legacyHeaders:false,
+  skip:req=>["GET","HEAD","OPTIONS"].includes(req.method)
+}));
 
 const authLimiter=rateLimit({
   windowMs:15*60_000,
