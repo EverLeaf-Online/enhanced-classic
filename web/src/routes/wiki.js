@@ -10,59 +10,133 @@ const cleanPage=value=>Math.max(1,Math.min(100000,Number(value)||1));
 const MAPLE_ART_MAX_BYTES=2*1024*1024;
 const MAPLE_ART_TIMEOUT_MS=7000;
 
-const mapleArtUrl=(type,id)=>{
+const mapleArtUrls=(type,id)=>{
   const value=Number(id);
-  if(!Number.isInteger(value)||value<=0)return "";
-  const root="https://maplestory.io/api/GMS/83";
-  if(type==="items")return `${root}/item/${value}/icon`;
-  if(type==="monsters")return `${root}/mob/${value}/icon`;
-  if(type==="maps")return `${root}/map/${value}/icon`;
-  if(type==="npcs")return `${root}/npc/${value}/icon`;
-  if(type==="quests")return `${root}/quest/${value}/icon`;
-  if(type==="skills"){
-    const book=String(Math.floor(value/10000)).padStart(3,"0");
-    return `https://maplestory.io/api/wz/img/GMS/83/Skill.wz/${book}.img/skill/${value}/icon`;
+  if(!Number.isInteger(value)||value<=0)return [];
+  if(type==="items"){
+    const urls=[`https://maplestory.io/api/GMS/83/item/${value}/icon`];
+    // Some v83 face/hair entries do not expose an item icon even though the
+    // character renderer can draw them correctly.
+    if(value<1000000)urls.push(`https://maplestory.io/api/GMS/83/Character/2000/${value}/stand1/0`);
+    urls.push(`https://maplestory.io/api/GMS/latest/item/${value}/icon`);
+    if(value<1000000)urls.push(`https://maplestory.io/api/GMS/latest/Character/2000/${value}/stand1/0`);
+    return urls;
   }
-  return "";
+  if(type==="monsters")return [
+    `https://maplestory.io/api/GMS/83/mob/${value}/icon`,
+    `https://maplestory.io/api/GMS/latest/mob/${value}/icon`
+  ];
+  if(type==="maps")return [
+    `https://maplestory.io/api/GMS/83/map/${value}/icon`,
+    `https://maplestory.io/api/GMS/83/map/${value}/minimap`,
+    `https://maplestory.io/api/GMS/latest/map/${value}/icon`,
+    `https://maplestory.io/api/GMS/latest/map/${value}/minimap`
+  ];
+  if(type==="npcs")return [
+    `https://maplestory.io/api/GMS/83/npc/${value}/icon`,
+    `https://maplestory.io/api/GMS/latest/npc/${value}/icon`
+  ];
+  if(type==="quests")return [
+    `https://maplestory.io/api/GMS/83/quest/${value}/icon`,
+    `https://maplestory.io/api/GMS/latest/quest/${value}/icon`
+  ];
+  return [];
 };
+
+// Small in-process cache keeps catalog pagination from repeatedly hammering the
+// upstream art service. The latest-version fallback is only used when v83 has
+// no image, which lets intentional backports render without making modern data
+// the source of truth for the Wiki catalog itself.
+const MAPLE_ART_CACHE_MAX=800;
+const mapleArtCache=new Map();
+function cacheMapleArt(key,value){
+  if(mapleArtCache.has(key))mapleArtCache.delete(key);
+  mapleArtCache.set(key,value);
+  while(mapleArtCache.size>MAPLE_ART_CACHE_MAX)mapleArtCache.delete(mapleArtCache.keys().next().value);
+}
 
 router.get("/wiki/art/:type/:id",async(req,res)=>{
   const type=String(req.params.type||"");
   const id=Number(req.params.id);
-  const target=mapleArtUrl(type,id);
-  if(!target)return res.status(404).end();
+  const targets=mapleArtUrls(type,id);
+  if(type!=="skills"&&!targets.length)return res.status(404).end();
 
-  const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),MAPLE_ART_TIMEOUT_MS);
-  try {
-    const upstream=await fetch(target,{
-      redirect:"follow",
-      signal:controller.signal,
-      headers:{
-        Accept:"image/avif,image/webp,image/png,image/*,*/*;q=0.8",
-        "User-Agent":"EverLeafWiki/1.0 (+https://everleafms.online)"
-      }
-    });
-    if(!upstream.ok)return res.status(404).end();
-
-    const contentType=String(upstream.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();
-    if(!contentType.startsWith("image/"))return res.status(404).end();
-    const advertisedLength=Number(upstream.headers.get("content-length")||0);
-    if(advertisedLength>MAPLE_ART_MAX_BYTES)return res.status(413).end();
-
-    const body=Buffer.from(await upstream.arrayBuffer());
-    if(!body.length||body.length>MAPLE_ART_MAX_BYTES)return res.status(body.length?413:404).end();
-
-    res.set("Content-Type",contentType);
+  const cacheKey=`${type}:${id}`;
+  const cached=mapleArtCache.get(cacheKey);
+  if(cached&&cached.expiresAt>Date.now()){
+    res.set("Content-Type",cached.contentType);
     res.set("Cache-Control","public, max-age=86400, stale-if-error=604800");
     res.set("X-Content-Type-Options","nosniff");
-    return res.send(body);
-  } catch(error) {
-    if(error&&error.name!=="AbortError")console.warn(`Wiki artwork proxy failed for ${type}/${id}:`,error.message);
-    return res.status(404).end();
-  } finally {
-    clearTimeout(timer);
+    return res.send(cached.body);
   }
+
+  // Skill icons are returned as base64 in maplestory.io's skill JSON rather
+  // than reliably through the generic WZ-image endpoint.
+  if(type==="skills"){
+    for(const version of ["83","latest"]){
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),MAPLE_ART_TIMEOUT_MS);
+      try {
+        const upstream=await fetch(`https://maplestory.io/api/GMS/${version}/job/skill/${id}`,{
+          redirect:"follow",
+          signal:controller.signal,
+          headers:{Accept:"application/json","User-Agent":"EverLeafWiki/1.1 (+https://everleafms.online)"}
+        });
+        if(!upstream.ok)continue;
+        const payload=await upstream.json();
+        const encoded=String(payload?.icon||payload?.iconRaw||"").trim();
+        if(!encoded)continue;
+        const body=Buffer.from(encoded,"base64");
+        if(!body.length||body.length>MAPLE_ART_MAX_BYTES||body.subarray(0,8).toString("hex")!=="89504e470d0a1a0a")continue;
+        cacheMapleArt(cacheKey,{contentType:"image/png",body,expiresAt:Date.now()+24*60*60_000});
+        res.set("Content-Type","image/png");
+        res.set("Cache-Control","public, max-age=86400, stale-if-error=604800");
+        res.set("X-Content-Type-Options","nosniff");
+        return res.send(body);
+      } catch(error) {
+        if(error&&error.name!=="AbortError")console.warn(`Wiki skill artwork proxy failed for ${id}:`,error.message);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    return res.status(404).end();
+  }
+
+  for(const target of targets){
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),MAPLE_ART_TIMEOUT_MS);
+    try {
+      const upstream=await fetch(target,{
+        redirect:"follow",
+        signal:controller.signal,
+        headers:{
+          Accept:"image/avif,image/webp,image/png,image/*,*/*;q=0.8",
+          "User-Agent":"EverLeafWiki/1.1 (+https://everleafms.online)"
+        }
+      });
+      if(!upstream.ok)continue;
+
+      const contentType=String(upstream.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();
+      if(!contentType.startsWith("image/"))continue;
+      const advertisedLength=Number(upstream.headers.get("content-length")||0);
+      if(advertisedLength>MAPLE_ART_MAX_BYTES)continue;
+
+      const body=Buffer.from(await upstream.arrayBuffer());
+      if(!body.length||body.length>MAPLE_ART_MAX_BYTES)continue;
+
+      cacheMapleArt(cacheKey,{contentType,body,expiresAt:Date.now()+24*60*60_000});
+      res.set("Content-Type",contentType);
+      res.set("Cache-Control","public, max-age=86400, stale-if-error=604800");
+      res.set("X-Content-Type-Options","nosniff");
+      return res.send(body);
+    } catch(error) {
+      if(error&&error.name!=="AbortError")console.warn(`Wiki artwork proxy failed for ${type}/${id}:`,error.message);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  return res.status(404).end();
 });
 
 router.get("/wiki",(req,res)=>{

@@ -3,7 +3,9 @@ const GROUPS = [
     label: "Equipment",
     options: [
       ["equipment", "All Equipment"],
-      ["equipment-appearance", "Hair / Face / Appearance"],
+      ["equipment-appearance", "All Hair / Face"],
+      ["equipment-face-style", "Face Styles"],
+      ["equipment-hair-style", "Hair Styles"],
       ["equipment-hat", "Hats"],
       ["equipment-face", "Face Accessories"],
       ["equipment-eye", "Eye Accessories"],
@@ -110,7 +112,8 @@ function leafCategory(entity) {
   const name = String(entity?.name || "");
 
   if (family === "equipment") {
-    if (id > 0 && id < 1000000) return "equipment-appearance";
+    if (id >= 20000 && id < 30000) return "equipment-face-style";
+    if (id >= 30000 && id < 1000000) return "equipment-hair-style";
     if (prefix === 100) return "equipment-hat";
     if (prefix === 101) return "equipment-face";
     if (prefix === 102) return "equipment-eye";
@@ -190,7 +193,9 @@ function matches(entity, category) {
   if (key === "all") return true;
   const family = itemFamily(entity);
   if (["equipment", "consumables", "install", "etc", "cash", "pets"].includes(key)) return family === key;
-  return leafCategory(entity) === key;
+  const leaf = leafCategory(entity);
+  if (key === "equipment-appearance") return leaf === "equipment-face-style" || leaf === "equipment-hair-style";
+  return leaf === key;
 }
 
 function counts(rows = []) {
@@ -201,6 +206,7 @@ function counts(rows = []) {
     const leaf = leafCategory(row);
     if (result[family] != null) result[family] += 1;
     if (result[leaf] != null && leaf !== family) result[leaf] += 1;
+    if ((leaf === "equipment-face-style" || leaf === "equipment-hair-style") && result["equipment-appearance"] != null) result["equipment-appearance"] += 1;
   }
   return result;
 }

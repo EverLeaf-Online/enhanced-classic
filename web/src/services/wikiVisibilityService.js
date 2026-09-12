@@ -29,6 +29,8 @@ function automaticDecision(entity) {
   if (!name || name.length < 2) return { hidden: true, reason: "Missing or unusable display name" };
   if (/^\d+$/.test(name)) return { hidden: true, reason: "Numeric placeholder name" };
   if (/^[?*_.\-–—\[\](){}]+$/.test(name)) return { hidden: true, reason: "Placeholder punctuation name" };
+  if (/^missing\s+name$/i.test(name)) return { hidden: true, reason: "Missing-name placeholder" };
+  if (/^(?:aa+|null|none|n\/a|unknown)$/i.test(name)) return { hidden: true, reason: "Placeholder name" };
 
   const combined = `${name} ${description}`.toLowerCase();
   if (/\[\[\s*frozen\s+content\s*\]\]|\bfrozen\s+content\b/i.test(combined)) {
@@ -41,8 +43,8 @@ function automaticDecision(entity) {
     return { hidden: true, reason: "Generic test/sample record" };
   }
   if (/^zz(?:z+)?\b/i.test(name)) return { hidden: true, reason: "ZZZ/internal naming marker" };
-  if (/^(?:\[?gm\]?|game\s*master)(?:\s+(?:only|test|debug|item|scroll|equipment|equip))\b/i.test(name)) {
-    return { hidden: true, reason: "GM/internal record" };
+  if (/(?:^|[^a-z0-9])gm(?=[^a-z0-9]|$)/i.test(name) || /game\s*master/i.test(name) || /^admin(?=[^a-z0-9]|$)/i.test(name)) {
+    return { hidden: true, reason: "GM/admin-only record" };
   }
   return { hidden: false, reason: "" };
 }

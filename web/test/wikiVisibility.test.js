@@ -24,6 +24,9 @@ test('automatic curation hides obvious junk without hiding legitimate Test names
   assert.equal(visibility.automaticDecision({type:'items',id:1,name:'Dummy Item',description:'internal'}).hidden,true);
   assert.equal(visibility.automaticDecision({type:'items',id:2,name:'[[FROZEN CONTENT]] Pet Skill',description:''}).hidden,true);
   assert.equal(visibility.automaticDecision({type:'items',id:3,name:'GM Only Item',description:''}).hidden,true);
+  assert.equal(visibility.automaticDecision({type:'items',id:31,name:'MISSING NAME',description:''}).hidden,true);
+  assert.equal(visibility.automaticDecision({type:'items',id:32,name:"Admin's Candle",description:''}).hidden,true);
+  assert.equal(visibility.automaticDecision({type:'skills',id:33,name:'ADMIN_ANTIMACRO',description:''}).hidden,true);
   assert.equal(visibility.automaticDecision({type:'quests',id:4,name:'Test of Wisdom',description:'Complete the challenge.'}).hidden,false);
   assert.equal(visibility.automaticDecision({type:'items',id:5,name:'Red Bandana',description:'A bandana.'}).hidden,false);
 });

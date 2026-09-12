@@ -5,6 +5,8 @@ const taxonomy=require('../src/services/wikiItemTaxonomy');
 const item=(id,name,subtype,description='')=>({type:'items',id,name,subtype,description});
 
 test('item taxonomy separates the major player-facing item families',()=>{
+  assert.equal(taxonomy.leafCategory(item(20000,'Motivated Look','Equipment')),'equipment-face-style');
+  assert.equal(taxonomy.leafCategory(item(30000,'Black Toben Hair','Equipment')),'equipment-hair-style');
   assert.equal(taxonomy.leafCategory(item(1000000,'Blue Beanie','Equipment')),'equipment-hat');
   assert.equal(taxonomy.leafCategory(item(1302000,'Sword','Equipment')),'equipment-weapon');
   assert.equal(taxonomy.leafCategory(item(2040000,'Scroll for Helmet','Consumable')),'consumable-scroll');
@@ -18,8 +20,11 @@ test('item taxonomy separates the major player-facing item families',()=>{
 });
 
 test('broad item filters include their detailed subcategories',()=>{
+  const face=item(20000,'Motivated Look','Equipment');
   const hat=item(1000000,'Blue Beanie','Equipment');
   const scroll=item(2040000,'Scroll for Helmet','Consumable');
+  assert.equal(taxonomy.matches(face,'equipment-appearance'),true);
+  assert.equal(taxonomy.matches(face,'equipment-face-style'),true);
   assert.equal(taxonomy.matches(hat,'equipment'),true);
   assert.equal(taxonomy.matches(hat,'equipment-hat'),true);
   assert.equal(taxonomy.matches(hat,'consumable-scroll'),false);

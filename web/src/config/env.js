@@ -69,7 +69,10 @@ module.exports = {
   },
 
   wikiData: {
-    wzRoot: path.resolve(process.env.WIKI_WZ_ROOT || "/opt/everleaf/current/wz"),
+    // The public Wiki should describe the clean v83 source tree, not the deployed
+    // release WZ bundle, which can contain donor/backport assets that are not
+    // actually intended as player-facing catalog content.
+    wzRoot: path.resolve(process.env.WIKI_WZ_ROOT || "/opt/everleaf/server/wz"),
     catalogTtlMs: Math.max(60_000, Number(process.env.WIKI_CATALOG_TTL_MS || 900_000))
   },
 

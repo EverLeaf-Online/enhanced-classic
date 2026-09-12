@@ -15,7 +15,7 @@ const itemHref=(category,includeQuery=true)=>{
   return parts.length?`${base}?${parts.join('&')}`:base;
 };
 const itemChildMatches=(key,parent)=>parent==='equipment'?key.startsWith('equipment-'):parent==='consumables'?key.startsWith('consumable-'):parent==='install'?key.startsWith('install-'):parent==='etc'?key.startsWith('etc-'):parent==='cash'?key.startsWith('cash-'):false;
-const itemSubfilters=type==='items'&&itemParent!=='all'&&itemParent!=='pets'?result.itemCategoryGroups.flatMap(group=>group.options).filter(([key])=>itemChildMatches(key,itemParent)):[];
+const itemSubfilters=type==='items'&&itemParent!=='all'&&itemParent!=='pets'?result.itemCategoryGroups.flatMap(group=>group.options).filter(([key])=>itemChildMatches(key,itemParent)&&Number(result.itemCategoryCounts[key]||0)>0):[];
 %>
 <main class="lightPage wikiDataPage wikiCatalogListPage wikiAppPage">
 <section class="wikiListHero">
