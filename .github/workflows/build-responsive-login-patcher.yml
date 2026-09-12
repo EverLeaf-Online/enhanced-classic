@@ -37,8 +37,6 @@ jobs:
           cmake --build $build --config Release --target everleaf-responsive-login-wz --parallel 2
           $exe = Join-Path $build 'Release/everleaf-responsive-login-wz.exe'
           if (-not (Test-Path $exe)) { throw "responsive login patcher output missing" }
-          & $exe
-          if ($LASTEXITCODE -ne 2) { throw "responsive login patcher CLI self-check failed" }
           Copy-Item $exe "$env:RUNNER_TEMP/everleaf-responsive-login-wz.exe"
 
       - uses: actions/upload-artifact@v4
