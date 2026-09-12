@@ -139,61 +139,6 @@ static string ImageDigest(WzImage img)
     return Convert.ToHexString(h.GetHashAndReset()).ToLowerInvariant();
 }
 
-static string ImageSemanticDigest(WzImage img)
-{
-    using var h = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-    HashText(h, img.Name);
-    void HashCanvas(WzCanvasProperty canvas)
-    {
-        var png = canvas.PngProperty;
-        HashText(h, png.Width.ToString());
-        HashText(h, png.Height.ToString());
-        using var bmp = png.GetImage(false);
-        var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
-        var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-        try
-        {
-            var len = Math.Abs(data.Stride) * data.Height;
-            var bytes = new byte[len];
-            Marshal.Copy(data.Scan0, bytes, 0, len);
-            h.AppendData(bytes);
-        }
-        finally { bmp.UnlockBits(data); }
-    }
-    void Walk(IEnumerable<WzImageProperty> ps)
-    {
-        foreach (var p in ps)
-        {
-            HashText(h, p.Name);
-            if (p is WzShortProperty || p is WzIntProperty || p is WzLongProperty)
-            {
-                HashText(h, "IntegralNumber");
-                HashText(h, Convert.ToInt64(p.WzValue).ToString(System.Globalization.CultureInfo.InvariantCulture));
-            }
-            else if (p is WzUOLProperty uol)
-            {
-                // GetString() may resolve a UOL against its current tree and return
-                // a linked object's string representation. Compare the stored UOL path itself.
-                HashText(h, "UOL");
-                HashText(h, uol.Value ?? string.Empty);
-            }
-            else
-            {
-                HashText(h, p.PropertyType.ToString());
-                if (p is WzCanvasProperty canvas) HashCanvas(canvas);
-                else if (p.WzProperties == null)
-                {
-                    try { HashText(h, p.GetString()); }
-                    catch { HashText(h, p.WzValue?.ToString()); }
-                }
-            }
-            if (p.WzProperties != null) Walk(p.WzProperties);
-        }
-    }
-    Walk(img.WzProperties);
-    return Convert.ToHexString(h.GetHashAndReset()).ToLowerInvariant();
-}
-
 static List<string> SemanticTokens(WzImage img)
 {
     var tokens = new List<string> { $"image|{img.Name}" };
@@ -237,7 +182,15 @@ static List<string> SemanticTokens(WzImage img)
         }
     }
     Walk(img.WzProperties, string.Empty);
+    tokens.Sort(StringComparer.Ordinal);
     return tokens;
+}
+
+static string ImageSemanticDigest(WzImage img)
+{
+    using var h = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+    foreach (var token in SemanticTokens(img)) HashText(h, token);
+    return Convert.ToHexString(h.GetHashAndReset()).ToLowerInvariant();
 }
 
 static string FirstSemanticDifference(WzImage donor, WzImage output)
@@ -333,7 +286,7 @@ using (var donor = OpenDonor(donorPath))
 var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 8,
+    schemaVersion = 9,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -349,7 +302,7 @@ var manifest = new
     source = new { path = targetPath, sha256 = targetHashBefore, version = targetVersion, size = new FileInfo(targetPath).Length },
     donor = new { path = donorPath, sha256 = donorHash, version = donorVersion, size = new FileInfo(donorPath).Length },
     output = new { path = outputPath, sha256 = Sha(outputPath), size = new FileInfo(outputPath).Length },
-    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticRawUolPathVerification = true, nonEmptyCandidate = true },
+    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticRawUolPathVerification = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
     images = staged.Select(x => new { requestedPath = x.RequestedPath, resolvedPath = x.ResolvedPath }).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
