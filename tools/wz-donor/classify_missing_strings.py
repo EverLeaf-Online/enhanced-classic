@@ -34,6 +34,8 @@ class WzNode:
     category: str = ""
     source_file: str = ""
     has_icon: bool = False
+    embedded_name: str = ""
+    embedded_desc: str = ""
     immediate_children: set[str] = field(default_factory=set)
     info_values: dict[str, str] = field(default_factory=dict)
 
@@ -83,11 +85,28 @@ def _subtree_has_icon(elem: ET.Element) -> bool:
     for child in elem.iter():
         tag = child.tag.lower()
         name = (child.get("name") or "").lower()
-        if tag == "canvas" and name in ("icon", "iconraw"):
+        # v180 frequently stores icon/iconRaw as UOLs into another item rather
+        # than embedding a canvas. Those are still real renderable icons and
+        # must count as HasIcon for classification.
+        if tag in ("canvas", "uol") and name in ("icon", "iconraw"):
             return True
         if tag == "canvas" and "icon" in name:
             return True
     return False
+
+
+def _extract_embedded_strings(item_elem: ET.Element) -> tuple[str, str]:
+    name = ""
+    desc = ""
+    for child in item_elem:
+        if child.tag.lower() != "string":
+            continue
+        key = (child.get("name") or "").lower()
+        if key == "name":
+            name = child.get("value", "")
+        elif key in ("desc", "description"):
+            desc = child.get("value", "")
+    return name, desc
 
 
 def _extract_info_values(item_elem: ET.Element) -> dict[str, str]:
@@ -121,11 +140,14 @@ def load_xml_item_dump(path: str) -> dict[str, WzNode]:
                 # First plausible numeric ID on this branch. Do not descend
                 # further for ID detection: option/0 etc. belong to this ID.
                 item_id = canonical_numeric_id(name)
+                embedded_name, embedded_desc = _extract_embedded_strings(child)
                 node = WzNode(
                     node_id=item_id,
                     category=category,
                     source_file=source_file,
                     has_icon=_subtree_has_icon(child),
+                    embedded_name=embedded_name,
+                    embedded_desc=embedded_desc,
                     immediate_children={
                         (x.get("name") or "") for x in child
                         if (x.get("name") or "")
@@ -245,10 +267,15 @@ def classify(
             return "moved_or_renamed", "high"
         return "possibly_repurposed_id", "medium"
 
-    if target is not None and target.has_icon:
+    if target is not None and (target.has_icon or target.embedded_name or target.embedded_desc):
         return "recoverable_player_facing", "medium-high"
 
     if target is not None:
+        # A completely empty donor node is not enough evidence to call the ID
+        # internal. Keep it in manual review instead of creating a false
+        # 'legitimately internal' conclusion.
+        if not target.immediate_children and not target.info_values:
+            return "unclassified_empty_placeholder", "low"
         return "legitimately_internal", "medium"
 
     return "unclassified", "low"
