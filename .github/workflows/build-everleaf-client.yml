@@ -49,6 +49,7 @@ jobs:
             'DisplayMode::StartWorker()',
             'FieldRenderCorrections::Apply()',
             'FieldViewRange::Install()',
+            'LimitedViewCorrections::Install()',
             'DiscordPresence::Start();',
             'DiscordPresence::Stop();'
           )) {
@@ -123,6 +124,22 @@ jobs:
             'gRestoreViewRange(self)'
           )) {
             if (-not $fieldView.Contains($needle)) { throw "Missing dynamic field view-range contract: $needle" }
+          }
+
+          $limitedView = Get-Content 'client/native/core/LimitedViewCorrections.h' -Raw
+          foreach ($needle in @(
+            'kRawCopyCallSite = 0x0055BEFE',
+            'kCopyExCallSite1 = 0x0055C08E',
+            'kCopyExCallSite2 = 0x0055C1DD',
+            'raw_Copy(int, int, IWzCanvasLite*, VARIANT)',
+            'raw_CopyEx(',
+            'DestinationOffsetX()',
+            'DestinationOffsetY()',
+            'IsSixByteIndirectCall',
+            'IsRelativeCall',
+            'PatchDirectCall'
+          )) {
+            if (-not $limitedView.Contains($needle)) { throw "Missing limited-view draw correction contract: $needle" }
           }
 
           $bridge = Get-Content 'client/native/core/DiscordPresence.cpp' -Raw
