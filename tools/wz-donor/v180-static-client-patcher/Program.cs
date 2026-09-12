@@ -436,7 +436,15 @@ static (int Found, int Materialized, int Unresolved) MaterializeModernCanvasLink
             continue;
         }
 
-        candidateCanvas.PngProperty = (WzPngProperty)effectivePng.DeepClone();
+        // Do not transplant donor compressed bytes directly into a v83/GMS target.
+        // Modern donor PNG payloads can be list/encryption-context dependent; copying
+        // their compressed payload verbatim can reparse with different pixels. Decode
+        // once from the donor, then recompress through the target canvas' PNG property.
+        using (var resolvedBitmap = effectivePng.GetImage(false))
+        {
+            candidateCanvas.PngProperty.Format = effectivePng.Format;
+            candidateCanvas.PngProperty.PNG = (Bitmap)resolvedBitmap.Clone();
+        }
         var inlink = candidateCanvas[WzCanvasProperty.InlinkPropertyName];
         if (inlink != null) candidateCanvas.RemoveProperty(inlink);
         var outlink = candidateCanvas[WzCanvasProperty.OutlinkPropertyName];
