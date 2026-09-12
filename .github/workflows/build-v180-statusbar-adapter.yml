@@ -1,0 +1,107 @@
+name: Build v180 StatusBar2/3 v83 adapter
+
+on:
+  push:
+    branches: [donor/v180-low-friction-stage-20260911]
+    paths:
+      - tools/wz-donor/v180-statusbar-adapter.cs
+      - .github/workflows/build-v180-statusbar-adapter.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  TARGET_UI: /opt/everleaf/patches/files/UI.wz
+  DONOR_UI: /opt/everleaf/donors/GMS-v180/GMS-v180/MapleStory/UI.wz
+  DONOR_ZLZ: /opt/everleaf/donors/GMS-v180/GMS-v180/MapleStory/ZLZ.dll
+  STAGE_ROOT: /opt/everleaf/donors/v180-backport/statusbar-adapter-candidate
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 30
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Build adapter and validator
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $adapter=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafStatusBarAdapter'; New-Item -ItemType Directory -Force -Path $adapter | Out-Null
+          Copy-Item tools/wz-donor/v180-statusbar-adapter.cs (Join-Path $adapter 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup>
+            <ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $adapter 'EverLeafStatusBarAdapter.csproj')
+          dotnet build (Join-Path $adapter 'EverLeafStatusBarAdapter.csproj') -c Release
+          $validator=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafValidator'; New-Item -ItemType Directory -Force -Path $validator | Out-Null
+          Copy-Item tools/wz-donor/v180-harepacker-validator/Program.cs (Join-Path $validator 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup>
+            <ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $validator 'EverLeafValidator.csproj')
+          dotnet build (Join-Path $validator 'EverLeafValidator.csproj') -c Release
+
+      - name: Build and validate adapted live UI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'statusbar-adapter'; New-Item -ItemType Directory -Force -Path $root | Out-Null
+          scp "everleaf-oracle`:$env:TARGET_UI" (Join-Path $root 'target.wz'); if($LASTEXITCODE){throw 'target UI fetch failed'}
+          scp "everleaf-oracle`:$env:DONOR_UI" (Join-Path $root 'donor.wz'); if($LASTEXITCODE){throw 'donor UI fetch failed'}
+          scp "everleaf-oracle`:$env:DONOR_ZLZ" (Join-Path $root 'ZLZ.dll'); if($LASTEXITCODE){throw 'ZLZ fetch failed'}
+          $adapter=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafStatusBarAdapter/EverLeafStatusBarAdapter.csproj'
+          dotnet run --project $adapter -c Release --no-build -- (Join-Path $root 'target.wz') (Join-Path $root 'donor.wz') (Join-Path $root 'UI.wz') (Join-Path $root 'statusbar-manifest.json')
+          if($LASTEXITCODE){throw 'statusbar adapter failed'}
+          $validator=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafValidator/EverLeafValidator.csproj'
+          dotnet run --project $validator -c Release --no-build -- (Join-Path $root 'UI.wz') (Join-Path $root 'xml') (Join-Path $root 'harepacker-validation.json')
+          if($LASTEXITCODE){throw 'HaRepacker validation failed'}
+          $v=Get-Content -Raw (Join-Path $root 'harepacker-validation.json') | ConvertFrom-Json
+          if(-not $v.validation.allImagesParsed -or -not $v.validation.allXmlWellFormed -or -not $v.validation.imageAndXmlCountsMatch){throw 'validation flags failed'}
+          $m=Get-Content -Raw (Join-Path $root 'statusbar-manifest.json') | ConvertFrom-Json
+          if($m.changes.Count -ne 5 -or -not $m.validation.outputReparsed){throw 'statusbar adapter manifest invalid'}
+
+      - name: Upload verified candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'statusbar-adapter'
+          ssh everleaf-oracle "sudo mkdir -p '$env:STAGE_ROOT' && sudo chown -R ubuntu:ubuntu '$env:STAGE_ROOT' && rm -f '$env:STAGE_ROOT/UI.wz' '$env:STAGE_ROOT/statusbar-manifest.json' '$env:STAGE_ROOT/harepacker-validation.json' '$env:STAGE_ROOT/SHA256SUMS'"
+          if($LASTEXITCODE){throw 'stage prepare failed'}
+          scp (Join-Path $root 'UI.wz') "everleaf-oracle`:$env:STAGE_ROOT/UI.wz"; if($LASTEXITCODE){throw 'candidate upload failed'}
+          scp (Join-Path $root 'statusbar-manifest.json') "everleaf-oracle`:$env:STAGE_ROOT/statusbar-manifest.json"; if($LASTEXITCODE){throw 'manifest upload failed'}
+          scp (Join-Path $root 'harepacker-validation.json') "everleaf-oracle`:$env:STAGE_ROOT/harepacker-validation.json"; if($LASTEXITCODE){throw 'validation upload failed'}
+          ssh everleaf-oracle "sha256sum '$env:STAGE_ROOT/UI.wz' > '$env:STAGE_ROOT/SHA256SUMS'"
