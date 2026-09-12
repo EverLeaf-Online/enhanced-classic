@@ -1,6 +1,7 @@
 const data=require("./wikiDataService");
+const visibility=require("./wikiVisibilityService");
 
-const cache={builtAt:0,types:new Map()};
+const cache={builtAt:0,visibilityRevision:-1,types:new Map()};
 
 function cleanText(value=""){
   return String(value)
@@ -19,16 +20,7 @@ function normalizeText(value=""){
 }
 
 function looksInternal(entity){
-  const name=cleanText(entity?.name);
-  const description=cleanText(entity?.description);
-  if(!name||name.length<2)return true;
-  if(/^\d+$/.test(name))return true;
-  if(/^[?*_.\-–—]+$/.test(name))return true;
-  const combined=`${name} ${description}`.toLowerCase();
-  if(/\b(?:dummy|placeholder|unused|not\s+used|do\s+not\s+use|dont\s+use|debug)\b/i.test(combined))return true;
-  if(/^(?:test|sample|reserved)(?:\s+(?:item|mob|monster|npc|map|skill|quest|data))?$/i.test(name))return true;
-  if(/^zz(?:z+)?\b/i.test(name))return true;
-  return false;
+  return visibility.automaticDecision(entity).hidden;
 }
 
 function quality(entity){
@@ -50,8 +42,8 @@ function identityKey(entity){
 
 function dedupeEntities(rows=[]){
   const groups=new Map();
-  for(const raw of rows){
-    if(!raw||looksInternal(raw))continue;
+  for(const raw of visibility.filterPublic(rows)){
+    if(!raw)continue;
     const entity={...raw,name:cleanText(raw.name),description:cleanText(raw.description),subtype:cleanText(raw.subtype)};
     const key=identityKey(entity);
     if(!key||key.endsWith("|||"))continue;
@@ -80,8 +72,10 @@ function dedupeEntities(rows=[]){
 function syncCache(){
   data.ensureCatalog();
   const status=data.snapshot();
-  if(cache.builtAt!==status.builtAt){
+  const visibilityRevision=visibility.revisionToken();
+  if(cache.builtAt!==status.builtAt||cache.visibilityRevision!==visibilityRevision){
     cache.builtAt=status.builtAt;
+    cache.visibilityRevision=visibilityRevision;
     cache.types.clear();
   }
   return status;
@@ -91,16 +85,7 @@ function loadType(type){
   syncCache();
   if(!data.TYPE_META[type])return [];
   if(cache.types.has(type))return cache.types.get(type);
-  const rows=[];
-  let page=1;
-  let pages=1;
-  do{
-    const batch=data.list(type,{page,limit:100});
-    rows.push(...batch.rows);
-    pages=batch.pages;
-    page+=1;
-  }while(page<=pages);
-  const cleaned=dedupeEntities(rows);
+  const cleaned=dedupeEntities(data.all(type));
   cache.types.set(type,cleaned);
   return cleaned;
 }
@@ -122,10 +107,19 @@ function scoreEntity(entity,query){
   return -1;
 }
 
+function isPlayerVisibleRaw(raw){
+  return Boolean(raw)&&visibility.decision(raw).visible;
+}
+
+function getBase(type,id){
+  const raw=data.getBase(type,id);
+  return isPlayerVisibleRaw(raw)?raw:null;
+}
+
 function withExactId(rows,type,q){
   const value=String(q||"").trim();
   if(!/^\d+$/.test(value))return rows;
-  const raw=data.getBase(type,Number(value));
+  const raw=getBase(type,Number(value));
   if(!raw)return rows;
   if(rows.some(row=>Number(row.id)===Number(raw.id)))return rows;
   return [{...raw,variantIds:[Number(raw.id)],variantCount:1},...rows];
@@ -161,7 +155,7 @@ function search(query,type="all",limit=60){
     .map(row=>row.entity);
   if(/^\d+$/.test(q)){
     for(const kind of types){
-      const raw=data.getBase(kind,Number(q));
+      const raw=getBase(kind,Number(q));
       if(raw&&!rows.some(row=>row.type===kind&&Number(row.id)===Number(raw.id))){
         rows.unshift({...raw,variantIds:[Number(raw.id)],variantCount:1});
       }
@@ -174,6 +168,47 @@ function search(query,type="all",limit=60){
     seen.add(key);
     return true;
   }).slice(0,Math.max(1,Math.min(100,Number(limit)||60)));
+}
+
+function relationFilter(){
+  const maps=new Map();
+  return entity=>{
+    if(!entity||!data.TYPE_META[entity.type])return true;
+    const raw=data.getBase(entity.type,entity.id);
+    if(!raw)return false;
+    if(!maps.has(entity.type))maps.set(entity.type,visibility.overrideMap(entity.type));
+    return visibility.decision(raw,maps.get(entity.type)).visible;
+  };
+}
+
+function sanitizeDetail(entry){
+  if(!entry)return null;
+  const canShow=relationFilter();
+  const result={...entry,sections:{...(entry.sections||{})}};
+  if(entry.type==="items"){
+    const sources={...(result.sections.sources||{})};
+    sources.drops=(sources.drops||[]).filter(row=>canShow(row.monster));
+    sources.shops=(sources.shops||[]).filter(row=>canShow(row.npc));
+    result.sections.sources=sources;
+  }else if(entry.type==="monsters"){
+    result.sections.drops=(result.sections.drops||[]).filter(row=>canShow(row.item));
+    result.sections.maps=(result.sections.maps||[]).filter(canShow);
+  }else if(entry.type==="maps"){
+    result.sections.mobs=(result.sections.mobs||[]).filter(row=>canShow(row.entity));
+    result.sections.npcs=(result.sections.npcs||[]).filter(row=>canShow(row.entity));
+    result.sections.portals=(result.sections.portals||[]).filter(row=>Number(row.targetMap)<0||canShow(row.target));
+  }else if(entry.type==="npcs"){
+    result.sections.shop=(result.sections.shop||[]).filter(row=>canShow(row.item));
+    result.sections.maps=(result.sections.maps||[]).filter(canShow);
+  }
+  return result;
+}
+
+async function detail(type,id){
+  const base=getBase(type,id);
+  if(!base)return null;
+  const raw=await data.detail(type,id);
+  return sanitizeDetail(raw);
 }
 
 function snapshot(){
@@ -189,7 +224,7 @@ module.exports={
   search,
   snapshot,
   ensureCatalog:snapshot,
-  getBase:data.getBase,
-  detail:data.detail,
-  _test:{cleanText,normalizeText,looksInternal,identityKey,dedupeEntities,scoreEntity}
+  getBase,
+  detail,
+  _test:{cleanText,normalizeText,looksInternal,identityKey,dedupeEntities,scoreEntity,sanitizeDetail}
 };

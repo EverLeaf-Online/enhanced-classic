@@ -339,6 +339,12 @@ function getBase(type, id) {
   return state.byType[type].get(Number(id)) || null;
 }
 
+function all(type) {
+  ensureCatalog();
+  if (!TYPE_META[type]) return [];
+  return [...state.entities[type]];
+}
+
 function walkFiles(root) {
   const result = [];
   const stack = [root];
@@ -632,6 +638,7 @@ module.exports = {
   snapshot,
   search,
   list,
+  all,
   getBase,
   detail,
   parseWzXmlText,

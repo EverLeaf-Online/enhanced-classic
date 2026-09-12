@@ -136,6 +136,19 @@ function initCms() {
     CREATE INDEX IF NOT EXISTS wiki_articles_updated
       ON wiki_articles(updated_at DESC);
 
+    CREATE TABLE IF NOT EXISTS wiki_entity_visibility (
+      entity_type TEXT NOT NULL CHECK(entity_type IN ('items','monsters','maps','skills','npcs','quests')),
+      entity_id INTEGER NOT NULL CHECK(entity_id >= 0),
+      visibility TEXT NOT NULL CHECK(visibility IN ('hidden','visible')),
+      reason TEXT NOT NULL DEFAULT '',
+      updated_by TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY(entity_type,entity_id)
+    );
+    CREATE INDEX IF NOT EXISTS wiki_entity_visibility_state
+      ON wiki_entity_visibility(entity_type,visibility,updated_at DESC);
+
     CREATE TABLE IF NOT EXISTS audit_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       admin_id INTEGER,

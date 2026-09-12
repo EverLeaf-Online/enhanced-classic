@@ -20,6 +20,8 @@ test('wiki seed catalog remains available as supplemental EverLeaf guides',()=>{
 test('CMS schema still owns persistent supplemental guide storage',()=>{
   const cms=read('src/db/cms.js');
   assert.match(cms,/CREATE TABLE IF NOT EXISTS wiki_articles/);
+  assert.match(cms,/CREATE TABLE IF NOT EXISTS wiki_entity_visibility/);
+  assert.match(cms,/PRIMARY KEY\(entity_type,entity_id\)/);
   assert.match(cms,/INSERT OR IGNORE INTO wiki_articles/);
   assert.match(cms,/WIKI_SEED_VERSION = 2/);
   assert.match(cms,/updated_at=created_at/);

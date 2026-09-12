@@ -2,6 +2,8 @@ const express=require('express');
 const {requireAdmin}=require('../middleware/auth');
 const {db,settings}=require('../db/cms');
 const wiki=require('../services/wikiService');
+const wikiData=require('../services/wikiDataService');
+const visibility=require('../services/wikiVisibilityService');
 const router=express.Router();
 
 const logAdmin=(req,action,details='')=>db.prepare('INSERT INTO audit_log(admin_id,action,details) VALUES(?,?,?)').run(req.session.admin?.id||null,action,String(details).slice(0,500));
@@ -17,6 +19,7 @@ function renderIndex(req,res){
   }));
   const sources=wiki.sourceCoverage(entries);
   const verifiedCount=entries.filter(entry=>entry.verification).length;
+  const curationStats=visibility.stats();
   res.render('admin-knowledge',{
     settings:settings(),
     categories:wiki.categories,
@@ -26,6 +29,7 @@ function renderIndex(req,res){
     sources,
     stats:wiki.stats(),
     verifiedCount,
+    curationStats,
     q,
     category,
     saved:String(req.query.saved||'')==='1'
@@ -33,6 +37,53 @@ function renderIndex(req,res){
 }
 
 router.get('/knowledge',requireAdmin,renderIndex);
+
+router.get('/knowledge/catalog',requireAdmin,(req,res)=>{
+  const requestedType=String(req.query.type||'items');
+  const type=wikiData.TYPE_META[requestedType]?requestedType:'items';
+  const q=String(req.query.q||'').trim().slice(0,120);
+  const filter=String(req.query.filter||'all');
+  const page=Math.max(1,Number(req.query.page)||1);
+  const result=visibility.catalogList(type,{q,filter,page,limit:50});
+  res.render('admin-wiki-catalog',{
+    settings:settings(),
+    types:wikiData.TYPE_META,
+    type,
+    q,
+    filter:result.filter,
+    result,
+    curationStats:visibility.stats(),
+    saved:String(req.query.saved||'')==='1'
+  });
+});
+
+router.post('/knowledge/catalog/:type/:id/visibility',requireAdmin,(req,res)=>{
+  const type=String(req.params.type||'');
+  const id=Number(req.params.id);
+  const mode=String(req.body.visibility||'auto');
+  const reason=String(req.body.reason||'').trim().slice(0,300);
+  const entity=wikiData.TYPE_META[type]&&Number.isInteger(id)&&id>=0?wikiData.getBase(type,id):null;
+  if(!entity)return res.status(404).send('Wiki catalog entity not found.');
+  try{
+    if(mode==='auto')visibility.clearOverride(type,id);
+    else if(mode==='hidden'||mode==='visible')visibility.setOverride(type,id,mode,reason,req.session.admin?.username||'staff');
+    else return res.status(400).send('Invalid Wiki visibility mode.');
+    logAdmin(req,'wiki.visibility',`${type}:${id}:${mode}${reason?`:${reason}`:''}`);
+  }catch(error){
+    console.warn('Wiki visibility update failed:',error.message);
+    return res.status(400).send('The Wiki visibility setting could not be saved.');
+  }
+  const params=new URLSearchParams();
+  params.set('type',type);
+  const q=String(req.body.returnQ||'').trim().slice(0,120);
+  const filter=String(req.body.returnFilter||'all');
+  const page=Math.max(1,Number(req.body.returnPage)||1);
+  if(q)params.set('q',q);
+  if(filter&&filter!=='all')params.set('filter',filter);
+  if(page>1)params.set('page',String(page));
+  params.set('saved','1');
+  res.redirect(`/admin/knowledge/catalog?${params.toString()}`);
+});
 
 router.get('/knowledge/new',requireAdmin,(req,res)=>{
   res.render('admin-knowledge-edit',{
