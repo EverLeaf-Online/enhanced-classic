@@ -148,7 +148,8 @@ static string ImageSemanticDigest(WzImage img)
         var png = canvas.PngProperty;
         HashText(h, png.Width.ToString());
         HashText(h, png.Height.ToString());
-        HashText(h, png.Format.ToString());
+        // Compression/pixel-format storage metadata can legitimately change when MapleLib
+        // rewrites a canvas. Semantic verification is based on decoded dimensions + pixels.
         using var bmp = png.GetImage(false);
         var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
         var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
