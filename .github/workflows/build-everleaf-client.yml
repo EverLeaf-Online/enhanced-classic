@@ -42,7 +42,15 @@ jobs:
         shell: pwsh
         run: |
           $bootstrap = Get-Content 'client/native/core/dllmain.cpp' -Raw
-          foreach ($needle in @('WaitForClientImage()','BootstrapWatchdog','InstallEarlyHooks()','DisplayMode::StartWorker()','DiscordPresence::Start();','DiscordPresence::Stop();')) {
+          foreach ($needle in @(
+            'WaitForClientImage()',
+            'BootstrapWatchdog',
+            'InstallEarlyHooks()',
+            'DisplayMode::StartWorker()',
+            'FieldRenderCorrections::Apply()',
+            'DiscordPresence::Start();',
+            'DiscordPresence::Stop();'
+          )) {
             if (-not $bootstrap.Contains($needle)) { throw "Missing core bootstrap marker: $needle" }
           }
 
@@ -64,7 +72,8 @@ jobs:
             'kRestoreViewRangeAddress = 0x00641EF1',
             'kReloadBackAddress = 0x00644491',
             'SetRendererMode(previousWidth, previousHeight)',
-            'WidescreenCorrections::ApplyCurrent()'
+            'WidescreenCorrections::ApplyCurrent()',
+            'FieldRenderCorrections::ApplyCurrent()'
           )) {
             if (-not $runtimeResolution.Contains($needle)) { throw "Missing runtime-resolution contract: $needle" }
           }
@@ -81,6 +90,19 @@ jobs:
             'InstallUtilityDialogBounds()'
           )) {
             if (-not $uiBounds.Contains($needle)) { throw "Missing resolution UI-bounds contract: $needle" }
+          }
+
+          $fieldRender = Get-Content 'client/native/core/FieldRenderCorrections.h' -Raw
+          foreach ($needle in @(
+            'kWeatherHalfWidthMinus10 = 0x0064059B',
+            'kWeatherBottomMinus10 = 0x006405BC',
+            'kWeatherHalfHeight = 0x006406FC',
+            'kLimitedViewDarkY = 0x0055BB30',
+            'CorrectLimitedViewDarkY()',
+            'MatchesExpectedPreState()',
+            'ApplyCurrent()'
+          )) {
+            if (-not $fieldRender.Contains($needle)) { throw "Missing field-render correction contract: $needle" }
           }
 
           $bridge = Get-Content 'client/native/core/DiscordPresence.cpp' -Raw
