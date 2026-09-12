@@ -24,3 +24,6 @@ target_link_libraries(everleaf-remove-map-neocity PRIVATE wz)
 
 add_executable(everleaf-patch-fm-cashshop patch-fm-cashshop.cpp)
 target_link_libraries(everleaf-patch-fm-cashshop PRIVATE wz)
+
+add_executable(everleaf-system-options-wz system-options.cpp)
+target_link_libraries(everleaf-system-options-wz PRIVATE wz)
