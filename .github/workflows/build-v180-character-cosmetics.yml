@@ -1,0 +1,102 @@
+name: Build v180 live Character cosmetics candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  TARGET_ROOT: /opt/everleaf/patches/files
+  DONOR_ROOT: /opt/everleaf/donors/GMS-v180/GMS-v180/MapleStory
+  MANIFEST_ROOT: /opt/everleaf/donors/v180-backport
+  STAGE_ROOT: /opt/everleaf/donors/v180-backport/character-cosmetics-candidate
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 30
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Build static patcher
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafV180StaticPatcher'; New-Item -ItemType Directory -Force -Path $tool | Out-Null
+          Copy-Item tools/wz-donor/v180-static-client-patcher/Program.cs (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup>
+            <ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafV180StaticPatcher.csproj')
+          dotnet build (Join-Path $tool 'EverLeafV180StaticPatcher.csproj') -c Release
+
+      - name: Fetch Character inputs and cosmetic manifests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'v180-character-cosmetics'
+          $target=Join-Path $root 'target'; $donor=Join-Path $root 'donor'; $out=Join-Path $root 'out'
+          New-Item -ItemType Directory -Force -Path $target,$donor,$out | Out-Null
+          scp "everleaf-oracle`:$env:TARGET_ROOT/Character.wz" (Join-Path $target 'Character.wz'); if($LASTEXITCODE){throw 'target Character fetch failed'}
+          scp "everleaf-oracle`:$env:DONOR_ROOT/Character.wz" (Join-Path $donor 'Character.wz'); if($LASTEXITCODE){throw 'donor Character fetch failed'}
+          scp "everleaf-oracle`:$env:DONOR_ROOT/ZLZ.dll" (Join-Path $donor 'ZLZ.dll'); if($LASTEXITCODE){throw 'ZLZ fetch failed'}
+          scp "everleaf-oracle`:$env:MANIFEST_ROOT/character_hair.txt" (Join-Path $root 'hair.txt'); if($LASTEXITCODE){throw 'hair manifest fetch failed'}
+          scp "everleaf-oracle`:$env:MANIFEST_ROOT/character_face.txt" (Join-Path $root 'face.txt'); if($LASTEXITCODE){throw 'face manifest fetch failed'}
+          $paths=(Get-Content (Join-Path $root 'hair.txt')) + (Get-Content (Join-Path $root 'face.txt'))
+          $paths | Where-Object {$_.Trim()} | Sort-Object -Unique | Set-Content -Encoding ascii (Join-Path $root 'paths.txt')
+          $count=(Get-Content (Join-Path $root 'paths.txt')).Count
+          if($count -ne 5433){throw "unexpected Hair+Face path count: $count"}
+
+      - name: Build and verify Character cosmetics candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'v180-character-cosmetics'
+          $project=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafV180StaticPatcher/EverLeafV180StaticPatcher.csproj'
+          dotnet run --project $project -c Release --no-build -- (Join-Path $root 'target/Character.wz') (Join-Path $root 'donor/Character.wz') (Join-Path $root 'paths.txt') (Join-Path $root 'out/Character.wz') (Join-Path $root 'out/Character.manifest.json')
+          if($LASTEXITCODE){throw 'Character cosmetics build failed'}
+          $m=Get-Content -Raw (Join-Path $root 'out/Character.manifest.json') | ConvertFrom-Json
+          if($m.requestedCount -ne 5433 -or $m.stagedCount -ne 5433 -or $m.verifiedCount -ne 5433){throw 'Character cosmetics coverage mismatch'}
+          if($m.unresolvedModernCanvasLinkCount -ne 0){throw 'Character cosmetics unresolved canvas links'}
+          if(-not $m.validation.outputReparsed -or -not $m.validation.donorImageDigestsMatch){throw 'Character cosmetics verification flags failed'}
+
+      - name: Upload isolated candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'v180-character-cosmetics/out'
+          ssh everleaf-oracle "sudo mkdir -p '$env:STAGE_ROOT' && sudo chown -R ubuntu:ubuntu '$env:STAGE_ROOT'"; if($LASTEXITCODE){throw 'stage prepare failed'}
+          scp (Join-Path $root 'Character.wz') "everleaf-oracle`:$env:STAGE_ROOT/Character.wz"; if($LASTEXITCODE){throw 'candidate upload failed'}
+          scp (Join-Path $root 'Character.manifest.json') "everleaf-oracle`:$env:STAGE_ROOT/Character.manifest.json"; if($LASTEXITCODE){throw 'manifest upload failed'}
+          ssh everleaf-oracle "sha256sum '$env:STAGE_ROOT/Character.wz' > '$env:STAGE_ROOT/SHA256SUMS'"
