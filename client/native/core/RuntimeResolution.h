@@ -6,6 +6,7 @@
 #include "CrashDiagnostics.h"
 #include "WidescreenCorrections.h"
 #include "FieldRenderCorrections.h"
+#include "RuntimeUiSync.h"
 #include "AddyLocations.h"
 
 #include <windows.h>
@@ -256,6 +257,12 @@ inline void ApplyEverLeafRuntimeCorrections(int width, int height) {
     // the broad legacy patch pass, which may rewrite some of them each call.
     WidescreenCorrections::ApplyCurrent();
     FieldRenderCorrections::ApplyCurrent();
+
+    // Gr2D changes size in-place, so CWndMan is not reconstructed. Reapply the
+    // same stock origin geometry used by a clean launch at this resolution and
+    // resync the cursor vector before any more UI work occurs.
+    RuntimeUiSync::ApplyCurrent();
+
     Memory::WriteInt(dwToolTipLimitVPos + 1, static_cast<unsigned int>(height - 1));
 
     // Client::UpdateResolution intentionally routes an inherited malformed write
