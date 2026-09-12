@@ -70,8 +70,14 @@ jobs:
               if needle not in lookup:
                   raise SystemExit(f"Missing custom WZ lookup contract: {needle}")
 
-          if mount.index('gInitializeResMan(self);') > mount.index('MountCustomPackage()'):
+          marker = 'inline void __fastcall InitializeResManHook(void* self, void*) {'
+          if marker not in mount:
+              raise SystemExit('InitializeResMan owner hook is missing')
+          hook_body = mount.split(marker, 1)[1].split('} // namespace detail', 1)[0]
+          if hook_body.index('gInitializeResMan(self);') > hook_body.index('if (!MountCustomPackage())'):
               raise SystemExit('Stock InitializeResMan must run before the custom mount')
+          if hook_body.index('if (!MountCustomPackage())') > hook_body.index('CustomWzLookup::Prepare(gCustomNameSpace)'):
+              raise SystemExit('Custom mount must complete before override indexing/fallback setup')
 
           if 'CustomWzOverride::Install()' not in bootstrap:
               raise SystemExit('Bootstrap no longer installs the EverLeaf custom WZ owner')
