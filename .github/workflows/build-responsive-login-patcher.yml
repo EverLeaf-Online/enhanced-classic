@@ -37,6 +37,10 @@ jobs:
           cmake --build $build --config Release --target everleaf-responsive-login-wz --parallel 2
           $exe = Join-Path $build 'Release/everleaf-responsive-login-wz.exe'
           if (-not (Test-Path $exe)) { throw "responsive login patcher output missing" }
+
+          & 'client/tools/login-wz-patcher/Make-Responsive-Login.ps1' -SelfTest
+          if ($LASTEXITCODE -ne 0) { throw "responsive login padding self-test failed ($LASTEXITCODE)" }
+
           $package = "$env:RUNNER_TEMP/responsive-login-package"
           New-Item -ItemType Directory -Force $package | Out-Null
           Copy-Item $exe (Join-Path $package 'everleaf-responsive-login-wz.exe')
