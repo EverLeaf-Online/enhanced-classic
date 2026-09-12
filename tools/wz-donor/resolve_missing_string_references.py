@@ -3,8 +3,9 @@ from __future__ import annotations
 import argparse,csv,json,re,xml.etree.ElementTree as ET
 from pathlib import Path
 
-ID_RE=re.compile(r'(?<!\d)(\d{7,8})(?!\d)')
-REF_KEYS={'buffitemid','statechangeitem','item','create','mob','npc','script','id'}
+ID_RE=re.compile(r'(?<!\d)(\d{7,9})(?!\d)')
+PATH_REF_KEYS={'_inlink','_outlink'}
+REF_KEYS={'buffitemid','statechangeitem','item','create','mob','npc','script','id','skill'}
 
 def build_string_index(root:Path):
     out={}
@@ -50,12 +51,16 @@ def main():
             for x in e.iter():
                 key=(x.get('name') or ''); val=x.get('value')
                 if not val: continue
-                for m in ID_RE.finditer(val):
-                    rid=int(m.group(1))
-                    if rid==iid: continue
-                    s=strings.get(rid)
-                    refs.append({'via':key,'refId':rid,'refName':s['name'] if s else '','refDesc':s['desc'] if s else '','raw':val})
-                if key.lower() in REF_KEYS and val.isdigit():
+                kl=key.lower()
+                # IDs embedded in WZ link paths are trustworthy references. Do not scan
+                # arbitrary numeric scalar values (e.g. time=1200000), which caused false positives.
+                if kl in PATH_REF_KEYS:
+                    for m in ID_RE.finditer(val):
+                        rid=int(m.group(1))
+                        if rid==iid: continue
+                        s=strings.get(rid)
+                        refs.append({'via':key,'refId':rid,'refName':s['name'] if s else '','refDesc':s['desc'] if s else '','raw':val})
+                if kl in REF_KEYS and val.isdigit():
                     rid=int(val); s=strings.get(rid)
                     refs.append({'via':key,'refId':rid,'refName':s['name'] if s else '','refDesc':s['desc'] if s else '','raw':val})
         seen=set(); ded=[]
