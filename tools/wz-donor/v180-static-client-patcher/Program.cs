@@ -127,6 +127,67 @@ static WzObject? ResolveUolObject(WzObject? value)
     return current;
 }
 
+static WzImage? FindOwningImage(WzObject? value)
+{
+    var current = value;
+    while (current != null)
+    {
+        if (current is WzImage image) return image;
+        current = current.Parent;
+    }
+    return null;
+}
+
+static string AlphaWzPrefix(string wzFileName)
+{
+    var name = Path.GetFileNameWithoutExtension(wzFileName);
+    var end = name.Length;
+    while (end > 0 && char.IsDigit(name[end - 1])) end--;
+    return name[..end];
+}
+
+static WzImageProperty? ResolveModernCanvasLink(WzCanvasProperty canvas)
+{
+    var inlink = (canvas[WzCanvasProperty.InlinkPropertyName] as WzStringProperty)?.Value;
+    if (!string.IsNullOrWhiteSpace(inlink))
+    {
+        var image = FindOwningImage(canvas);
+        if (image == null) return null;
+        if (!image.Parsed) image.ParseImage();
+        return image.GetFromPath(inlink.Trim().Trim('/')) as WzImageProperty;
+    }
+
+    var outlink = (canvas[WzCanvasProperty.OutlinkPropertyName] as WzStringProperty)?.Value;
+    if (string.IsNullOrWhiteSpace(outlink)) return null;
+    var wzFile = canvas.WzFileParent;
+    if (wzFile == null) return null;
+
+    var normalized = outlink.Trim().Trim('/').Replace('\\', '/');
+    var imageEnd = normalized.IndexOf(".img", StringComparison.OrdinalIgnoreCase);
+    if (imageEnd < 0) return null;
+    imageEnd += 4;
+    var imagePath = normalized[..imageEnd];
+    var propertyPath = imageEnd < normalized.Length ? normalized[(imageEnd + 1)..] : string.Empty;
+
+    var slash = imagePath.IndexOf('/');
+    if (slash >= 0)
+    {
+        var linkPrefix = imagePath[..slash];
+        var fileBase = Path.GetFileNameWithoutExtension(wzFile.Name);
+        var alphaPrefix = AlphaWzPrefix(wzFile.Name);
+        if (string.Equals(linkPrefix, fileBase, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(linkPrefix, alphaPrefix, StringComparison.OrdinalIgnoreCase))
+            imagePath = imagePath[(slash + 1)..];
+    }
+
+    var location = FindImageExact(wzFile.WzDirectory, imagePath);
+    if (location == null) return null;
+    var linkedImage = location.Value.Image;
+    if (!linkedImage.Parsed) linkedImage.ParseImage();
+    if (string.IsNullOrEmpty(propertyPath)) return null;
+    return linkedImage.GetFromPath(propertyPath) as WzImageProperty;
+}
+
 static WzPngProperty? ResolveEffectiveCanvasPng(WzCanvasProperty canvas)
 {
     var seen = new HashSet<WzImageProperty>();
@@ -138,7 +199,7 @@ static WzPngProperty? ResolveEffectiveCanvasPng(WzCanvasProperty canvas)
         {
             if (currentCanvas.ContainsInlinkProperty() || currentCanvas.ContainsOutlinkProperty())
             {
-                var linked = currentCanvas.GetLinkedWzImageProperty();
+                var linked = ResolveModernCanvasLink(currentCanvas);
                 if (linked == null || ReferenceEquals(linked, currentCanvas)) return null;
                 current = linked;
                 continue;
@@ -485,7 +546,7 @@ using (var donor = OpenDonor(donorPath))
 var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 13,
+    schemaVersion = 14,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -505,7 +566,7 @@ var manifest = new
     source = new { path = targetPath, sha256 = targetHashBefore, version = targetVersion, size = new FileInfo(targetPath).Length },
     donor = new { path = donorPath, sha256 = donorHash, version = donorVersion, size = new FileInfo(donorPath).Length },
     output = new { path = outputPath, sha256 = Sha(outputPath), size = new FileInfo(outputPath).Length },
-    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticResolvedUolDependencyVerification = true, modernCanvasLinksMaterializedWhenResolvable = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
+    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticResolvedUolDependencyVerification = true, modernCanvasLinksMaterializedWhenResolvable = true, customLegacyOutlinkResolver = true, semanticPropertyOrderNormalized = true, nonEmptyCandidate = true },
     images = staged.Select(x => new { requestedPath = x.RequestedPath, resolvedPath = x.ResolvedPath }).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
