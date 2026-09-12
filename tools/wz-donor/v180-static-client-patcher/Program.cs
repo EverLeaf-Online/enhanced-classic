@@ -196,6 +196,71 @@ static string ImageSemanticDigest(WzImage img)
     return Convert.ToHexString(h.GetHashAndReset()).ToLowerInvariant();
 }
 
+static List<string> SemanticTokens(WzImage img)
+{
+    var tokens = new List<string> { $"image|{img.Name}" };
+    void Walk(IEnumerable<WzImageProperty> ps, string parent)
+    {
+        foreach (var p in ps)
+        {
+            var path = parent.Length == 0 ? p.Name : parent + "/" + p.Name;
+            if (p is WzShortProperty || p is WzIntProperty || p is WzLongProperty)
+            {
+                tokens.Add($"{path}|IntegralNumber|{Convert.ToInt64(p.WzValue).ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+            }
+            else if (p is WzCanvasProperty canvas)
+            {
+                var png = canvas.PngProperty;
+                using var bmp = png.GetImage(false);
+                var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+                var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                try
+                {
+                    var len = Math.Abs(data.Stride) * data.Height;
+                    var bytes = new byte[len];
+                    Marshal.Copy(data.Scan0, bytes, 0, len);
+                    tokens.Add($"{path}|Canvas|{bmp.Width}x{bmp.Height}|{Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()}");
+                }
+                finally
+                {
+                    bmp.UnlockBits(data);
+                }
+            }
+            else if (p.WzProperties == null)
+            {
+                string? value;
+                try { value = p.GetString(); }
+                catch { value = p.WzValue?.ToString(); }
+                tokens.Add($"{path}|{p.PropertyType}|{value ?? string.Empty}");
+            }
+            else
+            {
+                tokens.Add($"{path}|{p.PropertyType}|");
+            }
+            if (p.WzProperties != null) Walk(p.WzProperties, path);
+        }
+    }
+    Walk(img.WzProperties, string.Empty);
+    return tokens;
+}
+
+static string FirstSemanticDifference(WzImage donor, WzImage output)
+{
+    var a = SemanticTokens(donor);
+    var b = SemanticTokens(output);
+    var n = Math.Min(a.Count, b.Count);
+    for (var i = 0; i < n; i++)
+    {
+        if (!string.Equals(a[i], b[i], StringComparison.Ordinal))
+        {
+            static string Clip(string s) => s.Length <= 500 ? s : s[..500] + "...";
+            return $"token={i}; donor={Clip(a[i])}; output={Clip(b[i])}";
+        }
+    }
+    if (a.Count != b.Count) return $"token-count donor={a.Count} output={b.Count}";
+    return "semantic-token-streams-identical";
+}
+
 static int SanitizeForWrite(WzImage image)
 {
     var repaired = 0;
@@ -259,7 +324,10 @@ using (var donor = OpenDonor(donorPath))
             var donorSemantic = ImageSemanticDigest(donorImage.Image);
             var outputSemantic = ImageSemanticDigest(image.Image);
             if (!string.Equals(donorSemantic, outputSemantic, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException($"Donor/output semantic image digest mismatch: requested={row.RequestedPath}, resolved={row.ResolvedPath}");
+            {
+                var detail = FirstSemanticDifference(donorImage.Image, image.Image);
+                throw new InvalidDataException($"Donor/output semantic image digest mismatch: requested={row.RequestedPath}, resolved={row.ResolvedPath}; {detail}");
+            }
             semanticFallbackCount++;
         }
         verified++;
