@@ -3,6 +3,8 @@
 #include "Client.h"
 #include "INIReader.h"
 #include "CrashDiagnostics.h"
+#include "RuntimeResolution.h"
+#include "ResolutionUIBounds.h"
 
 namespace DisplayMode {
 namespace detail {
@@ -15,6 +17,10 @@ static LONG_PTR gWindowedExStyle = 0;
 static RECT gWindowedRect = {};
 static bool gHasWindowedState = false;
 static bool gBorderlessActive = false;
+static bool gMatchMonitorRenderer = true;
+static bool gFullscreenRendererChanged = false;
+static int gFramedRenderWidth = 0;
+static int gFramedRenderHeight = 0;
 
 inline HWND FindEverLeafGameWindow() {
     HWND window = FindWindowA("MapleStoryClass", nullptr);
@@ -43,6 +49,16 @@ inline bool GetMonitorRectForWindow(HWND window, bool useWorkArea, RECT& result)
     return true;
 }
 
+inline bool IsSupportedRendererSize(int width, int height) {
+    return
+        (width == 800 && height == 600) ||
+        (width == 1024 && height == 768) ||
+        (width == 1280 && height == 720) ||
+        (width == 1366 && height == 768) ||
+        (width == 1600 && height == 900) ||
+        (width == 1920 && height == 1080);
+}
+
 inline bool CaptureWindowedState(HWND window) {
     if (!window) {
         return false;
@@ -58,6 +74,68 @@ inline bool CaptureWindowedState(HWND window) {
     gWindowedRect = rect;
     gHasWindowedState = true;
     return true;
+}
+
+inline void CaptureFramedRendererState() {
+    gFramedRenderWidth = Client::m_nGameWidth;
+    gFramedRenderHeight = Client::m_nGameHeight;
+    gFullscreenRendererChanged = false;
+}
+
+inline bool MatchRendererToMonitor(HWND window) {
+    if (!window || !gMatchMonitorRenderer) {
+        return false;
+    }
+
+    RECT monitorRect = {};
+    if (!GetMonitorRectForWindow(window, false, monitorRect)) {
+        return false;
+    }
+
+    const int width = monitorRect.right - monitorRect.left;
+    const int height = monitorRect.bottom - monitorRect.top;
+    if (!IsSupportedRendererSize(width, height)) {
+        CrashDiagnostics::LogEvent("fullscreen monitor mode is outside EverLeaf supported resolution list");
+        std::cout << "EverLeaf Client v2: keeping current renderer in fullscreen; monitor mode "
+                  << width << "x" << height << " is not in the supported list" << std::endl;
+        return false;
+    }
+
+    if (width == Client::m_nGameWidth && height == Client::m_nGameHeight) {
+        return true;
+    }
+
+    if (!RuntimeResolution::Apply(width, height)) {
+        CrashDiagnostics::LogEvent("fullscreen renderer match failed; using monitor-sized window only");
+        return false;
+    }
+
+    ResolutionUIBounds::SetActiveResolution(width, height);
+    gFullscreenRendererChanged = true;
+    CrashDiagnostics::LogEvent("fullscreen renderer matched active monitor");
+    std::cout << "EverLeaf Client v2: fullscreen renderer matched monitor at "
+              << width << "x" << height << std::endl;
+    return true;
+}
+
+inline void RestoreFramedRenderer() {
+    if (!gFullscreenRendererChanged ||
+        gFramedRenderWidth <= 0 ||
+        gFramedRenderHeight <= 0) {
+        return;
+    }
+
+    if (RuntimeResolution::Apply(gFramedRenderWidth, gFramedRenderHeight)) {
+        ResolutionUIBounds::SetActiveResolution(gFramedRenderWidth, gFramedRenderHeight);
+        CrashDiagnostics::LogEvent("framed renderer resolution restored");
+        std::cout << "EverLeaf Client v2: restored framed renderer at "
+                  << gFramedRenderWidth << "x" << gFramedRenderHeight << std::endl;
+    }
+    else {
+        CrashDiagnostics::LogEvent("framed renderer resolution restore failed");
+    }
+
+    gFullscreenRendererChanged = false;
 }
 
 inline void ApplyBorderlessWindow(HWND window) {
@@ -80,9 +158,8 @@ inline void ApplyBorderlessWindow(HWND window) {
     }
 
     // Borderless fullscreen is a monitor-sized window regardless of Maple's
-    // current render resolution. The previous implementation only filled the
-    // monitor when the configured render resolution exactly matched the desktop,
-    // which made Alt+Enter look like a frame/chrome toggle at every other size.
+    // current render resolution. Phase 2 additionally tries to match the renderer
+    // to the monitor when that exact mode is in EverLeaf's supported list.
     const int width = monitorRect.right - monitorRect.left;
     const int height = monitorRect.bottom - monitorRect.top;
 
@@ -174,13 +251,19 @@ inline void ToggleBorderlessWindow(HWND window) {
     }
 
     if (gBorderlessActive) {
+        // Restore the pre-fullscreen renderer while the window is still WS_POPUP.
+        // RuntimeResolution intentionally leaves popup geometry alone, then the
+        // exact framed style/size/position captured on entry is restored below.
+        RestoreFramedRenderer();
         RestoreWindowedState(window);
         return;
     }
 
-    // Preserve the player's current framed location before each transition so
-    // later toggles return to the correct monitor and position.
+    // Preserve both the player's current framed window and render resolution so
+    // Alt+Enter is a reversible fullscreen transition rather than a style toggle.
     CaptureWindowedState(window);
+    CaptureFramedRendererState();
+    MatchRendererToMonitor(window);
     ApplyBorderlessWindow(window);
 }
 
@@ -242,6 +325,11 @@ inline DWORD WINAPI Worker(LPVOID) {
     const bool borderless = displayConfig.GetBoolean("general", "BorderlessWindow", false);
     const bool centerWindow = displayConfig.GetBoolean("general", "CenterWindow", true);
     const bool enableAltEnter = displayConfig.GetBoolean("general", "EnableAltEnterToggle", true);
+    gMatchMonitorRenderer = displayConfig.GetBoolean(
+        "general",
+        "MatchMonitorResolutionOnFullscreen",
+        true);
+
     if (!borderless && !centerWindow && !enableAltEnter) {
         return 0;
     }
@@ -266,6 +354,8 @@ inline DWORD WINAPI Worker(LPVOID) {
             CaptureWindowedState(window);
 
             if (borderless) {
+                CaptureFramedRendererState();
+                MatchRendererToMonitor(window);
                 ApplyBorderlessWindow(window);
             }
             else {
