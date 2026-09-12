@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using MapleLib.WzLib;
+using MapleLib.WzLib.WzProperties;
 
 if (args.Length != 7)
 {
@@ -185,9 +186,6 @@ using (var donorString = OpenDonor(donorStringPath))
 
     foreach (var req in requested)
     {
-        // The TSV is donor-only by Item.wz inventory. Treat only an existing
-        // target Item.wz node as a collision; an existing String.wz row is useful
-        // and should be reused rather than blocking the item import.
         if (FindItemEntry(targetItem, req.Category, req.Id) != null)
         {
             existingItemCollision.Add(req);
