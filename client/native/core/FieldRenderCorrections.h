@@ -3,14 +3,15 @@
 #include "Client.h"
 #include "Memory.h"
 #include "CrashDiagnostics.h"
+#include "FieldGridWeather.h"
 
 #include <windows.h>
 #include <iostream>
 
 // Low-risk field/render corrections selectively adapted from Kaentake's pinned
-// GMS v83 resolution work. These are immediate operands only; COM/vector call
-// hooks and the full CMapLoadable::RestoreViewRange replacement remain separate
-// review phases.
+// GMS v83 resolution work. Immediate operands live here; owner-level grid and
+// weather-call behavior is delegated to FieldGridWeather so both stay coherent
+// across startup and live resolution changes.
 namespace FieldRenderCorrections {
 namespace detail {
 
@@ -97,6 +98,11 @@ inline void ApplyCurrent() {
     Memory::WriteInt(
         detail::kLimitedViewDarkY,
         static_cast<unsigned int>(detail::CorrectLimitedViewDarkY()));
+
+    // RuntimeResolution already calls this function after every accepted mode
+    // change and in its best-effort rollback path, so keep MakeGrid's vertical
+    // center state synchronized here as well.
+    FieldGridWeather::ApplyCurrent();
 }
 
 inline bool Apply() {
@@ -107,6 +113,13 @@ inline bool Apply() {
     }
 
     ApplyCurrent();
+
+    // Owner-level grid/weather hooks are optional and independently preflighted.
+    // A mismatch must not undo the already-verified immediate corrections.
+    if (!FieldGridWeather::Install()) {
+        CrashDiagnostics::LogEvent("field grid/weather owner hooks unavailable; immediate corrections remain active");
+    }
+
     CrashDiagnostics::LogEvent("verified field render corrections applied");
     std::cout << "EverLeaf Client v2: applied verified field render corrections" << std::endl;
     return true;
