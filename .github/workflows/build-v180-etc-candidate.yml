@@ -113,7 +113,11 @@ jobs:
           $outputWz=Join-Path $out 'Etc.wz'; $manifest=Join-Path $out 'Etc.manifest.json'
           dotnet run --project $project -c Release --no-build -- (Join-Path $work 'target/Etc.wz') (Join-Path $work 'donor/Etc.wz') (Join-Path $work 'etc_all.txt') $outputWz $manifest
           if($LASTEXITCODE){throw 'Etc candidate build failed'}
+          $m=Get-Content -Raw $manifest | ConvertFrom-Json
+          if($m.productionApplyAllowed -ne $false){throw 'Etc manifest unexpectedly allows production apply'}
+          if($m.validation.donorImageDigestsMatch -ne $true){throw 'Etc manifest digest verification failed'}
+          if($m.requestedCount -ne 278 -or $m.stagedCount -ne 278 -or $m.verifiedCount -ne 278){throw 'Etc coverage is not 278/278'}
           scp $outputWz "everleaf-oracle`:$env:STAGE_ROOT/Etc.wz"; if($LASTEXITCODE){throw 'Etc candidate upload failed'}
           scp $manifest "everleaf-oracle`:$env:STAGE_ROOT/Etc.manifest.json"; if($LASTEXITCODE){throw 'Etc manifest upload failed'}
-          ssh everleaf-oracle "grep -q '\"productionApplyAllowed\": false' '$env:STAGE_ROOT/Etc.manifest.json' && grep -q '\"donorImageDigestsMatch\": true' '$env:STAGE_ROOT/Etc.manifest.json' && sha256sum '$env:STAGE_ROOT/Etc.wz' > '$env:STAGE_ROOT/SHA256SUMS' && printf 'GMS v180 donor-only Etc.wz staging candidate. No production apply.\n' > '$env:STAGE_ROOT/README.txt'"
-          if($LASTEXITCODE){throw 'Etc final verification failed'}
+          ssh everleaf-oracle "sha256sum '$env:STAGE_ROOT/Etc.wz' > '$env:STAGE_ROOT/SHA256SUMS' && printf 'GMS v180 donor-only Etc.wz staging candidate. No production apply.\n' > '$env:STAGE_ROOT/README.txt'"
+          if($LASTEXITCODE){throw 'Etc remote checksum write failed'}
