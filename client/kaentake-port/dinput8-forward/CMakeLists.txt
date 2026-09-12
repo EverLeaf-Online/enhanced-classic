@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.20)
+project(EverLeafDInput8 LANGUAGES CXX)
+add_library(dinput8 SHARED dinput8.cpp dinput8.def)
+target_compile_features(dinput8 PRIVATE cxx_std_17)
+target_compile_definitions(dinput8 PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
+set_target_properties(dinput8 PROPERTIES OUTPUT_NAME "dinput8")
