@@ -79,29 +79,32 @@ inline void ApplyBorderlessWindow(HWND window) {
         monitorRect.bottom = GetSystemMetrics(SM_CYSCREEN);
     }
 
-    const int monitorWidth = monitorRect.right - monitorRect.left;
-    const int monitorHeight = monitorRect.bottom - monitorRect.top;
-    const int width = Client::m_nGameWidth;
-    const int height = Client::m_nGameHeight;
-    const bool monitorSized = width == monitorWidth && height == monitorHeight;
-    const int x = monitorSized ? monitorRect.left : monitorRect.left + (monitorWidth - width) / 2;
-    const int y = monitorSized ? monitorRect.top : monitorRect.top + (monitorHeight - height) / 2;
+    // Borderless fullscreen is a monitor-sized window regardless of Maple's
+    // current render resolution. The previous implementation only filled the
+    // monitor when the configured render resolution exactly matched the desktop,
+    // which made Alt+Enter look like a frame/chrome toggle at every other size.
+    const int width = monitorRect.right - monitorRect.left;
+    const int height = monitorRect.bottom - monitorRect.top;
+
+    if (IsIconic(window)) {
+        ShowWindow(window, SW_RESTORE);
+    }
 
     SetWindowPos(
         window,
         HWND_TOP,
-        x,
-        y,
+        monitorRect.left,
+        monitorRect.top,
         width,
         height,
         SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW
     );
 
     gBorderlessActive = true;
-    CrashDiagnostics::LogEvent("borderless window applied");
-    std::cout << "EverLeaf Client v2: borderless window applied at "
+    CrashDiagnostics::LogEvent("borderless fullscreen window applied");
+    std::cout << "EverLeaf Client v2: borderless fullscreen window applied at "
               << width << "x" << height
-              << (monitorSized ? " (fullscreen)" : " (centered)")
+              << " (renderer " << Client::m_nGameWidth << "x" << Client::m_nGameHeight << ")"
               << std::endl;
 }
 
