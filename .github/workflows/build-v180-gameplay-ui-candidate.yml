@@ -1,0 +1,238 @@
+name: Build v180 gameplay UI candidate
+
+on:
+  push:
+    branches: [donor/v180-low-friction-stage-20260911]
+    paths:
+      - .github/workflows/build-v180-gameplay-ui-candidate.yml
+      - tools/wz-donor/v180-gameplay-ui-overlay.spec
+      - tools/wz-donor/v180-static-client-patcher/Program.cs
+      - client/tools/wz-path-patcher/**
+      - tools/wz-donor/v180-harepacker-validator/Program.cs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  TARGET_ROOT: /opt/everleaf/patches/files
+  DONOR_ROOT: /opt/everleaf/donors/GMS-v180/GMS-v180/MapleStory
+  STAGE_ROOT: /opt/everleaf/donors/v180-backport/gameplay-ui-candidate
+  LIBWZ_COMMIT: 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+
+jobs:
+  convert-donor-ui:
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 30
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Build v180 static converter
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafV180StaticPatcher'; New-Item -ItemType Directory -Force -Path $tool | Out-Null
+          Copy-Item tools/wz-donor/v180-static-client-patcher/Program.cs (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup>
+            <ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafV180StaticPatcher.csproj')
+          dotnet build (Join-Path $tool 'EverLeafV180StaticPatcher.csproj') -c Release
+
+      - name: Fetch and convert shared v180 UI images
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'v180-gameplay-ui'; $target=Join-Path $root 'target'; $donor=Join-Path $root 'donor'; $out=Join-Path $root 'out'
+          New-Item -ItemType Directory -Force -Path $target,$donor,$out | Out-Null
+          scp "everleaf-oracle`:$env:TARGET_ROOT/UI.wz" (Join-Path $target 'UI.wz'); if($LASTEXITCODE){throw 'target UI fetch failed'}
+          scp "everleaf-oracle`:$env:DONOR_ROOT/UI.wz" (Join-Path $donor 'UI.wz'); if($LASTEXITCODE){throw 'donor UI fetch failed'}
+          scp "everleaf-oracle`:$env:DONOR_ROOT/ZLZ.dll" (Join-Path $donor 'ZLZ.dll'); if($LASTEXITCODE){throw 'ZLZ fetch failed'}
+          $images = Get-Content tools/wz-donor/v180-gameplay-ui-overlay.spec | ForEach-Object {
+            $line=$_.Trim(); if(-not $line -or $line.StartsWith('#')){return}
+            ($line.Split(':',2)[1].Split('/')[0])
+          } | Sort-Object -Unique
+          $images | Set-Content -Encoding ascii (Join-Path $root 'paths.txt')
+          if($images.Count -ne 9){throw "expected 9 shared UI images, got $($images.Count)"}
+          $project=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafV180StaticPatcher/EverLeafV180StaticPatcher.csproj'
+          dotnet run --project $project -c Release --no-build -- (Join-Path $target 'UI.wz') (Join-Path $donor 'UI.wz') (Join-Path $root 'paths.txt') (Join-Path $out 'UI-modern-source.wz') (Join-Path $out 'UI-modern-source.manifest.json') --empty-target-root
+          if($LASTEXITCODE){throw 'shared UI conversion failed'}
+          $m=Get-Content -Raw (Join-Path $out 'UI-modern-source.manifest.json') | ConvertFrom-Json
+          if($m.requestedCount -ne 9 -or $m.stagedCount -ne 9 -or $m.verifiedCount -ne 9){throw 'shared UI conversion coverage mismatch'}
+          if($m.unresolvedModernCanvasLinkCount -ne 0){throw 'shared UI source has unresolved modern canvas links'}
+          if(-not $m.validation.outputReparsed -or -not $m.validation.donorImageDigestsMatch){throw 'shared UI source verification failed'}
+
+      - name: Upload converted UI source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $out=Join-Path $env:RUNNER_TEMP 'v180-gameplay-ui/out'
+          ssh everleaf-oracle "sudo mkdir -p '$env:STAGE_ROOT/source' && sudo chown -R ubuntu:ubuntu '$env:STAGE_ROOT'"; if($LASTEXITCODE){throw 'stage prepare failed'}
+          scp (Join-Path $out 'UI-modern-source.wz') "everleaf-oracle`:$env:STAGE_ROOT/source/UI.wz"; if($LASTEXITCODE){throw 'converted source upload failed'}
+          scp (Join-Path $out 'UI-modern-source.manifest.json') "everleaf-oracle`:$env:STAGE_ROOT/source/manifest.json"; if($LASTEXITCODE){throw 'converted source manifest upload failed'}
+
+  overlay-v83-runtime-paths:
+    needs: convert-donor-ui
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H "$EVERLEAF_DEPLOY_HOST" > ~/.ssh/known_hosts; fi
+          cat > ~/.ssh/config <<EOF
+          Host everleaf-oracle
+            HostName $EVERLEAF_DEPLOY_HOST
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 30
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          EOF
+
+      - name: Build pinned WZ path patcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --recurse-submodules https://github.com/toyobayashi/libwz "$RUNNER_TEMP/libwz"
+          git -C "$RUNNER_TEMP/libwz" checkout "$LIBWZ_COMMIT"
+          git -C "$RUNNER_TEMP/libwz" submodule update --init --recursive
+          test "$(git -C "$RUNNER_TEMP/libwz" rev-parse HEAD)" = "$LIBWZ_COMMIT"
+          cmake -S client/tools/wz-path-patcher -B "$RUNNER_TEMP/wz-path-build" -DLIBWZ_SOURCE="$RUNNER_TEMP/libwz" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/wz-path-build" --config Release --parallel 2
+          test -x "$RUNNER_TEMP/wz-path-build/everleaf-wz-path-patcher"
+
+      - name: Build v83-compatible gameplay UI overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/gameplay-ui-overlay"; mkdir -p "$root"
+          scp "everleaf-oracle:$TARGET_ROOT/UI.wz" "$root/base.wz"
+          scp "everleaf-oracle:$STAGE_ROOT/source/UI.wz" "$root/donor.wz"
+          "$RUNNER_TEMP/wz-path-build/everleaf-wz-path-patcher" "$root/base.wz" 83 "$root/donor.wz" 83 tools/wz-donor/v180-gameplay-ui-overlay.spec "$root/UI.wz"
+          test -s "$root/UI.wz"
+          base_sha=$(sha256sum "$root/base.wz" | awk '{print $1}')
+          source_sha=$(sha256sum "$root/donor.wz" | awk '{print $1}')
+          out_sha=$(sha256sum "$root/UI.wz" | awk '{print $1}')
+          spec_sha=$(sha256sum tools/wz-donor/v180-gameplay-ui-overlay.spec | awk '{print $1}')
+          entries=$(grep -Ec '^(image|property):' tools/wz-donor/v180-gameplay-ui-overlay.spec)
+          python3 - "$root/manifest.json" "$base_sha" "$source_sha" "$out_sha" "$spec_sha" "$entries" <<'PY'
+          import json,sys
+          path,base,source,out,spec,entries=sys.argv[1:]
+          doc={
+            "schemaVersion":1,
+            "kind":"everleaf-v180-gameplay-ui-visual-candidate",
+            "approved":False,
+            "productionApplyAllowed":False,
+            "baseUiSha256":base,
+            "convertedDonorUiSha256":source,
+            "outputUiSha256":out,
+            "overlaySpecSha256":spec,
+            "overlayEntryCount":int(entries),
+            "tradeButtonArtworkPreserved":True,
+            "tradeButtonRuntimeBehavior":"EverLeaf TRADE-to-Free-Market warp unchanged",
+            "scope":["status-bar","quickslots","guild","minimap","tooltips","buff-icons","omok/match-card-ui","inventory/equip/stat/skill","channel/quest/user windows","selected cash-shop visuals","chat-balloon","name-tag"],
+            "excluded":["FM label artwork","Auction House","Arcane Force","V Matrix","Familiar","Urus","Meso Market","login/world/character-select"]
+          }
+          open(path,'w',encoding='utf-8').write(json.dumps(doc,indent=2)+'\n')
+          PY
+          ssh everleaf-oracle "sudo mkdir -p '$STAGE_ROOT' && sudo chown -R ubuntu:ubuntu '$STAGE_ROOT'"
+          scp "$root/UI.wz" "everleaf-oracle:$STAGE_ROOT/UI.wz"
+          scp "$root/manifest.json" "everleaf-oracle:$STAGE_ROOT/manifest.json"
+          ssh everleaf-oracle "sha256sum '$STAGE_ROOT/UI.wz' > '$STAGE_ROOT/SHA256SUMS'"
+
+  validate-harepacker:
+    needs: overlay-v83-runtime-paths
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'; New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          $known=Join-Path $sshDir 'known_hosts'
+          if($env:SSH_KNOWN_HOSTS){[IO.File]::WriteAllText($known,($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")}
+          else { & 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe' -T 10 -H $env:EVERLEAF_DEPLOY_HOST | Set-Content -Encoding ascii $known }
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 30
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Validate final UI with HaRepacker/MapleLib
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/lastbattle/MapleLib.git "$env:RUNNER_TEMP/MapleLib"
+          $tool=Join-Path $env:RUNNER_TEMP 'MapleLib/EverLeafV180HaValidator'; New-Item -ItemType Directory -Force -Path $tool | Out-Null
+          Copy-Item tools/wz-donor/v180-harepacker-validator/Program.cs (Join-Path $tool 'Program.cs')
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableWindowsTargeting>true</EnableWindowsTargeting></PropertyGroup>
+            <ItemGroup><ProjectReference Include="..\MapleLib\MapleLib.csproj" /></ItemGroup>
+          </Project>
+          '@ | Set-Content -Encoding utf8 (Join-Path $tool 'EverLeafV180HaValidator.csproj')
+          dotnet build (Join-Path $tool 'EverLeafV180HaValidator.csproj') -c Release
+          $root=Join-Path $env:RUNNER_TEMP 'validate-gameplay-ui'; New-Item -ItemType Directory -Force -Path $root | Out-Null
+          scp "everleaf-oracle`:$env:STAGE_ROOT/UI.wz" (Join-Path $root 'UI.wz'); if($LASTEXITCODE){throw 'candidate fetch failed'}
+          $project=Join-Path $tool 'EverLeafV180HaValidator.csproj'
+          dotnet run --project $project -c Release --no-build -- (Join-Path $root 'UI.wz') (Join-Path $root 'xml') (Join-Path $root 'harepacker-validation.json')
+          if($LASTEXITCODE){throw 'HaRepacker validation failed'}
+          $m=Get-Content -Raw (Join-Path $root 'harepacker-validation.json') | ConvertFrom-Json
+          if(-not $m.validation.allImagesParsed -or -not $m.validation.allXmlWellFormed -or -not $m.validation.imageAndXmlCountsMatch){throw 'HaRepacker validation flags failed'}
+          scp (Join-Path $root 'harepacker-validation.json') "everleaf-oracle`:$env:STAGE_ROOT/harepacker-validation.json"; if($LASTEXITCODE){throw 'validation upload failed'}
