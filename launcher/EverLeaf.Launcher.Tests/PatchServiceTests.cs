@@ -38,21 +38,23 @@ public sealed class PatchServiceTests
     }
 
     [Fact]
-    public void RemovesOnlyTheLegacyExecutableAfterEverLeafExists()
+    public void RemovesObsoleteExperimentalRuntimeOnlyAfterEverLeafExists()
     {
         using var temp = new TemporaryDirectory();
-        var current = System.IO.Path.Combine(temp.Path, LauncherConfiguration.GameExecutable);
-        var legacy = System.IO.Path.Combine(temp.Path, LauncherConfiguration.LegacyGameExecutable);
-        File.WriteAllText(legacy, "legacy");
         using var service = new PatchService(temp.Path);
+        var obsolete = LauncherConfiguration.ObsoleteClientFiles
+            .Select(name => System.IO.Path.Combine(temp.Path, name))
+            .ToArray();
+        foreach (var path in obsolete) File.WriteAllText(path, "obsolete");
 
-        service.RemoveLegacyGameExecutable();
-        Assert.True(File.Exists(legacy));
+        service.RemoveObsoleteClientFiles();
+        Assert.All(obsolete, path => Assert.True(File.Exists(path)));
 
+        var current = System.IO.Path.Combine(temp.Path, LauncherConfiguration.GameExecutable);
         File.WriteAllText(current, "verified current client");
-        service.RemoveLegacyGameExecutable();
+        service.RemoveObsoleteClientFiles();
         Assert.True(File.Exists(current));
-        Assert.False(File.Exists(legacy));
+        Assert.All(obsolete, path => Assert.False(File.Exists(path)));
     }
 
     [Fact]

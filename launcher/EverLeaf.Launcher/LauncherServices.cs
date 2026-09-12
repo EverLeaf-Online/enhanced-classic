@@ -23,7 +23,11 @@ public static class LauncherConfiguration
     public static readonly Uri ApiBase = new("https://everleafms.online/");
     public static readonly Uri ManifestUri = new(ApiBase, "v1/launcher/manifest");
     public const string GameExecutable = "EverLeaf.exe";
-    public const string LegacyGameExecutable = "MapleStory.exe";
+    public static readonly IReadOnlySet<string> ObsoleteClientFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "MapleStory.exe", "EverLeafClient.exe", "EverLeaf.dll", "Custom.wz",
+        "aossdk.dll", "bz32ex.dll", "v3hunt.dll"
+    };
     public const string LauncherExecutable = "EverLeafLauncher.exe";
     public static readonly IReadOnlySet<string> RequiredGameFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -118,7 +122,7 @@ public sealed class PatchService : IDisposable
             completedBytes += Math.Max(1, file.Size);
         }
 
-        RemoveLegacyGameExecutable();
+        RemoveObsoleteClientFiles();
         progress.Report((100, $"EverLeaf is up to date — {manifest.Version}"));
     }
 
@@ -150,14 +154,19 @@ public sealed class PatchService : IDisposable
         return manifest;
     }
 
-    internal void RemoveLegacyGameExecutable()
+    internal void RemoveObsoleteClientFiles()
     {
         var current = Path.Combine(_gameDirectory, LauncherConfiguration.GameExecutable);
-        var legacy = Path.Combine(_gameDirectory, LauncherConfiguration.LegacyGameExecutable);
-        if (File.Exists(current) && File.Exists(legacy))
+        if (!File.Exists(current))
+            return;
+
+        foreach (var name in LauncherConfiguration.ObsoleteClientFiles)
         {
-            MakeWritable(legacy);
-            File.Delete(legacy);
+            var path = Path.Combine(_gameDirectory, name);
+            if (!File.Exists(path))
+                continue;
+            MakeWritable(path);
+            File.Delete(path);
         }
     }
 
