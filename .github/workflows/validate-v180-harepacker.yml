@@ -23,12 +23,17 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Clone HaRepacker-resurrected with submodules
+      - name: Clone HaRepacker-resurrected and required MapleLib submodule
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/lastbattle/Harepacker-resurrected.git "$env:RUNNER_TEMP/Harepacker-resurrected"
-          git -C "$env:RUNNER_TEMP/Harepacker-resurrected" rev-parse HEAD
+          $root="$env:RUNNER_TEMP/Harepacker-resurrected"
+          git clone --depth 1 https://github.com/lastbattle/Harepacker-resurrected.git $root
+          if($LASTEXITCODE){throw 'HaRepacker clone failed'}
+          git -C $root submodule update --init --depth 1 MapleLib
+          if($LASTEXITCODE){throw 'HaRepacker MapleLib submodule checkout failed'}
+          git -C $root rev-parse HEAD
+          git -C (Join-Path $root 'MapleLib') rev-parse HEAD
 
       - name: Build HaRepacker and HaCreator
         shell: pwsh
@@ -46,9 +51,11 @@ jobs:
           $ErrorActionPreference='Stop'
           $root=Join-Path $env:RUNNER_TEMP 'Harepacker-resurrected'
           $main=Get-Content -Raw (Join-Path $root 'HaRepacker/GUI/MainForm.cs')
-          if($main -notmatch 'WzClassicXmlSerializer'){throw 'Private Server XML serializer hook not found'}
+          foreach($token in @('privateServerToolStripMenuItem_Click','WzClassicXmlSerializer')){
+            if($main -notmatch [regex]::Escape($token)){throw "Private Server XML hook missing: $token"}
+          }
           $map=Get-Content -Raw (Join-Path $root 'HaCreator/Wz/MapImportService.cs')
-          foreach($token in @('ImportMap','BuildPlan','ExecutePlan','MapImportAssetKind.Tile','MapImportAssetKind.Background','MapImportAssetKind.Reactor','MapImportAssetKind.Mob','MapImportAssetKind.Npc','MapImportAssetKind.String','MapImportAssetKind.Sound')){
+          foreach($token in @('MapImportPlan','Analyze(','Import(','MapImportAssetKind.Map','MapImportAssetKind.Tile','MapImportAssetKind.Object','MapImportAssetKind.Background','MapImportAssetKind.Reactor','MapImportAssetKind.Mob','MapImportAssetKind.Npc','MapImportAssetKind.String','MapImportAssetKind.Sound')){
             if($map -notmatch [regex]::Escape($token)){throw "Map import dependency hook missing: $token"}
           }
-          Write-Host 'HaRepacker build and v180-relevant validation hooks verified.'
+          Write-Host 'HaRepacker builds and actual v180-relevant XML/map-import hooks are verified.'
