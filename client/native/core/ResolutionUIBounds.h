@@ -164,6 +164,21 @@ inline HWND FindGameWindow() {
     return processId == GetCurrentProcessId() ? window : nullptr;
 }
 
+inline void CenterQuestDialogAnchor(int width, int height) {
+    if (width < 800 || height < 600) {
+        return;
+    }
+
+    __try {
+        auto questRect = reinterpret_cast<RECT*>(kQuestDialogRectAddress);
+        questRect->left = width / 2;
+        questRect->top = height / 2;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        CrashDiagnostics::LogEvent("quest dialog anchor unavailable for resolution recenter");
+    }
+}
+
 inline void CreateContextMenuFallback(
     void* self,
     int l,
@@ -348,6 +363,7 @@ inline void SetActiveResolution(int width, int height) {
     }
     detail::gActiveWidth = width;
     detail::gActiveHeight = height;
+    detail::CenterQuestDialogAnchor(width, height);
 
     __try {
         void* config = *reinterpret_cast<void**>(detail::kConfigSingletonAddress);
