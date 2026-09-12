@@ -5,6 +5,7 @@
 #include "CrashDiagnostics.h"
 #include "RuntimeResolution.h"
 #include "ResolutionUIBounds.h"
+#include "TooltipBounds.h"
 
 #include <windows.h>
 #include <cstdio>
@@ -293,6 +294,12 @@ inline bool Install() {
         // Keep the resolution selector usable even if the optional saved-position
         // hardening cannot attach; the failure is already recorded in diagnostics.
         CrashDiagnostics::LogEvent("saved UI bounds unavailable; resolution selector kept enabled");
+    }
+
+    if (!TooltipBounds::Install()) {
+        // Tooltip clamping is independent of the selector itself. Keep display
+        // settings available and record the owner-hook failure for diagnostics.
+        CrashDiagnostics::LogEvent("tooltip bounds unavailable; resolution selector kept enabled");
     }
 
     detail::gInstalled = true;
