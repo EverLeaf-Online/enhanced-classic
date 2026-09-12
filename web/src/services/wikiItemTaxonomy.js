@@ -29,7 +29,6 @@ const GROUPS = [
       ["equipment-other-accessory", "Badges / Emblems / Totems / Other Accessories"],
       ["equipment-weapon", "Weapons / Tools"],
       ["equipment-cash-weapon", "Cash Weapons"],
-      ["equipment-pet", "Pet Equipment"],
       ["equipment-mount", "Mounts / Saddles"],
       ["equipment-other", "Other Equipment"]
     ]
@@ -46,7 +45,6 @@ const GROUPS = [
       ["consumable-travel", "Travel / Return Items"],
       ["consumable-summon", "Summoning Sacks"],
       ["consumable-monster-card", "Monster Cards"],
-      ["consumable-pet-food", "Pet Food"],
       ["consumable-other", "Other Consumables"]
     ]
   },
@@ -72,11 +70,9 @@ const GROUPS = [
     ]
   },
   {
-    label: "Cash / Pets",
+    label: "Cash",
     options: [
       ["cash", "All Cash Items"],
-      ["pets", "Pets"],
-      ["cash-pet", "Pet Care / Pet Skills"],
       ["cash-appearance", "Hair / Face / Appearance Coupons"],
       ["cash-travel", "Teleport / Travel"],
       ["cash-messaging", "Megaphones / Messages / Chalkboards"],
@@ -85,6 +81,16 @@ const GROUPS = [
       ["cash-ticket-box", "Tickets / Boxes / Keys"],
       ["cash-reset", "AP / SP / Character Services"],
       ["cash-other", "Other Cash Items"]
+    ]
+  },
+  {
+    label: "Pets",
+    options: [
+      ["pets", "All Pets / Pet Items"],
+      ["pet-companions", "Pets"],
+      ["equipment-pet", "Pet Equipment"],
+      ["consumable-pet-food", "Pet Food"],
+      ["cash-pet", "Pet Care / Pet Skills"]
     ]
   }
 ];
@@ -173,6 +179,7 @@ function leafCategory(entity) {
 
   if (family === "consumables") {
     if (prefix === 204 || prefix === 234 || /\bscroll\b/i.test(name)) return "consumable-scroll";
+    if (prefix === 212 || /\bpet\s+food\b/i.test(name)) return "consumable-pet-food";
     if ([200, 201].includes(prefix) || /\b(?:potion|elixir|pill|food|juice|milk|water)\b/i.test(name)) return "consumable-potion-food";
     if (prefix === 205) return "consumable-cure";
     if ([206, 207, 233].includes(prefix)) return "consumable-ammo";
@@ -180,7 +187,6 @@ function leafCategory(entity) {
     if ([203, 232].includes(prefix) || /\b(?:return|teleport|warp)\b/i.test(name)) return "consumable-travel";
     if (prefix === 210 || /summoning\s+sack/i.test(name)) return "consumable-summon";
     if (prefix === 238 || /\bcard\b/i.test(name) && /monster/i.test(String(entity?.description || ""))) return "consumable-monster-card";
-    if (prefix === 212 || /\bpet\s+food\b/i.test(name)) return "consumable-pet-food";
     return "consumable-other";
   }
 
@@ -199,7 +205,7 @@ function leafCategory(entity) {
     return "etc-other";
   }
 
-  if (family === "pets") return "pets";
+  if (family === "pets") return "pet-companions";
 
   if (family === "cash") {
     if ([517, 518, 519, 524, 538, 546].includes(prefix) || /\bpet\b/i.test(name)) return "cash-pet";
@@ -221,11 +227,18 @@ function validCategory(value) {
   return LABELS.has(key) ? key : "all";
 }
 
+const PET_LEAVES = new Set(["pet-companions", "equipment-pet", "consumable-pet-food", "cash-pet"]);
+
+function catalogFamily(entity) {
+  const leaf = leafCategory(entity);
+  if (PET_LEAVES.has(leaf)) return "pets";
+  return itemFamily(entity);
+}
+
 function matches(entity, category) {
   const key = validCategory(category);
   if (key === "all") return true;
-  const family = itemFamily(entity);
-  if (["equipment", "consumables", "install", "etc", "cash", "pets"].includes(key)) return family === key;
+  if (["equipment", "consumables", "install", "etc", "cash", "pets"].includes(key)) return catalogFamily(entity) === key;
   const leaf = leafCategory(entity);
   if (key === "equipment-appearance") return leaf === "equipment-face-style" || leaf === "equipment-hair-style";
   return leaf === key;
@@ -235,7 +248,7 @@ function counts(rows = []) {
   const result = Object.fromEntries([...LABELS.keys()].map(key => [key, 0]));
   result.all = rows.length;
   for (const row of rows) {
-    const family = itemFamily(row);
+    const family = catalogFamily(row);
     const leaf = leafCategory(row);
     if (result[family] != null) result[family] += 1;
     if (result[leaf] != null && leaf !== family) result[leaf] += 1;
@@ -249,7 +262,7 @@ function decorate(entity) {
   const key = leafCategory(entity);
   return {
     ...entity,
-    itemFamily: itemFamily(entity),
+    itemFamily: catalogFamily(entity),
     itemCategory: key,
     itemCategoryLabel: LABELS.get(key) || "Other"
   };
@@ -259,6 +272,7 @@ module.exports = {
   GROUPS,
   LABELS,
   itemFamily,
+  catalogFamily,
   leafCategory,
   validCategory,
   validCashMode,

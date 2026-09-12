@@ -14,7 +14,8 @@ const pageHref=p=>{
 };
 const mapleAsset=(entityType,id)=>Number(id||0)>0?`/wiki/art/${encodeURIComponent(entityType)}/${Number(id)}`:'';
 const typeFallback={items:'IT',monsters:'MB',maps:'MP',skills:'SK',npcs:'NP',quests:'QU'};
-const itemParent=selectedItemCategory==='all'?'all':selectedItemCategory==='pets'?'pets':selectedItemCategory.startsWith('equipment')?'equipment':selectedItemCategory.startsWith('consumable')?'consumables':selectedItemCategory.startsWith('install')?'install':selectedItemCategory.startsWith('etc')?'etc':selectedItemCategory.startsWith('cash')?'cash':'all';
+const petCategories=new Set(['pets','pet-companions','equipment-pet','consumable-pet-food','cash-pet']);
+const itemParent=selectedItemCategory==='all'?'all':petCategories.has(selectedItemCategory)?'pets':selectedItemCategory.startsWith('equipment')?'equipment':selectedItemCategory.startsWith('consumable')?'consumables':selectedItemCategory.startsWith('install')?'install':selectedItemCategory.startsWith('etc')?'etc':selectedItemCategory.startsWith('cash')?'cash':'all';
 const itemParentFilters=[['all','All Items'],['equipment','Equipment'],['consumables','Consumables'],['install','Chairs / Install'],['etc','ETC'],['cash','Cash'],['pets','Pets']];
 const itemHref=(category,includeQuery=true)=>{
   const parts=[];
@@ -30,8 +31,8 @@ const itemCashHref=mode=>{
   if(mode&&mode!=='all')parts.push(`itemCash=${encodeURIComponent(mode)}`);
   return parts.length?`${base}?${parts.join('&')}`:base;
 };
-const itemChildMatches=(key,parent)=>parent==='equipment'?key.startsWith('equipment-'):parent==='consumables'?key.startsWith('consumable-'):parent==='install'?key.startsWith('install-'):parent==='etc'?key.startsWith('etc-'):parent==='cash'?key.startsWith('cash-'):false;
-const itemSubfilters=type==='items'&&itemParent!=='all'&&itemParent!=='pets'?result.itemCategoryGroups.flatMap(group=>group.options).filter(([key])=>itemChildMatches(key,itemParent)&&Number(result.itemCategoryCounts[key]||0)>0):[];
+const itemChildMatches=(key,parent)=>parent==='equipment'?key.startsWith('equipment-')&&key!=='equipment-pet':parent==='consumables'?key.startsWith('consumable-')&&key!=='consumable-pet-food':parent==='install'?key.startsWith('install-'):parent==='etc'?key.startsWith('etc-'):parent==='cash'?key.startsWith('cash-')&&key!=='cash-pet':parent==='pets'?petCategories.has(key)&&key!=='pets':false;
+const itemSubfilters=type==='items'&&itemParent!=='all'?result.itemCategoryGroups.flatMap(group=>group.options).filter(([key])=>itemChildMatches(key,itemParent)&&Number(result.itemCategoryCounts[key]||0)>0):[];
 %>
 <main class="lightPage wikiDataPage wikiCatalogListPage wikiAppPage">
 <section class="wikiListHero">

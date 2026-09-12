@@ -14,7 +14,7 @@ test('item taxonomy separates the major player-facing item families',()=>{
   assert.equal(taxonomy.leafCategory(item(3010000,'Relaxer Chair','Install / Chair')),'install-chair');
   assert.equal(taxonomy.leafCategory(item(4030000,'Quest Relic','ETC')),'etc-quest');
   assert.equal(taxonomy.leafCategory(item(4010000,'Bronze Ore','ETC')),'etc-material');
-  assert.equal(taxonomy.leafCategory(item(5000000,'Brown Kitty','Pet')),'pets');
+  assert.equal(taxonomy.leafCategory(item(5000000,'Brown Kitty','Pet')),'pet-companions');
   assert.equal(taxonomy.leafCategory(item(5190000,'Pet Item Pick-Up','Cash')),'cash-pet');
   assert.equal(taxonomy.leafCategory(item(5070000,'Megaphone','Cash')),'cash-messaging');
 });
@@ -61,4 +61,25 @@ test('cash filter mirrors the game server isCash rules',()=>{
   assert.equal(taxonomy.matchesCash(cashEquip,'cash'),true);
   assert.equal(taxonomy.matchesCash(normalEquip,'noncash'),true);
   assert.deepEqual(taxonomy.cashCounts([cashEquip,normalEquip,consume,pet]),{all:4,cash:2,noncash:2});
+});
+
+test('pet-related item types roll up under the Pets catalog family',()=>{
+  const pet=item(5000000,'Brown Kitty','Pet');
+  const petEquip=item(1802000,'Pet Ribbon','Equipment');
+  const petFood=item(2120000,'Pet Food','Consumable');
+  const petSkill=item(5190000,'Pet Item Pick-Up','Cash');
+  assert.equal(taxonomy.catalogFamily(pet),'pets');
+  assert.equal(taxonomy.catalogFamily(petEquip),'pets');
+  assert.equal(taxonomy.catalogFamily(petFood),'pets');
+  assert.equal(taxonomy.catalogFamily(petSkill),'pets');
+  assert.equal(taxonomy.matches(petEquip,'equipment'),false);
+  assert.equal(taxonomy.matches(petFood,'consumables'),false);
+  assert.equal(taxonomy.matches(petSkill,'cash'),false);
+  assert.equal(taxonomy.matches(petSkill,'pets'),true);
+  const counts=taxonomy.counts([pet,petEquip,petFood,petSkill]);
+  assert.equal(counts.pets,4);
+  assert.equal(counts['pet-companions'],1);
+  assert.equal(counts['equipment-pet'],1);
+  assert.equal(counts['consumable-pet-food'],1);
+  assert.equal(counts['cash-pet'],1);
 });
