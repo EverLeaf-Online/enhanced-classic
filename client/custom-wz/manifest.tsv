@@ -1,0 +1,7 @@
+# image	property-path	type	value
+# This file is the canonical source list for EverLeaf_Custom.wz.
+# Only EverLeaf-owned/original content belongs here. Do not import donor WZ paths.
+EverLeafMeta.img	schema	string	everleaf-custom-wz-v1
+EverLeafMeta.img	client/version	int	83
+EverLeafMeta.img	branding/name	string	EverLeaf
+EverLeafMeta.img	build/source	string	manifest
