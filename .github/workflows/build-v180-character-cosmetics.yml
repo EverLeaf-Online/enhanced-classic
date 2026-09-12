@@ -1,6 +1,10 @@
 name: Build v180 live Character cosmetics candidate
 
 on:
+  push:
+    branches: [donor/v180-low-friction-stage-20260911]
+    paths:
+      - .github/workflows/build-v180-character-cosmetics.yml
   workflow_dispatch:
 
 permissions:
