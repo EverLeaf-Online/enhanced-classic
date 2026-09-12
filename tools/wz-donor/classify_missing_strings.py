@@ -322,6 +322,7 @@ def main() -> int:
             "ID": item_id,
             "Category": manifest_categories.get(item_id) or (target.category if target else ""),
             "HasIcon": "" if target is None else target.has_icon,
+            "HasEmbeddedMetadata": "" if target is None else bool(target.embedded_name or target.embedded_desc),
             "ExistsInOlderItem": older is not None,
             "OlderHasName": bool(older_strings.get(item_id, {}).get("name")),
             "StructureMatch": "" if older is None else structures_match(target, older),
@@ -332,7 +333,7 @@ def main() -> int:
         })
 
     fields = [
-        "ID", "Category", "HasIcon", "ExistsInOlderItem", "OlderHasName",
+        "ID", "Category", "HasIcon", "HasEmbeddedMetadata", "ExistsInOlderItem", "OlderHasName",
         "StructureMatch", "V180StringPresent", "Classification", "Confidence",
         "SourceFile",
     ]
@@ -356,6 +357,7 @@ def main() -> int:
         "olderStringIdsParsed": len(older_strings),
         "targetItemsMissingFromParsedXml": sum(1 for i in missing_ids if i not in target_items),
         "staleMissingIdsWithV180Name": sum(1 for i in missing_ids if target_strings.get(i, {}).get("name")),
+        "itemsWithEmbeddedMetadata": sum(1 for i in missing_ids if i in target_items and (target_items[i].embedded_name or target_items[i].embedded_desc)),
     }
     if args.summary_json:
         Path(args.summary_json).write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
