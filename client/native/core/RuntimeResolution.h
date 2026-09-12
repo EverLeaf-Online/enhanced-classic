@@ -5,6 +5,7 @@
 #include "Memory.h"
 #include "CrashDiagnostics.h"
 #include "WidescreenCorrections.h"
+#include "FieldRenderCorrections.h"
 #include "AddyLocations.h"
 
 #include <windows.h>
@@ -251,8 +252,10 @@ inline void ApplyEverLeafRuntimeCorrections(int width, int height) {
     // associated globals are recalculated from the new dimensions each call.
     Client::UpdateResolution();
 
-    // Correct inherited axis mistakes after the broad legacy patch pass.
+    // Correct inherited axis mistakes and the verified field/render extents after
+    // the broad legacy patch pass, which may rewrite some of them each call.
     WidescreenCorrections::ApplyCurrent();
+    FieldRenderCorrections::ApplyCurrent();
     Memory::WriteInt(dwToolTipLimitVPos + 1, static_cast<unsigned int>(height - 1));
 
     // Client::UpdateResolution intentionally routes an inherited malformed write
@@ -272,12 +275,13 @@ inline void BestEffortCorrectionState(int width, int height) {
         ApplyEverLeafRuntimeCorrections(width, height);
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
-        // Keep the core width/height globals and the verified axis corrections
-        // coherent even if one of the broad inherited HD patches was the source
-        // of the original exception.
+        // Keep the core width/height globals and the verified corrections coherent
+        // even if one of the broad inherited HD patches was the source of the
+        // original exception.
         Client::m_nGameWidth = width;
         Client::m_nGameHeight = height;
         WidescreenCorrections::ApplyCurrent();
+        FieldRenderCorrections::ApplyCurrent();
         CrashDiagnostics::LogEvent("best-effort live resolution correction state applied");
     }
 }
