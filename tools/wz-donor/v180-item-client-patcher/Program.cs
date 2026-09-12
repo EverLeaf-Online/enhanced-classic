@@ -50,8 +50,6 @@ static WzFile OpenTarget(string path)
 
 static WzFile OpenDonor(string path)
 {
-    // WzComparerR2 independently auto-detects this GMS v180 archive as
-    // BMS-keyed PKG1 data. GETFROMZLZ decodes the directory table incorrectly.
     var wz = new WzFile(path, WzMapleVersion.BMS);
     var st = wz.ParseWzFile();
     if (st != WzFileParseStatus.Success) { wz.Dispose(); throw new InvalidDataException($"Donor parse failed {Path.GetFileName(path)} with BMS key: {st}"); }
@@ -76,13 +74,17 @@ static IEnumerable<ImageLocation> EnumerateImages(WzDirectory dir, string[] pref
     }
 }
 
-static WzDirectory EnsureDirectoryPath(WzDirectory root, IEnumerable<string> dirs)
+static WzDirectory EnsureDirectoryPath(WzDirectory root, WzFile targetFile, IEnumerable<string> dirs)
 {
     var cur = root;
     foreach (var name in dirs)
     {
         var next = cur.GetDirectoryByName(name);
-        if (next == null) { next = new WzDirectory(name); cur.AddDirectory(next); }
+        if (next == null)
+        {
+            next = new WzDirectory(name, targetFile);
+            cur.AddDirectory(next);
+        }
         cur = next;
     }
     return cur;
@@ -150,9 +152,9 @@ static WzImageProperty EnsurePropertyPath(WzImage image, IEnumerable<string> par
     return cur is WzImageProperty p ? p : throw new InvalidOperationException("String.wz property path resolved to image root.");
 }
 
-static WzImage GetOrCreateImage(WzDirectory root, IEnumerable<string> dirs, string imageName, HashSet<string> created, string family)
+static WzImage GetOrCreateImage(WzDirectory root, WzFile targetFile, IEnumerable<string> dirs, string imageName, HashSet<string> created, string family)
 {
-    var dir = EnsureDirectoryPath(root, dirs);
+    var dir = EnsureDirectoryPath(root, targetFile, dirs);
     var image = dir.GetImageByName(imageName);
     if (image != null) return image;
     image = new WzImage(imageName);
@@ -198,11 +200,11 @@ using (var donorString = OpenDonor(donorStringPath))
         var category = targetItem.WzDirectory.GetDirectoryByName(req.Category);
         if (category == null)
         {
-            category = new WzDirectory(req.Category);
+            category = new WzDirectory(req.Category, targetItem);
             targetItem.WzDirectory.AddDirectory(category);
             createdContainers.Add($"Item:{req.Category}/");
         }
-        var targetItemImage = GetOrCreateImage(category, donorItemEntry.Value.Dirs, donorItemEntry.Value.Image.Name, createdContainers, "Item");
+        var targetItemImage = GetOrCreateImage(category, targetItem, donorItemEntry.Value.Dirs, donorItemEntry.Value.Image.Name, createdContainers, "Item");
         targetItemImage.AddProperty(donorItemEntry.Value.Property.DeepClone());
 
         var targetStringEntry = FindStringEntry(targetString, req.Id);
@@ -217,7 +219,7 @@ using (var donorString = OpenDonor(donorStringPath))
         }
         else if (donorStringEntry != null)
         {
-            var targetStringImage = GetOrCreateImage(targetString.WzDirectory, donorStringEntry.Value.Dirs, donorStringEntry.Value.Image.Name, createdContainers, "String");
+            var targetStringImage = GetOrCreateImage(targetString.WzDirectory, targetString, donorStringEntry.Value.Dirs, donorStringEntry.Value.Image.Name, createdContainers, "String");
             var propertyPath = donorStringEntry.Value.PropertyPath ?? Array.Empty<string>();
             if (propertyPath.Length == 0)
             {
@@ -281,7 +283,7 @@ using (var checkString = OpenTarget(outputStringPath))
 var byCategory = merged.GroupBy(x => x.Category).ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 var manifest = new
 {
-    schemaVersion = 6,
+    schemaVersion = 7,
     kind = "gms-v180-item-node-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -325,6 +327,7 @@ var manifest = new
         allMergedItemNodesVerified = verifiedItems == merged.Count,
         allExpectedStringsVerified = verifiedStrings == merged.Count(x => x.HasString),
         fullRequestedItemCoverage = merged.Count + existingItemCollision.Count == requested.Length,
+        targetCryptoContextInheritedForCreatedDirectories = true,
         nonEmptyCandidate = merged.Count > 0,
         productionApplyAllowed = false,
     },
