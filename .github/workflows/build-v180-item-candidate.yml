@@ -133,9 +133,11 @@ jobs:
           test -s "$ROOT/String.wz"
           test -s "$ROOT/ITEM_MANIFEST.json"
           grep -q '"productionApplyAllowed": false' "$ROOT/ITEM_MANIFEST.json"
-          grep -q '"allMergedNodesVerified": true' "$ROOT/ITEM_MANIFEST.json"
+          grep -q '"allMergedItemNodesVerified": true' "$ROOT/ITEM_MANIFEST.json"
+          grep -q '"fullRequestedItemCoverage": true' "$ROOT/ITEM_MANIFEST.json"
+          grep -q '"mergedCount": 19583' "$ROOT/ITEM_MANIFEST.json"
           sha256sum "$ROOT/Item.wz" "$ROOT/String.wz" > "$ROOT/SHA256SUMS"
-          printf 'GMS v180 donor-only Item.wz/String.wz candidate. STAGING ONLY. No production apply.\n' > "$ROOT/README.txt"
+          printf 'GMS v180 donor-only Item.wz/String.wz candidate. STAGING ONLY. All 19,583 donor-only Item.wz nodes are present and reparsed; string gaps are separately recorded. No production apply.\n' > "$ROOT/README.txt"
           echo V180_ITEM_STAGE_OK
           du -sh "$ROOT"
           '@
