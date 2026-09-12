@@ -232,7 +232,7 @@ using (var checkString = OpenTarget(outputStringPath))
 var byCategory = merged.GroupBy(x => x.Category).ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 var manifest = new
 {
-    schemaVersion = 4,
+    schemaVersion = 5,
     kind = "gms-v180-item-node-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -279,7 +279,7 @@ var manifest = new
         nonEmptyCandidate = merged.Count > 0,
         productionApplyAllowed = false,
     },
-    missingStringItems = missingDonorString.Take(2000).ToArray(),
+    missingStringItems = missingDonorString.ToArray(),
     collisions = existingItemCollision.Take(500).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
