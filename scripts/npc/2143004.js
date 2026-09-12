@@ -7,6 +7,7 @@ var player;
 var em;
 const ExpeditionType = Java.type('server.expeditions.ExpeditionType');
 const EmpressContentPolicy = Java.type('everleaf.content.EmpressContentPolicy');
+const EmpressStrongholdProgressService = Java.type('everleaf.content.EmpressStrongholdProgressService');
 const EmpressWeeklyLockoutService = Java.type('everleaf.content.EmpressWeeklyLockoutService');
 var exped = ExpeditionType.EMPRESS;
 var expedMap = "Cygnus's Chamber";
@@ -22,6 +23,15 @@ function action(mode, type, selection) {
 
     if (!EmpressContentPolicy.isEnabled()) {
         cm.sendOk(EmpressContentPolicy.disabledMessage());
+        cm.dispose();
+        return;
+    }
+
+    // The Stronghold investigation is the character-scoped prerequisite for
+    // Empress. Enforce it here before expedition creation/join so direct map
+    // access or a stale portal cannot bypass the progression gate.
+    if (!EmpressStrongholdProgressService.isComplete(player.getId())) {
+        cm.sendOk("You have not completed the Knight Stronghold investigation yet. Defeat one of each Advanced Knight A through E, then report back to the Informant before attempting Empress Cygnus.");
         cm.dispose();
         return;
     }
