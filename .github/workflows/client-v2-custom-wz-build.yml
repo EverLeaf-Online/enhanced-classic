@@ -50,7 +50,9 @@ jobs:
           $smokeRoot = Join-Path $env:RUNNER_TEMP 'everleaf-custom-wz-canvas-smoke'
           New-Item -ItemType Directory -Force -Path $smokeRoot | Out-Null
           $pngPath = Join-Path $smokeRoot 'smoke.png'
-          $pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLQkwAAAABJRU5ErkJggg=='
+          # Valid 2x2, 8-bit RGBA, non-interlaced PNG. libwz's FromPngFile
+          # intentionally accepts RGB/RGBA only; keep this fixture inside that contract.
+          $pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGMUVDL+z8DAwMDEAAUAFGYBaTD3WiQAAAAASUVORK5CYII='
           [System.IO.File]::WriteAllBytes($pngPath, [Convert]::FromBase64String($pngBase64))
 
           $manifestPath = Join-Path $smokeRoot 'manifest.tsv'
