@@ -6,17 +6,29 @@ content from Community, Ezorsia, Kaentake, or another server/client distribution
 
 ## Canonical source
 
-`manifest.tsv` is the canonical source list for the first builder phase. Each
-non-comment row has four tab-separated columns:
+`manifest.tsv` is the canonical source list. Each non-comment row has four
+tab-separated columns:
 
-1. image name (`*.img`)
+1. WZ image path (`EverLeafMeta.img`, `UI/Login.img`, `Map/Obj/login.img`, etc.)
 2. property path within the image
-3. type (`string` or `int` in phase 14)
-4. value
+3. property type
+4. value/source
 
-The phase-14 metadata image is intentionally harmless: it proves that the build
-pipeline can create, save, reopen, and verify a real v83 GMS WZ without changing
-an existing MapleStory asset path.
+Supported phase-15 types:
+
+- `string` — UTF-8 text value
+- `int` — signed integer value
+- `vector` — `x,y`
+- `canvas` — PNG path, resolved relative to the manifest file unless absolute
+
+Intermediate property nodes are created as subproperties. Existing canvas nodes
+can also contain child metadata such as an `origin` vector. Image paths may
+contain WZ directory components so custom content can mirror stock paths without
+mounting a whole donor WZ.
+
+The canonical manifest still contains only the harmless `EverLeafMeta.img` while
+canvas support is validated separately in CI. A stock path is added only when the
+corresponding EverLeaf-owned asset and current client path have both been reviewed.
 
 ## Builder dependency
 
@@ -34,6 +46,10 @@ Run from PowerShell:
 Default output is `client/generated/EverLeaf_Custom.wz`. Generated WZ binaries are
 build artifacts; source content belongs in this directory/repository instead of
 being edited directly in the binary.
+
+The builder always reopens the generated WZ as v83 GMS and verifies every
+manifest entry. CI additionally builds a nested-directory canvas/vector smoke WZ
+from a deterministic PNG before publishing the canonical candidate artifact.
 
 ## Migration rule
 
