@@ -49,11 +49,12 @@ static WzFile OpenTarget(string path)
 
 static WzFile OpenDonor(string path)
 {
-    if (!File.Exists(Path.Combine(Path.GetDirectoryName(path)!, "ZLZ.dll")))
-        throw new FileNotFoundException("v180 donor requires ZLZ.dll beside WZ files.");
-    var wz = new WzFile(path, WzMapleVersion.GETFROMZLZ);
+    // WzComparerR2 independently auto-detects the GMS v180 donor as BMS-keyed
+    // PKG1 data. ZLZ.dll contains an unrelated/custom IV for this client and
+    // causes MapleLib GETFROMZLZ to decode directory names as garbage.
+    var wz = new WzFile(path, WzMapleVersion.BMS);
     var st = wz.ParseWzFile();
-    if (st != WzFileParseStatus.Success) { wz.Dispose(); throw new InvalidDataException($"Donor parse failed {Path.GetFileName(path)}: {st}"); }
+    if (st != WzFileParseStatus.Success) { wz.Dispose(); throw new InvalidDataException($"Donor parse failed {Path.GetFileName(path)} with BMS key: {st}"); }
     return wz;
 }
 
@@ -200,7 +201,7 @@ using (var checkString = OpenTarget(outputStringPath))
 var byCategory = merged.GroupBy(x => x.Category).ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 var manifest = new
 {
-    schemaVersion = 2,
+    schemaVersion = 3,
     kind = "gms-v180-item-node-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -208,6 +209,7 @@ var manifest = new
     mergedCount = merged.Count,
     verifiedCount = verified,
     mergedByCategory = byCategory,
+    donorCryptoKey = "BMS",
     skipped = new
     {
         collision = skippedCollision.Count,
