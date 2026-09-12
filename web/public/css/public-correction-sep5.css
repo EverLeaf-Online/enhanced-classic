@@ -697,15 +697,73 @@ body.route-rankings .rankingJobBadge{
   body.route-rankings .rankingHeroMetrics b{margin-top:0!important}
 }
 
-/* Wiki item taxonomy filters */
-body.route-wiki .wikiItemFilterSearch{
-  grid-template-columns:minmax(220px,300px) minmax(0,1fr) auto auto!important;
+/* Wiki item category tabs */
+body.route-wiki .wikiListSearch{
+  grid-template-columns:minmax(0,1fr) auto auto!important;
   max-width:none!important;
 }
-body.route-wiki .wikiItemFilterSearch select{min-width:0!important;width:100%!important}
+body.route-wiki .wikiItemFamilyTabs,
+body.route-wiki .wikiItemSubTabs{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  align-items:center!important;
+  gap:1px!important;
+}
+body.route-wiki .wikiItemFamilyTabs{margin-top:4px!important}
+body.route-wiki .wikiItemSubTabs{
+  margin-top:3px!important;
+  padding-left:12px!important;
+}
+body.route-wiki .wikiItemFamilyTabs a,
+body.route-wiki .wikiItemSubTabs a{
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:6px!important;
+  min-height:27px!important;
+  padding:5px 9px!important;
+  border:1px solid #2d352d!important;
+  border-radius:0!important;
+  background:#0f130f!important;
+  color:#849084!important;
+  font-size:9px!important;
+  font-weight:800!important;
+  letter-spacing:.035em!important;
+  text-transform:uppercase!important;
+  text-decoration:none!important;
+}
+body.route-wiki .wikiItemSubTabs a{
+  min-height:24px!important;
+  padding:4px 8px!important;
+  background:#0c100c!important;
+  color:#788378!important;
+  font-size:8px!important;
+}
+body.route-wiki .wikiItemFamilyTabs a:hover,
+body.route-wiki .wikiItemSubTabs a:hover{
+  background:#151b15!important;
+  color:#b3c0b3!important;
+  border-color:#3b493d!important;
+}
+body.route-wiki .wikiItemFamilyTabs a.active,
+body.route-wiki .wikiItemSubTabs a.active{
+  background:#1a241b!important;
+  color:#9bd2a3!important;
+  border-color:#45604a!important;
+}
+body.route-wiki .wikiItemFamilyTabs a span,
+body.route-wiki .wikiItemSubTabs a span{
+  color:#5f6b60!important;
+  font-size:8px!important;
+  font-weight:700!important;
+}
+body.route-wiki .wikiItemFamilyTabs a.active span,
+body.route-wiki .wikiItemSubTabs a.active span{color:#759f7b!important}
 @media(max-width:620px){
-  body.route-wiki .wikiItemFilterSearch{grid-template-columns:1fr auto!important}
-  body.route-wiki .wikiItemFilterSearch select,
-  body.route-wiki .wikiItemFilterSearch input{grid-column:1/3!important;width:100%!important}
-  body.route-wiki .wikiItemFilterSearch select{display:block!important}
+  body.route-wiki .wikiListSearch{grid-template-columns:minmax(0,1fr) auto!important}
+  body.route-wiki .wikiListSearch>a{grid-column:1/3!important;text-align:center!important}
+  body.route-wiki .wikiItemFamilyTabs,
+  body.route-wiki .wikiItemSubTabs{flex-wrap:nowrap!important;overflow-x:auto!important;padding-bottom:3px!important}
+  body.route-wiki .wikiItemSubTabs{padding-left:0!important}
+  body.route-wiki .wikiItemFamilyTabs a,
+  body.route-wiki .wikiItemSubTabs a{flex:0 0 auto!important;white-space:nowrap!important}
 }

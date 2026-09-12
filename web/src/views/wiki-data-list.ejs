@@ -5,19 +5,40 @@ const base=`/wiki/${type}`;
 const pageHref=p=>`${base}?${q?`q=${encodeURIComponent(q)}&`:''}${type==='items'&&result.itemCategory!=='all'?`itemCategory=${encodeURIComponent(result.itemCategory)}&`:''}${p>1?`page=${p}`:''}`.replace(/[?&]$/,'');
 const mapleAsset=(entityType,id)=>Number(id||0)>0?`/wiki/art/${encodeURIComponent(entityType)}/${Number(id)}`:'';
 const typeFallback={items:'IT',monsters:'MB',maps:'MP',skills:'SK',npcs:'NP',quests:'QU'};
+const selectedItemCategory=type==='items'?(result.itemCategory||'all'):'all';
+const itemParent=selectedItemCategory==='all'?'all':selectedItemCategory==='pets'?'pets':selectedItemCategory.startsWith('equipment')?'equipment':selectedItemCategory.startsWith('consumable')?'consumables':selectedItemCategory.startsWith('install')?'install':selectedItemCategory.startsWith('etc')?'etc':selectedItemCategory.startsWith('cash')?'cash':'all';
+const itemParentFilters=[['all','All Items'],['equipment','Equipment'],['consumables','Consumables'],['install','Chairs / Install'],['etc','ETC'],['cash','Cash'],['pets','Pets']];
+const itemHref=(category,includeQuery=true)=>{
+  const parts=[];
+  if(includeQuery&&q)parts.push(`q=${encodeURIComponent(q)}`);
+  if(category&&category!=='all')parts.push(`itemCategory=${encodeURIComponent(category)}`);
+  return parts.length?`${base}?${parts.join('&')}`:base;
+};
+const itemChildMatches=(key,parent)=>parent==='equipment'?key.startsWith('equipment-'):parent==='consumables'?key.startsWith('consumable-'):parent==='install'?key.startsWith('install-'):parent==='etc'?key.startsWith('etc-'):parent==='cash'?key.startsWith('cash-'):false;
+const itemSubfilters=type==='items'&&itemParent!=='all'&&itemParent!=='pets'?result.itemCategoryGroups.flatMap(group=>group.options).filter(([key])=>itemChildMatches(key,itemParent)):[];
 %>
 <main class="lightPage wikiDataPage wikiCatalogListPage wikiAppPage">
 <section class="wikiListHero">
   <div class="wrap">
     <div class="wikiBreadcrumb"><a href="/wiki">Wiki</a><span>›</span><strong><%=meta.label%></strong></div>
     <div class="wikiListHeroGrid"><div><div class="pageEyebrow">EVERLEAF <%=meta.singular.toUpperCase()%> DATABASE</div><h1><%=meta.label%></h1><p><%=meta.description%></p></div><div class="wikiListCount"><strong><%=fmt(result.total)%></strong><span><%=q||result.itemCategory!=='all'?'matching records':'player-useful records'%></span><small>Cleaned live catalog</small></div></div>
-    <form class="wikiDataSearch wikiListSearch <%=type==='items'?'wikiItemFilterSearch':''%>" action="<%=base%>" method="get">
-      <% if(type==='items'){ %><select name="itemCategory" aria-label="Item category"><option value="all">All item categories (<%=fmt(result.itemCategoryCounts.all)%>)</option><% result.itemCategoryGroups.forEach(group=>{ %><optgroup label="<%=group.label%>"><% group.options.forEach(([key,label])=>{ %><option value="<%=key%>" <%=result.itemCategory===key?'selected':''%>><%=label%> (<%=fmt(result.itemCategoryCounts[key])%>)</option><% }) %></optgroup><% }) %></select><% } %>
+    <form class="wikiDataSearch wikiListSearch" action="<%=base%>" method="get">
+      <% if(type==='items'&&selectedItemCategory!=='all'){ %><input type="hidden" name="itemCategory" value="<%=selectedItemCategory%>"><% } %>
       <input type="search" name="q" value="<%=q%>" placeholder="Search <%=meta.label.toLowerCase()%> by name or ID…" aria-label="Search <%=meta.label%>">
-      <button class="btn primary" type="submit">FILTER</button>
-      <% if(q||result.itemCategory!=='all'){ %><a class="btn" href="<%=base%>">CLEAR</a><% } %>
+      <button class="btn primary" type="submit">SEARCH</button>
+      <% if(q){ %><a class="btn" href="<%=itemHref(selectedItemCategory,false)%>">CLEAR SEARCH</a><% } %>
     </form>
     <nav class="wikiTypeTabs" aria-label="Wiki categories"><a href="/wiki">All</a><% Object.entries(types).forEach(([key,item])=>{ %><a class="<%=key===type?'active':''%>" href="/wiki/<%=key%>"><%=item.label%></a><% }) %></nav>
+    <% if(type==='items'){ %>
+      <nav class="wikiItemFamilyTabs" aria-label="Item categories">
+        <% itemParentFilters.forEach(([key,label])=>{ %><a class="<%=itemParent===key?'active':''%>" href="<%=itemHref(key)%>"><%=label%><span><%=fmt(result.itemCategoryCounts[key])%></span></a><% }) %>
+      </nav>
+      <% if(itemSubfilters.length){ %>
+        <nav class="wikiItemSubTabs" aria-label="<%=itemParent%> item subcategories">
+          <% itemSubfilters.forEach(([key,label])=>{ %><a class="<%=selectedItemCategory===key?'active':''%>" href="<%=itemHref(key)%>"><%=label%><span><%=fmt(result.itemCategoryCounts[key])%></span></a><% }) %>
+        </nav>
+      <% } %>
+    <% } %>
   </div>
 </section>
 <div class="wrap wikiListBody">
