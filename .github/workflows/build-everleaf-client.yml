@@ -102,9 +102,28 @@ jobs:
             'kLimitedViewDarkY = 0x0055BB30',
             'CorrectLimitedViewDarkY()',
             'MatchesExpectedPreState()',
+            'FieldGridWeather::ApplyCurrent()',
+            'FieldGridWeather::Install()',
             'ApplyCurrent()'
           )) {
             if (-not $fieldRender.Contains($needle)) { throw "Missing field-render correction contract: $needle" }
+          }
+
+          $fieldGridWeather = Get-Content 'client/native/core/FieldGridWeather.h' -Raw
+          foreach ($needle in @(
+            'kMakeGridPatchSite = 0x0063EAD6',
+            'kMakeGridReturn = 0x0063EADC',
+            'kWeatherWrapClipCallSite = 0x0064106B',
+            'kWrapClipVtableIndex = 39',
+            'CurrentAdjustCenterY()',
+            'MatchesMakeGridPreflight()',
+            'MatchesWeatherWrapClipPreflight()',
+            'MakeGridHook()',
+            'WeatherWrapClipHook(',
+            'PatchDirectJump(',
+            'PatchDirectCall('
+          )) {
+            if (-not $fieldGridWeather.Contains($needle)) { throw "Missing field grid/weather correction contract: $needle" }
           }
 
           $fieldView = Get-Content 'client/native/core/FieldViewRange.h' -Raw
