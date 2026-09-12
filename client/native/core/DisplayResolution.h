@@ -3,21 +3,20 @@
 #include "Client.h"
 #include "Memory.h"
 #include "CrashDiagnostics.h"
+#include "RuntimeResolution.h"
 
 #include <windows.h>
 #include <cstdio>
 #include <cstring>
 #include <new>
 
-// EverLeaf's safe in-game resolution preference selector for the pinned GMS v83
-// client. The System Options hook points, native CCtrlComboBox and placement are
-// based on Kaentake's proven v83 implementation, with EverLeaf's 1280x720 mode
-// added to the list.
+// EverLeaf's in-game resolution selector for the pinned GMS v83 client. The
+// System Options hook points, native CCtrlComboBox and placement are based on
+// Kaentake's proven v83 implementation, with EverLeaf's 1280x720 mode added.
 //
-// IMPORTANT: selecting a resolution here only persists the preference. EverLeaf
-// applies it through the normal startup resolution path on the next launch. We do
-// not mutate the live Gr2D/D3D screen mode here; that partial renderer-reset path
-// was the cause of the Alt+Enter crash and must stay out of this module.
+// Phase 2 adds Kaentake's missing behavior: when LiveResolution is enabled the
+// selected mode is applied immediately through the v83 Gr2D screen-mode path,
+// then EverLeaf's own HD/UI correction set is recalculated for the new size.
 namespace DisplayResolution {
 namespace detail {
 constexpr DWORD kApplySysOptAddress = 0x0049EA33;
@@ -108,6 +107,10 @@ inline int ConfiguredWidth() {
 
 inline int ConfiguredHeight() {
     return GetPrivateProfileIntA("general", "height", Client::m_nGameHeight, ConfigPath());
+}
+
+inline bool LiveResolutionEnabled() {
+    return GetPrivateProfileIntA("general", "LiveResolution", 1, ConfigPath()) != 0;
 }
 
 inline void SaveResolutionConfig(int width, int height) {
@@ -216,15 +219,36 @@ inline void __fastcall ApplySysOptHook(void* self, void*, void* sysOpt, int appl
     const int configuredWidth = ConfiguredWidth();
     const int configuredHeight = ConfiguredHeight();
 
-    if (selected.width == configuredWidth && selected.height == configuredHeight) return;
+    if (selected.width == configuredWidth &&
+        selected.height == configuredHeight &&
+        selected.width == Client::m_nGameWidth &&
+        selected.height == Client::m_nGameHeight) {
+        return;
+    }
+
+    if (!LiveResolutionEnabled()) {
+        SaveResolutionConfig(selected.width, selected.height);
+        CrashDiagnostics::LogEvent("resolution preference saved for next launch");
+        MessageBoxW(
+            FindGameWindow(),
+            L"Resolution saved. It will be applied the next time EverLeaf starts.",
+            L"EverLeaf display settings",
+            MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    if (!RuntimeResolution::Apply(selected.width, selected.height)) {
+        CrashDiagnostics::LogEvent("live resolution apply failed; preference not saved");
+        MessageBoxW(
+            FindGameWindow(),
+            L"EverLeaf could not safely apply that resolution at runtime.\n\nYour previous resolution is still saved. No client files were changed.",
+            L"EverLeaf display settings",
+            MB_OK | MB_ICONWARNING);
+        return;
+    }
 
     SaveResolutionConfig(selected.width, selected.height);
-    CrashDiagnostics::LogEvent("resolution preference saved for next launch");
-    MessageBoxW(
-        FindGameWindow(),
-        L"Resolution saved. It will be applied the next time EverLeaf starts.",
-        L"EverLeaf display settings",
-        MB_OK | MB_ICONINFORMATION);
+    CrashDiagnostics::LogEvent("live resolution applied and persisted");
 }
 
 inline void __fastcall SysOptOnCreateHook(void* self, void*, void* data) {
