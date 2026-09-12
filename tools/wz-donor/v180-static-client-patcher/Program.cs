@@ -148,8 +148,6 @@ static string ImageSemanticDigest(WzImage img)
         var png = canvas.PngProperty;
         HashText(h, png.Width.ToString());
         HashText(h, png.Height.ToString());
-        // Compression/pixel-format storage metadata can legitimately change when MapleLib
-        // rewrites a canvas. Semantic verification is based on decoded dimensions + pixels.
         using var bmp = png.GetImage(false);
         var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
         var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
@@ -160,29 +158,29 @@ static string ImageSemanticDigest(WzImage img)
             Marshal.Copy(data.Scan0, bytes, 0, len);
             h.AppendData(bytes);
         }
-        finally
-        {
-            bmp.UnlockBits(data);
-        }
+        finally { bmp.UnlockBits(data); }
     }
     void Walk(IEnumerable<WzImageProperty> ps)
     {
         foreach (var p in ps)
         {
             HashText(h, p.Name);
-            // MapleLib can legally re-encode small integral values using a different
-            // WZ scalar width while preserving the exact runtime value. Normalize
-            // integral property classes for semantic verification only.
             if (p is WzShortProperty || p is WzIntProperty || p is WzLongProperty)
             {
                 HashText(h, "IntegralNumber");
                 HashText(h, Convert.ToInt64(p.WzValue).ToString(System.Globalization.CultureInfo.InvariantCulture));
             }
+            else if (p is WzUOLProperty uol)
+            {
+                // GetString() may resolve a UOL against its current tree and return
+                // a linked object's string representation. Compare the stored UOL path itself.
+                HashText(h, "UOL");
+                HashText(h, uol.Value ?? string.Empty);
+            }
             else
             {
                 HashText(h, p.PropertyType.ToString());
-                if (p is WzCanvasProperty canvas)
-                    HashCanvas(canvas);
+                if (p is WzCanvasProperty canvas) HashCanvas(canvas);
                 else if (p.WzProperties == null)
                 {
                     try { HashText(h, p.GetString()); }
@@ -208,6 +206,10 @@ static List<string> SemanticTokens(WzImage img)
             {
                 tokens.Add($"{path}|IntegralNumber|{Convert.ToInt64(p.WzValue).ToString(System.Globalization.CultureInfo.InvariantCulture)}");
             }
+            else if (p is WzUOLProperty uol)
+            {
+                tokens.Add($"{path}|UOL|{uol.Value ?? string.Empty}");
+            }
             else if (p is WzCanvasProperty canvas)
             {
                 var png = canvas.PngProperty;
@@ -221,10 +223,7 @@ static List<string> SemanticTokens(WzImage img)
                     Marshal.Copy(data.Scan0, bytes, 0, len);
                     tokens.Add($"{path}|Canvas|{bmp.Width}x{bmp.Height}|{Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()}");
                 }
-                finally
-                {
-                    bmp.UnlockBits(data);
-                }
+                finally { bmp.UnlockBits(data); }
             }
             else if (p.WzProperties == null)
             {
@@ -233,10 +232,7 @@ static List<string> SemanticTokens(WzImage img)
                 catch { value = p.WzValue?.ToString(); }
                 tokens.Add($"{path}|{p.PropertyType}|{value ?? string.Empty}");
             }
-            else
-            {
-                tokens.Add($"{path}|{p.PropertyType}|");
-            }
+            else tokens.Add($"{path}|{p.PropertyType}|");
             if (p.WzProperties != null) Walk(p.WzProperties, path);
         }
     }
@@ -337,7 +333,7 @@ using (var donor = OpenDonor(donorPath))
 var fallbackCount = staged.Count(x => !string.Equals(x.RequestedPath, x.ResolvedPath, StringComparison.OrdinalIgnoreCase));
 var manifest = new
 {
-    schemaVersion = 7,
+    schemaVersion = 8,
     kind = "gms-v180-static-wz-staging-candidate",
     approved = false,
     productionApplyAllowed = false,
@@ -353,11 +349,11 @@ var manifest = new
     source = new { path = targetPath, sha256 = targetHashBefore, version = targetVersion, size = new FileInfo(targetPath).Length },
     donor = new { path = donorPath, sha256 = donorHash, version = donorVersion, size = new FileInfo(donorPath).Length },
     output = new { path = outputPath, sha256 = Sha(outputPath), size = new FileInfo(outputPath).Length },
-    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, nonEmptyCandidate = true },
+    validation = new { sourceUnchanged = true, noTargetCollisions = true, outputReparsed = true, donorImageDigestsMatch = true, compressedOrSemanticCanvasVerification = true, semanticIntegralWidthNormalization = true, semanticRawUolPathVerification = true, nonEmptyCandidate = true },
     images = staged.Select(x => new { requestedPath = x.RequestedPath, resolvedPath = x.ResolvedPath }).ToArray(),
 };
 File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
-Console.WriteLine($"STAGED {Path.GetFileName(targetPath)}: {verified:N0}/{requested.Length:N0} donor-only images verified; fallback={fallbackCount:N0}; semantic-canvas-fallback={semanticFallbackCount:N0}; sanitized={sanitizedScalarCount:N0}");
+Console.WriteLine($"STAGED {Path.GetFileName(targetPath)}: {verified:N0}/{requested.Length:N0} donor-only images verified; fallback={fallbackCount:N0}; semantic-fallback={semanticFallbackCount:N0}; sanitized={sanitizedScalarCount:N0}");
 Console.WriteLine($"OUTPUT {outputPath}");
 Console.WriteLine("approved=false / productionApplyAllowed=false");
 return 0;
