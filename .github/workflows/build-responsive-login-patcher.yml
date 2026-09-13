@@ -1,0 +1,62 @@
+name: Build responsive login WZ patcher
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "client/tools/login-wz-patcher/**"
+      - ".github/workflows/build-responsive-login-patcher.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Fetch pinned libwz writer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git clone --recurse-submodules https://github.com/toyobayashi/libwz.git "$env:RUNNER_TEMP/libwz"
+          git -C "$env:RUNNER_TEMP/libwz" checkout 41cd5d62ecd229f0eb425c2654ecf0bf8b435d7f
+          git -C "$env:RUNNER_TEMP/libwz" submodule update --init --recursive
+
+      - name: Build responsive login patcher
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $src = (Resolve-Path 'client/tools/login-wz-patcher').Path
+          $lib = "$env:RUNNER_TEMP/libwz"
+          $build = "$env:RUNNER_TEMP/responsive-login-build"
+          cmake -S $src -B $build -A x64 "-DLIBWZ_SOURCE=$lib"
+          cmake --build $build --config Release --target everleaf-responsive-login-wz everleaf-system-options-wz --parallel 2
+          $exe = Join-Path $build 'Release/everleaf-responsive-login-wz.exe'
+          $sysExe = Join-Path $build 'Release/everleaf-system-options-wz.exe'
+          if (-not (Test-Path $exe)) { throw "responsive login patcher output missing" }
+          if (-not (Test-Path $sysExe)) { throw "System Options patcher output missing" }
+
+          & 'client/tools/login-wz-patcher/Make-Responsive-Login.ps1' -SelfTest
+          if ($LASTEXITCODE -ne 0) { throw "responsive login padding self-test failed ($LASTEXITCODE)" }
+
+          $package = "$env:RUNNER_TEMP/responsive-login-package"
+          New-Item -ItemType Directory -Force $package | Out-Null
+          Copy-Item $exe (Join-Path $package 'everleaf-responsive-login-wz.exe')
+          Copy-Item $sysExe (Join-Path $package 'everleaf-system-options-wz.exe')
+          Copy-Item 'client/tools/login-wz-patcher/Make-Responsive-Login.ps1' $package
+          Copy-Item 'client/tools/login-wz-patcher/Apply-Responsive-Login.bat' $package
+          Copy-Item 'client/tools/login-wz-patcher/Restore-Responsive-Login.bat' $package
+          Copy-Item 'client/tools/login-wz-patcher/Make-Native-Resolution-Row.ps1' $package
+          Copy-Item 'client/tools/login-wz-patcher/Apply-Native-Resolution-Row.bat' $package
+          Copy-Item 'client/tools/login-wz-patcher/Restore-Native-Resolution-Row.bat' $package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: everleaf-display-wz-patchers
+          path: ${{ runner.temp }}/responsive-login-package/*
+          if-no-files-found: error
+          retention-days: 7
