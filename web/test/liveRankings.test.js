@@ -17,26 +17,33 @@ test('rankings service reads real character data with account safety filters',()
   assert.match(service,/characterFame/);
 });
 
-test('rankings route uses database pagination, player search, and all supported families',()=>{
+test('rankings route uses viewport pagination, player search, and all supported families',()=>{
   const route=read('src/routes/public.js');
   assert.match(route,/game\.rankingPage/);
-  assert.match(route,/RANKINGS_PAGE_SIZE = 25/);
-  for(const family of ['adventurer','warrior','magician','bowman','thief','pirate','cygnus','aran','evan']) assert.match(route,new RegExp(`${family}:`));
+  assert.match(route,/RANKINGS_PAGE_SIZE = 6/);
+  for(const family of ['adventurer','beginner','warrior','magician','bowman','thief','pirate','cygnus','dawn_warrior','blaze_wizard','wind_archer','night_walker','thunder_breaker','aran','evan']) assert.match(route,new RegExp(`${family}:`));
+  assert.match(route,/parent:"adventurer"/);
+  assert.match(route,/parent:"cygnus"/);
   assert.match(route,/search:q/);
   assert.match(route,/onlinePlayers/);
 });
 
-test('rankings UI clearly identifies live MySQL data and exposes useful stats',()=>{
+test('rankings UI exposes live data, useful stats, and hierarchical job filters',()=>{
   const view=read('src/views/rankings.ejs');
-  const css=read('public/css/rankings-live.css');
+  const css=read('public/css/rankings-wide-2026.css');
   const header=read('src/views/partials/header.ejs');
-  assert.match(view,/Live MySQL leaderboard/);
-  assert.match(view,/FIND A PLAYER/);
-  assert.match(view,/Ranked characters/);
-  assert.match(view,/Players online/);
+  assert.match(view,/EverLeaf Leaderboard/);
+  assert.match(view,/Search character name/);
+  assert.match(view,/rankingsInlineStats/);
+  assert.match(view,/Ranked/);
+  assert.match(view,/Online/);
+  assert.match(view,/rankingsFilterStack/);
+  assert.match(view,/rankingsSubTabs/);
   assert.match(view,/>Fame</);
   assert.match(view,/>EXP</);
-  assert.match(css,/\.rankingStats/);
-  assert.match(css,/\.rankingSearch/);
-  assert.match(header,/rankings-live\.css/);
+  assert.match(view,/data-live-avatar/);
+  assert.match(css,/\.rankingsInlineStats/);
+  assert.match(css,/\.rankingsSearchInline/);
+  assert.match(css,/\.rankingsSubTabs/);
+  assert.match(header,/rankings-wide-2026\.css\?v=6/);
 });
