@@ -1,26 +1,519 @@
-/* Rankings should use the same fluid inner-page width as the rest of EverLeaf. */
-body.route-rankings .rankingsMastheadInner,
-body.route-rankings .rankingsContent{
-  width:calc(100% - clamp(24px,3vw,64px))!important;
+/* EverLeaf Rankings — canonical inner-page layout, fitted to the viewport. */
+body.route-rankings .siteContent>main.rankingsPage{
+  width:100%!important;
   max-width:none!important;
-  margin-inline:auto!important;
+  height:100%!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+  display:grid!important;
+  grid-template-rows:auto minmax(0,1fr)!important;
+  background:#12130f!important;
 }
 
-body.route-rankings .rankingsTopGridFeatured{
-  grid-template-columns:1.12fr .94fr .94fr!important;
+/* Use the same shared title treatment as Downloads, Account, Help, etc. */
+body.route-rankings .rankingsTitle{
+  min-height:0!important;
+  margin:0!important;
+  padding:18px 0 14px!important;
+  flex:0 0 auto!important;
+}
+body.route-rankings .rankingsTitle .pageHeroGrid{
+  display:block!important;
+  width:100%!important;
+  max-width:none!important;
+}
+body.route-rankings .rankingsTitle .pageEyebrow{margin-bottom:8px!important}
+body.route-rankings .rankingsTitle h1{
+  margin:0!important;
+  max-width:none!important;
+  font-size:clamp(44px,4.8vw,66px)!important;
+  line-height:.82!important;
+}
+body.route-rankings .rankingsTitle p{
+  max-width:760px!important;
+  margin:9px 0 0!important;
+  font-size:11px!important;
+  line-height:1.3!important;
+}
+
+body.route-rankings .rankingsViewport{
+  height:100%!important;
+  min-height:0!important;
+  padding:9px 0 10px!important;
+  overflow:hidden!important;
+  display:grid!important;
+  grid-template-rows:auto auto minmax(0,1fr)!important;
+  gap:7px!important;
+}
+
+/* Search + status rail uses the same flat edge-led language as the other pages. */
+body.route-rankings .rankingsToolbar{
+  min-width:0!important;
+  min-height:42px!important;
+  display:grid!important;
+  grid-template-columns:minmax(340px,1fr) auto!important;
+  gap:12px!important;
+  align-items:center!important;
+  padding:6px 8px!important;
+  border:1px solid #3c3c38!important;
+  background:#12130f!important;
+}
+body.route-rankings .rankingsSearchInline{
+  min-width:0!important;
+  display:grid!important;
+  grid-template-columns:minmax(180px,1fr) auto auto!important;
+  gap:6px!important;
+  align-items:center!important;
+  margin:0!important;
+}
+body.route-rankings .rankingsSearchInline input{
+  width:100%!important;
+  height:34px!important;
+  min-height:34px!important;
+  margin:0!important;
+  padding:0 11px!important;
+  border:1px solid #3c3c38!important;
+  border-radius:0!important;
+  background:#0f100d!important;
+  color:#e6e1dc!important;
+  box-shadow:none!important;
+}
+body.route-rankings .rankingsSearchInline .btn{
+  height:34px!important;
+  min-height:34px!important;
+  margin:0!important;
+  padding:0 12px!important;
+  border-radius:0!important;
+  font-size:8px!important;
+}
+body.route-rankings .rankingsInlineStats{
+  display:flex!important;
+  align-items:stretch!important;
+  justify-content:flex-end!important;
+  min-width:0!important;
+  height:34px!important;
+  border-left:1px solid #3c3c38!important;
+}
+body.route-rankings .rankingsInlineStats>div{
+  min-width:88px!important;
+  padding:2px 11px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:center!important;
+  border-right:1px solid #292a26!important;
+}
+body.route-rankings .rankingsInlineStats>div:last-child{border-right:0!important}
+body.route-rankings .rankingsInlineStats span{
+  color:#79766f!important;
+  font-size:6px!important;
+  font-weight:900!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+}
+body.route-rankings .rankingsInlineStats strong{
+  margin-top:1px!important;
+  color:#e7e2dc!important;
+  font:700 13px/1 Georgia,"Times New Roman",serif!important;
+  white-space:nowrap!important;
+}
+
+/* Reuse the site's native tabs instead of a separate Rankings filter system. */
+body.route-rankings .rankingsClassTabs{
+  min-height:34px!important;
+  margin:0!important;
+  padding:3px!important;
+  display:flex!important;
+  flex-wrap:nowrap!important;
+  gap:2px!important;
+  overflow:hidden!important;
+  border-radius:0!important;
+  background:#12130f!important;
+}
+body.route-rankings .rankingsClassTabs .tab{
+  flex:1 1 0!important;
+  min-width:0!important;
+  min-height:26px!important;
+  padding:0 6px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  border-radius:0!important;
+  font-size:7px!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+}
+
+body.route-rankings .rankingsError{margin:0!important;padding:7px 10px!important}
+
+/* Same two-column content rhythm used elsewhere, but fill the remaining viewport. */
+body.route-rankings .rankingsWorkspace{
+  min-width:0!important;
+  min-height:0!important;
+  height:100%!important;
+  margin:0!important;
+  padding:0!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1.7fr) minmax(300px,.52fr)!important;
+  gap:1px!important;
+  align-items:stretch!important;
+  background:#292a26!important;
+  overflow:hidden!important;
+}
+body.route-rankings .rankingsWorkspace.boardOnly{grid-template-columns:1fr!important}
+
+body.route-rankings .rankingsBoardPanel{
+  min-width:0!important;
+  min-height:0!important;
+  height:100%!important;
+  padding:0!important;
+  overflow:hidden!important;
+  display:grid!important;
+  grid-template-rows:auto minmax(0,1fr) auto!important;
+  border-radius:0!important;
+  background:#12130f!important;
+}
+body.route-rankings .rankingsBoardHead{
+  min-height:48px!important;
+  padding:8px 12px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
   gap:14px!important;
+  border-bottom:1px solid #3c3c38!important;
+  background:#12130f!important;
+}
+body.route-rankings .rankingsBoardHead .pageEyebrow{
+  margin:0 0 3px!important;
+  font-size:6px!important;
+}
+body.route-rankings .rankingsBoardHead h2{
+  margin:0!important;
+  color:#e9e4de!important;
+  font:700 18px/1 Georgia,"Times New Roman",serif!important;
+}
+body.route-rankings .rankingsBoardHead>span{
+  color:#77736e!important;
+  font-size:7px!important;
+  font-weight:800!important;
+  white-space:nowrap!important;
 }
 
-body.route-rankings .rankingsTable th{padding-left:18px!important;padding-right:18px!important}
-body.route-rankings .rankingsTable td{padding-left:18px!important;padding-right:18px!important}
+body.route-rankings .rankingsTableWrap{
+  min-width:0!important;
+  min-height:0!important;
+  height:100%!important;
+  margin:0!important;
+  overflow:hidden!important;
+  border:0!important;
+  border-radius:0!important;
+  background:#10110e!important;
+}
+body.route-rankings .rankingsTable{
+  width:100%!important;
+  height:100%!important;
+  min-width:0!important;
+  table-layout:fixed!important;
+  border-collapse:collapse!important;
+  background:#10110e!important;
+}
+body.route-rankings .rankingsTable thead{height:28px!important}
+body.route-rankings .rankingsTable tbody{height:calc(100% - 28px)!important}
+body.route-rankings .rankingsTable tbody tr{height:16.666%!important}
+body.route-rankings .rankingsTable th{
+  height:28px!important;
+  padding:4px 10px!important;
+  border-bottom:1px solid #343530!important;
+  background:#171814!important;
+  color:#7f7b75!important;
+  font-size:6px!important;
+  font-weight:900!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+}
+body.route-rankings .rankingsTable td{
+  height:auto!important;
+  padding:4px 10px!important;
+  border-bottom:1px solid #252621!important;
+  color:#bbb7b0!important;
+  font-size:8px!important;
+  vertical-align:middle!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+body.route-rankings .rankingsTable tbody tr:last-child td{border-bottom:0!important}
+body.route-rankings .rankingsTable tbody tr:hover{background:#171814!important}
+body.route-rankings .rankingsTable th:nth-child(1){width:64px!important}
+body.route-rankings .rankingsTable th:nth-child(2){width:31%!important}
+body.route-rankings .rankingsTable th:nth-child(3){width:20%!important}
+body.route-rankings .rankingsTable th:nth-child(4){width:13%!important}
+body.route-rankings .rankingsTable th:nth-child(5){width:12%!important}
 
-@media(max-width:1100px){
-  body.route-rankings .rankingsTopGridFeatured{grid-template-columns:1fr!important}
+body.route-rankings .rankingsCharacter{
+  min-width:0!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+}
+body.route-rankings .rankingsCharacterAvatar{
+  width:38px!important;
+  height:38px!important;
+  flex:0 0 38px!important;
+  display:grid!important;
+  place-items:center!important;
+  overflow:hidden!important;
+  border:1px solid #343530!important;
+  border-radius:0!important;
+  background:#171814!important;
+}
+body.route-rankings .rankingsCharacterAvatar img{
+  max-width:36px!important;
+  max-height:36px!important;
+  width:auto!important;
+  height:auto!important;
+  object-fit:contain!important;
+}
+body.route-rankings .rankingsCharacter strong{
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  color:#e9e4de!important;
+  font:700 11px/1 Georgia,"Times New Roman",serif!important;
+}
+body.route-rankings .rankingsPlace{
+  width:30px!important;
+  height:24px!important;
+  display:grid!important;
+  place-items:center!important;
+  border:1px solid #3c3c38!important;
+  border-radius:0!important;
+  background:#171814!important;
+  color:#97928c!important;
+  font-size:7px!important;
+  font-weight:900!important;
+}
+body.route-rankings .rankingsPlace.top1{border-color:#88733f!important;color:#e2c978!important;background:#262216!important}
+body.route-rankings .rankingsPlace.top2{border-color:#5e625f!important;color:#c3c8c4!important;background:#202320!important}
+body.route-rankings .rankingsPlace.top3{border-color:#74543e!important;color:#d1aa86!important;background:#251d18!important}
+body.route-rankings .rankingsJob{
+  display:inline-block!important;
+  max-width:100%!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  color:#9c9892!important;
+  font-size:7px!important;
+  font-weight:800!important;
+}
+body.route-rankings .rankingsLevel{color:#91c89b!important;font-weight:900!important}
+
+body.route-rankings .rankingsPagination{
+  min-height:38px!important;
+  padding:5px 8px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:10px!important;
+  border-top:1px solid #3c3c38!important;
+  background:#12130f!important;
+}
+body.route-rankings .rankingsPagination .pagination{
+  margin:0!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:3px!important;
+}
+body.route-rankings .rankingsPagination .pageBtn{
+  min-width:25px!important;
+  height:25px!important;
+  padding:0 6px!important;
+  border-radius:0!important;
+  font-size:7px!important;
+}
+body.route-rankings .rankingsPagination>span{color:#77736e!important;font-size:7px!important;white-space:nowrap!important}
+body.route-rankings .pageGap{color:#6f6b66!important;font-size:8px!important}
+
+/* Top 3 occupies the side column completely; no dead right-side space. */
+body.route-rankings .rankingsAside{
+  min-width:0!important;
+  min-height:0!important;
+  height:100%!important;
+  margin:0!important;
+  padding:0!important;
+  gap:0!important;
+  background:#12130f!important;
+}
+body.route-rankings .rankingsLeadersPanel{
+  min-width:0!important;
+  min-height:0!important;
+  height:100%!important;
+  margin:0!important;
+  padding:0!important;
+  display:grid!important;
+  grid-template-rows:auto minmax(0,1fr)!important;
+  overflow:hidden!important;
+  border-radius:0!important;
+  background:#12130f!important;
+}
+body.route-rankings .rankingsLeadersHead{
+  min-height:48px!important;
+  padding:8px 11px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:10px!important;
+  border-bottom:1px solid #3c3c38!important;
+}
+body.route-rankings .rankingsLeadersHead .pageEyebrow{margin:0 0 3px!important;font-size:6px!important}
+body.route-rankings .rankingsLeadersHead h2{margin:0!important;color:#e9e4de!important;font:700 16px/1 Georgia,"Times New Roman",serif!important}
+body.route-rankings .rankingsLeadersHead>span{color:#77736e!important;font-size:6px!important;text-align:right!important}
+body.route-rankings .rankingsLeaderList{
+  min-height:0!important;
+  height:100%!important;
+  display:grid!important;
+  grid-template-rows:repeat(3,minmax(0,1fr))!important;
+}
+body.route-rankings .rankingsLeaderRow{
+  min-width:0!important;
+  min-height:0!important;
+  display:grid!important;
+  grid-template-columns:36px 74px minmax(0,1fr)!important;
+  gap:9px!important;
+  align-items:center!important;
+  padding:8px 10px!important;
+  border-bottom:1px solid #292a26!important;
+  background:#12130f!important;
+}
+body.route-rankings .rankingsLeaderRow:last-child{border-bottom:0!important}
+body.route-rankings .rankingsLeaderRow.rank1{background:linear-gradient(90deg,#201d13 0,#12130f 56%)!important}
+body.route-rankings .rankingsLeaderNumber{
+  color:#908b85!important;
+  font:700 18px/1 Georgia,"Times New Roman",serif!important;
+  text-align:center!important;
+}
+body.route-rankings .rankingsLeaderRow.rank1 .rankingsLeaderNumber{color:#e2c978!important}
+body.route-rankings .rankingsLeaderAvatar{
+  width:74px!important;
+  height:74px!important;
+  display:grid!important;
+  place-items:center!important;
+  overflow:hidden!important;
+}
+body.route-rankings .rankingsLeaderAvatar img{
+  max-width:72px!important;
+  max-height:72px!important;
+  width:auto!important;
+  height:auto!important;
+  object-fit:contain!important;
+}
+body.route-rankings .rankingsLeaderCopy{min-width:0!important}
+body.route-rankings .rankingsLeaderCopy>strong{
+  display:block!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  color:#ece7e1!important;
+  font:700 15px/1 Georgia,"Times New Roman",serif!important;
+}
+body.route-rankings .rankingsLeaderCopy>span{
+  display:block!important;
+  margin-top:4px!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  color:#8e8a84!important;
+  font-size:7px!important;
+}
+body.route-rankings .rankingsLeaderCopy>div{
+  margin-top:7px!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+}
+body.route-rankings .rankingsLeaderCopy b{color:#99ca9f!important;font-size:8px!important}
+body.route-rankings .rankingsLeaderRow.rank1 .rankingsLeaderCopy b{color:#e2c978!important}
+body.route-rankings .rankingsLeaderCopy small{color:#706c67!important;font-size:7px!important}
+
+body.route-rankings .rankingsEmpty{
+  min-height:0!important;
+  height:100%!important;
+  display:grid!important;
+  place-content:center!important;
+  text-align:center!important;
+  padding:18px!important;
+}
+body.route-rankings .rankingsEmpty h3{margin:0 0 5px!important;color:#e9e4de!important;font:700 18px Georgia,"Times New Roman",serif!important}
+body.route-rankings .rankingsEmpty p{margin:0 0 10px!important;color:#8f8b85!important;font-size:8px!important}
+
+/* Short desktop windows tighten without introducing a scroll surface. */
+@media(max-height:760px) and (min-width:901px){
+  body.route-rankings .rankingsTitle{padding:11px 0 9px!important}
+  body.route-rankings .rankingsTitle .pageEyebrow{margin-bottom:4px!important;font-size:7px!important}
+  body.route-rankings .rankingsTitle h1{font-size:40px!important}
+  body.route-rankings .rankingsTitle p{margin-top:5px!important;font-size:9px!important}
+  body.route-rankings .rankingsViewport{padding:6px 0 7px!important;gap:5px!important}
+  body.route-rankings .rankingsToolbar{min-height:36px!important;padding:3px 5px!important}
+  body.route-rankings .rankingsSearchInline input,
+  body.route-rankings .rankingsSearchInline .btn{height:30px!important;min-height:30px!important}
+  body.route-rankings .rankingsInlineStats{height:30px!important}
+  body.route-rankings .rankingsInlineStats>div{padding:1px 8px!important;min-width:78px!important}
+  body.route-rankings .rankingsClassTabs{min-height:29px!important;padding:2px!important}
+  body.route-rankings .rankingsClassTabs .tab{min-height:23px!important;font-size:6px!important}
+  body.route-rankings .rankingsBoardHead,
+  body.route-rankings .rankingsLeadersHead{min-height:40px!important;padding-top:5px!important;padding-bottom:5px!important}
+  body.route-rankings .rankingsBoardHead h2{font-size:15px!important}
+  body.route-rankings .rankingsLeadersHead h2{font-size:14px!important}
+  body.route-rankings .rankingsCharacterAvatar{width:32px!important;height:32px!important;flex-basis:32px!important}
+  body.route-rankings .rankingsCharacterAvatar img{max-width:30px!important;max-height:30px!important}
+  body.route-rankings .rankingsLeaderAvatar{width:58px!important;height:58px!important}
+  body.route-rankings .rankingsLeaderAvatar img{max-width:56px!important;max-height:56px!important}
+  body.route-rankings .rankingsLeaderRow{grid-template-columns:31px 58px minmax(0,1fr)!important;padding:5px 8px!important}
+  body.route-rankings .rankingsPagination{min-height:32px!important;padding:3px 6px!important}
+}
+
+/* Smaller windows keep the canonical full-width frame and drop the secondary side panel. */
+@media(max-width:900px){
+  body.route-rankings .rankingsTitle{padding:12px 0 10px!important}
+  body.route-rankings .rankingsTitle h1{font-size:38px!important}
+  body.route-rankings .rankingsTitle p{font-size:9px!important}
+  body.route-rankings .rankingsToolbar{grid-template-columns:1fr auto!important}
+  body.route-rankings .rankingsUpdated{display:none!important}
+  body.route-rankings .rankingsInlineStats>div{min-width:68px!important;padding-inline:7px!important}
+  body.route-rankings .rankingsWorkspace{grid-template-columns:1fr!important}
+  body.route-rankings .rankingsAside{display:none!important}
 }
 
 @media(max-width:700px){
-  body.route-rankings .rankingsMastheadInner,
-  body.route-rankings .rankingsContent{width:calc(100% - 22px)!important}
-  body.route-rankings .rankingsTable th,
-  body.route-rankings .rankingsTable td{padding-left:9px!important;padding-right:9px!important}
+  body.route-rankings .rankingsViewport{width:calc(100% - 22px)!important}
+  body.route-rankings .rankingsToolbar{grid-template-columns:1fr!important}
+  body.route-rankings .rankingsInlineStats{display:none!important}
+  body.route-rankings .rankingsClassTabs{
+    display:grid!important;
+    grid-template-columns:repeat(5,minmax(0,1fr))!important;
+    min-height:52px!important;
+  }
+  body.route-rankings .rankingsClassTabs .tab{min-height:22px!important;padding:0 2px!important;font-size:6px!important}
+  body.route-rankings .rankingsTable th:nth-child(5),
+  body.route-rankings .rankingsTable td:nth-child(5),
+  body.route-rankings .rankingsTable th:nth-child(6),
+  body.route-rankings .rankingsTable td:nth-child(6){display:none!important}
+  body.route-rankings .rankingsTable th:nth-child(2){width:42%!important}
+  body.route-rankings .rankingsTable th:nth-child(3){width:25%!important}
+  body.route-rankings .rankingsTable th:nth-child(4){width:18%!important}
+}
+
+@media(max-width:500px){
+  body.route-rankings .rankingsTitle p{display:none!important}
+  body.route-rankings .rankingsSearchInline{grid-template-columns:minmax(0,1fr) auto!important}
+  body.route-rankings .rankingsSearchInline .btn:not(.primary){display:none!important}
+  body.route-rankings .rankingsTable th:nth-child(3),
+  body.route-rankings .rankingsTable td:nth-child(3){display:none!important}
+  body.route-rankings .rankingsTable th:nth-child(2){width:auto!important}
+  body.route-rankings .rankingsTable th:nth-child(4){width:25%!important}
+  body.route-rankings .rankingsCharacterAvatar{width:30px!important;height:30px!important;flex-basis:30px!important}
+  body.route-rankings .rankingsCharacterAvatar img{max-width:28px!important;max-height:28px!important}
 }
