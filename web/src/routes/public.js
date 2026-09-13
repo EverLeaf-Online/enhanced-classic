@@ -58,12 +58,18 @@ router.get("/news/:slug", (req,res) => {
 const JOB_CLASSES = {
   overall: {label:"Overall", ranges:null},
   adventurer: {label:"Adventurers", ranges:[[0,1],[100,600]]},
-  warrior: {label:"Warrior", ranges:[[100,200]]},
-  magician: {label:"Magician", ranges:[[200,300]]},
-  bowman: {label:"Bowman", ranges:[[300,400]]},
-  thief: {label:"Thief", ranges:[[400,500]]},
-  pirate: {label:"Pirate", ranges:[[500,600]]},
+  beginner: {label:"Beginner", parent:"adventurer", ranges:[[0,1]]},
+  warrior: {label:"Warrior", parent:"adventurer", ranges:[[100,200]]},
+  magician: {label:"Magician", parent:"adventurer", ranges:[[200,300]]},
+  bowman: {label:"Bowman", parent:"adventurer", ranges:[[300,400]]},
+  thief: {label:"Thief", parent:"adventurer", ranges:[[400,500]]},
+  pirate: {label:"Pirate", parent:"adventurer", ranges:[[500,600]]},
   cygnus: {label:"Cygnus", ranges:[[1000,1600]]},
+  dawn_warrior: {label:"Dawn Warrior", parent:"cygnus", ranges:[[1100,1200]]},
+  blaze_wizard: {label:"Blaze Wizard", parent:"cygnus", ranges:[[1200,1300]]},
+  wind_archer: {label:"Wind Archer", parent:"cygnus", ranges:[[1300,1400]]},
+  night_walker: {label:"Night Walker", parent:"cygnus", ranges:[[1400,1500]]},
+  thunder_breaker: {label:"Thunder Breaker", parent:"cygnus", ranges:[[1500,1600]]},
   aran: {label:"Aran", ranges:[[2000,2001],[2100,2200]]},
   evan: {label:"Evan", ranges:[[2001,2002],[2200,2300]]}
 };

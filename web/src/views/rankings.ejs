@@ -23,6 +23,12 @@ const fmt=n=>Number(n||0).toLocaleString();
 const topThree=(currentPage===1&&!q?rows.slice(0,3):[]);
 const linkFor=(page=1,cls=activeClass)=>`/rankings?class=${encodeURIComponent(cls)}${q?`&q=${encodeURIComponent(q)}`:''}${page>1?`&page=${page}`:''}`;
 const loadedTime=generatedAt.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+const activeMeta=classes[activeClass]||classes.overall;
+const activeParent=activeMeta.parent||activeClass;
+const primaryClassKeys=['overall','adventurer','cygnus','aran','evan'];
+const adventurerSubKeys=['beginner','warrior','magician','bowman','thief','pirate'];
+const cygnusSubKeys=['dawn_warrior','blaze_wizard','wind_archer','night_walker','thunder_breaker'];
+const activeSubKeys=activeParent==='adventurer'?adventurerSubKeys:(activeParent==='cygnus'?cygnusSubKeys:[]);
 %>
 <main class="lightPage rankingsPage">
   <section class="lightTitle visualPageTitle rankingsTitle">
@@ -52,11 +58,21 @@ const loadedTime=generatedAt.toLocaleTimeString(undefined,{hour:'numeric',minute
       </div>
     </div>
 
-    <nav class="tabs rankingsClassTabs" aria-label="Ranking class filters">
-      <% Object.entries(classes).forEach(([key,c])=>{ %>
-        <a class="tab <%=activeClass===key?'active':''%>" href="<%=linkFor(1,key)%>"><%=c.label%></a>
-      <% }) %>
-    </nav>
+    <div class="rankingsFilterStack">
+      <nav class="tabs rankingsClassTabs" aria-label="Ranking class filters">
+        <% primaryClassKeys.forEach(key=>{ const c=classes[key]; %>
+          <a class="tab <%=activeParent===key?'active':''%>" href="<%=linkFor(1,key)%>"><%=c.label%></a>
+        <% }) %>
+      </nav>
+
+      <% if(activeSubKeys.length){ %>
+        <nav class="tabs rankingsSubTabs" aria-label="<%=classes[activeParent].label%> class filters">
+          <% activeSubKeys.forEach(key=>{ const c=classes[key]; %>
+            <a class="tab <%=activeClass===key?'active':''%>" href="<%=linkFor(1,key)%>"><%=c.label%></a>
+          <% }) %>
+        </nav>
+      <% } %>
+    </div>
 
     <% if(error){ %>
       <div class="error rankingsError"><strong>Rankings unavailable.</strong> <span><%=error%></span></div>

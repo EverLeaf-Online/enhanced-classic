@@ -530,3 +530,74 @@ body.route-rankings:not(.route-admin) table.rankingsTable tbody tr:hover{
 body.route-rankings:not(.route-admin) table.rankingsTable tbody td{
   background:transparent!important;
 }
+
+/* Hierarchical ranking class filters. */
+body.route-rankings .rankingsFilterStack{
+  min-width:0!important;
+  display:grid!important;
+  gap:4px!important;
+}
+body.route-rankings .rankingsClassTabs,
+body.route-rankings .rankingsSubTabs{
+  margin:0!important;
+  padding:3px!important;
+  display:flex!important;
+  flex-wrap:nowrap!important;
+  gap:2px!important;
+  overflow:hidden!important;
+  border:1px solid #343530!important;
+  border-radius:0!important;
+  background:#10110e!important;
+}
+body.route-rankings .rankingsClassTabs .tab,
+body.route-rankings .rankingsSubTabs .tab{
+  flex:1 1 0!important;
+  min-width:0!important;
+  min-height:26px!important;
+  padding:0 7px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  border:1px solid transparent!important;
+  border-radius:0!important;
+  background:#171814!important;
+  color:#9b9891!important;
+  box-shadow:none!important;
+  font-size:7px!important;
+  font-weight:900!important;
+  letter-spacing:.035em!important;
+  text-transform:uppercase!important;
+  white-space:nowrap!important;
+}
+body.route-rankings .rankingsClassTabs .tab:hover,
+body.route-rankings .rankingsSubTabs .tab:hover{
+  background:#20211d!important;
+  color:#e8e4de!important;
+}
+body.route-rankings .rankingsClassTabs .tab.active{
+  border-color:#53885b!important;
+  background:#2f6e3a!important;
+  color:#f1f3e9!important;
+}
+body.route-rankings .rankingsSubTabs{
+  border-color:#292a26!important;
+  background:#0d0e0b!important;
+}
+body.route-rankings .rankingsSubTabs .tab{
+  min-height:24px!important;
+  background:#12130f!important;
+  color:#817e78!important;
+  font-size:6.5px!important;
+}
+body.route-rankings .rankingsSubTabs .tab.active{
+  border-color:#6b8e62!important;
+  background:#1f3d25!important;
+  color:#bfe0bc!important;
+}
+@media(max-height:760px) and (min-width:901px){
+  body.route-rankings .rankingsFilterStack{gap:2px!important}
+  body.route-rankings .rankingsClassTabs,
+  body.route-rankings .rankingsSubTabs{padding:2px!important}
+  body.route-rankings .rankingsClassTabs .tab{min-height:22px!important}
+  body.route-rankings .rankingsSubTabs .tab{min-height:20px!important}
+}
