@@ -1,130 +1,129 @@
-/* EverLeaf Rankings — simplified layout refresh */
+/* EverLeaf Rankings — refined layout */
 body.route-rankings{
-  --rk-bg:#0d120f;
-  --rk-panel:#141a15;
-  --rk-panel-soft:#171e18;
-  --rk-line:#2d3930;
-  --rk-line-strong:#435448;
+  --rk-bg:#0e1310;
+  --rk-panel:#151b16;
+  --rk-panel-soft:#181f1a;
+  --rk-line:#2b362e;
+  --rk-line-strong:#435247;
   --rk-text:#eee9df;
-  --rk-muted:#89958c;
-  --rk-green:#9acfa3;
-  --rk-gold:#d7bb70;
+  --rk-muted:#8e998f;
+  --rk-gold:#d5b970;
+  --rk-green:#a7d0ae;
   background:var(--rk-bg)!important;
 }
 body.route-rankings .siteContent>main{background:var(--rk-bg)!important;color:var(--rk-text)!important}
-body.route-rankings .rankingsShell{min-height:calc(100vh - 78px)!important;background:linear-gradient(180deg,#111713 0,#0d120f 360px)!important;padding:0 0 64px!important}
+body.route-rankings .rankingsPage{min-height:calc(100vh - 78px);padding-bottom:64px;background:linear-gradient(180deg,#111713 0,#0e1310 420px)}
 
-/* Hero */
-body.route-rankings .rankingsHero{margin:0!important;padding:46px 0 34px!important;border-bottom:1px solid #283229!important;background:radial-gradient(circle at 80% 10%,rgba(106,162,116,.10),transparent 32%)!important}
-body.route-rankings .rankingsHeroInner{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:56px!important;align-items:end!important}
-body.route-rankings .rankingsHeroMain{max-width:700px!important}
-body.route-rankings .rankingsHero .pageEyebrow{margin:0 0 8px!important;color:#91b899!important;font-size:8px!important;letter-spacing:.13em!important}
-body.route-rankings .rankingsHero h1{margin:0!important;color:#f3eee4!important;font:700 clamp(48px,5vw,68px)/.95 Georgia,"Times New Roman",serif!important;letter-spacing:-.05em!important}
-body.route-rankings .rankingsHeroMain>p{max-width:58ch!important;margin:15px 0 20px!important;color:#9aa59c!important;font-size:12px!important;line-height:1.65!important}
-body.route-rankings .rankingSearchBar{display:grid!important;grid-template-columns:minmax(0,460px) auto auto!important;gap:8px!important;align-items:center!important;margin:0!important}
-body.route-rankings .rankingSearchBar input{height:44px!important;min-height:44px!important;padding:0 14px!important;border:1px solid #344138!important;border-radius:9px!important;background:#121713!important;color:#eee9df!important;box-shadow:none!important}
-body.route-rankings .rankingSearchBar input:focus{outline:1px solid #708b77!important;border-color:#708b77!important}
-body.route-rankings .rankingSearchBar .btn{height:44px!important;min-height:44px!important;padding:0 17px!important;border:1px solid #566c5c!important;border-radius:9px!important;background:#223127!important;color:#e9e5dc!important;box-shadow:none!important;text-transform:none!important}
-body.route-rankings .rankingSearchClear{padding:0 4px!important;color:#b8a26b!important;font-size:9px!important;font-weight:800!important;text-decoration:none!important}
-body.route-rankings .rankingsHeroStats{display:grid!important;grid-template-columns:repeat(2,128px)!important;gap:1px!important;border:1px solid var(--rk-line)!important;border-radius:13px!important;background:var(--rk-line)!important;overflow:hidden!important}
-body.route-rankings .rankingsHeroStats>div{min-height:78px!important;padding:13px 14px!important;background:#141a15!important}
-body.route-rankings .rankingsHeroStats small{display:block!important;color:#6f7b72!important;font-size:7px!important;font-weight:900!important;letter-spacing:.08em!important;text-transform:uppercase!important}
-body.route-rankings .rankingsHeroStats strong{display:block!important;margin-top:5px!important;color:#ebe6dc!important;font:700 18px/1.1 Georgia,serif!important}
+body.route-rankings .rankingsMasthead{padding:46px 0 34px;border-bottom:1px solid #273129;background:radial-gradient(circle at 78% 15%,rgba(104,157,113,.10),transparent 34%)}
+body.route-rankings .rankingsMastheadInner{display:flex;align-items:flex-end;justify-content:space-between;gap:36px}
+body.route-rankings .rankingsKicker{display:block;margin-bottom:8px;color:#88a990;font-size:8px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}
+body.route-rankings .rankingsMasthead h1{margin:0;color:#f4efe6;font:700 clamp(50px,5vw,72px)/.95 Georgia,"Times New Roman",serif;letter-spacing:-.05em}
+body.route-rankings .rankingsMasthead p{margin:13px 0 0;color:#9ca69e;font-size:12px}
+body.route-rankings .rankingsSearch{display:flex;align-items:center;gap:8px;min-width:min(100%,470px)}
+body.route-rankings .rankingsSearch input{height:44px;min-height:44px;flex:1;padding:0 14px;border:1px solid #354139;border-radius:10px;background:#131814;color:#f0ece3;box-shadow:none}
+body.route-rankings .rankingsSearch input:focus{outline:1px solid #6d8975;border-color:#6d8975}
+body.route-rankings .rankingsSearch button{height:44px;padding:0 18px;border:1px solid #566b5b;border-radius:10px;background:#223128;color:#ece7de;font-size:10px;font-weight:850;cursor:pointer}
+body.route-rankings .rankingsSearch a{color:#c8ae69;font-size:9px;font-weight:800;text-decoration:none}
 
-/* Main stack */
-body.route-rankings .rankingsLayout{width:min(1180px,calc(100% - 36px))!important;display:grid!important;gap:14px!important;padding-top:22px!important}
+body.route-rankings .rankingsContent{width:min(1180px,calc(100% - 36px));display:grid;gap:18px;padding-top:24px}
+body.route-rankings .rankingsOverview{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;border:1px solid var(--rk-line);border-radius:14px;background:var(--rk-line);overflow:hidden}
+body.route-rankings .rankingsOverview>div{padding:17px 18px;background:#151a16}
+body.route-rankings .rankingsOverview span{display:block;color:#727e75;font-size:7px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+body.route-rankings .rankingsOverview strong{display:block;margin-top:5px;color:#f0ebe2;font:700 22px/1.05 Georgia,serif}
 
-/* Filter bar */
-body.route-rankings .rankingFilters{border:1px solid var(--rk-line)!important;border-radius:14px!important;background:#131914!important;overflow:hidden!important}
-body.route-rankings .rankingFiltersHeader{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:18px!important;padding:14px 16px!important;border-bottom:1px solid #29332b!important}
-body.route-rankings .rankingFiltersHeader>div{display:flex!important;align-items:baseline!important;gap:10px!important;min-width:0!important}
-body.route-rankings .rankingFiltersLabel{color:#748078!important;font-size:7px!important;font-weight:900!important;letter-spacing:.09em!important;text-transform:uppercase!important}
-body.route-rankings .rankingFiltersHeader strong{color:#eae5db!important;font:700 18px/1.1 Georgia,serif!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
-body.route-rankings .rankingFiltersHeader>span{color:#7c887f!important;font-size:8px!important;white-space:nowrap!important}
-body.route-rankings .rankingTabs{display:flex!important;gap:4px!important;padding:8px!important;overflow-x:auto!important;scrollbar-width:none!important}
-body.route-rankings .rankingTabs::-webkit-scrollbar{display:none!important}
-body.route-rankings .rankingTab{flex:0 0 auto!important;display:inline-flex!important;align-items:center!important;min-height:31px!important;padding:0 11px!important;border:1px solid transparent!important;border-radius:7px!important;color:#89958c!important;background:transparent!important;font-size:8px!important;font-weight:850!important;text-decoration:none!important;white-space:nowrap!important}
-body.route-rankings .rankingTab:hover{background:#1a211b!important;color:#c6cec7!important}
-body.route-rankings .rankingTab.active{border-color:#615b3e!important;background:#282719!important;color:#e4cf8b!important}
+body.route-rankings .rankingsFilterPanel{border:1px solid var(--rk-line);border-radius:14px;background:#131914;overflow:hidden}
+body.route-rankings .rankingsFilterTitle{display:flex;align-items:end;justify-content:space-between;gap:20px;padding:14px 16px;border-bottom:1px solid #29332b}
+body.route-rankings .rankingsFilterTitle span{display:block;margin-bottom:3px;color:#758078;font-size:7px;font-weight:900;letter-spacing:.09em;text-transform:uppercase}
+body.route-rankings .rankingsFilterTitle strong{display:block;color:#ece7dd;font:700 20px/1.1 Georgia,serif}
+body.route-rankings .rankingsFilterTitle small{color:#6f7a72;font-size:8px}
+body.route-rankings .rankingsTabs{display:flex;gap:4px;padding:8px;overflow-x:auto;scrollbar-width:none}
+body.route-rankings .rankingsTabs::-webkit-scrollbar{display:none}
+body.route-rankings .rankingsTabs a{flex:0 0 auto;display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid transparent;border-radius:8px;background:transparent;color:#8d988f;font-size:8px;font-weight:850;text-decoration:none;white-space:nowrap}
+body.route-rankings .rankingsTabs a:hover{background:#1a211b;color:#ccd3cd}
+body.route-rankings .rankingsTabs a.active{border-color:#655c3d;background:#292719;color:#e6cf89}
 
-/* Top 3 */
-body.route-rankings .rankingLeaders{padding:16px!important;border:1px solid var(--rk-line)!important;border-radius:14px!important;background:#121713!important}
-body.route-rankings .rankingSectionHead{display:flex!important;align-items:flex-end!important;justify-content:space-between!important;gap:16px!important;margin-bottom:12px!important}
-body.route-rankings .rankingSectionHead>div>span{display:block!important;margin-bottom:3px!important;color:#758178!important;font-size:7px!important;font-weight:900!important;letter-spacing:.08em!important;text-transform:uppercase!important}
-body.route-rankings .rankingSectionHead strong{display:block!important;color:#ece7dd!important;font:700 20px/1 Georgia,serif!important}
-body.route-rankings .rankingSectionHead>small{color:#68746c!important;font-size:8px!important}
-body.route-rankings .rankingLeaderGrid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important}
-body.route-rankings .rankingLeaderCard{position:relative!important;display:grid!important;grid-template-columns:82px minmax(0,1fr)!important;gap:12px!important;align-items:center!important;min-height:116px!important;padding:13px!important;border:1px solid #303b32!important;border-radius:11px!important;background:#151b16!important;overflow:hidden!important}
-body.route-rankings .rankingLeaderCard.rank1{border-color:#6b5d39!important;background:linear-gradient(135deg,#211f14,#151a16 58%)!important}
-body.route-rankings .rankingLeaderRank{position:absolute!important;top:9px!important;left:9px!important;z-index:2!important;display:grid!important;place-items:center!important;width:29px!important;height:25px!important;border:1px solid #3a463d!important;border-radius:6px!important;background:#1b221c!important;color:#a6b0a8!important;font-size:8px!important;font-weight:900!important}
-body.route-rankings .rank1 .rankingLeaderRank{border-color:#7b693a!important;background:#2b2618!important;color:#efd17c!important}
-body.route-rankings .rankingLeaderAvatar{display:grid!important;place-items:center!important;width:82px!important;height:86px!important;margin-top:6px!important;overflow:hidden!important}
-body.route-rankings .rankingLeaderAvatar img{max-width:80px!important;max-height:84px!important;width:auto!important;height:auto!important;object-fit:contain!important;filter:drop-shadow(0 5px 3px rgba(0,0,0,.35))!important}
-body.route-rankings .rankingLeaderInfo{min-width:0!important}
-body.route-rankings .rankingLeaderInfo>strong{display:block!important;color:#eee9df!important;font:700 18px/1.05 Georgia,serif!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
-body.route-rankings .rankingLeaderInfo>span{display:block!important;margin-top:4px!important;color:#89958c!important;font-size:8px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
-body.route-rankings .rankingLeaderInfo>div{display:flex!important;align-items:center!important;gap:9px!important;margin-top:10px!important}
-body.route-rankings .rankingLeaderInfo b{color:#a9d1af!important;font-size:10px!important}
-body.route-rankings .rank1 .rankingLeaderInfo b{color:#e5ca79!important}
-body.route-rankings .rankingLeaderInfo small{color:#68746c!important;font-size:8px!important}
+body.route-rankings .rankingsTop{padding:17px;border:1px solid var(--rk-line);border-radius:14px;background:#121713}
+body.route-rankings .rankingsSectionTitle{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:14px}
+body.route-rankings .rankingsSectionTitle>div>span{display:block;margin-bottom:3px;color:#748078;font-size:7px;font-weight:900;letter-spacing:.09em;text-transform:uppercase}
+body.route-rankings .rankingsSectionTitle strong{display:block;color:#eee9df;font:700 21px/1 Georgia,serif}
+body.route-rankings .rankingsSectionTitle>small{color:#6f7b72;font-size:8px}
+body.route-rankings .rankingsTopGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+body.route-rankings .rankingsTopCard{position:relative;display:grid;grid-template-columns:72px 92px minmax(0,1fr);align-items:center;gap:12px;min-height:128px;padding:15px;border:1px solid #303a32;border-radius:12px;background:#171d18;overflow:hidden}
+body.route-rankings .rankingsTopCard.rank1{border-color:#6d5f3b;background:linear-gradient(135deg,#242116,#171c18 58%)}
+body.route-rankings .rankingsTopRank{display:flex;align-items:flex-end;gap:2px;align-self:start;padding-top:5px;color:#8e9a91}
+body.route-rankings .rankingsTopRank span{font-size:11px;font-weight:900}
+body.route-rankings .rankingsTopRank strong{font:700 34px/1 Georgia,serif;color:#bcc5be}
+body.route-rankings .rank1 .rankingsTopRank strong{color:#efd17c}
+body.route-rankings .rankingsTopAvatar{display:grid;place-items:center;width:92px;height:96px}
+body.route-rankings .rankingsTopAvatar img{max-width:90px;max-height:94px;width:auto;height:auto;object-fit:contain;filter:drop-shadow(0 6px 4px rgba(0,0,0,.32))}
+body.route-rankings .rankingsTopInfo{min-width:0}
+body.route-rankings .rankingsTopName{display:block;color:#f0ebe1;font:700 20px/1.05 Georgia,serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.route-rankings .rankingsTopJob{display:block;margin-top:5px;color:#8e998f;font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.route-rankings .rankingsTopMeta{display:flex;align-items:center;gap:10px;margin-top:11px}
+body.route-rankings .rankingsTopMeta b{color:#a9d0af;font-size:10px}
+body.route-rankings .rank1 .rankingsTopMeta b{color:#e7cb79}
+body.route-rankings .rankingsTopMeta span{color:#69756c;font-size:8px}
 
-/* Board */
-body.route-rankings .rankingBoardClean{border:1px solid var(--rk-line)!important;border-radius:14px!important;background:#111612!important;overflow:hidden!important}
-body.route-rankings .rankingBoardCleanHead{display:flex!important;align-items:end!important;justify-content:space-between!important;gap:20px!important;padding:15px 17px!important;border-bottom:1px solid #29332b!important;background:#141a15!important}
-body.route-rankings .rankingBoardCleanHead>div:first-child>span{display:block!important;margin-bottom:3px!important;color:#728078!important;font-size:7px!important;font-weight:900!important;letter-spacing:.08em!important;text-transform:uppercase!important}
-body.route-rankings .rankingBoardCleanHead strong{display:block!important;color:#eee9df!important;font:700 20px/1.1 Georgia,serif!important}
-body.route-rankings .rankingBoardMeta{display:flex!important;gap:6px!important;flex-wrap:wrap!important;justify-content:flex-end!important}
-body.route-rankings .rankingBoardMeta span{padding:4px 7px!important;border:1px solid #303b32!important;border-radius:6px!important;background:#101511!important;color:#727e75!important;font-size:7px!important}
-body.route-rankings .rankingTableWrap{border:0!important;border-radius:0!important;background:#101511!important;overflow:auto!important}
-body.route-rankings .rankingTableClean{width:100%!important;border-collapse:collapse!important;background:transparent!important;color:#dcd8cf!important}
-body.route-rankings .rankingTableClean th{padding:9px 13px!important;border:0!important;border-bottom:1px solid #2a342c!important;background:#121713!important;color:#6f7c73!important;font-size:7px!important;font-weight:900!important;letter-spacing:.075em!important;text-transform:uppercase!important;text-align:left!important}
-body.route-rankings .rankingTableClean td{height:58px!important;padding:7px 13px!important;border:0!important;border-bottom:1px solid #222b24!important;background:transparent!important;color:#bfc6c0!important;font-size:9px!important;vertical-align:middle!important}
-body.route-rankings .rankingTableClean tbody tr:nth-child(even){background:#121713!important}
-body.route-rankings .rankingTableClean tbody tr:hover{background:#182019!important}
-body.route-rankings .rankingTableClean th:first-child,body.route-rankings .rankingTableClean td:first-child{width:68px!important}
-body.route-rankings .rankingPlace{display:grid!important;place-items:center!important;width:34px!important;height:28px!important;border:1px solid #334037!important;border-radius:7px!important;background:#171e18!important;color:#8e9991!important;font-size:9px!important;font-weight:900!important}
-body.route-rankings .rankingPlace.top1{border-color:#7c6938!important;background:#2a2516!important;color:#f0d37e!important}
-body.route-rankings .rankingPlace.top2{border-color:#555f59!important;background:#202622!important;color:#c4cbc6!important}
-body.route-rankings .rankingPlace.top3{border-color:#6e513e!important;background:#261d18!important;color:#d0aa87!important}
-body.route-rankings .rankingPlayerCell{display:flex!important;align-items:center!important;gap:10px!important}
-body.route-rankings .rankingPlayerAvatar{display:grid!important;place-items:center!important;width:44px!important;height:44px!important;flex:0 0 44px!important;border:1px solid #323e35!important;border-radius:8px!important;background:#1a211b!important;overflow:hidden!important}
-body.route-rankings .rankingPlayerAvatar img{max-width:42px!important;max-height:42px!important;width:auto!important;height:auto!important;object-fit:contain!important;filter:drop-shadow(0 3px 2px rgba(0,0,0,.38))!important}
-body.route-rankings .rankingPlayerCell strong{color:#ece7dd!important;font:700 13px/1 Georgia,serif!important}
-body.route-rankings .rankingJob{display:inline-flex!important;padding:4px 7px!important;border:1px solid #313d34!important;border-radius:6px!important;background:#161d17!important;color:#a1ada4!important;font-size:8px!important;font-weight:800!important}
-body.route-rankings .rankingLevel{color:#add2b3!important;font-weight:900!important}
-body.route-rankings .rankingFooterClean{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important;padding:11px 14px!important;border-top:1px solid #29332b!important;background:#141a15!important}
-body.route-rankings .rankingFooterClean .pagination{display:flex!important;gap:5px!important;margin:0!important}
-body.route-rankings .rankingFooterClean .pageBtn{min-width:30px!important;height:30px!important;display:grid!important;place-items:center!important;padding:0 8px!important;border:1px solid #334037!important;border-radius:6px!important;background:#101511!important;color:#8b968e!important;font-size:8px!important;text-decoration:none!important}
-body.route-rankings .rankingFooterClean .pageBtn.active{border-color:#6c603d!important;background:#292719!important;color:#e3cb7d!important}
-body.route-rankings .rankingFooterClean>span{color:#68746c!important;font-size:8px!important}
-body.route-rankings .rankingEmptyClean{padding:48px 20px!important;text-align:center!important}
-body.route-rankings .rankingEmptyClean h3{margin:0 0 6px!important;color:#ebe6dc!important;font:700 21px Georgia,serif!important}
-body.route-rankings .rankingEmptyClean p{margin:0 0 15px!important;color:#7e8a81!important;font-size:9px!important}
-body.route-rankings .rankingError{margin:0!important}
+body.route-rankings .rankingsBoard{border:1px solid var(--rk-line);border-radius:14px;background:#111612;overflow:hidden}
+body.route-rankings .rankingsBoardHead{display:flex;align-items:end;justify-content:space-between;gap:20px;padding:15px 17px;border-bottom:1px solid #29332b;background:#151a16}
+body.route-rankings .rankingsBoardHead span{display:block;margin-bottom:3px;color:#738078;font-size:7px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+body.route-rankings .rankingsBoardHead strong{display:block;color:#eee9df;font:700 21px/1.1 Georgia,serif}
+body.route-rankings .rankingsBoardHead small{color:#6f7b72;font-size:8px}
+body.route-rankings .rankingsTableScroll{overflow:auto;background:#101511}
+body.route-rankings .rankingsTable{width:100%;border-collapse:collapse;background:transparent;color:#dcd8cf}
+body.route-rankings .rankingsTable th{padding:10px 13px;border:0;border-bottom:1px solid #2a342c;background:#121713;color:#6f7c73;font-size:7px;font-weight:900;letter-spacing:.075em;text-transform:uppercase;text-align:left}
+body.route-rankings .rankingsTable td{height:60px;padding:7px 13px;border:0;border-bottom:1px solid #222b24;background:transparent;color:#c1c8c2;font-size:9px;vertical-align:middle}
+body.route-rankings .rankingsTable tbody tr:nth-child(even){background:#121713}
+body.route-rankings .rankingsTable tbody tr:hover{background:#182019}
+body.route-rankings .rankingsTable th:first-child,body.route-rankings .rankingsTable td:first-child{width:68px}
+body.route-rankings .rankingsPlace{display:grid;place-items:center;width:34px;height:28px;border:1px solid #334037;border-radius:7px;background:#171e18;color:#8e9991;font-size:9px;font-weight:900}
+body.route-rankings .rankingsPlace.top1{border-color:#7c6938;background:#2a2516;color:#f0d37e}
+body.route-rankings .rankingsPlace.top2{border-color:#555f59;background:#202622;color:#c4cbc6}
+body.route-rankings .rankingsPlace.top3{border-color:#6e513e;background:#261d18;color:#d0aa87}
+body.route-rankings .rankingsCharacter{display:flex;align-items:center;gap:10px}
+body.route-rankings .rankingsCharacterAvatar{display:grid;place-items:center;width:44px;height:44px;flex:0 0 44px;border:1px solid #323e35;border-radius:8px;background:#1a211b;overflow:hidden}
+body.route-rankings .rankingsCharacterAvatar img{max-width:42px;max-height:42px;width:auto;height:auto;object-fit:contain;filter:drop-shadow(0 3px 2px rgba(0,0,0,.38))}
+body.route-rankings .rankingsCharacter strong{color:#ece7dd;font:700 13px/1 Georgia,serif}
+body.route-rankings .rankingsJob{display:inline-flex;padding:4px 7px;border:1px solid #313d34;border-radius:6px;background:#161d17;color:#a1ada4;font-size:8px;font-weight:800}
+body.route-rankings .rankingsLevel{color:#add2b3;font-weight:900}
+body.route-rankings .rankingsPagination{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;border-top:1px solid #29332b;background:#151a16}
+body.route-rankings .rankingsPagination .pagination{display:flex;gap:5px;margin:0}
+body.route-rankings .rankingsPagination .pageBtn{min-width:30px;height:30px;display:grid;place-items:center;padding:0 8px;border:1px solid #334037;border-radius:6px;background:#101511;color:#8b968e;font-size:8px;text-decoration:none}
+body.route-rankings .rankingsPagination .pageBtn:hover{background:#1a211b;color:#d5dbd6}
+body.route-rankings .rankingsPagination .pageBtn.active{border-color:#6c603d;background:#292719;color:#e3cb7d}
+body.route-rankings .rankingsPagination>span{color:#68746c;font-size:8px}
+body.route-rankings .rankingsEmpty{padding:50px 20px;text-align:center}
+body.route-rankings .rankingsEmpty h3{margin:0 0 6px;color:#ebe6dc;font:700 21px Georgia,serif}
+body.route-rankings .rankingsEmpty p{margin:0 0 15px;color:#7e8a81;font-size:9px}
+body.route-rankings .rankingsError{margin:0}
 
-@media(max-width:900px){
-  body.route-rankings .rankingsHeroInner{grid-template-columns:1fr!important;gap:22px!important;align-items:start!important}
-  body.route-rankings .rankingsHeroStats{grid-template-columns:repeat(4,minmax(0,1fr))!important;width:100%!important}
-  body.route-rankings .rankingLeaderGrid{grid-template-columns:1fr!important}
-  body.route-rankings .rankingLeaderCard{grid-template-columns:76px 1fr!important;min-height:100px!important}
-  body.route-rankings .rankingLeaderAvatar{width:76px!important;height:76px!important}
-  body.route-rankings .rankingLeaderAvatar img{max-width:74px!important;max-height:74px!important}
+@media(max-width:980px){
+  body.route-rankings .rankingsMastheadInner{align-items:flex-start;flex-direction:column;gap:22px}
+  body.route-rankings .rankingsSearch{width:100%;min-width:0}
+  body.route-rankings .rankingsTopGrid{grid-template-columns:1fr}
+  body.route-rankings .rankingsTopCard{grid-template-columns:56px 82px 1fr;min-height:105px}
+  body.route-rankings .rankingsTopAvatar{width:82px;height:78px}
+  body.route-rankings .rankingsTopAvatar img{max-width:80px;max-height:76px}
 }
-@media(max-width:640px){
-  body.route-rankings .rankingsHero{padding:34px 0 26px!important}
-  body.route-rankings .rankingsHeroInner{gap:18px!important}
-  body.route-rankings .rankingSearchBar{grid-template-columns:1fr auto!important}
-  body.route-rankings .rankingSearchClear{grid-column:1/-1!important}
-  body.route-rankings .rankingsHeroStats{grid-template-columns:repeat(2,1fr)!important}
-  body.route-rankings .rankingsLayout{width:min(100% - 22px,1180px)!important;padding-top:14px!important}
-  body.route-rankings .rankingFiltersHeader{align-items:flex-start!important;flex-direction:column!important;gap:6px!important}
-  body.route-rankings .rankingFiltersHeader>div{align-items:flex-start!important;flex-direction:column!important;gap:3px!important}
-  body.route-rankings .rankingSectionHead{align-items:flex-start!important;flex-direction:column!important;gap:4px!important}
-  body.route-rankings .rankingBoardCleanHead{align-items:flex-start!important;flex-direction:column!important;gap:8px!important}
-  body.route-rankings .rankingBoardMeta{justify-content:flex-start!important}
-  body.route-rankings .rankingTableClean th:nth-child(3),body.route-rankings .rankingTableClean td:nth-child(3),body.route-rankings .rankingTableClean th:nth-child(5),body.route-rankings .rankingTableClean td:nth-child(5){display:none!important}
-  body.route-rankings .rankingTableClean th,body.route-rankings .rankingTableClean td{padding-left:9px!important;padding-right:9px!important}
-  body.route-rankings .rankingPlayerAvatar{width:40px!important;height:40px!important;flex-basis:40px!important}
-  body.route-rankings .rankingPlayerAvatar img{max-width:38px!important;max-height:38px!important}
-  body.route-rankings .rankingFooterClean{align-items:flex-start!important;flex-direction:column!important}
+@media(max-width:700px){
+  body.route-rankings .rankingsMasthead{padding:34px 0 26px}
+  body.route-rankings .rankingsContent{width:min(100% - 22px,1180px);padding-top:14px;gap:13px}
+  body.route-rankings .rankingsOverview{grid-template-columns:repeat(2,1fr)}
+  body.route-rankings .rankingsFilterTitle,body.route-rankings .rankingsSectionTitle,body.route-rankings .rankingsBoardHead{align-items:flex-start;flex-direction:column;gap:5px}
+  body.route-rankings .rankingsTopCard{grid-template-columns:48px 74px 1fr;padding:12px}
+  body.route-rankings .rankingsTopRank strong{font-size:28px}
+  body.route-rankings .rankingsTopAvatar{width:74px;height:72px}
+  body.route-rankings .rankingsTopAvatar img{max-width:72px;max-height:70px}
+  body.route-rankings .rankingsTopName{font-size:17px}
+  body.route-rankings .rankingsTable th:nth-child(3),body.route-rankings .rankingsTable td:nth-child(3),body.route-rankings .rankingsTable th:nth-child(5),body.route-rankings .rankingsTable td:nth-child(5){display:none}
+  body.route-rankings .rankingsTable th,body.route-rankings .rankingsTable td{padding-left:9px;padding-right:9px}
+  body.route-rankings .rankingsPagination{align-items:flex-start;flex-direction:column}
+}
+@media(max-width:520px){
+  body.route-rankings .rankingsSearch{display:grid;grid-template-columns:1fr auto}
+  body.route-rankings .rankingsSearch a{grid-column:1/-1}
+  body.route-rankings .rankingsOverview>div{padding:14px}
+  body.route-rankings .rankingsTopCard{grid-template-columns:42px 66px 1fr;gap:9px}
+  body.route-rankings .rankingsTopAvatar{width:66px;height:66px}
+  body.route-rankings .rankingsTopAvatar img{max-width:64px;max-height:64px}
 }
