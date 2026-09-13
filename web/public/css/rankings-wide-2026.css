@@ -601,3 +601,261 @@ body.route-rankings .rankingsSubTabs .tab.active{
   body.route-rankings .rankingsClassTabs .tab{min-height:22px!important}
   body.route-rankings .rankingsSubTabs .tab{min-height:20px!important}
 }
+
+/* Rankings v6 visual polish — compact, readable, and consistent with the EverLeaf app frame. */
+body.route-rankings .rankingsTitle{
+  padding:16px 0 13px!important;
+  background:linear-gradient(90deg,#12130f 0%,#151912 52%,#12130f 100%)!important;
+  border-bottom:1px solid #2e342f!important;
+}
+body.route-rankings .rankingsTitle .pageEyebrow{color:#78a97e!important;letter-spacing:.11em!important}
+body.route-rankings .rankingsTitle h1{font-size:clamp(42px,4.3vw,62px)!important;letter-spacing:-.045em!important}
+body.route-rankings .rankingsTitle p{color:#8f958e!important;font-size:11.5px!important}
+
+body.route-rankings .rankingsViewport{gap:8px!important;padding:10px 0 11px!important}
+
+body.route-rankings .rankingsToolbar{
+  min-height:48px!important;
+  padding:6px!important;
+  gap:10px!important;
+  border:1px solid #303630!important;
+  border-radius:8px!important;
+  background:#0f110e!important;
+  box-shadow:0 8px 24px rgba(0,0,0,.12)!important;
+}
+body.route-rankings .rankingsSearchInline{gap:6px!important}
+body.route-rankings .rankingsSearchInline input{
+  height:36px!important;
+  min-height:36px!important;
+  padding:0 12px!important;
+  border-color:#343b35!important;
+  border-radius:6px!important;
+  background:#0b0d0b!important;
+  color:#ece9e2!important;
+  font-size:11px!important;
+}
+body.route-rankings .rankingsSearchInline input:focus{
+  outline:none!important;
+  border-color:#5e8b64!important;
+  box-shadow:0 0 0 2px rgba(94,139,100,.12)!important;
+}
+body.route-rankings .rankingsSearchInline .btn{
+  height:36px!important;
+  min-height:36px!important;
+  padding:0 13px!important;
+  border-radius:6px!important;
+  font-size:8px!important;
+  letter-spacing:.05em!important;
+}
+body.route-rankings .rankingsSearchInline .btn.primary{
+  border-color:#5f9567!important;
+  background:linear-gradient(180deg,#4d8d57,#397944)!important;
+  color:#f4f6ed!important;
+  box-shadow:none!important;
+}
+body.route-rankings .rankingsInlineStats{
+  height:36px!important;
+  border-left:0!important;
+  border:1px solid #292e2a!important;
+  border-radius:6px!important;
+  overflow:hidden!important;
+  background:#111410!important;
+}
+body.route-rankings .rankingsInlineStats>div{
+  min-width:92px!important;
+  padding:3px 12px!important;
+  border-right:1px solid #292e2a!important;
+}
+body.route-rankings .rankingsInlineStats span{color:#6f756f!important;font-size:6.5px!important}
+body.route-rankings .rankingsInlineStats strong{color:#f0ece5!important;font-size:13px!important}
+
+body.route-rankings .rankingsFilterStack{
+  gap:4px!important;
+  padding:4px!important;
+  border:1px solid #303630!important;
+  border-radius:8px!important;
+  background:#0f110e!important;
+  box-shadow:0 8px 24px rgba(0,0,0,.08)!important;
+}
+body.route-rankings .rankingsClassTabs,
+body.route-rankings .rankingsSubTabs{
+  min-height:0!important;
+  padding:0!important;
+  gap:4px!important;
+  border:0!important;
+  background:transparent!important;
+}
+body.route-rankings .rankingsClassTabs .tab,
+body.route-rankings .rankingsSubTabs .tab{
+  min-height:29px!important;
+  border:1px solid #292f2a!important;
+  border-radius:5px!important;
+  background:#151815!important;
+  color:#9aa099!important;
+  font-size:7.5px!important;
+  letter-spacing:.045em!important;
+  transition:background .12s ease,border-color .12s ease,color .12s ease!important;
+}
+body.route-rankings .rankingsClassTabs .tab:hover,
+body.route-rankings .rankingsSubTabs .tab:hover{
+  border-color:#3d4a40!important;
+  background:#1b201b!important;
+  color:#e9e5df!important;
+}
+body.route-rankings .rankingsClassTabs .tab.active{
+  border-color:#5d8e64!important;
+  background:linear-gradient(180deg,#3f7d49,#32683b)!important;
+  color:#f2f5ec!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.05)!important;
+}
+body.route-rankings .rankingsSubTabs{
+  padding-top:1px!important;
+  border-top:1px solid #252a26!important;
+}
+body.route-rankings .rankingsSubTabs .tab{
+  min-height:25px!important;
+  border-color:transparent!important;
+  background:#10130f!important;
+  color:#7f877f!important;
+  font-size:7px!important;
+}
+body.route-rankings .rankingsSubTabs .tab.active{
+  border-color:#4e6c53!important;
+  background:#1b2b1e!important;
+  color:#bcd7bf!important;
+  box-shadow:inset 0 -2px #5b9864!important;
+}
+
+body.route-rankings .rankingsWorkspace{
+  grid-template-columns:minmax(0,1.58fr) minmax(340px,.62fr)!important;
+  gap:8px!important;
+  background:transparent!important;
+}
+body.route-rankings .rankingsBoardPanel,
+body.route-rankings .rankingsLeadersPanel{
+  border:1px solid #303630!important;
+  border-radius:8px!important;
+  background:#0f110e!important;
+  box-shadow:0 10px 28px rgba(0,0,0,.12)!important;
+}
+body.route-rankings .rankingsBoardHead,
+body.route-rankings .rankingsLeadersHead{
+  min-height:52px!important;
+  padding:9px 13px!important;
+  border-bottom-color:#2a302b!important;
+  background:linear-gradient(180deg,#151815,#11130f)!important;
+}
+body.route-rankings .rankingsBoardHead .pageEyebrow,
+body.route-rankings .rankingsLeadersHead .pageEyebrow{color:#6f9e75!important;font-size:6.5px!important}
+body.route-rankings .rankingsBoardHead h2{font-size:19px!important;letter-spacing:-.01em!important}
+body.route-rankings .rankingsLeadersHead h2{font-size:17px!important;letter-spacing:-.01em!important}
+body.route-rankings .rankingsBoardHead>span,
+body.route-rankings .rankingsLeadersHead>span{color:#747b74!important;font-size:7px!important}
+
+body.route-rankings .rankingsTableWrap{background:#0d0f0c!important}
+body.route-rankings .rankingsTable{background:#0d0f0c!important}
+body.route-rankings .rankingsTable th{
+  height:30px!important;
+  padding:5px 12px!important;
+  border-bottom-color:#303630!important;
+  background:#141714!important;
+  color:#78837a!important;
+  font-size:7px!important;
+}
+body.route-rankings:not(.route-admin) table.rankingsTable tbody tr,
+body.route-rankings:not(.route-admin) table.rankingsTable tbody tr:nth-child(odd){background:#0f110e!important}
+body.route-rankings:not(.route-admin) table.rankingsTable tbody tr:nth-child(even){background:#121511!important}
+body.route-rankings:not(.route-admin) table.rankingsTable tbody tr:hover{background:#182019!important}
+body.route-rankings .rankingsTable td{
+  padding:5px 12px!important;
+  border-bottom-color:#252a26!important;
+  color:#b8bdb7!important;
+  font-size:9px!important;
+}
+body.route-rankings .rankingsCharacter{gap:9px!important}
+body.route-rankings .rankingsCharacterAvatar{
+  width:40px!important;
+  height:40px!important;
+  flex-basis:40px!important;
+  border-color:#343b35!important;
+  border-radius:6px!important;
+  background:#171b17!important;
+}
+body.route-rankings .rankingsCharacterAvatar img{max-width:38px!important;max-height:38px!important}
+body.route-rankings .rankingsCharacter strong{font-size:12px!important;color:#f0ece5!important}
+body.route-rankings .rankingsJob{color:#939a93!important;font-size:7.5px!important}
+body.route-rankings .rankingsLevel{color:#8fc799!important;font-size:9px!important}
+body.route-rankings .rankingsPlace{
+  width:32px!important;
+  height:25px!important;
+  border-radius:5px!important;
+  background:#171a17!important;
+  font-size:7.5px!important;
+}
+
+body.route-rankings .rankingsLeaderRow{
+  grid-template-columns:42px 82px minmax(0,1fr)!important;
+  gap:10px!important;
+  padding:9px 12px!important;
+  border-bottom-color:#292f2a!important;
+  background:#10120f!important;
+}
+body.route-rankings .rankingsLeaderRow.rank1{
+  border-left:3px solid #b99a49!important;
+  background:linear-gradient(90deg,#211d12 0,#12140f 62%)!important;
+}
+body.route-rankings .rankingsLeaderRow.rank2{border-left:3px solid #777d79!important}
+body.route-rankings .rankingsLeaderRow.rank3{border-left:3px solid #8c6247!important}
+body.route-rankings .rankingsLeaderNumber{font-size:20px!important;color:#858b85!important}
+body.route-rankings .rankingsLeaderRow.rank1 .rankingsLeaderNumber{color:#ddc36f!important}
+body.route-rankings .rankingsLeaderAvatar{
+  width:82px!important;
+  height:82px!important;
+  border:1px solid #333934!important;
+  border-radius:8px!important;
+  background:#171a16!important;
+}
+body.route-rankings .rankingsLeaderAvatar img{max-width:78px!important;max-height:78px!important}
+body.route-rankings .rankingsLeaderCopy>strong{font-size:16px!important;color:#f1ede6!important}
+body.route-rankings .rankingsLeaderCopy>span{font-size:7.5px!important;color:#8a918a!important}
+body.route-rankings .rankingsLeaderCopy b{font-size:9px!important;color:#91c69a!important}
+body.route-rankings .rankingsLeaderCopy small{font-size:7.5px!important;color:#737973!important}
+
+body.route-rankings .rankingsPagination{
+  min-height:40px!important;
+  padding:6px 9px!important;
+  border-top-color:#2b312c!important;
+  background:#11130f!important;
+}
+body.route-rankings .rankingsPagination .pageBtn{
+  min-width:27px!important;
+  height:27px!important;
+  border-color:#303731!important;
+  border-radius:5px!important;
+  background:#171a17!important;
+  color:#9aa09a!important;
+  font-size:7.5px!important;
+}
+body.route-rankings .rankingsPagination .pageBtn.active,
+body.route-rankings .rankingsPagination .pageBtn:hover{
+  border-color:#5b8d63!important;
+  background:#2f6839!important;
+  color:#f3f5ef!important;
+}
+
+@media(max-height:760px) and (min-width:901px){
+  body.route-rankings .rankingsToolbar{min-height:40px!important;padding:4px!important}
+  body.route-rankings .rankingsSearchInline input,
+  body.route-rankings .rankingsSearchInline .btn{height:31px!important;min-height:31px!important}
+  body.route-rankings .rankingsInlineStats{height:31px!important}
+  body.route-rankings .rankingsFilterStack{padding:3px!important}
+  body.route-rankings .rankingsClassTabs .tab{min-height:23px!important}
+  body.route-rankings .rankingsSubTabs .tab{min-height:20px!important}
+  body.route-rankings .rankingsBoardHead,
+  body.route-rankings .rankingsLeadersHead{min-height:42px!important;padding:5px 10px!important}
+  body.route-rankings .rankingsCharacterAvatar{width:34px!important;height:34px!important;flex-basis:34px!important}
+  body.route-rankings .rankingsCharacterAvatar img{max-width:32px!important;max-height:32px!important}
+  body.route-rankings .rankingsLeaderRow{grid-template-columns:34px 60px minmax(0,1fr)!important;padding:5px 8px!important}
+  body.route-rankings .rankingsLeaderAvatar{width:60px!important;height:60px!important}
+  body.route-rankings .rankingsLeaderAvatar img{max-width:58px!important;max-height:58px!important}
+}
