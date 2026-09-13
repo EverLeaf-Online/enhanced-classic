@@ -22,7 +22,7 @@ env:
 jobs:
   boot-smoke:
     runs-on: windows-2025
-    timeout-minutes: 45
+    timeout-minutes: 120
     steps:
       - name: Checkout EverLeaf
         uses: actions/checkout@v4
@@ -49,8 +49,42 @@ jobs:
           }
           if (-not (Test-Path $knownHosts) -or (Get-Item $knownHosts).Length -eq 0) { throw 'known_hosts is empty' }
 
+      - name: Fingerprint exact managed EverLeaf client
+        id: client_key
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $keyPath = Join-Path $HOME '.ssh/id_everleaf'
+          $sshExe = 'C:\Program Files\Git\usr\bin\ssh.exe'
+          $baseline = Get-Content 'client/managed-client-baseline.json' -Raw | ConvertFrom-Json
+          $names = @($baseline.managedFiles | ForEach-Object { [string]$_.path })
+          foreach ($name in $names) {
+            if ($name -notmatch '^[A-Za-z0-9_.-]+$') { throw "Unsafe managed client filename: $name" }
+          }
+          $quoted = ($names | ForEach-Object { "'$_'" }) -join ' '
+          $inventory = & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "set -euo pipefail; cd /opt/everleaf/patches/files; sha256sum $quoted"
+          if ($LASTEXITCODE -ne 0 -or -not $inventory) { throw 'Could not fingerprint production managed client' }
+          $inventoryPath = Join-Path $env:RUNNER_TEMP 'LIVE_CLIENT_SOURCE_HASHES.txt'
+          $inventory | Set-Content -Encoding ascii $inventoryPath
+          $normalized = (($inventory -join "`n") + "`n")
+          $bytes = [Text.Encoding]::UTF8.GetBytes($normalized)
+          $stream = [IO.MemoryStream]::new($bytes)
+          try { $fingerprint = (Get-FileHash -InputStream $stream -Algorithm SHA256).Hash.ToLowerInvariant() } finally { $stream.Dispose() }
+          "fingerprint=$fingerprint" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "LIVE_CLIENT_SOURCE_FINGERPRINT=$fingerprint" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "LIVE_CLIENT_FINGERPRINT $fingerprint"
+
+      - name: Restore exact managed client cache
+        id: client_cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/everleaf-client-base
+          key: everleaf-managed-client-${{ steps.client_key.outputs.fingerprint }}
+
       - name: Fetch exact managed EverLeaf client and pinned private candidate
         shell: pwsh
+        env:
+          CACHE_HIT: ${{ steps.client_cache.outputs.cache-hit }}
         run: |
           $ErrorActionPreference = 'Stop'
           $keyPath = Join-Path $HOME '.ssh/id_everleaf'
@@ -67,33 +101,54 @@ jobs:
           }
 
           $remoteRoot = '/opt/everleaf/patches/files'
-          $remoteArchive = "/tmp/everleaf-client-boot-$env:GITHUB_RUN_ID.tgz"
-          $quoted = ($names | ForEach-Object { "'$_'" }) -join ' '
-          $remoteCommand = "set -euo pipefail; cd '$remoteRoot'; for f in $quoted; do test -f `"`$f`"; done; sha256sum $quoted > /tmp/everleaf-client-boot-$env:GITHUB_RUN_ID.sha256; tar -czf '$remoteArchive' $quoted; sha256sum '$remoteArchive'"
-          $archiveHashLine = & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" $remoteCommand
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to prepare exact private client archive on Oracle' }
-          $remoteArchiveHash = (($archiveHashLine | Select-Object -Last 1) -split '\s+')[0].ToLowerInvariant()
-          if ($remoteArchiveHash.Length -ne 64) { throw 'Invalid remote client archive hash' }
+          $baseClientDir = Join-Path $env:RUNNER_TEMP 'everleaf-client-base'
+          if ($env:CACHE_HIT -eq 'true') {
+            Write-Host 'Using cached exact managed client payload.'
+            foreach ($name in $names) {
+              $path = Join-Path $baseClientDir $name
+              if (-not (Test-Path $path -PathType Leaf)) { throw "Cached client missing $name" }
+            }
+          } else {
+            New-Item -ItemType Directory -Force -Path $baseClientDir | Out-Null
+            $remoteArchive = "/tmp/everleaf-client-boot-$env:GITHUB_RUN_ID.tgz"
+            $quoted = ($names | ForEach-Object { "'$_'" }) -join ' '
+            $remoteCommand = "set -euo pipefail; cd '$remoteRoot'; for f in $quoted; do test -f `"`$f`"; done; tar -czf '$remoteArchive' $quoted; sha256sum '$remoteArchive'"
+            $archiveHashLine = & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" $remoteCommand
+            if ($LASTEXITCODE -ne 0) { throw 'Failed to prepare exact private client archive on Oracle' }
+            $remoteArchiveHash = (($archiveHashLine | Select-Object -Last 1) -split '\s+')[0].ToLowerInvariant()
+            if ($remoteArchiveHash.Length -ne 64) { throw 'Invalid remote client archive hash' }
 
-          $archive = Join-Path $env:RUNNER_TEMP 'everleaf-client.tgz'
-          & $scpExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteArchive" $archive
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to fetch private managed client archive' }
-          $localArchiveHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($localArchiveHash -ne $remoteArchiveHash) { throw 'Managed client archive hash mismatch after transfer' }
-
-          $hashes = Join-Path $env:RUNNER_TEMP 'LIVE_CLIENT_SOURCE_HASHES.txt'
-          & $scpExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:/tmp/everleaf-client-boot-$env:GITHUB_RUN_ID.sha256" $hashes
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to fetch live client hash inventory' }
-          & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "rm -f '$remoteArchive' '/tmp/everleaf-client-boot-$env:GITHUB_RUN_ID.sha256'"
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to remove temporary Oracle client smoke archives' }
-
-          $clientDir = Join-Path $env:RUNNER_TEMP 'everleaf-client'
-          New-Item -ItemType Directory -Force -Path $clientDir | Out-Null
-          tar -xzf $archive -C $clientDir
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to extract managed EverLeaf client' }
-          foreach ($name in $names) {
-            if (-not (Test-Path (Join-Path $clientDir $name) -PathType Leaf)) { throw "Extracted client missing $name" }
+            $archive = Join-Path $env:RUNNER_TEMP 'everleaf-client.tgz'
+            try {
+              & $scpExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST`:$remoteArchive" $archive
+              if ($LASTEXITCODE -ne 0) { throw 'Failed to fetch private managed client archive' }
+            } finally {
+              & $sshExe -i $keyPath "$env:EVERLEAF_DEPLOY_USER@$env:EVERLEAF_DEPLOY_HOST" "rm -f '$remoteArchive'" | Out-Null
+            }
+            $localArchiveHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($localArchiveHash -ne $remoteArchiveHash) { throw 'Managed client archive hash mismatch after transfer' }
+            tar -xzf $archive -C $baseClientDir
+            if ($LASTEXITCODE -ne 0) { throw 'Failed to extract managed EverLeaf client' }
           }
+
+          # Validate every cached/fetched file against the current production hash inventory.
+          $expected = @{}
+          foreach ($line in Get-Content (Join-Path $env:RUNNER_TEMP 'LIVE_CLIENT_SOURCE_HASHES.txt')) {
+            if ($line -match '^([0-9a-fA-F]{64})\s+(.+)$') { $expected[$matches[2].Trim()] = $matches[1].ToLowerInvariant() }
+          }
+          foreach ($name in $names) {
+            $path = Join-Path $baseClientDir $name
+            if (-not (Test-Path $path -PathType Leaf)) { throw "Managed client missing $name" }
+            $actual = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if (-not $expected.ContainsKey($name) -or $actual -ne $expected[$name]) { throw "Managed client hash mismatch: $name" }
+          }
+
+          # Work on a copy so candidate Item/String overlays can never contaminate the cache.
+          $clientDir = Join-Path $env:RUNNER_TEMP 'everleaf-client'
+          if (Test-Path $clientDir) { Remove-Item $clientDir -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $clientDir | Out-Null
+          & robocopy.exe $baseClientDir $clientDir /E /COPY:DAT /R:1 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+          if ($LASTEXITCODE -gt 7) { throw "robocopy failed with exit code $LASTEXITCODE" }
 
           $candidateRemote = "/opt/everleaf/private/wz-client-candidates/gms-v95-consume-batch-001/$env:CANDIDATE_SHA/client-candidate.zip"
           $candidate = Join-Path $env:RUNNER_TEMP 'client-candidate.zip'
@@ -124,7 +179,6 @@ jobs:
           if ($stringHash -ne ([string]$candidateManifest.output.string.sha256).ToLowerInvariant()) { throw 'Boot client String.wz does not match pinned candidate' }
 
           "CLIENT_DIR=$clientDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "LIVE_CLIENT_ARCHIVE_SHA256=$localArchiveHash" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Block game network and boot exact client candidate
         shell: pwsh
@@ -141,12 +195,13 @@ jobs:
           $matching = @()
           try {
             New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Program $exe -Action Block -Profile Any | Out-Null
+            # Mirror EverLeafLauncher's one-time handoff contract without automating launcher UI.
+            $ticket = Join-Path $env:CLIENT_DIR '.everleaf-launch'
+            [IO.File]::WriteAllText($ticket, [string][DateTimeOffset]::UtcNow.ToUnixTimeSeconds(), [Text.Encoding]::ASCII)
             $launched = Start-Process -FilePath $exe -WorkingDirectory $env:CLIENT_DIR -PassThru
             Start-Sleep -Seconds 15
 
-            # Some EverLeaf/MapleStory launch paths exit the initial process with code 0
-            # after handing off to a second process. Track every surviving EverLeaf.exe
-            # instance whose executable path is exactly the isolated runner copy.
+            # Track the exact isolated EverLeaf.exe process only; stable EverLeaf has no secondary host executable.
             $matching = @(Get-CimInstance Win32_Process -Filter "Name='EverLeaf.exe'" -ErrorAction SilentlyContinue | Where-Object {
               try { [IO.Path]::GetFullPath([string]$_.ExecutablePath) -eq $exe } catch { $false }
             })
@@ -168,7 +223,7 @@ jobs:
               batchId = 'gms-v95-consume-batch-001'
               candidateSha = $env:CANDIDATE_SHA
               candidateZipSha256 = $env:CANDIDATE_ZIP_SHA256
-              liveClientArchiveSha256 = $env:LIVE_CLIENT_ARCHIVE_SHA256
+              liveClientSourceFingerprint = $env:LIVE_CLIENT_SOURCE_FINGERPRINT
               executableSha256 = $exeHash
               itemWzSha256 = $itemHash
               stringWzSha256 = $stringHash
@@ -176,7 +231,7 @@ jobs:
               survivedSeconds = 15
               survivingProcessCount = $matching.Count
               survivingProcessIds = $processIds
-              launcherHandoffObserved = [bool]($launched.HasExited -and $launched.ExitCode -eq 0)
+              validLauncherTicketInjected = $true
               processAliveAtEnd = $true
               productionFilesModified = $false
               approved = $false

@@ -48,8 +48,16 @@ jobs:
           $bridge = Get-Content 'client/native/core/DiscordPresence.cpp' -Raw
           if (-not $bridge.Contains('LoadLibraryW(L"Discord.dll")')) { throw 'Core does not load Discord.dll independently' }
           $proxy = Get-Content 'client/native/proxy/Proxy.cpp' -Raw
-          foreach ($needle in @('EverLeafMS.dll','DirectInput8Create','GetdfDIJoystick')) {
+          foreach ($needle in @('EverLeafMS.dll','DirectInput8Create','GetdfDIJoystick','RequireEverLeafHostExecutable','L"EverLeaf.exe"')) {
             if (-not $proxy.Contains($needle)) { throw "Missing dinput8 proxy marker: $needle" }
+          }
+          $baseline = Get-Content 'client/managed-client-baseline.json' -Raw | ConvertFrom-Json
+          $managed = @($baseline.managedFiles | ForEach-Object { $_.path })
+          foreach ($required in @('EverLeaf.exe','dinput8.dll','EverLeafMS.dll','Discord.dll')) {
+            if ($managed -notcontains $required) { throw "Stable runtime missing managed file: $required" }
+          }
+          foreach ($forbidden in @('MapleStory.exe','EverLeafClient.exe','EverLeaf.dll','Custom.wz')) {
+            if ($managed -contains $forbidden) { throw "Experimental runtime leaked into stable baseline: $forbidden" }
           }
           $discord = Get-Content 'client/native/discord/DiscordEntry.cpp' -Raw
           foreach ($needle in @('EverLeafDiscord_Start','EverLeafDiscord_Stop','EverLeafDiscord_SetActivity')) {

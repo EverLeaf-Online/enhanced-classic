@@ -93,6 +93,26 @@ namespace {
 		return TRUE;
 	}
 
+	void RequireEverLeafHostExecutable() {
+		wchar_t path[MAX_PATH] = { 0 };
+		const DWORD length = GetModuleFileNameW(nullptr, path, ARRAYSIZE(path));
+		if (length == 0 || length >= ARRAYSIZE(path)) {
+			MessageBoxW(nullptr,
+				L"EverLeaf could not verify the running client executable. Run Install / Repair Files in EverLeafLauncher.exe and try again.",
+				L"EverLeaf Client Identity Error", MB_OK | MB_ICONERROR);
+			ExitProcess(ERROR_BAD_EXE_FORMAT);
+		}
+
+		const wchar_t* name = wcsrchr(path, L'\\');
+		name = name ? name + 1 : path;
+		if (_wcsicmp(name, L"EverLeaf.exe") != 0) {
+			MessageBoxW(nullptr,
+				L"EverLeaf must run as EverLeaf.exe. Do not rename or launch a separate MapleStory.exe/EverLeafClient.exe host.\n\nRun Install / Repair Files in EverLeafLauncher.exe to restore the official client.",
+				L"EverLeaf Client Identity Error", MB_OK | MB_ICONERROR);
+			ExitProcess(ERROR_BAD_EXE_FORMAT);
+		}
+	}
+
 	void RequireSingleClientInstance() {
 		PVOID context = nullptr;
 		if (!InitOnceExecuteOnce(&g_clientInstanceOnce, AcquireSingleClientInstance, nullptr, &context)) {
@@ -170,6 +190,9 @@ namespace {
 }
 
 void dinput8::CreateHook() {
+	// Refuse renamed/secondary host executables before any gameplay hooks are installed.
+	RequireEverLeafHostExecutable();
+
 	// Enforce one client per machine/session before any gameplay hooks are installed.
 	RequireSingleClientInstance();
 
@@ -205,6 +228,7 @@ extern "C" __declspec(dllexport) __declspec(naked) void DirectInput8Create()
 		pushfd
 		pushad
 		call EnsureSystemDinput8
+		call RequireEverLeafHostExecutable
 		call RequireSingleClientInstance
 		call RequireEverLeafLauncher
 		popad
@@ -219,6 +243,7 @@ extern "C" __declspec(dllexport) __declspec(naked) void GetdfDIJoystick()
 		pushfd
 		pushad
 		call EnsureSystemDinput8
+		call RequireEverLeafHostExecutable
 		call RequireSingleClientInstance
 		call RequireEverLeafLauncher
 		popad
