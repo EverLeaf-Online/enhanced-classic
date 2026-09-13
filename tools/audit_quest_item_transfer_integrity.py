@@ -37,7 +37,10 @@ def main() -> int:
             "Item.isUntradeable does not inherit WZ quest/trade restrictions")
     require(interaction, "ii.isDropRestricted(item.getItemId())",
             "direct trade does not reject drop/quest-restricted items")
-    require(interaction, "ivItem == null || ivItem.isUntradeable()",
+    # The shop listing path now locks the source inventory and names the exact
+    # captured object sourceItem. Keep this assertion aligned with that hardened
+    # source-revalidation path instead of the retired ivItem local variable.
+    require(interaction, "sourceItem == null || sourceItem.isUntradeable()",
             "PlayerShop/Hired Merchant listing does not reject untradeable items")
     require(duey, "item.isUntradeable() || ii.isUnmerchable(item.getItemId())",
             "Duey does not reject untradeable/quest items")
