@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.Text.Json;
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
@@ -79,6 +81,39 @@ static void NormalizeButtonOrigins(WzImageProperty property)
     foreach (var child in property.WzProperties.ToArray()) NormalizeButtonOrigins(child);
 }
 
+static void RemoveBakedQuickSlotArtwork(WzCanvasProperty canvas)
+{
+    // StatusBar2's 1366-wide background already contains a later-client quickslot
+    // panel at the far right. v83 also renders its own functional 4x2 quickslot on
+    // top, which creates the duplicated/non-functional box seen in-game. Preserve
+    // the approved left HUD pixel-for-pixel and replace only the baked right panel
+    // with a neutral strip sampled from the same donor background.
+    const int clearFromX = 1048;
+    const int sampleX = 850;
+    const int sampleWidth = 64;
+
+    using var original = canvas.PngProperty.GetImage(false);
+    if (original.Width < 1200 || original.Height <= 0)
+        throw new InvalidDataException($"Unexpected StatusBar2 background dimensions: {original.Width}x{original.Height}");
+
+    using var rebuilt = new Bitmap(original.Width, original.Height, PixelFormat.Format32bppArgb);
+    using (var graphics = Graphics.FromImage(rebuilt))
+    {
+        graphics.DrawImageUnscaled(original, 0, 0);
+        for (var x = clearFromX; x < original.Width; x += sampleWidth)
+        {
+            var width = Math.Min(sampleWidth, original.Width - x);
+            graphics.DrawImage(original,
+                new Rectangle(x, 0, width, original.Height),
+                new Rectangle(sampleX, 0, width, original.Height),
+                GraphicsUnit.Pixel);
+        }
+    }
+
+    canvas.PngProperty.PNG = rebuilt;
+    SetCanvasOrigin(canvas, 0, 14);
+}
+
 static void ReplaceProperty(WzImage targetImage, string targetPath, WzImage donorImage, string donorPath, Action<WzImageProperty>? mutate, List<object> changes)
 {
     var donorProperty = RequireProperty(donorImage, donorPath);
@@ -106,7 +141,7 @@ using (var donor = OpenDonor(donorPath))
     var donorStatusLegacy = RequireImage(donor, "StatusBar.img");
     var donorStatus2 = RequireImage(donor, "StatusBar2.img");
 
-    ReplaceProperty(targetStatus, "base/backgrnd", donorStatus2, "mainBar/backgrnd", p => SetCanvasOrigin((WzCanvasProperty)p, 0, 14), changes);
+    ReplaceProperty(targetStatus, "base/backgrnd", donorStatus2, "mainBar/backgrnd", p => RemoveBakedQuickSlotArtwork((WzCanvasProperty)p), changes);
     // The StatusBar2 quickslot tray is 145x93 and is anchored for the later runtime.
     // v83 expects a compact 151x80 quickslot box, so use the donor legacy-shaped
     // quickslot canvas here instead of forcing the incompatible later tray into it.
@@ -155,6 +190,8 @@ var manifest = new
         modernTradeButton = true,
         tradeButtonRuntimeBehavior = "EverLeaf TRADE-to-Free-Market warp unchanged",
         v83CompatibleQuickSlotTray = true,
+        bakedStatusBar2QuickSlotArtworkRemoved = true,
+        v83FunctionalQuickSlotPreserved = true,
         v83HpMpExpBehaviorPreserved = true,
         v83CompactShortcutBehaviorPreserved = true
     },
