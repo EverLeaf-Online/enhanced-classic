@@ -37,7 +37,7 @@ CREATE TEMPORARY TABLE `everleaf_boss_scroll_targets` (
 INSERT INTO `everleaf_boss_scroll_targets`
     (`dropperid`, `boss_name`, `chaos_chance`, `white_chance`)
 VALUES
-    (8500001, 'Papulatus Clock',   10000,  1500),
+    (8500002, 'Papulatus',         10000,  1500),
     (8510000, 'Pianus',            10000,  1500),
     (9420549, 'Furious Scarlion',  15000,  2500),
     (9420544, 'Furious Targa',     15000,  2500),
