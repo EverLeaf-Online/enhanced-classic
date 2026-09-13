@@ -103,10 +103,14 @@ using (var donor = OpenDonor(donorPath))
     targetVersion = target.Version;
     donorVersion = donor.Version;
     var targetStatus = RequireImage(target, "StatusBar.img");
+    var donorStatusLegacy = RequireImage(donor, "StatusBar.img");
     var donorStatus2 = RequireImage(donor, "StatusBar2.img");
 
     ReplaceProperty(targetStatus, "base/backgrnd", donorStatus2, "mainBar/backgrnd", p => SetCanvasOrigin((WzCanvasProperty)p, 0, 14), changes);
-    ReplaceProperty(targetStatus, "base/quickSlot", donorStatus2, "mainBar/quickSlot/quickSlot", p => SetCanvasOrigin((WzCanvasProperty)p, 0, 13), changes);
+    // The StatusBar2 quickslot tray is 145x93 and is anchored for the later runtime.
+    // v83 expects a compact 151x80 quickslot box, so use the donor legacy-shaped
+    // quickslot canvas here instead of forcing the incompatible later tray into it.
+    ReplaceProperty(targetStatus, "base/quickSlot", donorStatusLegacy, "base/quickSlot", p => SetCanvasOrigin((WzCanvasProperty)p, 0, 0), changes);
 
     // Keep the four v83 controls on one later-client generation.  The previous
     // mixed StatusBar2/StatusBar3 row left 34px controls inside 54px v83 slots,
@@ -150,7 +154,7 @@ var manifest = new
         consistentMainControlWidth = true,
         modernTradeButton = true,
         tradeButtonRuntimeBehavior = "EverLeaf TRADE-to-Free-Market warp unchanged",
-        modernQuickSlotTray = true,
+        v83CompatibleQuickSlotTray = true,
         v83HpMpExpBehaviorPreserved = true,
         v83CompactShortcutBehaviorPreserved = true
     },
