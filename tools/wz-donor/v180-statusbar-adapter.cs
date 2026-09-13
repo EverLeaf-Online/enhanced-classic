@@ -104,22 +104,22 @@ using (var donor = OpenDonor(donorPath))
     donorVersion = donor.Version;
     var targetStatus = RequireImage(target, "StatusBar.img");
     var donorStatus2 = RequireImage(donor, "StatusBar2.img");
-    var donorStatus3 = RequireImage(donor, "StatusBar3.img");
 
     ReplaceProperty(targetStatus, "base/backgrnd", donorStatus2, "mainBar/backgrnd", p => SetCanvasOrigin((WzCanvasProperty)p, 0, 14), changes);
     ReplaceProperty(targetStatus, "base/quickSlot", donorStatus2, "mainBar/quickSlot/quickSlot", p => SetCanvasOrigin((WzCanvasProperty)p, 0, 13), changes);
 
-    // v83 creates these controls at independent positions; later clients use one
-    // shared anchor. Zero the donor pivots so visuals and v83 button hitboxes stay together.
-    ReplaceProperty(targetStatus, "BtShop", donorStatus3, "mainBar/menu/button:CashShop", p => NormalizeButtonOrigins(p), changes);
+    // Keep the four v83 controls on one later-client generation.  The previous
+    // mixed StatusBar2/StatusBar3 row left 34px controls inside 54px v83 slots,
+    // which created the uneven gaps visible in-game.  These StatusBar2 assets are
+    // the native 55/56x35 row, so they fit the existing v83 control/hitbox spacing.
+    ReplaceProperty(targetStatus, "BtShop", donorStatus2, "starPlanet/BtCashShop", p => NormalizeButtonOrigins(p), changes);
     ReplaceProperty(targetStatus, "BtNPT", donorStatus2, "mainBar/BtMTS", p => NormalizeButtonOrigins(p), changes);
-    ReplaceProperty(targetStatus, "BtMenu", donorStatus3, "mainBar/menu/button:Menu", p => NormalizeButtonOrigins(p), changes);
-    ReplaceProperty(targetStatus, "BtShort", donorStatus3, "mainBar/menu/button:Setting", p => NormalizeButtonOrigins(p), changes);
+    ReplaceProperty(targetStatus, "BtMenu", donorStatus2, "starPlanet/BtMenu", p => NormalizeButtonOrigins(p), changes);
+    ReplaceProperty(targetStatus, "BtShort", donorStatus2, "starPlanet/BtSystem", p => NormalizeButtonOrigins(p), changes);
 
-    // BtNPT keeps the existing TRADE -> Free Market runtime behavior; only its
-    // visuals are replaced here so the middle button row uses one HUD generation.
-    // Keep proven v83 HP/MP/EXP and compact-key controls so behavior and input
-    // stay stable while StatusBar2/3 supply the modern HUD shell and main controls.
+    // BtNPT keeps the existing TRADE -> Free Market runtime behavior.  HP/MP/EXP
+    // and v83 shortcut behavior stay untouched while the visible main row is now
+    // internally consistent with the StatusBar2 HUD shell.
     target.SaveToDisk(outputPath);
 }
 
@@ -146,7 +146,8 @@ var manifest = new
     behavior = new
     {
         fullWidthStatusBar2Background = true,
-        statusBar3MenuControls = new[] { "SHOP", "MENU", "SETTING/SHORTCUT" },
+        statusBar2MainControls = new[] { "SHOP", "TRADE", "MENU", "SYSTEM/SHORTCUT" },
+        consistentMainControlWidth = true,
         modernTradeButton = true,
         tradeButtonRuntimeBehavior = "EverLeaf TRADE-to-Free-Market warp unchanged",
         modernQuickSlotTray = true,
