@@ -1,0 +1,46 @@
+name: Import anti-cheat handler once
+
+on:
+  push:
+    branches: [anticheat-hardening-20260913]
+    paths: ['.github/workflows/import-anticheat-handler-once.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  import-handler:
+    if: github.event.head_commit.message != 'Import exact anti-cheat damage handler'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: anticheat-hardening-20260913
+          fetch-depth: 0
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_everleaf
+          chmod 600 ~/.ssh/id_everleaf
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts; else ssh-keyscan -T 10 -H 132.145.141.79 > ~/.ssh/known_hosts; fi
+          printf '%s\n' 'Host everleaf-oracle' '  HostName 132.145.141.79' '  User ubuntu' '  IdentityFile ~/.ssh/id_everleaf' '  ConnectTimeout 15' > ~/.ssh/config
+      - name: Import exact handler
+        run: |
+          set -euo pipefail
+          target='src/main/java/net/server/channel/handlers/AbstractDealDamageHandler.java'
+          scp everleaf-oracle:/opt/everleaf/server/$target "$target"
+          actual="$(git hash-object "$target")"
+          expected='d2034b90c6d1d80aef32161cc9abd2ac50dd8f75'
+          test "$actual" = "$expected" || { echo "Blob mismatch: $actual != $expected" >&2; exit 1; }
+          git rm .github/workflows/import-anticheat-handler-once.yml
+          git config user.name 'EverLeaf Security Sync'
+          git config user.email 'security-sync@users.noreply.github.com'
+          git add "$target"
+          git diff --cached --check
+          git commit -m 'Import exact anti-cheat damage handler'
+          git push origin HEAD:anticheat-hardening-20260913
