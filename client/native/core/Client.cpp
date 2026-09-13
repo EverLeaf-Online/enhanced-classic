@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "AddyLocations.h"
 #include "codecaves.h"
+#include "ModernStatusBar.h"
 
 int Client::m_nGameHeight = 600;
 int Client::m_nGameWidth = 800;
@@ -34,6 +35,9 @@ void Client::UpdateGameStartup() {
 
 	Memory::WriteByte(0x009F74EA + 3, resmanLoadAMNT); //replace their wz load list size with ours //void __thiscall CWvsApp::InitializeResMan(CWvsApp *this)
 	Memory::CodeCave(LoadUItwice, dwLoadUItwice, dwLoadUItwiceNOPs);//working after a check after CWvsApp::InitializeInput
+
+	// Expand the v83 statusbar runtime to the modern 26-slot 13x2 HUD.
+	EverLeafModernStatusBar::Install();
 
 	//Memory::WriteByte(0x008DB387 + 3, 0xFF); //set charbar limit
 	//Memory::CodeCave(ccCUIStatusBarChatLogAddBypass, dwCUIStatusBarChatLogAddBypass, dwCUIStatusBarChatLogAddBypassNops); //set charbar limit

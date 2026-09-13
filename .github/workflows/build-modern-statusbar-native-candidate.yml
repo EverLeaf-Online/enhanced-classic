@@ -1,0 +1,76 @@
+name: Build modern StatusBar native candidate
+
+on:
+  push:
+    branches: [security-everleaf-anticheat-v2]
+    paths:
+      - "client/native/**"
+      - "client/scripts/**"
+      - ".github/workflows/build-modern-statusbar-native-candidate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EVERLEAF_DEPLOY_HOST: 132.145.141.79
+  STAGE_ROOT: /opt/everleaf/donors/v180-backport/modern-statusbar-production-client
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Apply client preferences and branding
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python client/scripts/apply-community-ui-preference.py
+          python client/scripts/apply-client-v2-rebrand.py
+
+      - name: Build Win32 native runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          msbuild "client/native/EverLeaf Client.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+          $dll='client/native/out/Release/EverLeafMS.dll'
+          if(-not (Test-Path $dll)){throw 'EverLeafMS.dll missing'}
+          python client/scripts/verify-client-v2-branding.py $dll
+          Get-FileHash $dll -Algorithm SHA256
+
+      - name: Configure SSH
+        shell: pwsh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EVERLEAF_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EVERLEAF_SSH_KNOWN_HOSTS }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $sshDir=Join-Path $HOME '.ssh'
+          New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $sshDir 'id_everleaf'),($env:SSH_PRIVATE_KEY -replace "`r","")+"`n")
+          [IO.File]::WriteAllText((Join-Path $sshDir 'known_hosts'),($env:SSH_KNOWN_HOSTS -replace "`r","")+"`n")
+          @'
+          Host everleaf-oracle
+            HostName 132.145.141.79
+            User ubuntu
+            IdentityFile ~/.ssh/id_everleaf
+            ServerAliveInterval 20
+            ServerAliveCountMax 30
+            TCPKeepAlive yes
+            ConnectTimeout 20
+          '@ | Set-Content -Encoding ascii (Join-Path $sshDir 'config')
+
+      - name: Upload verified native candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ssh everleaf-oracle "sudo mkdir -p '$env:STAGE_ROOT' && sudo chown -R ubuntu:ubuntu '$env:STAGE_ROOT' && rm -f '$env:STAGE_ROOT/EverLeafMS.dll' '$env:STAGE_ROOT/SHA256SUMS'"
+          if($LASTEXITCODE){throw 'stage prepare failed'}
+          scp 'client/native/out/Release/EverLeafMS.dll' "everleaf-oracle`:$env:STAGE_ROOT/EverLeafMS.dll"
+          if($LASTEXITCODE){throw 'candidate upload failed'}
+          ssh everleaf-oracle "sha256sum '$env:STAGE_ROOT/EverLeafMS.dll' > '$env:STAGE_ROOT/SHA256SUMS'"

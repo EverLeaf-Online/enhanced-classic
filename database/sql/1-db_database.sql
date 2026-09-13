@@ -16588,6 +16588,7 @@ CREATE TABLE IF NOT EXISTS `queststatus` (
 CREATE TABLE `quickslotkeymapped` (
   `accountid` INT NOT NULL,
   `keymap` BIGINT NOT NULL DEFAULT 0,
+  `keymap_ext` VARBINARY(26) DEFAULT NULL,
   PRIMARY KEY (`accountid`)
 );
 
