@@ -10,7 +10,8 @@ test('public route templates carry production-verifiable markers',()=>{
   const wiki=read('src/views/wiki.ejs');
   const wikiRoute=read('src/routes/wiki.js');
   assert.match(rankings,/\/character-avatar\/\$\{Number\(r\.id\)\}\.png/);
-  assert.match(rankings,/Live saved appearance/);
+  assert.match(rankings,/data-live-avatar/);
+  assert.match(rankings,/rankingCharacterAvatar/);
   assert.match(wiki,/EVERLEAF DATA WIKI/);
   assert.match(wiki,/WZ \+ MySQL/);
   assert.match(wiki,/BROWSE CATALOG/);
