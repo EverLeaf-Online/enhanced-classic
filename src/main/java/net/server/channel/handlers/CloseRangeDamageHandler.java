@@ -41,6 +41,7 @@ import constants.skills.NightWalker;
 import constants.skills.Rogue;
 import constants.skills.WindArcher;
 import net.packet.InPacket;
+import server.AntiCheatService;
 import server.ItemInformationProvider;
 import server.StatEffect;
 import tools.PacketCreator;
@@ -79,6 +80,15 @@ public final class CloseRangeDamageHandler extends AbstractDealDamageHandler {
         chr.getAutobanManager().spam(8);*/
 
         AttackInfo attack = parseDamage(p, chr, false, false);
+        if (attack.invalid) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+        if (!AntiCheatService.validateAttackSkill(chr, attack.skill)) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+        AntiCheatService.inspectAttack(chr, attack.skill, "melee");
         if (chr.getBuffEffect(BuffStat.MORPH) != null) {
             if (chr.getBuffEffect(BuffStat.MORPH).isMorphWithoutAttack()) {
                 // How are they attacking when the client won't let them?

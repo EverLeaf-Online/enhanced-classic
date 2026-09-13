@@ -46,6 +46,7 @@ import net.packet.InPacket;
 import net.packet.Packet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import server.AntiCheatService;
 import server.ItemInformationProvider;
 import server.StatEffect;
 import tools.PacketCreator;
@@ -68,6 +69,15 @@ public final class RangedAttackHandler extends AbstractDealDamageHandler {
         chr.getAutobanManager().spam(8);*/
 
         AttackInfo attack = parseDamage(p, chr, true, false);
+        if (attack.invalid) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+        if (!AntiCheatService.validateAttackSkill(chr, attack.skill)) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+        AntiCheatService.inspectAttack(chr, attack.skill, "ranged");
 
         if (chr.getBuffEffect(BuffStat.MORPH) != null) {
             if (chr.getBuffEffect(BuffStat.MORPH).isMorphWithoutAttack()) {

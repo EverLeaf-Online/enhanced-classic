@@ -30,6 +30,7 @@ import client.inventory.manipulator.InventoryManipulator;
 import constants.inventory.EquipmentRequirements;
 import net.AbstractPacketHandler;
 import net.packet.InPacket;
+import server.AntiCheatService;
 import server.ItemInformationProvider;
 import tools.PacketCreator;
 
@@ -68,10 +69,11 @@ public final class ItemMoveHandler extends AbstractPacketHandler {
             // Internal/sentinel inventory types must never reach the manipulators from
             // an untrusted packet.
             if (type == null || type == InventoryType.UNDEFINED || type == InventoryType.CANHOLD || type == InventoryType.EQUIPPED) {
+                AntiCheatService.flag(chr, "INVENTORY_TYPE", "type=" + type + " src=" + src + " action=" + action + " qty=" + quantity, true);
                 c.sendPacket(PacketCreator.enableActions());
                 return;
             }
-            if (action == 0 && quantity <= 0) {
+            if (action == 0 && !AntiCheatService.validateQuantity(chr, "INVENTORY_DROP", quantity, Short.MAX_VALUE)) {
                 c.sendPacket(PacketCreator.enableActions());
                 return;
             }

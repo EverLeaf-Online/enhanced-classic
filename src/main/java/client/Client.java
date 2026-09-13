@@ -59,6 +59,7 @@ import scripting.npc.NPCScriptManager;
 import scripting.quest.QuestActionManager;
 import scripting.quest.QuestScriptManager;
 import service.NxRewardService;
+import server.AntiCheatService;
 import server.MapleLeafLogger;
 import server.ThreadManager;
 import server.TimerManager;
@@ -211,6 +212,14 @@ public class Client extends ChannelInboundHandlerAdapter {
 
         short opcode = packet.readShort();
         final PacketHandler handler = packetProcessor.getHandler(opcode);
+        int remainingBytes = packet.available();
+
+        if (handler == null) {
+            AntiCheatService.inspectUnknownPacket(this, opcode, remainingBytes);
+        } else if (!AntiCheatService.inspectPacket(this, opcode, handler.getClass().getSimpleName(), remainingBytes)) {
+            updateLastPacket();
+            return;
+        }
 
         if (YamlConfig.config.server.USE_DEBUG_SHOW_RCVD_PACKET && !LoggingUtil.isIgnoredRecvPacket(opcode)) {
             log.debug("Received packet id {}", opcode);

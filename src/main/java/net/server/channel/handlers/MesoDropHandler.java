@@ -26,6 +26,7 @@ import client.Client;
 import config.YamlConfig;
 import net.AbstractPacketHandler;
 import net.packet.InPacket;
+import server.AntiCheatService;
 import tools.PacketCreator;
 
 /**
@@ -50,9 +51,13 @@ public final class MesoDropHandler extends AbstractPacketHandler {
 
         if (c.tryacquireClient()) {     // thanks imbee for noticing players not being able to throw mesos too fast
             try {
-                if (meso <= player.getMeso() && meso > 9 && meso < 50001) {
+                long maxDrop = Math.min((long) player.getMeso(), 50_000L);
+                if (meso > 9 && AntiCheatService.validateMeso(player, "MESO_DROP", meso, maxDrop)) {
                     player.gainMeso(-meso, false, true, false);
                 } else {
+                    if (meso <= 9) {
+                        AntiCheatService.flag(player, "MESO_DROP_INVALID", "amount=" + meso + " playerMeso=" + player.getMeso(), false);
+                    }
                     c.sendPacket(PacketCreator.enableActions());
                     return;
                 }

@@ -24,11 +24,13 @@ package net.server.channel.handlers;
 import client.Character;
 import client.Client;
 import client.autoban.AutobanFactory;
+import client.inventory.InventoryType;
 import constants.inventory.ItemConstants;
 import net.AbstractPacketHandler;
 import net.packet.InPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import server.AntiCheatService;
 import server.Shop;
 import server.life.NPC;
 import tools.PacketCreator;
@@ -63,9 +65,8 @@ public final class NPCShopHandler extends AbstractPacketHandler {
                 short slot = p.readShort();// slot
                 int itemId = p.readInt();
                 short quantity = p.readShort();
-                if (quantity < 1) {
-                    AutobanFactory.PACKET_EDIT.alert(chr,
-                            chr.getName() + " tried to packet edit a npc shop.");
+                if (!AntiCheatService.validateQuantity(chr, "NPC_SHOP_BUY", quantity, Short.MAX_VALUE)) {
+                    AutobanFactory.PACKET_EDIT.alert(chr, chr.getName() + " tried to packet edit a npc shop.");
                     log.warn("Chr {} tried to buy quantity {} of itemid {}", chr.getName(), quantity, itemId);
                     c.disconnect(true, false);
                     return;
@@ -77,7 +78,18 @@ public final class NPCShopHandler extends AbstractPacketHandler {
                 short slot = p.readShort();
                 int itemId = p.readInt();
                 short quantity = p.readShort();
-                shop.sell(c, ItemConstants.getInventoryType(itemId), slot, quantity);
+                InventoryType type = ItemConstants.getInventoryType(itemId);
+                if (type == null || type == InventoryType.UNDEFINED || type == InventoryType.CANHOLD || type == InventoryType.EQUIPPED) {
+                    AntiCheatService.flag(chr, "NPC_SHOP_SELL_TYPE", "item=" + itemId + " type=" + type + " slot=" + slot, true);
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+                if (quantity < 0) {
+                    AntiCheatService.flag(chr, "NPC_SHOP_SELL_QUANTITY", "item=" + itemId + " quantity=" + quantity, true);
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+                shop.sell(c, type, slot, quantity);
                 break;
             }
             case 2: { // recharge ;)
@@ -87,6 +99,10 @@ public final class NPCShopHandler extends AbstractPacketHandler {
             }
             case 3: // leaving :(
                 chr.setShop(null);
+                break;
+            default:
+                AntiCheatService.flag(chr, "NPC_SHOP_MODE", "mode=" + bmode, true);
+                c.sendPacket(PacketCreator.enableActions());
                 break;
             }
         } finally {

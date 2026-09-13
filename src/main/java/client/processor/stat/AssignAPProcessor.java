@@ -41,6 +41,7 @@ import constants.skills.Magician;
 import constants.skills.ThunderBreaker;
 import constants.skills.Warrior;
 import net.packet.InPacket;
+import server.AntiCheatService;
 import service.enhanced.SurvivabilityPolicy;
 import tools.PacketCreator;
 import tools.Randomizer;
@@ -380,8 +381,9 @@ public class AssignAPProcessor {
                 c.sendPacket(PacketCreator.serverNotice(1, "Better AP applications detected:\r\nSTR: +" + statGain[0] + "\r\nDEX: +" + statGain[1] + "\r\nINT: +" + statGain[3] + "\r\nLUK: +" + statGain[2]));
             } else {
                 if (inPacket.available() < 16) {
-                    AutobanFactory.PACKET_EDIT.alert(chr, "Didn't send full packet for Auto Assign.");
-
+                    String detail = "Didn't send full packet for Auto Assign; remaining=" + inPacket.available();
+                    AutobanFactory.PACKET_EDIT.alert(chr, detail);
+                    AntiCheatService.flag(chr, "AP_PACKET", detail, true);
                     c.disconnect(true, false);
                     return;
                 }
@@ -390,10 +392,18 @@ public class AssignAPProcessor {
                     int type = inPacket.readInt();
                     int tempVal = inPacket.readInt();
                     if (tempVal < 0 || tempVal > remainingAp) {
+                        AntiCheatService.flag(chr, "AP_VALUE", "type=" + type + " amount=" + tempVal + " remaining=" + remainingAp, true);
+                        c.sendPacket(PacketCreator.enableActions());
+                        return;
+                    }
+                    Stat requestedStat = Stat.getBy5ByteEncoding(type);
+                    if (requestedStat == null) {
+                        AntiCheatService.flag(chr, "AP_STAT", "unknown stat encoding=" + type, true);
+                        c.sendPacket(PacketCreator.enableActions());
                         return;
                     }
 
-                    gainStatByType(Stat.getBy5ByteEncoding(type), statGain, tempVal, statUpdate);
+                    gainStatByType(requestedStat, statGain, tempVal, statUpdate);
                 }
 
                 chr.assignStrDexIntLuk(statGain[0], statGain[1], statGain[3], statGain[2]);

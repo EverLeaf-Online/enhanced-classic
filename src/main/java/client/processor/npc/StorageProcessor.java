@@ -35,6 +35,7 @@ import constants.inventory.ItemConstants;
 import net.packet.InPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import server.AntiCheatService;
 import server.ItemInformationProvider;
 import server.Storage;
 import tools.PacketCreator;
@@ -53,6 +54,10 @@ public class StorageProcessor {
         String gmBlockedStorageMessage = "You cannot use the storage as a GM of this level.";
 
         byte mode = p.readByte();
+        if (mode != 8 && !AntiCheatService.guardSensitiveAction(chr, "STORAGE_MODE_" + mode, 12, 25)) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
 
         if (c.tryacquireClient()) {
             try {
@@ -60,14 +65,23 @@ public class StorageProcessor {
                 case 4: { // Take out
                     byte type = p.readByte();
                     byte slot = p.readByte();
-                    if (slot < 0 || slot > storage.getSlots()) { // removal starts at zero
-                        AutobanFactory.PACKET_EDIT.alert(c.getPlayer(), c.getPlayer().getName() + " tried to packet edit with storage.");
+                    if (slot < 0 || slot >= storage.getSlots()) { // removal starts at zero
+                        String detail = c.getPlayer().getName() + " tried to packet edit storage takeout slot=" + slot + " slots=" + storage.getSlots();
+                        AutobanFactory.PACKET_EDIT.alert(c.getPlayer(), detail);
+                        AntiCheatService.flag(chr, "STORAGE_SLOT", detail, true);
                         log.warn("Chr {} tried to work with storage slot {}", c.getPlayer().getName(), slot);
                         c.disconnect(true, false);
                         return;
                     }
 
-                    slot = storage.getSlot(InventoryType.getByType(type), slot);
+                    InventoryType takeoutType = InventoryType.getByType(type);
+                    slot = storage.getSlot(takeoutType, slot);
+                    if (slot < 0) {
+                        String detail = chr.getName() + " sent invalid storage typed slot type=" + type;
+                        AntiCheatService.flag(chr, "STORAGE_TYPED_SLOT", detail, true);
+                        c.sendPacket(PacketCreator.enableActions());
+                        return;
+                    }
                     Item item = storage.getItem(slot);
 
                     if (hasGMRestrictions(chr)) {
@@ -131,10 +145,17 @@ public class StorageProcessor {
                     int itemId = p.readInt();
                     short quantity = p.readShort();
                     InventoryType invType = ItemConstants.getInventoryType(itemId);
+                    if (invType == null || invType == InventoryType.UNDEFINED || invType == InventoryType.CANHOLD || invType == InventoryType.EQUIPPED) {
+                        String detail = chr.getName() + " sent invalid storage inventory type for item=" + itemId + " type=" + invType;
+                        AntiCheatService.flag(chr, "STORAGE_INVENTORY_TYPE", detail, true);
+                        c.sendPacket(PacketCreator.enableActions());
+                        return;
+                    }
                     Inventory inv = chr.getInventory(invType);
                     if (slot < 1 || slot > inv.getSlotLimit()) { // player inv starts at one
-                        AutobanFactory.PACKET_EDIT.alert(c.getPlayer(),
-                                c.getPlayer().getName() + " tried to packet edit with storage.");
+                        String detail = c.getPlayer().getName() + " tried to packet edit storage source slot=" + slot + " limit=" + inv.getSlotLimit();
+                        AutobanFactory.PACKET_EDIT.alert(c.getPlayer(), detail);
+                        AntiCheatService.flag(chr, "STORAGE_SOURCE_SLOT", detail, true);
                         log.warn("Chr {} tried to store item at slot {}", c.getPlayer().getName(), slot);
                         c.disconnect(true, false);
                         return;
@@ -147,7 +168,7 @@ public class StorageProcessor {
                         return;
                     }
 
-                    if (quantity < 1) {
+                    if (!AntiCheatService.validateQuantity(chr, "STORAGE_STORE", quantity, Short.MAX_VALUE)) {
                         c.sendPacket(PacketCreator.enableActions());
                         return;
                     }
@@ -177,6 +198,7 @@ public class StorageProcessor {
 
                                 InventoryManipulator.removeFromSlot(c, invType, slot, quantity, false);
                             } else {
+                                AntiCheatService.flag(chr, "STORAGE_ITEM_MISMATCH", "slot=" + slot + " packetItem=" + itemId + " quantity=" + quantity, true);
                                 c.sendPacket(PacketCreator.enableActions());
                                 return;
                             }
@@ -238,8 +260,10 @@ public class StorageProcessor {
                     long newPlayerMesos = (long) playerMesos + meso;
                     if (newStorageMesos < 0 || newStorageMesos > Integer.MAX_VALUE
                             || newPlayerMesos < 0 || newPlayerMesos > Integer.MAX_VALUE) {
-                        log.warn("Chr {} attempted invalid storage meso transfer: delta={}, player={}, storage={}",
-                                chr.getName(), meso, playerMesos, storageMesos);
+                        String detail = "delta=" + meso + " player=" + playerMesos + " storage=" + storageMesos
+                                + " newPlayer=" + newPlayerMesos + " newStorage=" + newStorageMesos;
+                        AntiCheatService.flag(chr, "STORAGE_MESO_OVERFLOW", detail, true);
+                        log.warn("Chr {} attempted invalid storage meso transfer: {}", chr.getName(), detail);
                         c.sendPacket(PacketCreator.enableActions());
                         return;
                     }
@@ -253,6 +277,10 @@ public class StorageProcessor {
                 }
                 case 8: // Close (unless the player decides to enter cash shop)
                     storage.close();
+                    break;
+                default:
+                    AntiCheatService.flag(chr, "STORAGE_MODE", "unknown mode=" + mode, true);
+                    c.sendPacket(PacketCreator.enableActions());
                     break;
                 }
             } finally {

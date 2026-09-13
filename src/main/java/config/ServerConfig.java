@@ -85,6 +85,9 @@ public class ServerConfig {
     public boolean USE_STARTING_AP_4;
     public boolean USE_AUTOBAN;
     public boolean USE_AUTOBAN_LOG;
+    public boolean USE_ANTICHEAT;
+    public boolean USE_ANTICHEAT_GM_ALERTS;
+    public boolean USE_ANTICHEAT_ENFORCE;
     public boolean USE_EXP_GAIN_LOG;
     public boolean USE_AUTOSAVE;
     public boolean USE_SERVER_AUTOASSIGNER;

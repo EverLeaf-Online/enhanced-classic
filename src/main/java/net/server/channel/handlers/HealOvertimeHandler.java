@@ -28,6 +28,7 @@ import client.autoban.AutobanManager;
 import net.AbstractPacketHandler;
 import net.packet.InPacket;
 import net.server.Server;
+import server.AntiCheatService;
 import server.maps.MapleMap;
 import tools.PacketCreator;
 
@@ -48,12 +49,16 @@ public final class HealOvertimeHandler extends AbstractPacketHandler {
             abm.setTimestamp(8, timestamp, 28);  // thanks Vcoc & Thora for pointing out d/c happening here
             if ((abm.getLastSpam(0) + 1500) > timestamp) {
                 AutobanFactory.FAST_HP_HEALING.addPoint(abm, "Fast hp healing");
+                AntiCheatService.flag(chr, "FAST_HP_HEAL", "heal=" + healHP + " interval<1500ms", false);
+                return;
             }
 
             MapleMap map = chr.getMap();
             int abHeal = (int) (77 * map.getRecovery() * 1.5); // thanks Ari for noticing players not getting healed in sauna in certain cases
-            if (healHP > abHeal) {
-                AutobanFactory.HIGH_HP_HEALING.autoban(chr, "Healing: " + healHP + "; Max is " + abHeal + ".");
+            if (healHP < 0 || healHP > abHeal) {
+                String detail = "Healing: " + healHP + "; Max is " + abHeal + ".";
+                AutobanFactory.HIGH_HP_HEALING.alert(chr, detail);
+                AntiCheatService.flag(chr, "HIGH_HP_HEAL", detail, true);
                 return;
             }
 
@@ -62,10 +67,15 @@ public final class HealOvertimeHandler extends AbstractPacketHandler {
             abm.spam(0, timestamp);
         }
         short healMP = p.readShort();
-        if (healMP != 0 && healMP < 1000) {
+        if (healMP != 0) {
+            if (healMP < 0 || healMP >= 1000) {
+                AntiCheatService.flag(chr, "HIGH_MP_HEAL", "heal=" + healMP + " max=999", true);
+                return;
+            }
             abm.setTimestamp(9, timestamp, 28);
             if ((abm.getLastSpam(1) + 1500) > timestamp) {
                 AutobanFactory.FAST_MP_HEALING.addPoint(abm, "Fast mp healing");
+                AntiCheatService.flag(chr, "FAST_MP_HEAL", "heal=" + healMP + " interval<1500ms", false);
                 return;     // thanks resinate for noticing mp being gained even after detection
             }
             chr.addMP(healMP);

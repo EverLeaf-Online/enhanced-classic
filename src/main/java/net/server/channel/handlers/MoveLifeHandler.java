@@ -27,6 +27,7 @@ import config.YamlConfig;
 import net.packet.InPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import server.AntiCheatService;
 import server.life.MobSkill;
 import server.life.MobSkillFactory;
 import server.life.MobSkillId;
@@ -165,6 +166,7 @@ public final class MoveLifeHandler extends AbstractMovementPacketHandler {
                         useSkillLevel, nextMovementCouldBeSkill, mobMp);
             }
 
+            AntiCheatService.inspectMobMovement(player, monster.getId(), serverStartPos, monster.getPosition());
             map.broadcastMessage(player, PacketCreator.moveMonster(objectid, nextMovementCouldBeSkill, rawActivity, useSkillId, useSkillLevel, pOption, startPos, p, movementDataLength), serverStartPos);
             //updatePosition(res, monster, -2); //does this need to be done after the packet is broadcast?
             map.moveMonster(monster, monster.getPosition());
