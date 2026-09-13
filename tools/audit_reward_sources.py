@@ -30,7 +30,7 @@ WATCH = {
 }
 
 NORMAL_BOSS_TARGETS = {
-    8500001: "Papulatus Clock",
+    8500002: "Papulatus",
     8510000: "Pianus",
     9420549: "Furious Scarlion",
     9420544: "Furious Targa",
@@ -153,7 +153,7 @@ def audit_normal_boss_drops() -> list[str]:
 
     # Guard against accidentally rewarding multipart/transitional Zakum/Horntail
     # bodies and therefore rolling the rare scroll several times per clear.
-    forbidden = [8800000, 8800001, 8810000, 8810001]
+    forbidden = [8500001, 8800000, 8800001, 8810000, 8810001]
     for mob_id in forbidden:
         # Ignore explanatory comments by checking for a VALUES-like tuple.
         if re.search(rf"\(\s*{mob_id}\s*,", text):
@@ -210,7 +210,7 @@ def audit_controlled_sources() -> list[str]:
         if CHAOS not in lv6 or WHITE not in lv6 or CHAOS not in lv5 or WHITE in lv5:
             failures.append("Boss Rush reward announcer is out of sync with the rare-scroll reward policy")
         else:
-            print("  [OK] Boss Rush reward announcer matches actual rare-scroll tiers")
+            print("  [OK] boss Rush reward announcer matches actual rare-scroll tiers")
 
     return failures
 
