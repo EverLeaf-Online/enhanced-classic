@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 260" role="img" aria-labelledby="t d">
+  <title id="t">EverLeaf</title><desc id="d">EverLeaf fantasy forest wordmark</desc>
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff4bd"/><stop offset=".36" stop-color="#e4c56c"/><stop offset=".68" stop-color="#b88a35"/><stop offset="1" stop-color="#f3d98c"/></linearGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b7d990"/><stop offset=".42" stop-color="#3f8b58"/><stop offset="1" stop-color="#0d3f31"/></linearGradient>
+    <linearGradient id="leaf2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e5efb7"/><stop offset=".55" stop-color="#6ea767"/><stop offset="1" stop-color="#174b37"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-30%" width="140%" height="170%"><feDropShadow dx="0" dy="7" stdDeviation="6" flood-color="#021d18" flood-opacity=".7"/></filter>
+    <filter id="soft"><feGaussianBlur stdDeviation="2.6"/></filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <ellipse cx="128" cy="130" rx="100" ry="89" fill="none" stroke="url(#gold)" stroke-width="7" opacity=".9" transform="rotate(-18 128 130)"/>
+    <path d="M129 18c22 34 25 56 13 79 21-9 43-8 66 6-7 31-27 50-58 58 18 12 29 31 30 57-31 3-55-8-72-31-8 19-25 34-51 44-17-28-16-54 2-78-24-3-44-16-61-39 23-23 49-29 79-17-4-26 13-53 52-79z" fill="url(#leaf)" stroke="#0b3327" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M127 38c10 31 10 57 0 79m-1-20c-16-22-35-35-57-39m56 65c28-16 51-18 70-7m-70 9c-18 24-30 50-34 79m38-77c18 17 28 37 30 60" fill="none" stroke="#d9e7a9" stroke-width="4" stroke-linecap="round" opacity=".7"/>
+    <path d="M95 149l13-31 13 31 31 13-31 13-13 31-13-31-31-13z" fill="url(#gold)" stroke="#fff1b7" stroke-width="2"/>
+    <path d="M76 132l12-31 8 23 11-35 13 35 11-19 10 27z" fill="#123b31" opacity=".92"/>
+    <circle cx="193" cy="63" r="7" fill="#f8e69a"/><path d="M193 44v38M174 63h38" stroke="#fff0a8" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="36" cy="202" r="4" fill="#f5da74"/>
+    <path d="M238 176c47 18 94 24 141 17 57-8 91-38 135-39 52-1 87 36 143 39 58 3 120-12 186-44" fill="none" stroke="#7c5d23" stroke-width="9" stroke-linecap="round" opacity=".95"/>
+    <path d="M238 171c47 18 94 24 141 17 57-8 91-38 135-39 52-1 87 36 143 39 58 3 120-12 186-44" fill="none" stroke="url(#gold)" stroke-width="4" stroke-linecap="round"/>
+    <path d="M756 175c21-7 37-23 48-48 18 18 22 40 11 65-21 2-41-4-59-17zm64-23c18-16 40-22 66-18-1 27-14 47-38 60-19-9-28-23-28-42z" fill="url(#leaf2)" stroke="#174431" stroke-width="4"/>
+    <text x="230" y="159" font-family="Georgia, 'Times New Roman', serif" font-size="118" font-weight="700" letter-spacing="-7" fill="#082f28" stroke="#082f28" stroke-width="13" paint-order="stroke">EverLeaf</text>
+    <text x="230" y="155" font-family="Georgia, 'Times New Roman', serif" font-size="118" font-weight="700" letter-spacing="-7" fill="url(#gold)" stroke="#f8e8a8" stroke-width="2" paint-order="stroke">EverLeaf</text>
+    <path d="M601 200l9-21 9 21 21 9-21 9-9 21-9-21-21-9z" fill="url(#gold)"/>
+    <path d="M896 95c18-9 34-8 48 3-7 20-20 31-40 34-10-11-13-23-8-37z" fill="url(#leaf2)" stroke="#123e2e" stroke-width="4"/>
+  </g>
+</svg>

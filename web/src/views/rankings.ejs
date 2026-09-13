@@ -16,7 +16,7 @@ const jobArt=(name='')=>{
   if(/bowman|archer|hunter|ranger|bowmaster|crossbow|sniper|marksman/.test(n)) return '/assets/jobs/instructors/bowman.png';
   if(/thief|rogue|assassin|hermit|night lord|bandit|chief bandit|shadower/.test(n)) return '/assets/jobs/instructors/thief.png';
   if(/pirate|brawler|marauder|buccaneer|gunslinger|outlaw|corsair/.test(n)) return '/assets/jobs/instructors/pirate.png';
-  return '/assets/everleaf-remaster.svg';
+  return '/assets/everleaf-mark-2026.svg';
 };
 const avatar=(r)=>`/character-avatar/${Number(r.id)}.png?job=${Number(r.job||0)}`;
 const fmt=n=>Number(n||0).toLocaleString();
@@ -47,10 +47,20 @@ const heroClasses=Object.entries(classes).slice(0,6);
 
     <aside class="rankingHeroPanel" aria-label="Leaderboard snapshot">
       <div class="rankingHeroPanelHead">
-        <div><span class="pageEyebrow">LEADERBOARD SNAPSHOT</span><strong><%=q?'Search view':'Top adventurer'%></strong></div>
-        <a href="/rankings">View all →</a>
+        <div><span class="pageEyebrow"><%=q?'SEARCH VIEW':'TOP 3 RIGHT NOW'%></span><strong><%=q?'Matching adventurers':'Hall of Legends'%></strong></div>
+        <a href="#ranking-board">Full board →</a>
       </div>
-      <% if(heroLeader){ %>
+      <% if(topThree.length){ %>
+        <div class="rankingHeroTop3">
+          <% topThree.forEach((r,i)=>{ const rank=startRank+rows.indexOf(r)+1; %>
+            <a class="rankingHeroMini rank<%=rank%>" href="#ranking-board">
+              <span class="rankingHeroMiniRank">#<%=rank%></span>
+              <span class="rankingHeroMiniAvatar rankingCharacterAvatar"><img src="<%=jobArt(r.jobName)%>" data-live-avatar="<%=avatar(r)%>" alt="<%=r.name%>'s EverLeaf character portrait"></span>
+              <span class="rankingHeroMiniCopy"><strong><%=r.name%></strong><small><%=r.jobName||'Adventurer'%> · Lv. <%=fmt(r.level)%></small><span><%=fmt(r.fame)%> fame</span></span>
+            </a>
+          <% }) %>
+        </div>
+      <% } else if(heroLeader){ %>
         <a class="rankingHeroLeader" href="#ranking-board">
           <span class="rankingHeroLeaderAvatar rankingCharacterAvatar"><img src="<%=jobArt(heroLeader.jobName)%>" data-live-avatar="<%=avatar(heroLeader)%>" alt="<%=heroLeader.name%>'s EverLeaf character portrait"></span>
           <span class="rankingHeroLeaderCopy"><small>#<%=heroLeaderRank%> · <%=heroLeader.jobName||'Adventurer'%></small><strong><%=heroLeader.name%></strong><span>Level <%=fmt(heroLeader.level)%> · <%=fmt(heroLeader.fame)%> fame</span></span>
@@ -59,17 +69,24 @@ const heroClasses=Object.entries(classes).slice(0,6);
       <% } else { %>
         <div class="rankingHeroLeader rankingHeroLeaderEmpty"><span>—</span><span><strong>No ranked character yet</strong><small>This panel fills from the live ladder.</small></span></div>
       <% } %>
-      <div class="rankingHeroFilters" aria-label="Quick class filters">
-        <% heroClasses.forEach(([key,c])=>{ %><a class="<%=activeClass===key?'active':''%>" href="<%=linkFor(1,key)%>"><%=c.label%></a><% }) %>
-      </div>
-      <div class="rankingHeroMetrics"><span><small>Highest level</small><b><%=fmt(maxLevel)%></b></span><span><small>Average level</small><b><%=totalRanked?Math.round(avgLevel):0%></b></span><span><small>Online</small><b><%=onlinePlayers==null?'—':fmt(onlinePlayers)%></b></span></div>
+      <div class="rankingHeroMetrics"><span><small>Ranked</small><b><%=fmt(totalRanked)%></b></span><span><small>Top level</small><b><%=fmt(maxLevel)%></b></span><span><small>Online</small><b><%=onlinePlayers==null?'—':fmt(onlinePlayers)%></b></span></div>
     </aside>
   </div>
 </section>
 <div class="wrap contentStack rankingsPageV2" style="padding-bottom:65px">
 <section class="rankingStats" aria-label="Ranking summary"><div><small>Ranked characters</small><strong><%=fmt(totalRanked)%></strong><span><%=classes[activeClass]?.label||'Overall'%></span></div><div><small>Highest level</small><strong><%=fmt(maxLevel)%></strong><span>Current filter</span></div><div><small>Average level</small><strong><%=totalRanked?Math.round(avgLevel):0%></strong><span>Current filter</span></div><div><small>Players online</small><strong><%=onlinePlayers==null?'—':fmt(onlinePlayers)%></strong><span>Live account status</span></div></section>
-<div class="rankingsIntro"><div><div class="sectionHead"><div><div class="pageEyebrow">CLASS LEADERBOARDS</div><h2><%=classes[activeClass]&&classes[activeClass].label||'All Adventurers'%></h2></div></div><p class="muted">Sorted by level, then EXP, fame, and character name. Character portraits are rendered from each player's saved skin, face, hair, and visible equipped items instead of generic class artwork.</p></div><aside class="rankingSeasonCard"><small>EverLeaf World</small><strong>Hall of Legends</strong><span><%=fmt(totalRanked)%> matching character<%=totalRanked===1?'':'s'%> · loaded at <%=loadedTime%>. Refresh the page to query the latest saved progression.</span></aside></div>
-<form class="rankingSearch" method="get" action="/rankings"><input type="hidden" name="class" value="<%=activeClass%>"><div><span class="pageEyebrow">FIND A PLAYER</span><input type="search" name="q" value="<%=q%>" maxlength="20" placeholder="Character name…" aria-label="Search rankings by character name"></div><button class="btn primary" type="submit">SEARCH</button><% if(q){ %><a class="btn" href="/rankings?class=<%=activeClass%>">CLEAR</a><% } %></form>
+<div class="rankingControlDeck">
+  <div class="rankingControlCopy">
+    <div class="pageEyebrow">CLASS LEADERBOARDS</div>
+    <h2><%=q?`Results for “${q}”`:(classes[activeClass]&&classes[activeClass].label||'All Adventurers')%></h2>
+    <p>Ranked by level, then EXP, fame, and character name. Every portrait is rendered from the character's saved appearance and visible equipment.</p>
+    <% if(q){ %><a class="rankingClearSearch" href="/rankings?class=<%=activeClass%>">Clear player search ×</a><% } %>
+  </div>
+  <aside class="rankingLiveStamp">
+    <span class="rankingLivePulse"></span>
+    <div><small>LIVE LADDER</small><strong><%=fmt(totalRanked)%> character<%=totalRanked===1?'':'s'%></strong><span>Queried at <%=loadedTime%></span></div>
+  </aside>
+</div>
 <nav class="tabs rankingTabs" aria-label="Ranking class filters"><% Object.entries(classes).forEach(([key,c])=>{ %><a class="tab <%=activeClass===key?'active':''%>" href="<%=linkFor(1,key)%>"><%=c.label%></a><% }) %></nav>
 <% if(error){ %><div class="error rankingError"><strong>Rankings unavailable</strong><span><%=error%></span></div><% } %>
 <% if(!error&&topThree.length){ %><section class="rankingPodium" aria-label="Top ranked adventurers"><% podiumOrder.forEach(r=>{ const rank=podiumRank(r); %><article class="rankingPodiumCard <%=podiumClass(rank)%>"><span class="rankingPodiumRank">#<%=rank%></span><div class="rankingPodiumArt rankingCharacterAvatar"><img src="<%=jobArt(r.jobName)%>" data-live-avatar="<%=avatar(r)%>" alt="<%=r.name%>'s EverLeaf character portrait"></div><div><strong class="rankingPodiumName"><%=r.name%></strong><span class="rankingPodiumJob"><%=r.jobName||'Adventurer'%></span><span class="rankingPodiumLevel">Level <%=r.level%></span><span class="rankingLiveLook">Live character look</span></div></article><% }) %></section><% } %>

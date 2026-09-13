@@ -29,7 +29,7 @@ function fallbackAsset(job=0) {
   if (/bowman|archer|hunter|ranger|bowmaster|crossbow|sniper|marksman/.test(n)) return "/assets/jobs/instructors/bowman.png";
   if (/thief|rogue|assassin|hermit|night lord|bandit|chief bandit|shadower/.test(n)) return "/assets/jobs/instructors/thief.png";
   if (/pirate|brawler|marauder|buccaneer|gunslinger|outlaw|corsair/.test(n)) return "/assets/jobs/instructors/pirate.png";
-  return "/assets/everleaf-remaster.svg";
+  return "/assets/everleaf-mark-2026.svg";
 }
 
 function wzId(value) {

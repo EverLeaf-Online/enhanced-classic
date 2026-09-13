@@ -1,0 +1,32 @@
+/* EverLeaf brand refresh — Sep 2026 */
+body.siteRoute:not(.route-home):not(.route-admin) .publicChromeBrand{gap:0!important;min-width:148px!important}
+body.siteRoute:not(.route-home):not(.route-admin) .publicChromeBrand img{
+  width:154px!important;
+  height:48px!important;
+  max-width:none!important;
+  object-fit:contain!important;
+  object-position:left center!important;
+  filter:drop-shadow(0 4px 7px rgba(0,0,0,.34))!important;
+}
+body.siteRoute:not(.route-home):not(.route-admin) .publicChromeBrand span{display:none!important}
+body.route-login .loginBrandMark{width:min(310px,82%)!important;height:auto!important;margin:0 auto 20px!important}
+body.route-login .loginBrandMark img{display:block!important;width:100%!important;height:auto!important;max-width:none!important;filter:none!important;opacity:1!important}
+body.route-login .authIntro img,
+body.route-register .authIntro img,
+body.route-recover .authIntro img,
+body.route-admin-login .authIntro img{
+  width:min(300px,72%)!important;
+  height:auto!important;
+  max-width:none!important;
+  margin-bottom:22px!important;
+  filter:drop-shadow(0 7px 14px rgba(0,0,0,.28))!important;
+  opacity:1!important;
+}
+@media(max-width:760px){
+  body.siteRoute:not(.route-home):not(.route-admin) .publicChromeBrand{min-width:122px!important}
+  body.siteRoute:not(.route-home):not(.route-admin) .publicChromeBrand img{width:128px!important;height:42px!important}
+}
+@media(max-width:540px){
+  body.siteRoute:not(.route-home):not(.route-admin) .publicChromeBrand{min-width:108px!important}
+  body.siteRoute:not(.route-home):not(.route-admin) .publicChromeBrand img{width:112px!important;height:38px!important}
+}
