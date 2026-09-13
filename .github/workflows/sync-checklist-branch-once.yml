@@ -1,0 +1,35 @@
+name: Sync checklist branch once
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/sync-checklist-branch-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reuse validated checklist patch
+        shell: bash
+        run: |
+          sed -n '/^[[:space:]]*cat > \/tmp\/checklist.patch <<'"'"'PATCH'"'"'$/,/^[[:space:]]*PATCH$/p' .github/workflows/sync-checklist-source-audit-once.yml \
+            | sed '1d;$d;s/^          //' > /tmp/checklist.patch
+          git apply --check /tmp/checklist.patch
+          git apply /tmp/checklist.patch
+          grep -q 'All 45 spawned action-bearing reactors' docs/EVERLEAF_MASTER_CHECKLIST.md
+          grep -q 'All 16 reviewed duplicate Gachapon entries' docs/EVERLEAF_MASTER_CHECKLIST.md
+      - name: Commit validated checklist to temporary branch
+        run: |
+          git config user.name 'EverLeaf Maintenance Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git checkout -b automation/checklist-source-audit-once
+          git add docs/EVERLEAF_MASTER_CHECKLIST.md
+          git commit -m 'Synchronize source audit checklist status'
+          git push --force-with-lease origin automation/checklist-source-audit-once
