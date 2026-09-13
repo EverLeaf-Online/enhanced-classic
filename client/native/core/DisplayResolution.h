@@ -3,21 +3,22 @@
 #include "Client.h"
 #include "Memory.h"
 #include "CrashDiagnostics.h"
+#include "RuntimeResolution.h"
+#include "ResolutionUIBounds.h"
+#include "TooltipBounds.h"
 
 #include <windows.h>
 #include <cstdio>
 #include <cstring>
 #include <new>
 
-// EverLeaf's safe in-game resolution preference selector for the pinned GMS v83
-// client. The System Options hook points, native CCtrlComboBox and placement are
-// based on Kaentake's proven v83 implementation, with EverLeaf's 1280x720 mode
-// added to the list.
+// EverLeaf's in-game resolution selector for the pinned GMS v83 client. The
+// System Options hook points, native CCtrlComboBox and placement are based on
+// Kaentake's proven v83 implementation, with EverLeaf's 1280x720 mode added.
 //
-// IMPORTANT: selecting a resolution here only persists the preference. EverLeaf
-// applies it through the normal startup resolution path on the next launch. We do
-// not mutate the live Gr2D/D3D screen mode here; that partial renderer-reset path
-// was the cause of the Alt+Enter crash and must stay out of this module.
+// Phase 2 adds Kaentake's missing behavior: supported modes are applied
+// immediately through the v83 Gr2D screen-mode path,
+// then EverLeaf's own HD/UI correction set is recalculated for the new size.
 namespace DisplayResolution {
 namespace detail {
 constexpr DWORD kApplySysOptAddress = 0x0049EA33;
@@ -25,6 +26,10 @@ constexpr DWORD kSysOptOnCreateAddress = 0x00994163;
 constexpr DWORD kSysOptDestructorAddress = 0x007FF4AA;
 constexpr DWORD kSysOptButtonYOperand = 0x009945BD;
 constexpr int kSysOptButtonY = 372;
+constexpr int kResolutionComboX = 76;
+constexpr int kResolutionComboY = 338;
+constexpr int kResolutionComboWidth = 166;
+constexpr int kResolutionComboHeight = 18;
 
 // GMS v83 native CCtrlComboBox contracts used by Kaentake.
 constexpr DWORD kComboCtorAddress = 0x004C4259;
@@ -173,8 +178,18 @@ inline bool CreateNativeSelector(void* sysOpt) {
         }
 
         auto createCtrl = reinterpret_cast<ComboCreateFn>(vtable[kComboCreateVtableIndex]);
-        // Kaentake v83 placement: native combo at (76,338), 166x18, control id 2000.
-        createCtrl(combo, sysOpt, 2000, 0, 76, 338, 166, 18, params);
+        // The WZ-backed System Options artwork supplies the Resolution row label;
+        // keep Kaentake's native v83 combo placement and plain value text.
+        createCtrl(
+            combo,
+            sysOpt,
+            2000,
+            0,
+            kResolutionComboX,
+            kResolutionComboY,
+            kResolutionComboWidth,
+            kResolutionComboHeight,
+            params);
 
         if (paramConstructed) {
             reinterpret_cast<ComboParamDtorFn>(kComboParamDtorAddress)(params);
@@ -188,7 +203,7 @@ inline bool CreateNativeSelector(void* sysOpt) {
 
         reinterpret_cast<ComboSetSelectFn>(kComboSetSelectAddress)(
             combo,
-            ResolutionIndexFor(ConfiguredWidth(), ConfiguredHeight()));
+            ResolutionIndexFor(Client::m_nGameWidth, Client::m_nGameHeight));
 
         gResolutionCombo = combo;
         CrashDiagnostics::LogEvent("Maple-native resolution selector created");
@@ -216,15 +231,26 @@ inline void __fastcall ApplySysOptHook(void* self, void*, void* sysOpt, int appl
     const int configuredWidth = ConfiguredWidth();
     const int configuredHeight = ConfiguredHeight();
 
-    if (selected.width == configuredWidth && selected.height == configuredHeight) return;
+    if (selected.width == configuredWidth &&
+        selected.height == configuredHeight &&
+        selected.width == Client::m_nGameWidth &&
+        selected.height == Client::m_nGameHeight) {
+        return;
+    }
 
+    if (!RuntimeResolution::Apply(selected.width, selected.height)) {
+        CrashDiagnostics::LogEvent("live resolution apply failed; preference not saved");
+        MessageBoxW(
+            FindGameWindow(),
+            L"EverLeaf could not safely apply that resolution at runtime.\n\nYour previous resolution is still saved. No client files were changed.",
+            L"EverLeaf display settings",
+            MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    ResolutionUIBounds::SetActiveResolution(selected.width, selected.height);
     SaveResolutionConfig(selected.width, selected.height);
-    CrashDiagnostics::LogEvent("resolution preference saved for next launch");
-    MessageBoxW(
-        FindGameWindow(),
-        L"Resolution saved. It will be applied the next time EverLeaf starts.",
-        L"EverLeaf display settings",
-        MB_OK | MB_ICONINFORMATION);
+    CrashDiagnostics::LogEvent("live resolution applied and persisted");
 }
 
 inline void __fastcall SysOptOnCreateHook(void* self, void*, void* data) {
@@ -262,6 +288,18 @@ inline bool Install() {
             true,
             reinterpret_cast<void**>(&detail::gSysOptDestructor),
             reinterpret_cast<void*>(detail::SysOptDestructorHook))) return false;
+
+    if (!ResolutionUIBounds::Install(Client::m_nGameWidth, Client::m_nGameHeight)) {
+        // Keep the resolution selector usable even if the optional saved-position
+        // hardening cannot attach; the failure is already recorded in diagnostics.
+        CrashDiagnostics::LogEvent("saved UI bounds unavailable; resolution selector kept enabled");
+    }
+
+    if (!TooltipBounds::Install()) {
+        // Tooltip clamping is independent of the selector itself. Keep display
+        // settings available and record the owner-hook failure for diagnostics.
+        CrashDiagnostics::LogEvent("tooltip bounds unavailable; resolution selector kept enabled");
+    }
 
     detail::gInstalled = true;
     CrashDiagnostics::LogEvent("Maple-native in-game resolution selector hooks installed");

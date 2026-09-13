@@ -42,9 +42,142 @@ jobs:
         shell: pwsh
         run: |
           $bootstrap = Get-Content 'client/native/core/dllmain.cpp' -Raw
-          foreach ($needle in @('WaitForClientImage()','BootstrapWatchdog','InstallEarlyHooks()','DisplayMode::StartWorker()','DiscordPresence::Start();','DiscordPresence::Stop();')) {
+          foreach ($needle in @(
+            'WaitForClientImage()',
+            'BootstrapWatchdog',
+            'InstallEarlyHooks()',
+            'DisplayMode::StartWorker()',
+            'FieldRenderCorrections::Apply()',
+            'FieldViewRange::Install()',
+            'LimitedViewCorrections::Install()',
+            'DiscordPresence::Start();',
+            'DiscordPresence::Stop();'
+          )) {
             if (-not $bootstrap.Contains($needle)) { throw "Missing core bootstrap marker: $needle" }
           }
+
+          $displayResolution = Get-Content 'client/native/core/DisplayResolution.h' -Raw
+          foreach ($needle in @(
+            '#include "RuntimeResolution.h"',
+            '#include "ResolutionUIBounds.h"',
+            '#include "TooltipBounds.h"',
+            'RuntimeResolution::Apply(selected.width, selected.height)',
+            'ResolutionUIBounds::SetActiveResolution(selected.width, selected.height)',
+            'ResolutionUIBounds::Install(Client::m_nGameWidth, Client::m_nGameHeight)',
+            'TooltipBounds::Install()'
+          )) {
+            if (-not $displayResolution.Contains($needle)) { throw "Missing live-resolution wiring marker: $needle" }
+          }
+
+          $runtimeResolution = Get-Content 'client/native/core/RuntimeResolution.h' -Raw
+          foreach ($needle in @(
+            'GetModuleHandleA("Gr2D_DX8.dll")',
+            'kGetFieldAddress = 0x00437A0C',
+            'kRestoreViewRangeAddress = 0x00641EF1',
+            'kReloadBackAddress = 0x00644491',
+            'SetRendererMode(previousWidth, previousHeight)',
+            'WidescreenCorrections::ApplyCurrent()',
+            'FieldRenderCorrections::ApplyCurrent()'
+          )) {
+            if (-not $runtimeResolution.Contains($needle)) { throw "Missing runtime-resolution contract: $needle" }
+          }
+
+          $uiBounds = Get-Content 'client/native/core/ResolutionUIBounds.h' -Raw
+          foreach ($needle in @(
+            'kUIWindowCount = 34',
+            'kContextMenuCreateCallSite = 0x009966E3',
+            'kCreateUtilDlgExAddress = 0x009A3E38',
+            'kQuestDialogRectAddress = 0x00BE2DF0',
+            'ClampConfigObject',
+            'CenterQuestDialogAnchor(width, height)',
+            'InstallContextMenuBounds()',
+            'InstallUtilityDialogBounds()'
+          )) {
+            if (-not $uiBounds.Contains($needle)) { throw "Missing resolution UI-bounds contract: $needle" }
+          }
+
+          $tooltipBounds = Get-Content 'client/native/core/TooltipBounds.h' -Raw
+          foreach ($needle in @(
+            'kMakeLayerAddress = 0x008F3141',
+            'kTooltipHeightOffset = 0x08',
+            'kTooltipWidthOffset = 0x0C',
+            'kTooltipLayerOffset = 0x10',
+            'kRelMoveVtableIndex = 36',
+            'ClampFinishedLayer(',
+            'MakeLayerHook(',
+            'if (!charToolTip)',
+            'Memory::SetHook('
+          )) {
+            if (-not $tooltipBounds.Contains($needle)) { throw "Missing tooltip bounds contract: $needle" }
+          }
+
+          $fieldRender = Get-Content 'client/native/core/FieldRenderCorrections.h' -Raw
+          foreach ($needle in @(
+            'kWeatherHalfWidthMinus10 = 0x0064059B',
+            'kWeatherBottomMinus10 = 0x006405BC',
+            'kWeatherHalfHeight = 0x006406FC',
+            'kLimitedViewDarkY = 0x0055BB30',
+            'CorrectLimitedViewDarkY()',
+            'MatchesExpectedPreState()',
+            'FieldGridWeather::ApplyCurrent()',
+            'FieldGridWeather::Install()',
+            'ApplyCurrent()'
+          )) {
+            if (-not $fieldRender.Contains($needle)) { throw "Missing field-render correction contract: $needle" }
+          }
+
+          $fieldGridWeather = Get-Content 'client/native/core/FieldGridWeather.h' -Raw
+          foreach ($needle in @(
+            'kMakeGridPatchSite = 0x0063EAD6',
+            'kMakeGridReturn = 0x0063EADC',
+            'kWeatherWrapClipCallSite = 0x0064106B',
+            'kWrapClipVtableIndex = 39',
+            'CurrentAdjustCenterY()',
+            'MatchesMakeGridPreflight()',
+            'MatchesWeatherWrapClipPreflight()',
+            'MakeGridHook()',
+            'WeatherWrapClipHook(',
+            'PatchDirectJump(',
+            'PatchDirectCall('
+          )) {
+            if (-not $fieldGridWeather.Contains($needle)) { throw "Missing field grid/weather correction contract: $needle" }
+          }
+
+          $fieldView = Get-Content 'client/native/core/FieldViewRange.h' -Raw
+          foreach ($needle in @(
+            'kRestoreViewRangeAddress = 0x00641EF1',
+            'kPhysicalSpaceSingletonAddress = 0x00BEBFA0',
+            'kPhysicalSpaceMbrOffset = 0x24',
+            'kFieldInfoPropertyOffset = 0x2C',
+            'kViewRangeOffset = 0xF0',
+            'get_item(const wchar_t*, VARIANT*)',
+            'L"VRLeft"',
+            'L"VRTop"',
+            'L"VRRight"',
+            'L"VRBottom"',
+            'VariantChangeType',
+            'NormalizeCollapsedRange(next)',
+            'gRestoreViewRange(self)'
+          )) {
+            if (-not $fieldView.Contains($needle)) { throw "Missing dynamic field view-range contract: $needle" }
+          }
+
+          $limitedView = Get-Content 'client/native/core/LimitedViewCorrections.h' -Raw
+          foreach ($needle in @(
+            'kRawCopyCallSite = 0x0055BEFE',
+            'kCopyExCallSite1 = 0x0055C08E',
+            'kCopyExCallSite2 = 0x0055C1DD',
+            'raw_Copy(int, int, IWzCanvasLite*, VARIANT)',
+            'raw_CopyEx(',
+            'DestinationOffsetX()',
+            'DestinationOffsetY()',
+            'IsSixByteIndirectCall',
+            'IsRelativeCall',
+            'PatchDirectCall'
+          )) {
+            if (-not $limitedView.Contains($needle)) { throw "Missing limited-view draw correction contract: $needle" }
+          }
+
           $bridge = Get-Content 'client/native/core/DiscordPresence.cpp' -Raw
           if (-not $bridge.Contains('LoadLibraryW(L"Discord.dll")')) { throw 'Core does not load Discord.dll independently' }
           $proxy = Get-Content 'client/native/proxy/Proxy.cpp' -Raw
@@ -56,7 +189,9 @@ jobs:
             if (-not $discord.Contains($needle)) { throw "Missing Discord export: $needle" }
           }
           $config = Get-Content 'client/native/core/config.ini' -Raw
-          if (-not ($config -match '(?m)^DiscordRichPresence=true\r?$')) { throw 'DiscordRichPresence=true is missing from config.ini' }
+          foreach ($setting in @('DiscordRichPresence=true','LiveResolution=true','MatchMonitorResolutionOnFullscreen=true')) {
+            if (-not ($config -match "(?m)^$([regex]::Escape($setting))\r?$")) { throw "$setting is missing from config.ini" }
+          }
 
       - name: Test Discord IPC frames and acknowledgements
         shell: pwsh
@@ -99,6 +234,8 @@ jobs:
           $config = Get-Content "$package/config.ini" -Raw
           if (-not ($config -match 'PreferCommunityUI=true')) { throw 'Managed client does not default to Community UI' }
           if (-not ($config -match '(?m)^DiscordRichPresence=true\r?$')) { throw 'Managed client does not enable Discord Rich Presence' }
+          if (-not ($config -match '(?m)^LiveResolution=true\r?$')) { throw 'Managed client does not enable live resolution' }
+          if (-not ($config -match '(?m)^MatchMonitorResolutionOnFullscreen=true\r?$')) { throw 'Managed client does not enable monitor-matched borderless rendering' }
           Compress-Archive -Path "$package/*" -DestinationPath 'EverleafClient-source-built.zip'
           Get-FileHash 'EverleafClient-source-built.zip' -Algorithm SHA256
 
