@@ -67,7 +67,7 @@ const JOB_CLASSES = {
   aran: {label:"Aran", ranges:[[2000,2001],[2100,2200]]},
   evan: {label:"Evan", ranges:[[2001,2002],[2200,2300]]}
 };
-const RANKINGS_PAGE_SIZE = 25;
+const RANKINGS_PAGE_SIZE = 6;
 const rankingPageWindow=(current,total)=>{
   const set=new Set([1,total,current-2,current-1,current,current+1,current+2]);
   return [...set].filter(page=>page>=1&&page<=total).sort((a,b)=>a-b);
