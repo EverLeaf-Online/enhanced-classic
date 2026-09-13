@@ -41,7 +41,7 @@ test("global shell has no utility ribbon and loads the final unified polish",()=
   assert.match(header,/id="main-content"/);
   assert.doesNotMatch(header,/{href:"\/wiki",label:"WIKI",index:"05"}/);
   assert.doesNotMatch(header,/game-portal-2026\.css|full-site-portal-2026\.css|visuals-2026\.css/);
-  assert.match(sitePolish,/Shared public chrome/);
+  assert.match(sitePolish,/\.publicChrome/);
   assert.doesNotMatch(sitePolish,/@import|https?:\/\//i);
 });
 
