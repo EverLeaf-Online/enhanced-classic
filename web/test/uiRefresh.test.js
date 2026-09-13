@@ -17,19 +17,21 @@ const remaster = read("public/css/maple-remaster.css");
 const pages = read("public/css/maple-remaster-pages.css");
 const admin = read("public/css/maple-remaster-admin.css");
 const final = read("public/css/maple-final.css");
-const rankingsCss = read("public/css/rankings-remaster.css");
+const rankingsCss = read("public/css/rankings-wide-2026.css");
 const wikiDataCss = read("public/css/wiki-data.css");
 const uiux = read("public/css/uiux-2026.css");
 const refero = read("public/css/refero-everleaf-2026.css");
 const unified = read("public/css/unified-terminal-2026.css");
+const sitePolish = read("public/css/site-unified-polish-2026.css");
 const innerClean = read("public/css/inner-app-clean-2026.css");
 
-test("global shell has no top navigation or utility ribbon",()=>{
+test("global shell has no utility ribbon and loads the final unified polish",()=>{
   for(const sheet of [
     "maple-remaster.css","maple-remaster-pages.css","maple-final.css",
     "rankings-remaster.css","rankings-live.css","wiki-remaster.css",
     "wiki-cms.css","wiki-player-2026.css","wiki-data.css","uiux-2026.css",
-    "refero-everleaf-2026.css?v=3","unified-terminal-2026.css?v=1","inner-app-clean-2026.css?v=1"
+    "refero-everleaf-2026.css?v=3","unified-terminal-2026.css?v=1","inner-app-clean-2026.css?v=1",
+    "site-unified-polish-2026.css?v=1"
   ]) assert.ok(header.includes(sheet),`header should load ${sheet}`);
   assert.match(header,/maple-remaster-admin\.css/);
   assert.match(header,/siteBanner/);
@@ -39,6 +41,8 @@ test("global shell has no top navigation or utility ribbon",()=>{
   assert.match(header,/id="main-content"/);
   assert.doesNotMatch(header,/{href:"\/wiki",label:"WIKI",index:"05"}/);
   assert.doesNotMatch(header,/game-portal-2026\.css|full-site-portal-2026\.css|visuals-2026\.css/);
+  assert.match(sitePolish,/Shared public chrome/);
+  assert.doesNotMatch(sitePolish,/@import|https?:\/\//i);
 });
 
 test("shared footer partial closes the document without rendering a footer",()=>{
@@ -113,14 +117,16 @@ test("wiki is a live WZ and MySQL server-data encyclopedia",()=>{
   assert.match(wikiDataCss,/\.wikiDataTable/);
 });
 
-test("rankings preserve live saved character avatars",()=>{
-  assert.match(rankings,/rankingPodium/);
-  assert.match(rankings,/rankingTableV2/);
-  assert.match(rankings,/rankPlayerIcon/);
+test("rankings preserve live saved character avatars in the current workspace",()=>{
+  assert.match(rankings,/rankingsLeadersPanel/);
+  assert.match(rankings,/rankingsTable/);
+  assert.match(rankings,/rankingsCharacterAvatar/);
   assert.match(rankings,/\/character-avatar\//);
-  assert.match(rankings,/Live saved appearance/);
-  assert.match(rankings,/rankingCharacterAvatar/);
-  assert.match(rankingsCss,/\.rankingCharacterAvatar/);
+  assert.match(rankings,/data-live-avatar/);
+  assert.match(rankings,/rankingsFilterStack/);
+  assert.match(rankings,/rankingsSubTabs/);
+  assert.match(rankingsCss,/\.rankingsCharacterAvatar/);
+  assert.match(rankingsCss,/\.rankingsLeaderList/);
 });
 
 test("account portal keeps working product surfaces",()=>{
