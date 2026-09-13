@@ -24,120 +24,124 @@ const topThree=(currentPage===1&&!q?rows.slice(0,3):[]);
 const linkFor=(page=1,cls=activeClass)=>`/rankings?class=${encodeURIComponent(cls)}${q?`&q=${encodeURIComponent(q)}`:''}${page>1?`&page=${page}`:''}`;
 const loadedTime=generatedAt.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
 %>
-<main class="rankingsPage">
-  <section class="rankingsMasthead">
-    <div class="wrap rankingsMastheadInner">
-      <div class="rankingsMastheadCopy">
-        <span class="rankingsKicker">EverLeaf leaderboard</span>
+<main class="lightPage rankingsPage">
+  <section class="lightTitle visualPageTitle rankingsTitle">
+    <div class="wrap pageHeroGrid">
+      <div>
+        <div class="pageEyebrow">EverLeaf Leaderboard</div>
         <h1>Rankings</h1>
-        <p>Track the strongest adventurers across EverLeaf.</p>
-        <div class="rankingsLiveLine"><span></span> Live database · Updated <%=loadedTime%></div>
-      </div>
-      <div class="rankingsMastheadTools">
-        <form class="rankingsSearch" method="get" action="/rankings">
-          <input type="hidden" name="class" value="<%=activeClass%>">
-          <input type="search" name="q" value="<%=q%>" maxlength="20" placeholder="Search character" aria-label="Search rankings by character name">
-          <button type="submit">Search</button>
-          <% if(q){ %><a href="/rankings?class=<%=activeClass%>">Clear</a><% } %>
-        </form>
-        <div class="rankingsQuickStats">
-          <div><span>Ranked</span><strong><%=fmt(totalRanked)%></strong></div>
-          <div><span>Top Level</span><strong><%=fmt(maxLevel)%></strong></div>
-          <div><span>Online</span><strong><%=onlinePlayers==null?'—':fmt(onlinePlayers)%></strong></div>
-        </div>
+        <p>Track the strongest adventurers across EverLeaf. Search any character or filter the live ladder by job family.</p>
       </div>
     </div>
   </section>
 
-  <div class="wrap rankingsContent">
-    <section class="rankingsFilterPanel">
-      <div class="rankingsFilterTitle">
-        <div>
-          <span>Leaderboard</span>
-          <strong><%=q?`Results for “${q}”`:(classes[activeClass]&&classes[activeClass].label||'All Adventurers')%></strong>
-        </div>
-        <small>Updated <%=loadedTime%></small>
+  <div class="wrap rankingsViewport">
+    <div class="rankingsToolbar">
+      <form class="rankingsSearchInline" method="get" action="/rankings">
+        <input type="hidden" name="class" value="<%=activeClass%>">
+        <input type="search" name="q" value="<%=q%>" maxlength="20" placeholder="Search character name" aria-label="Search rankings by character name">
+        <button class="btn primary" type="submit">SEARCH</button>
+        <% if(q){ %><a class="btn" href="/rankings?class=<%=activeClass%>">CLEAR</a><% } %>
+      </form>
+
+      <div class="rankingsInlineStats" aria-label="Ranking summary">
+        <div><span>Ranked</span><strong><%=fmt(totalRanked)%></strong></div>
+        <div><span>Top level</span><strong><%=fmt(maxLevel)%></strong></div>
+        <div><span>Online</span><strong><%=onlinePlayers==null?'—':fmt(onlinePlayers)%></strong></div>
+        <div class="rankingsUpdated"><span>Updated</span><strong><%=loadedTime%></strong></div>
       </div>
-      <nav class="rankingsTabs" aria-label="Ranking class filters">
-        <% Object.entries(classes).forEach(([key,c])=>{ %>
-          <a class="<%=activeClass===key?'active':''%>" href="<%=linkFor(1,key)%>"><%=c.label%></a>
-        <% }) %>
-      </nav>
-    </section>
+    </div>
+
+    <nav class="tabs rankingsClassTabs" aria-label="Ranking class filters">
+      <% Object.entries(classes).forEach(([key,c])=>{ %>
+        <a class="tab <%=activeClass===key?'active':''%>" href="<%=linkFor(1,key)%>"><%=c.label%></a>
+      <% }) %>
+    </nav>
 
     <% if(error){ %>
-      <div class="error rankingsError"><strong>Rankings unavailable</strong><span><%=error%></span></div>
+      <div class="error rankingsError"><strong>Rankings unavailable.</strong> <span><%=error%></span></div>
     <% } %>
 
-    <% if(!error&&topThree.length){ %>
-      <section class="rankingsTop">
-        <div class="rankingsSectionTitle">
-          <div><span>Top 3</span><strong>Leading adventurers</strong></div>
-          <small>Live character appearances</small>
-        </div>
-        <div class="rankingsTopGrid rankingsTopGridFeatured">
-          <% topThree.forEach((r,i)=>{ const rank=i+1; %>
-            <article class="rankingsTopCard rank<%=rank%>">
-              <div class="rankingsTopRank"><span>#</span><strong><%=rank%></strong></div>
-              <div class="rankingsTopAvatar rankingCharacterAvatar"><img src="<%=jobArt(r.jobName)%>" data-live-avatar="<%=avatar(r)%>" alt="<%=r.name%>'s EverLeaf character portrait"></div>
-              <div class="rankingsTopInfo">
-                <strong class="rankingsTopName"><%=r.name%></strong>
-                <span class="rankingsTopJob"><%=r.jobName||'Adventurer'%></span>
-                <div class="rankingsTopMeta"><b>Lv. <%=fmt(r.level)%></b><span><%=fmt(r.fame)%> Fame</span></div>
-              </div>
-            </article>
-          <% }) %>
-        </div>
-      </section>
-    <% } %>
-
-    <section class="rankingsBoard" id="ranking-board">
-      <div class="rankingsBoardHead">
-        <div>
-          <span><%=q?'Search results':'World ranking'%></span>
-          <strong><%=q?`Characters matching “${q}”`:(classes[activeClass]&&classes[activeClass].label||'All Adventurers')%></strong>
-        </div>
-        <small>Page <%=currentPage%> of <%=totalPages||1%></small>
-      </div>
-
-      <% if(rows.length){ %>
-        <div class="rankingsTableScroll">
-          <table class="rankingsTable">
-            <thead><tr><th>Rank</th><th>Character</th><th>Job</th><th>Level</th><th>Fame</th><th>EXP</th></tr></thead>
-            <tbody>
-              <% rows.forEach((r,i)=>{ const rank=startRank+i+1; %>
-                <tr>
-                  <td><span class="rankingsPlace <%=rank<=3?'top'+rank:''%>"><%=rank%></span></td>
-                  <td>
-                    <div class="rankingsCharacter">
-                      <span class="rankingsCharacterAvatar rankingCharacterAvatar"><img src="<%=jobArt(r.jobName)%>" data-live-avatar="<%=avatar(r)%>" loading="lazy" alt="<%=r.name%>'s EverLeaf character portrait"></span>
-                      <strong><%=r.name%></strong>
-                    </div>
-                  </td>
-                  <td><span class="rankingsJob"><%=r.jobName||'Adventurer'%></span></td>
-                  <td class="rankingsLevel">Lv. <%=fmt(r.level)%></td>
-                  <td><%=fmt(r.fame)%></td>
-                  <td><%=fmt(r.exp)%></td>
-                </tr>
-              <% }) %>
-            </tbody>
-          </table>
-        </div>
-        <div class="rankingsPagination">
-          <div class="pagination">
-            <% let prev=0; pageNumbers.forEach(p=>{ if(prev&&p-prev>1){ %><span class="pageGap">…</span><% } %><a class="pageBtn <%=p===currentPage?'active':''%>" href="<%=linkFor(p)%>"><%=p%></a><% prev=p; }); %>
-            <% if(currentPage<totalPages){ %><a class="pageBtn pageNext" href="<%=linkFor(currentPage+1)%>">Next ›</a><% } %>
+    <div class="contentGrid rankingsWorkspace <%=topThree.length?'hasLeaders':'boardOnly'%>">
+      <section class="featurePanel rankingsBoardPanel" id="ranking-board">
+        <div class="rankingsBoardHead">
+          <div>
+            <div class="pageEyebrow"><%=q?'Search Results':'World Ranking'%></div>
+            <h2><%=q?`Characters matching “${q}”`:(classes[activeClass]&&classes[activeClass].label||'All Adventurers')%></h2>
           </div>
-          <span><%=fmt(totalRanked)%> ranked</span>
+          <span>Page <%=currentPage%> of <%=totalPages||1%></span>
         </div>
-      <% } else if(!error){ %>
-        <div class="rankingsEmpty">
-          <h3><%=q?'No matching character':'No ranked characters yet'%></h3>
-          <p><%=q?'Try another name or clear the search.':'There are no characters in this leaderboard yet.'%></p>
-          <% if(q){ %><a class="btn" href="/rankings?class=<%=activeClass%>">Clear search</a><% } %>
-        </div>
+
+        <% if(rows.length){ %>
+          <div class="tableWrap rankingsTableWrap">
+            <table class="rankingsTable">
+              <thead>
+                <tr><th>Rank</th><th>Character</th><th>Job</th><th>Level</th><th>Fame</th><th>EXP</th></tr>
+              </thead>
+              <tbody>
+                <% rows.forEach((r,i)=>{ const rank=startRank+i+1; %>
+                  <tr>
+                    <td><span class="rankingsPlace <%=rank<=3?'top'+rank:''%>"><%=rank%></span></td>
+                    <td>
+                      <div class="rankingsCharacter">
+                        <span class="rankingsCharacterAvatar rankingCharacterAvatar"><img src="<%=jobArt(r.jobName)%>" data-live-avatar="<%=avatar(r)%>" loading="lazy" alt="<%=r.name%>'s EverLeaf character portrait"></span>
+                        <strong><%=r.name%></strong>
+                      </div>
+                    </td>
+                    <td><span class="rankingsJob"><%=r.jobName||'Adventurer'%></span></td>
+                    <td class="rankingsLevel">Lv. <%=fmt(r.level)%></td>
+                    <td><%=fmt(r.fame)%></td>
+                    <td><%=fmt(r.exp)%></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="rankingsPagination">
+            <div class="pagination">
+              <% let prev=0; pageNumbers.forEach(p=>{ if(prev&&p-prev>1){ %><span class="pageGap">…</span><% } %><a class="pageBtn <%=p===currentPage?'active':''%>" href="<%=linkFor(p)%>"><%=p%></a><% prev=p; }); %>
+              <% if(currentPage<totalPages){ %><a class="pageBtn pageNext" href="<%=linkFor(currentPage+1)%>">Next ›</a><% } %>
+            </div>
+            <span><%=fmt(totalRanked)%> ranked characters</span>
+          </div>
+        <% } else if(!error){ %>
+          <div class="rankingsEmpty">
+            <h3><%=q?'No matching character':'No ranked characters yet'%></h3>
+            <p><%=q?'Try another name or clear the search.':'There are no characters in this leaderboard yet.'%></p>
+            <% if(q){ %><a class="btn" href="/rankings?class=<%=activeClass%>">CLEAR SEARCH</a><% } %>
+          </div>
+        <% } %>
+      </section>
+
+      <% if(topThree.length){ %>
+        <aside class="contentStack rankingsAside">
+          <section class="paperCard rankingsLeadersPanel">
+            <div class="rankingsLeadersHead">
+              <div>
+                <div class="pageEyebrow">Top 3</div>
+                <h2>Leading Adventurers</h2>
+              </div>
+              <span>Live character appearances</span>
+            </div>
+
+            <div class="rankingsLeaderList">
+              <% topThree.forEach((r,i)=>{ const rank=i+1; %>
+                <article class="rankingsLeaderRow rank<%=rank%>">
+                  <div class="rankingsLeaderNumber">#<%=rank%></div>
+                  <span class="rankingsLeaderAvatar rankingCharacterAvatar"><img src="<%=jobArt(r.jobName)%>" data-live-avatar="<%=avatar(r)%>" alt="<%=r.name%>'s EverLeaf character portrait"></span>
+                  <div class="rankingsLeaderCopy">
+                    <strong><%=r.name%></strong>
+                    <span><%=r.jobName||'Adventurer'%></span>
+                    <div><b>Lv. <%=fmt(r.level)%></b><small><%=fmt(r.fame)%> Fame</small></div>
+                  </div>
+                </article>
+              <% }) %>
+            </div>
+          </section>
+        </aside>
       <% } %>
-    </section>
+    </div>
   </div>
 </main>
 <%- include("partials/footer") %>
