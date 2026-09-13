@@ -13,6 +13,9 @@ add_subdirectory("${LIBWZ_SOURCE}" "${CMAKE_BINARY_DIR}/libwz" EXCLUDE_FROM_ALL)
 add_executable(everleaf-login-wz-patcher main.cpp)
 target_link_libraries(everleaf-login-wz-patcher PRIVATE wz)
 
+add_executable(everleaf-responsive-login-wz responsive-login.cpp)
+target_link_libraries(everleaf-responsive-login-wz PRIVATE wz)
+
 add_executable(everleaf-remove-map-login-frame remove-map-login-frame.cpp)
 target_link_libraries(everleaf-remove-map-login-frame PRIVATE wz)
 
@@ -21,3 +24,6 @@ target_link_libraries(everleaf-remove-map-neocity PRIVATE wz)
 
 add_executable(everleaf-patch-fm-cashshop patch-fm-cashshop.cpp)
 target_link_libraries(everleaf-patch-fm-cashshop PRIVATE wz)
+
+add_executable(everleaf-system-options-wz system-options.cpp)
+target_link_libraries(everleaf-system-options-wz PRIVATE wz)
