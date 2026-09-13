@@ -568,6 +568,12 @@ public class HiredMerchant extends AbstractMapObject {
         }
     }
 
+    public boolean removeItem(PlayerShopItem item) {
+        synchronized (items) {
+            return items.remove(item);
+        }
+    }
+
     public void clearInexistentItems() {
         synchronized (items) {
             for (int i = items.size() - 1; i >= 0; i--) {

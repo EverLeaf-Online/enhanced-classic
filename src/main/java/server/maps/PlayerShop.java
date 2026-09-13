@@ -219,6 +219,12 @@ public class PlayerShop extends AbstractMapObject {
         }
     }
 
+    public boolean removeItem(PlayerShopItem item) {
+        synchronized (items) {
+            return items.remove(item);
+        }
+    }
+
     private void removeFromSlot(int slot) {
         items.remove(slot);
     }

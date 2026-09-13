@@ -575,80 +575,131 @@ public final class PlayerInteractionHandler extends AbstractPacketHandler {
                 InventoryType ivType = InventoryType.getByType(p.readByte());
                 short slot = p.readShort();
                 short bundles = p.readShort();
-                Item ivItem = chr.getInventory(ivType).getItem(slot);
-
-                if (ivItem == null || ivItem.isUntradeable()) {
-                    c.sendPacket(PacketCreator.serverNotice(1, "Could not perform shop operation with that item."));
-                    c.sendPacket(PacketCreator.enableActions());
-                    return;
-                } else if (ItemInformationProvider.getInstance().isUnmerchable(ivItem.getItemId())) {
-                    if (ItemConstants.isPet(ivItem.getItemId())) {
-                        c.sendPacket(PacketCreator.serverNotice(1, "Pets are not allowed to be sold on the Player Store."));
-                    } else {
-                        c.sendPacket(PacketCreator.serverNotice(1, "Cash items are not allowed to be sold on the Player Store."));
-                    }
-
-                    c.sendPacket(PacketCreator.enableActions());
-                    return;
-                }
-
                 short perBundle = p.readShort();
+                int price = p.readInt();
 
-                if (ItemConstants.isRechargeable(ivItem.getItemId())) {
-                    perBundle = 1;
-                    bundles = 1;
-                } else if (ivItem.getQuantity() < (bundles * perBundle)) {     // thanks GabrielSin for finding a dupe here
-                    c.sendPacket(PacketCreator.serverNotice(1, "Could not perform shop operation with that item."));
+                if (ivType == null || ivType == InventoryType.UNDEFINED || ivType == InventoryType.CANHOLD || ivType == InventoryType.EQUIPPED) {
+                    AutobanFactory.PACKET_EDIT.alert(chr, chr.getName() + " sent an invalid inventory type for shop listing.");
+                    log.warn("Chr {} sent Invalid inventory type for shop listing: {}", chr.getName(), ivType);
                     c.sendPacket(PacketCreator.enableActions());
                     return;
                 }
 
-                int price = p.readInt();
-                if (perBundle <= 0 || perBundle * bundles > 2000 || bundles <= 0 || price <= 0 || price > Integer.MAX_VALUE) {
-                    AutobanFactory.PACKET_EDIT.alert(chr, chr.getName() + " tried to packet edit with hired merchants.");
-                    log.warn("Chr {} might possibly have packet edited Hired Merchants. perBundle: {}, perBundle * bundles (This multiplied cannot be greater than 2000): {}, bundles: {}, price: {}",
-                            chr.getName(), perBundle, perBundle * bundles, bundles, price);
+                if (bundles <= 0 || perBundle <= 0 || price <= 0) {
+                    AutobanFactory.PACKET_EDIT.alert(chr, chr.getName() + " tried to packet edit a shop listing.");
+                    log.warn("Chr {} sent invalid shop listing values. perBundle: {}, bundles: {}, price: {}", chr.getName(), perBundle, bundles, price);
+                    c.sendPacket(PacketCreator.enableActions());
                     return;
                 }
 
-                Item sellItem = ivItem.copy();
-                if (!ItemConstants.isRechargeable(ivItem.getItemId())) {
-                    sellItem.setQuantity(perBundle);
-                }
-
-                PlayerShopItem shopItem = new PlayerShopItem(sellItem, bundles, price);
                 PlayerShop shop = chr.getPlayerShop();
                 HiredMerchant merchant = chr.getHiredMerchant();
-                if (shop != null && shop.isOwner(chr)) {
-                    if (shop.isOpen() || !shop.addItem(shopItem)) { // thanks Vcoc for pointing an exploit with unlimited shop slots
-                        c.sendPacket(PacketCreator.serverNotice(1, "You can't sell it anymore."));
+                boolean playerShopOwner = shop != null && shop.isOwner(chr);
+                boolean merchantOwner = merchant != null && merchant.isOwner(chr);
+                if (!playerShopOwner && !merchantOwner) {
+                    c.sendPacket(PacketCreator.serverNotice(1, "You can't sell without owning a shop."));
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+                if (playerShopOwner && shop.isOpen()) {
+                    c.sendPacket(PacketCreator.serverNotice(1, "You can't sell it anymore."));
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+                if (merchantOwner && merchant.isOpen()) {
+                    c.sendPacket(PacketCreator.serverNotice(1, "You can't sell it anymore."));
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+                if (merchantOwner && ivType == InventoryType.CASH && merchant.isPublished()) {
+                    c.sendPacket(PacketCreator.serverNotice(1, "Cash items are only allowed to be sold when first opening the store."));
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+
+                Inventory inv = chr.getInventory(ivType);
+                Item sourceItem;
+                Item sellItem;
+                short listingBundles = bundles;
+                short listingPerBundle = perBundle;
+                short removeQuantity;
+
+                inv.lockInventory();
+                try {
+                    sourceItem = inv.getItem(slot);
+                    if (sourceItem == null || sourceItem.isUntradeable()) {
+                        c.sendPacket(PacketCreator.serverNotice(1, "Could not perform shop operation with that item."));
+                        c.sendPacket(PacketCreator.enableActions());
+                        return;
+                    }
+                    if (ItemInformationProvider.getInstance().isUnmerchable(sourceItem.getItemId())) {
+                        if (ItemConstants.isPet(sourceItem.getItemId())) {
+                            c.sendPacket(PacketCreator.serverNotice(1, "Pets are not allowed to be sold on the Player Store."));
+                        } else {
+                            c.sendPacket(PacketCreator.serverNotice(1, "Cash items are not allowed to be sold on the Player Store."));
+                        }
+                        c.sendPacket(PacketCreator.enableActions());
                         return;
                     }
 
-                    if (ItemConstants.isRechargeable(ivItem.getItemId())) {
-                        InventoryManipulator.removeFromSlot(c, ivType, slot, ivItem.getQuantity(), true);
+                    if (ItemConstants.isRechargeable(sourceItem.getItemId())) {
+                        listingPerBundle = 1;
+                        listingBundles = 1;
+                        removeQuantity = sourceItem.getQuantity();
                     } else {
-                        InventoryManipulator.removeFromSlot(c, ivType, slot, (short) (bundles * perBundle), true);
+                        long totalQuantity = (long) listingPerBundle * listingBundles;
+                        if (totalQuantity <= 0 || totalQuantity > 2000 || totalQuantity > sourceItem.getQuantity() || totalQuantity > Short.MAX_VALUE) {
+                            AutobanFactory.PACKET_EDIT.alert(chr, chr.getName() + " tried to packet edit a shop listing quantity.");
+                            log.warn("Chr {} sent invalid shop listing quantity. perBundle: {}, bundles: {}, total: {}", chr.getName(), listingPerBundle, listingBundles, totalQuantity);
+                            c.sendPacket(PacketCreator.enableActions());
+                            return;
+                        }
+                        removeQuantity = (short) totalQuantity;
                     }
 
+                    sellItem = sourceItem.copy();
+                    if (!ItemConstants.isRechargeable(sourceItem.getItemId())) {
+                        sellItem.setQuantity(listingPerBundle);
+                    }
+                } finally {
+                    inv.unlockInventory();
+                }
+
+                PlayerShopItem shopItem = new PlayerShopItem(sellItem, listingBundles, price);
+                boolean admitted = playerShopOwner ? shop.addItem(shopItem) : merchant.addItem(shopItem);
+                if (!admitted) {
+                    c.sendPacket(PacketCreator.serverNotice(1, "You can't sell it anymore."));
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+
+                boolean removed = false;
+                inv.lockInventory();
+                try {
+                    Item currentItem = inv.getItem(slot);
+                    if (currentItem == sourceItem && currentItem.getItemId() == sourceItem.getItemId() && currentItem.getQuantity() >= removeQuantity) {
+                        InventoryManipulator.removeFromSlot(c, ivType, slot, removeQuantity, true);
+                        removed = true;
+                    }
+                } catch (RuntimeException ex) {
+                    log.warn("Chr {} shop listing source removal failed for item {} in slot {}", chr.getName(), sourceItem.getItemId(), slot, ex);
+                } finally {
+                    inv.unlockInventory();
+                }
+
+                if (!removed) {
+                    boolean rolledBack = playerShopOwner ? shop.removeItem(shopItem) : merchant.removeItem(shopItem);
+                    if (!rolledBack) {
+                        log.error("Failed to roll back shop listing for chr {} item {} after source revalidation failure", chr.getName(), sourceItem.getItemId());
+                    }
+                    c.sendPacket(PacketCreator.serverNotice(1, "Your inventory changed before the listing completed. Please try again."));
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+
+                if (playerShopOwner) {
                     c.sendPacket(PacketCreator.getPlayerShopItemUpdate(shop));
-                } else if (merchant != null && merchant.isOwner(chr)) {
-                    if (ivType.equals(InventoryType.CASH) && merchant.isPublished()) {
-                        c.sendPacket(PacketCreator.serverNotice(1, "Cash items are only allowed to be sold when first opening the store."));
-                        return;
-                    }
-
-                    if (merchant.isOpen() || !merchant.addItem(shopItem)) { // thanks Vcoc for pointing an exploit with unlimited shop slots
-                        c.sendPacket(PacketCreator.serverNotice(1, "You can't sell it anymore."));
-                        return;
-                    }
-
-                    if (ItemConstants.isRechargeable(ivItem.getItemId())) {
-                        InventoryManipulator.removeFromSlot(c, ivType, slot, ivItem.getQuantity(), true);
-                    } else {
-                        InventoryManipulator.removeFromSlot(c, ivType, slot, (short) (bundles * perBundle), true);
-                    }
-
+                } else {
                     c.sendPacket(PacketCreator.updateHiredMerchant(merchant, chr));
 
                     if (YamlConfig.config.server.USE_ENFORCE_MERCHANT_SAVE) {
@@ -658,10 +709,8 @@ public final class PlayerInteractionHandler extends AbstractPacketHandler {
                     try {
                         merchant.saveItems(false);   // thanks Masterrulax for realizing yet another dupe with merchants/Fredrick
                     } catch (SQLException ex) {
-                        ex.printStackTrace();
+                        log.error("Failed to persist Hired Merchant listing for chr {} item {}", chr.getName(), sourceItem.getItemId(), ex);
                     }
-                } else {
-                    c.sendPacket(PacketCreator.serverNotice(1, "You can't sell without owning a shop."));
                 }
             } else if (mode == Action.REMOVE_ITEM.getCode()) {
                 if (isTradeOpen(chr)) {
