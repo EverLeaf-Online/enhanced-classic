@@ -112,10 +112,12 @@ using (var donor = OpenDonor(donorPath))
     // v83 creates these controls at independent positions; later clients use one
     // shared anchor. Zero the donor pivots so visuals and v83 button hitboxes stay together.
     ReplaceProperty(targetStatus, "BtShop", donorStatus3, "mainBar/menu/button:CashShop", p => NormalizeButtonOrigins(p), changes);
+    ReplaceProperty(targetStatus, "BtNPT", donorStatus2, "mainBar/BtMTS", p => NormalizeButtonOrigins(p), changes);
     ReplaceProperty(targetStatus, "BtMenu", donorStatus3, "mainBar/menu/button:Menu", p => NormalizeButtonOrigins(p), changes);
     ReplaceProperty(targetStatus, "BtShort", donorStatus3, "mainBar/menu/button:Setting", p => NormalizeButtonOrigins(p), changes);
 
-    // TRADE/BtNPT remains untouched until the separate FM-label pass.
+    // BtNPT keeps the existing TRADE -> Free Market runtime behavior; only its
+    // visuals are replaced here so the middle button row uses one HUD generation.
     // Keep proven v83 HP/MP/EXP and compact-key controls so behavior and input
     // stay stable while StatusBar2/3 supply the modern HUD shell and main controls.
     target.SaveToDisk(outputPath);
@@ -145,8 +147,9 @@ var manifest = new
     {
         fullWidthStatusBar2Background = true,
         statusBar3MenuControls = new[] { "SHOP", "MENU", "SETTING/SHORTCUT" },
+        modernTradeButton = true,
+        tradeButtonRuntimeBehavior = "EverLeaf TRADE-to-Free-Market warp unchanged",
         modernQuickSlotTray = true,
-        tradeButtonPreservedForLaterFmPass = true,
         v83HpMpExpBehaviorPreserved = true,
         v83CompactShortcutBehaviorPreserved = true
     },

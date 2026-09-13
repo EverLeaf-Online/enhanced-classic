@@ -92,7 +92,7 @@ jobs:
           $v=Get-Content -Raw (Join-Path $root 'harepacker-validation.json') | ConvertFrom-Json
           if(-not $v.validation.allImagesParsed -or -not $v.validation.allXmlWellFormed -or -not $v.validation.imageAndXmlCountsMatch){throw 'validation flags failed'}
           $m=Get-Content -Raw (Join-Path $root 'statusbar-manifest.json') | ConvertFrom-Json
-          if($m.changes.Count -ne 5 -or -not $m.validation.outputReparsed){throw 'statusbar adapter manifest invalid'}
+          if($m.changes.Count -ne 6 -or -not $m.validation.outputReparsed){throw 'statusbar adapter manifest invalid'}
 
       - name: Upload verified candidate
         shell: pwsh
