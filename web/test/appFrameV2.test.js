@@ -7,6 +7,7 @@ const root = path.join(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const header = read('src/views/partials/header.ejs');
 const css = read('public/css/app-frame-v2-2026.css');
+const rankingsWide = read('public/css/rankings-wide-2026.css');
 const rankings = read('src/views/rankings.ejs');
 const wiki = read('src/views/wiki.ejs');
 
@@ -22,13 +23,13 @@ test('public routes use the viewport app frame after all prior style layers', ()
 });
 
 test('rankings are treated as a dense data workspace', () => {
-  for (const token of ['rankingStats','rankingSearch','rankingTabs','rankingPodium','rankingBoardV2','rankingTableV2']) {
+  for (const token of ['rankingsToolbar','rankingsInlineStats','rankingsClassTabs','rankingsFilterStack','rankingsWorkspace','rankingsLeadersPanel','rankingsTable']) {
     assert.match(rankings, new RegExp(token));
   }
-  assert.match(css, /body\.route-rankings \.siteContent>main/);
-  assert.match(css, /grid-template-rows:auto minmax\(0,1fr\)/);
-  assert.match(css, /Top three are a compact leader strip/);
-  assert.match(css, /thead\{position:sticky/);
+  assert.match(rankingsWide, /body\.route-rankings \.siteContent>main\.rankingsPage/);
+  assert.match(rankingsWide, /overflow:hidden!important/);
+  assert.match(rankingsWide, /grid-template-columns:minmax\(0,1\.7fr\) minmax\(300px,\.52fr\)/);
+  assert.match(rankingsWide, /rankingsLeaderList/);
 });
 
 test('wiki is treated as a compact searchable workspace', () => {
