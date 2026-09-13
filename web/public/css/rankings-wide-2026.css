@@ -517,3 +517,16 @@ body.route-rankings .rankingsEmpty p{margin:0 0 10px!important;color:#8f8b85!imp
   body.route-rankings .rankingsCharacterAvatar{width:30px!important;height:30px!important;flex-basis:30px!important}
   body.route-rankings .rankingsCharacterAvatar img{max-width:28px!important;max-height:28px!important}
 }
+
+/* Rankings hard override: suppress legacy cream zebra rows from global table themes. */
+body.route-rankings:not(.route-admin) table.rankingsTable tbody tr,
+body.route-rankings:not(.route-admin) table.rankingsTable tbody tr:nth-child(odd),
+body.route-rankings:not(.route-admin) table.rankingsTable tbody tr:nth-child(even){
+  background:#10110e!important;
+}
+body.route-rankings:not(.route-admin) table.rankingsTable tbody tr:hover{
+  background:#171814!important;
+}
+body.route-rankings:not(.route-admin) table.rankingsTable tbody td{
+  background:transparent!important;
+}
