@@ -25,8 +25,7 @@ import client.Character;
 import client.Client;
 import net.AbstractPacketHandler;
 import net.packet.InPacket;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import server.AntiCheatService;
 import server.maps.MapObject;
 
 import java.awt.*;
@@ -36,8 +35,6 @@ import java.awt.*;
  * @author Ronan
  */
 public final class ItemPickupHandler extends AbstractPacketHandler {
-    private static final Logger log = LoggerFactory.getLogger(ItemPickupHandler.class);
-
     @Override
     public void handlePacket(final InPacket p, final Client c) {
         p.readInt(); //Timestamp
@@ -52,9 +49,7 @@ public final class ItemPickupHandler extends AbstractPacketHandler {
 
         Point charPos = chr.getPosition();
         Point obPos = ob.getPosition();
-        if (Math.abs(charPos.getX() - obPos.getX()) > 800 || Math.abs(charPos.getY() - obPos.getY()) > 600) {
-            log.warn("Chr {} tried to pick up an item too far away. Mapid: {}, player pos: {}, object pos: {}",
-                    c.getPlayer().getName(), chr.getMapId(), charPos, obPos);
+        if (!AntiCheatService.validatePickup(chr, charPos, obPos, false)) {
             return;
         }
 

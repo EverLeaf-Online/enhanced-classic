@@ -83,6 +83,7 @@ import net.AbstractPacketHandler;
 import net.packet.InPacket;
 import net.server.PlayerBuffValueHolder;
 import scripting.AbstractPlayerInteraction;
+import server.AntiCheatService;
 import server.StatEffect;
 import server.TimerManager;
 import server.life.Element;
@@ -250,7 +251,9 @@ public abstract class AbstractDealDamageHandler extends AbstractPacketHandler {
                     }
 
                     if (distance > distanceToDetect) {
-                        AutobanFactory.DISTANCE_HACK.alert(player, "Distance Sq to monster: " + distance + " SID: " + attack.skill + " MID: " + monster.getId());
+                        String detail = "Distance Sq to monster: " + distance + " SID: " + attack.skill + " MID: " + monster.getId();
+                        AutobanFactory.DISTANCE_HACK.alert(player, detail);
+                        AntiCheatService.flag(player, "ATTACK_DISTANCE", detail, false);
                         monster.refreshMobPosition();
                     }
 
@@ -343,7 +346,7 @@ public abstract class AbstractDealDamageHandler extends AbstractPacketHandler {
                     } else if (attack.skill == ILArchMage.ICE_DEMON) {
                         long duration = SECONDS.toMillis(SkillFactory.getSkill(ILArchMage.ICE_DEMON).getEffect(player.getSkillLevel(SkillFactory.getSkill(ILArchMage.ICE_DEMON))).getDuration());
                         monster.setTempEffectiveness(Element.FIRE, ElementalEffectiveness.WEAK, duration);
-                    } else if (attack.skill == Outlaw.HOMING_BEACON || attack.skill == Corsair.BULLSEYE) {
+                    } else if (attack.skill == Outlaw.HOMING_BEACON || attack.skill == Corsair.BULLSEYE || attack.skill == Evan.KILLER_WINGS) {
                         StatEffect beacon = SkillFactory.getSkill(attack.skill).getEffect(player.getSkillLevel(attack.skill));
                         beacon.applyBeaconBuff(player, monster.getObjectId());
                     } else if (attack.skill == Outlaw.FLAME_THROWER) {
@@ -659,6 +662,15 @@ public abstract class AbstractDealDamageHandler extends AbstractPacketHandler {
                     }
                 }
 
+                int dragonFuryLevel = chr.getSkillLevel(Evan.DRAGON_FURY);
+                if (dragonFuryLevel > 0 && chr.getMaxMp() > 0) {
+                    StatEffect dragonFury = SkillFactory.getSkill(Evan.DRAGON_FURY).getEffect(dragonFuryLevel);
+                    int mpPercent = (int) ((chr.getMp() * 100L) / chr.getMaxMp());
+                    if (mpPercent > dragonFury.getX() && mpPercent < dragonFury.getY()) {
+                        calcDmgMax = calcDmgMax * dragonFury.getDamage() / 100;
+                    }
+                }
+
                 calcDmgMax *= effect.getMatk();
                 if (ret.skill == Cleric.HEAL) {
                     // This formula is still a bit wonky, but it is fairly accurate.
@@ -736,6 +748,10 @@ public abstract class AbstractDealDamageHandler extends AbstractPacketHandler {
         }
 
         boolean canCrit = chr.getJob().isA((Job.BOWMAN)) || chr.getJob().isA(Job.THIEF) || chr.getJob().isA(Job.NIGHTWALKER1) || chr.getJob().isA(Job.WINDARCHER1) || chr.getJob() == Job.ARAN3 || chr.getJob() == Job.ARAN4 || chr.getJob() == Job.MARAUDER || chr.getJob() == Job.BUCCANEER;
+        int jobId = chr.getJob().getId();
+        if (jobId >= Job.EVAN1.getId() && jobId <= Job.EVAN10.getId() && chr.getSkillLevel(Evan.CRITICAL_MAGIC) > 0) {
+            canCrit = true;
+        }
 
         if (chr.getBuffEffect(BuffStat.SHARP_EYES) != null) {
             // Any class that has sharp eyes can crit. Also, since it stacks with normal crit go ahead
@@ -861,7 +877,9 @@ public abstract class AbstractDealDamageHandler extends AbstractPacketHandler {
 
                 // Warn if the damage is over 1.5x what we calculated above.
                 if (damage > maxWithCrit * 1.5) {
-                    AutobanFactory.DAMAGE_HACK.alert(chr, "DMG: " + damage + " MaxDMG: " + maxWithCrit + " SID: " + ret.skill + " MobID: " + (monster != null ? monster.getId() : "null") + " Map: " + chr.getMap().getMapName() + " (" + chr.getMapId() + ")");
+                    String detail = "DMG: " + damage + " MaxDMG: " + maxWithCrit + " SID: " + ret.skill + " MobID: " + (monster != null ? monster.getId() : "null") + " Map: " + chr.getMap().getMapName() + " (" + chr.getMapId() + ")";
+                    AutobanFactory.DAMAGE_HACK.alert(chr, detail);
+                    AntiCheatService.flag(chr, "DAMAGE_HACK", detail, false);
                 }
 
                 // Add a ab point if its over 5x what we calculated.
