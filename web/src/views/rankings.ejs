@@ -31,24 +31,25 @@ const loadedTime=generatedAt.toLocaleTimeString(undefined,{hour:'numeric',minute
         <span class="rankingsKicker">EverLeaf leaderboard</span>
         <h1>Rankings</h1>
         <p>Track the strongest adventurers across EverLeaf.</p>
+        <div class="rankingsLiveLine"><span></span> Live database · Updated <%=loadedTime%></div>
       </div>
-      <form class="rankingsSearch" method="get" action="/rankings">
-        <input type="hidden" name="class" value="<%=activeClass%>">
-        <input type="search" name="q" value="<%=q%>" maxlength="20" placeholder="Search character" aria-label="Search rankings by character name">
-        <button type="submit">Search</button>
-        <% if(q){ %><a href="/rankings?class=<%=activeClass%>">Clear</a><% } %>
-      </form>
+      <div class="rankingsMastheadTools">
+        <form class="rankingsSearch" method="get" action="/rankings">
+          <input type="hidden" name="class" value="<%=activeClass%>">
+          <input type="search" name="q" value="<%=q%>" maxlength="20" placeholder="Search character" aria-label="Search rankings by character name">
+          <button type="submit">Search</button>
+          <% if(q){ %><a href="/rankings?class=<%=activeClass%>">Clear</a><% } %>
+        </form>
+        <div class="rankingsQuickStats">
+          <div><span>Ranked</span><strong><%=fmt(totalRanked)%></strong></div>
+          <div><span>Top Level</span><strong><%=fmt(maxLevel)%></strong></div>
+          <div><span>Online</span><strong><%=onlinePlayers==null?'—':fmt(onlinePlayers)%></strong></div>
+        </div>
+      </div>
     </div>
   </section>
 
   <div class="wrap rankingsContent">
-    <div class="rankingsOverview">
-      <div><span>Ranked characters</span><strong><%=fmt(totalRanked)%></strong></div>
-      <div><span>Highest level</span><strong><%=fmt(maxLevel)%></strong></div>
-      <div><span>Average level</span><strong><%=totalRanked?Math.round(avgLevel):0%></strong></div>
-      <div><span>Online now</span><strong><%=onlinePlayers==null?'—':fmt(onlinePlayers)%></strong></div>
-    </div>
-
     <section class="rankingsFilterPanel">
       <div class="rankingsFilterTitle">
         <div>
@@ -74,7 +75,7 @@ const loadedTime=generatedAt.toLocaleTimeString(undefined,{hour:'numeric',minute
           <div><span>Top 3</span><strong>Leading adventurers</strong></div>
           <small>Live character appearances</small>
         </div>
-        <div class="rankingsTopGrid">
+        <div class="rankingsTopGrid rankingsTopGridFeatured">
           <% topThree.forEach((r,i)=>{ const rank=i+1; %>
             <article class="rankingsTopCard rank<%=rank%>">
               <div class="rankingsTopRank"><span>#</span><strong><%=rank%></strong></div>
