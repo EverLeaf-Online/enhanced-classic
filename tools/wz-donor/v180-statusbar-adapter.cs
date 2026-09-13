@@ -1,6 +1,4 @@
 using System.Security.Cryptography;
-using System.Drawing;
-using System.Drawing.Imaging;
 using System.Text.Json;
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
@@ -81,39 +79,6 @@ static void NormalizeButtonOrigins(WzImageProperty property)
     foreach (var child in property.WzProperties.ToArray()) NormalizeButtonOrigins(child);
 }
 
-static void RemoveBakedQuickSlotArtwork(WzCanvasProperty canvas)
-{
-    // StatusBar2's 1366-wide background already contains a later-client quickslot
-    // panel at the far right. v83 also renders its own functional 4x2 quickslot on
-    // top, which creates the duplicated/non-functional box seen in-game. Preserve
-    // the approved left HUD pixel-for-pixel and replace only the baked right panel
-    // with a neutral strip sampled from the same donor background.
-    const int clearFromX = 1048;
-    const int sampleX = 850;
-    const int sampleWidth = 64;
-
-    using var original = canvas.PngProperty.GetImage(false);
-    if (original.Width < 1200 || original.Height <= 0)
-        throw new InvalidDataException($"Unexpected StatusBar2 background dimensions: {original.Width}x{original.Height}");
-
-    using var rebuilt = new Bitmap(original.Width, original.Height, PixelFormat.Format32bppArgb);
-    using (var graphics = Graphics.FromImage(rebuilt))
-    {
-        graphics.DrawImageUnscaled(original, 0, 0);
-        for (var x = clearFromX; x < original.Width; x += sampleWidth)
-        {
-            var width = Math.Min(sampleWidth, original.Width - x);
-            graphics.DrawImage(original,
-                new Rectangle(x, 0, width, original.Height),
-                new Rectangle(sampleX, 0, width, original.Height),
-                GraphicsUnit.Pixel);
-        }
-    }
-
-    canvas.PngProperty.PNG = rebuilt;
-    SetCanvasOrigin(canvas, 0, 14);
-}
-
 static void ReplaceProperty(WzImage targetImage, string targetPath, WzImage donorImage, string donorPath, Action<WzImageProperty>? mutate, List<object> changes)
 {
     var donorProperty = RequireProperty(donorImage, donorPath);
@@ -138,27 +103,39 @@ using (var donor = OpenDonor(donorPath))
     targetVersion = target.Version;
     donorVersion = donor.Version;
     var targetStatus = RequireImage(target, "StatusBar.img");
-    var donorStatusLegacy = RequireImage(donor, "StatusBar.img");
     var donorStatus2 = RequireImage(donor, "StatusBar2.img");
+    var donorStatus3 = RequireImage(donor, "StatusBar3.img");
 
-    ReplaceProperty(targetStatus, "base/backgrnd", donorStatus2, "mainBar/backgrnd", p => RemoveBakedQuickSlotArtwork((WzCanvasProperty)p), changes);
-    // The StatusBar2 quickslot tray is 145x93 and is anchored for the later runtime.
-    // v83 expects a compact 151x80 quickslot box, so use the donor legacy-shaped
-    // quickslot canvas here instead of forcing the incompatible later tray into it.
-    ReplaceProperty(targetStatus, "base/quickSlot", donorStatusLegacy, "base/quickSlot", p => SetCanvasOrigin((WzCanvasProperty)p, 0, 0), changes);
+    // The v83 executable still resolves StatusBar.img paths, so adapt the complete
+    // later HUD into those runtime paths rather than layering the old v83 HUD over it.
+    ReplaceProperty(targetStatus, "base/backgrnd", donorStatus2, "mainBar/backgrnd", p => SetCanvasOrigin((WzCanvasProperty)p, 0, 14), changes);
+    ReplaceProperty(targetStatus, "base/quickSlot", donorStatus3, "mainBar/quickSlot/backgrnd", p => SetCanvasOrigin((WzCanvasProperty)p, 0, 0), changes);
 
-    // Keep the four v83 controls on one later-client generation.  The previous
-    // mixed StatusBar2/StatusBar3 row left 34px controls inside 54px v83 slots,
-    // which created the uneven gaps visible in-game.  These StatusBar2 assets are
-    // the native 55/56x35 row, so they fit the existing v83 control/hitbox spacing.
+    // Replace the old v83 gauge chrome with StatusBar2 gauge chrome.  The v83
+    // HP/MP/EXP calculations remain the data source; only presentation is replaced.
+    ReplaceProperty(targetStatus, "gauge/graduation", donorStatus2, "mainBar/gaugeBackgrd", p => SetCanvasOrigin((WzCanvasProperty)p, 0, 0), changes);
+    ReplaceProperty(targetStatus, "gauge/bar", donorStatus2, "mainBar/gaugeCover", p => SetCanvasOrigin((WzCanvasProperty)p, 0, 0), changes);
+
+    // Main controls retain their proven v83 command IDs while using later-client art.
     ReplaceProperty(targetStatus, "BtShop", donorStatus2, "starPlanet/BtCashShop", p => NormalizeButtonOrigins(p), changes);
     ReplaceProperty(targetStatus, "BtNPT", donorStatus2, "mainBar/BtMTS", p => NormalizeButtonOrigins(p), changes);
     ReplaceProperty(targetStatus, "BtMenu", donorStatus2, "starPlanet/BtMenu", p => NormalizeButtonOrigins(p), changes);
     ReplaceProperty(targetStatus, "BtShort", donorStatus2, "starPlanet/BtSystem", p => NormalizeButtonOrigins(p), changes);
 
-    // BtNPT keeps the existing TRADE -> Free Market runtime behavior.  HP/MP/EXP
-    // and v83 shortcut behavior stay untouched while the visible main row is now
-    // internally consistent with the StatusBar2 HUD shell.
+    // Replace the old Equip/Item/Stat/Skill/Key buttons instead of leaving a v83
+    // control strip beside the modern quickslot panel.
+    ReplaceProperty(targetStatus, "EquipKey", donorStatus2, "mainBar/BtEquip", p => NormalizeButtonOrigins(p), changes);
+    ReplaceProperty(targetStatus, "InvenKey", donorStatus2, "mainBar/BtInven", p => NormalizeButtonOrigins(p), changes);
+    ReplaceProperty(targetStatus, "StatKey", donorStatus2, "mainBar/BtStat", p => NormalizeButtonOrigins(p), changes);
+    ReplaceProperty(targetStatus, "SkillKey", donorStatus2, "mainBar/BtSkill", p => NormalizeButtonOrigins(p), changes);
+    ReplaceProperty(targetStatus, "KeySet", donorStatus2, "mainBar/BtKeysetting", p => NormalizeButtonOrigins(p), changes);
+
+    // The native client patch expands v83 from 8 to 26 quickslots.  These controls
+    // now use the StatusBar3 extend/fold treatment around the 557x67 modern panel.
+    ReplaceProperty(targetStatus, "QuickSlot", donorStatus3, "mainBar/quickSlot/button:Extend", p => NormalizeButtonOrigins(p), changes);
+    ReplaceProperty(targetStatus, "QuickSlotD", donorStatus3, "mainBar/quickSlot/button:Fold", p => NormalizeButtonOrigins(p), changes);
+
+    // BtNPT retains EverLeaf's TRADE -> Free Market command behavior underneath.
     target.SaveToDisk(outputPath);
 }
 
@@ -167,8 +144,11 @@ if (Sha(targetPath) != targetBefore) throw new InvalidOperationException("Source
 using (var output = OpenTarget(outputPath))
 {
     var status = RequireImage(output, "StatusBar.img");
-    foreach (var path in new[] { "base/backgrnd", "base/quickSlot", "BtShop", "BtMenu", "BtShort", "BtNPT", "gauge" })
-        _ = RequireProperty(status, path);
+    foreach (var path in new[] {
+        "base/backgrnd", "base/quickSlot", "gauge/graduation", "gauge/bar",
+        "BtShop", "BtMenu", "BtShort", "BtNPT",
+        "EquipKey", "InvenKey", "StatKey", "SkillKey", "KeySet", "QuickSlot", "QuickSlotD"
+    }) _ = RequireProperty(status, path);
 }
 
 var outputSha = Sha(outputPath);
@@ -185,15 +165,16 @@ var manifest = new
     behavior = new
     {
         fullWidthStatusBar2Background = true,
-        statusBar2MainControls = new[] { "SHOP", "TRADE", "MENU", "SYSTEM/SHORTCUT" },
-        consistentMainControlWidth = true,
+        legacyV83HudVisualsReplaced = true,
+        statusBar2GaugeChrome = true,
+        statusBar2MainControls = new[] { "SHOP", "TRADE", "MENU", "SYSTEM", "EQUIP", "ITEM", "STAT", "SKILL", "KEYSETTING" },
         modernTradeButton = true,
         tradeButtonRuntimeBehavior = "EverLeaf TRADE-to-Free-Market warp unchanged",
-        v83CompatibleQuickSlotTray = true,
-        bakedStatusBar2QuickSlotArtworkRemoved = true,
-        v83FunctionalQuickSlotPreserved = true,
+        statusBar3ExpandedQuickSlotPanel = true,
+        quickSlotCount = 26,
+        quickSlotLayout = "13x2",
         v83HpMpExpBehaviorPreserved = true,
-        v83CompactShortcutBehaviorPreserved = true
+        nativeRuntimeExpansionRequired = true
     },
     validation = new { sourceUnchanged = true, outputReparsed = true, requiredRuntimePathsPresent = true, nonEmptyCandidate = true }
 };

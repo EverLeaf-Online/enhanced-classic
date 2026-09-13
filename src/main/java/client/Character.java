@@ -7380,14 +7380,19 @@ public class Character extends AbstractCharacterObject {
             ret.maplemount.setTiredness(mounttiredness);
             ret.maplemount.setActive(false);
 
-            // Quickslot key config
-            try (final PreparedStatement pSelectQuickslotKeyMapped = con.prepareStatement("SELECT keymap FROM quickslotkeymapped WHERE accountid = ?;")) {
+            // Quickslot key config. Modern EverLeaf stores all 26 positions in
+            // keymap_ext while retaining the first eight in the legacy BIGINT.
+            try (final PreparedStatement pSelectQuickslotKeyMapped = con.prepareStatement("SELECT keymap, keymap_ext FROM quickslotkeymapped WHERE accountid = ?;")) {
                 pSelectQuickslotKeyMapped.setInt(1, ret.getAccountID());
 
                 try (final ResultSet pResultSet = pSelectQuickslotKeyMapped.executeQuery()) {
                     if (pResultSet.next()) {
-                        ret.m_aQuickslotLoaded = LongTool.LongToBytes(pResultSet.getLong(1));
-                        ret.m_pQuickslotKeyMapped = new QuickslotBinding(ret.m_aQuickslotLoaded);
+                        byte[] extended = pResultSet.getBytes("keymap_ext");
+                        byte[] loaded = extended != null && extended.length == QuickslotBinding.QUICKSLOT_SIZE
+                                ? extended
+                                : LongTool.LongToBytes(pResultSet.getLong("keymap"));
+                        ret.m_pQuickslotKeyMapped = new QuickslotBinding(loaded);
+                        ret.m_aQuickslotLoaded = ret.m_pQuickslotKeyMapped.GetKeybindings();
                     }
                 }
             }
@@ -8221,15 +8226,17 @@ public class Character extends AbstractCharacterObject {
                 // No quickslots, or no change.
                 boolean bQuickslotEquals = this.m_pQuickslotKeyMapped == null || (this.m_aQuickslotLoaded != null && Arrays.equals(this.m_pQuickslotKeyMapped.GetKeybindings(), this.m_aQuickslotLoaded));
                 if (!bQuickslotEquals) {
-                    long nQuickslotKeymapped = LongTool.BytesToLong(this.m_pQuickslotKeyMapped.GetKeybindings());
+                    byte[] quickslots = this.m_pQuickslotKeyMapped.GetKeybindings();
+                    long legacyQuickslots = LongTool.BytesToLong(Arrays.copyOf(quickslots, QuickslotBinding.LEGACY_QUICKSLOT_SIZE));
 
-                    // Quickslot key config
-                    try (PreparedStatement ps = con.prepareStatement("INSERT INTO quickslotkeymapped (accountid, keymap) VALUES (?, ?) ON DUPLICATE KEY UPDATE keymap = ?;")) {
+                    // Persist all 26 positions and keep the first eight rollback-compatible.
+                    try (PreparedStatement ps = con.prepareStatement("INSERT INTO quickslotkeymapped (accountid, keymap, keymap_ext) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE keymap = VALUES(keymap), keymap_ext = VALUES(keymap_ext);")) {
                         ps.setInt(1, this.getAccountID());
-                        ps.setLong(2, nQuickslotKeymapped);
-                        ps.setLong(3, nQuickslotKeymapped);
+                        ps.setLong(2, legacyQuickslots);
+                        ps.setBytes(3, quickslots);
                         ps.executeUpdate();
                     }
+                    this.m_aQuickslotLoaded = quickslots.clone();
                 }
 
                 itemsWithType = new ArrayList<>();
@@ -8487,14 +8494,16 @@ public class Character extends AbstractCharacterObject {
                 // No quickslots, or no change.
                 boolean bQuickslotEquals = this.m_pQuickslotKeyMapped == null || (this.m_aQuickslotLoaded != null && Arrays.equals(this.m_pQuickslotKeyMapped.GetKeybindings(), this.m_aQuickslotLoaded));
                 if (!bQuickslotEquals) {
-                    long nQuickslotKeymapped = LongTool.BytesToLong(this.m_pQuickslotKeyMapped.GetKeybindings());
+                    byte[] quickslots = this.m_pQuickslotKeyMapped.GetKeybindings();
+                    long legacyQuickslots = LongTool.BytesToLong(Arrays.copyOf(quickslots, QuickslotBinding.LEGACY_QUICKSLOT_SIZE));
 
-                    try (final PreparedStatement psQuick = con.prepareStatement("INSERT INTO quickslotkeymapped (accountid, keymap) VALUES (?, ?) ON DUPLICATE KEY UPDATE keymap = ?;")) {
+                    try (final PreparedStatement psQuick = con.prepareStatement("INSERT INTO quickslotkeymapped (accountid, keymap, keymap_ext) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE keymap = VALUES(keymap), keymap_ext = VALUES(keymap_ext);")) {
                         psQuick.setInt(1, this.getAccountID());
-                        psQuick.setLong(2, nQuickslotKeymapped);
-                        psQuick.setLong(3, nQuickslotKeymapped);
+                        psQuick.setLong(2, legacyQuickslots);
+                        psQuick.setBytes(3, quickslots);
                         psQuick.executeUpdate();
                     }
+                    this.m_aQuickslotLoaded = quickslots.clone();
                 }
 
                 // Skill macros

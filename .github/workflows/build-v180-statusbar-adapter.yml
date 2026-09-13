@@ -5,6 +5,15 @@ on:
     branches: [donor/v180-low-friction-stage-20260911]
     paths:
       - tools/wz-donor/v180-statusbar-adapter.cs
+      - client/native/**
+      - client/scripts/apply-community-ui-preference.py
+      - client/scripts/apply-client-v2-rebrand.py
+      - src/main/java/client/Character.java
+      - src/main/java/client/keybind/QuickslotBinding.java
+      - src/main/java/net/server/channel/handlers/QuickslotKeyMappedModifiedHandler.java
+      - database/sql/1-db_database.sql
+      - database/sql/migration/everleaf_modern_quickslots.sql
+      - pom.xml
       - .github/workflows/build-v180-statusbar-adapter.yml
   workflow_dispatch:
 
@@ -27,6 +36,37 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'corretto'
+          cache: 'maven'
+
+      - name: Build modern quickslot server protocol
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          mvn -B -DskipTests package --file pom.xml
+          $jar='target/everleaf-server-1.0-SNAPSHOT.jar'
+          if(-not (Test-Path $jar)){throw 'EverLeaf server jar missing'}
+          Get-FileHash $jar -Algorithm SHA256
+
+      - name: Build modern HUD native runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python client/scripts/apply-community-ui-preference.py
+          python client/scripts/apply-client-v2-rebrand.py
+          msbuild "client/native/EverLeaf Client.sln" /m /t:Build /p:Configuration=Release /p:Platform=x86
+          $dll='client/native/out/Release/EverLeafMS.dll'
+          if(-not (Test-Path $dll)){throw 'EverLeafMS.dll missing'}
+          python client/scripts/verify-client-v2-branding.py $dll
+          Get-FileHash $dll -Algorithm SHA256
 
       - name: Configure SSH
         shell: pwsh
@@ -92,16 +132,19 @@ jobs:
           $v=Get-Content -Raw (Join-Path $root 'harepacker-validation.json') | ConvertFrom-Json
           if(-not $v.validation.allImagesParsed -or -not $v.validation.allXmlWellFormed -or -not $v.validation.imageAndXmlCountsMatch){throw 'validation flags failed'}
           $m=Get-Content -Raw (Join-Path $root 'statusbar-manifest.json') | ConvertFrom-Json
-          if($m.changes.Count -ne 6 -or -not $m.validation.outputReparsed){throw 'statusbar adapter manifest invalid'}
+          if($m.changes.Count -ne 15 -or -not $m.validation.outputReparsed){throw 'statusbar adapter manifest invalid'}
 
       - name: Upload verified candidate
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $root=Join-Path $env:RUNNER_TEMP 'statusbar-adapter'
-          ssh everleaf-oracle "sudo mkdir -p '$env:STAGE_ROOT' && sudo chown -R ubuntu:ubuntu '$env:STAGE_ROOT' && rm -f '$env:STAGE_ROOT/UI.wz' '$env:STAGE_ROOT/statusbar-manifest.json' '$env:STAGE_ROOT/harepacker-validation.json' '$env:STAGE_ROOT/SHA256SUMS'"
+          ssh everleaf-oracle "sudo mkdir -p '$env:STAGE_ROOT' && sudo chown -R ubuntu:ubuntu '$env:STAGE_ROOT' && rm -f '$env:STAGE_ROOT/UI.wz' '$env:STAGE_ROOT/EverLeafMS.dll' '$env:STAGE_ROOT/everleaf-server-1.0-SNAPSHOT.jar' '$env:STAGE_ROOT/everleaf_modern_quickslots.sql' '$env:STAGE_ROOT/statusbar-manifest.json' '$env:STAGE_ROOT/harepacker-validation.json' '$env:STAGE_ROOT/SHA256SUMS'"
           if($LASTEXITCODE){throw 'stage prepare failed'}
           scp (Join-Path $root 'UI.wz') "everleaf-oracle`:$env:STAGE_ROOT/UI.wz"; if($LASTEXITCODE){throw 'candidate upload failed'}
+          scp 'client/native/out/Release/EverLeafMS.dll' "everleaf-oracle`:$env:STAGE_ROOT/EverLeafMS.dll"; if($LASTEXITCODE){throw 'native candidate upload failed'}
+          scp 'target/everleaf-server-1.0-SNAPSHOT.jar' "everleaf-oracle`:$env:STAGE_ROOT/everleaf-server-1.0-SNAPSHOT.jar"; if($LASTEXITCODE){throw 'server candidate upload failed'}
+          scp 'database/sql/migration/everleaf_modern_quickslots.sql' "everleaf-oracle`:$env:STAGE_ROOT/everleaf_modern_quickslots.sql"; if($LASTEXITCODE){throw 'quickslot migration upload failed'}
           scp (Join-Path $root 'statusbar-manifest.json') "everleaf-oracle`:$env:STAGE_ROOT/statusbar-manifest.json"; if($LASTEXITCODE){throw 'manifest upload failed'}
           scp (Join-Path $root 'harepacker-validation.json') "everleaf-oracle`:$env:STAGE_ROOT/harepacker-validation.json"; if($LASTEXITCODE){throw 'validation upload failed'}
-          ssh everleaf-oracle "sha256sum '$env:STAGE_ROOT/UI.wz' > '$env:STAGE_ROOT/SHA256SUMS'"
+          ssh everleaf-oracle "sha256sum '$env:STAGE_ROOT/UI.wz' '$env:STAGE_ROOT/EverLeafMS.dll' '$env:STAGE_ROOT/everleaf-server-1.0-SNAPSHOT.jar' '$env:STAGE_ROOT/everleaf_modern_quickslots.sql' > '$env:STAGE_ROOT/SHA256SUMS'"
