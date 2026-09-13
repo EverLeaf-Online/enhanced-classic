@@ -79,30 +79,28 @@ inline void ApplyBorderlessWindow(HWND window) {
         monitorRect.bottom = GetSystemMetrics(SM_CYSCREEN);
     }
 
-    const int monitorWidth = monitorRect.right - monitorRect.left;
-    const int monitorHeight = monitorRect.bottom - monitorRect.top;
-    const int width = Client::m_nGameWidth;
-    const int height = Client::m_nGameHeight;
-    const bool monitorSized = width == monitorWidth && height == monitorHeight;
-    const int x = monitorSized ? monitorRect.left : monitorRect.left + (monitorWidth - width) / 2;
-    const int y = monitorSized ? monitorRect.top : monitorRect.top + (monitorHeight - height) / 2;
+    // Borderless mode must cover the monitor, not merely remove chrome from a
+    // game-resolution-sized window. Keeping Client::m_nGameWidth/Height here
+    // was the regression that made Alt+Enter leave 1280x720 centered on a
+    // 1920x1080 display. The renderer remains in the stable windowed path while
+    // D3D presents into a monitor-sized borderless client area.
+    const int width = monitorRect.right - monitorRect.left;
+    const int height = monitorRect.bottom - monitorRect.top;
 
     SetWindowPos(
         window,
         HWND_TOP,
-        x,
-        y,
+        monitorRect.left,
+        monitorRect.top,
         width,
         height,
         SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW
     );
 
     gBorderlessActive = true;
-    CrashDiagnostics::LogEvent("borderless window applied");
-    std::cout << "EverLeaf Client v2: borderless window applied at "
-              << width << "x" << height
-              << (monitorSized ? " (fullscreen)" : " (centered)")
-              << std::endl;
+    CrashDiagnostics::LogEvent("borderless fullscreen applied");
+    std::cout << "EverLeaf Client v2: borderless fullscreen applied at "
+              << width << "x" << height << std::endl;
 }
 
 inline bool RestoreWindowedState(HWND window) {
