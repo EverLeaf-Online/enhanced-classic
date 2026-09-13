@@ -28,6 +28,7 @@ const views = {
 
 test('one unified terminal stylesheet is server-loaded on every route', () => {
   assert.match(header, /unified-terminal-2026\.css\?v=1/);
+  assert.match(header, /site-unified-polish-2026\.css\?v=1/);
   assert.match(header, /body class="siteRoute route-<%=routeKey%>/);
   assert.match(siteJs, /site-\$\{routeSegment/);
   assert.match(siteJs, /document\.body\.classList\.add\(routeClass\)/);
@@ -55,7 +56,8 @@ test('unified terminal shell covers every major public product surface', () => {
 test('major routes retain their real functional page structures under the redesign', () => {
   assert.match(views.news, /newsList/);
   assert.match(views.downloads, /downloadCard/);
-  assert.match(views.rankings, /rankingPodium/);
+  assert.match(views.rankings, /rankingsLeadersPanel/);
+  assert.match(views.rankings, /rankingsTable/);
   assert.match(views.rankings, /data-live-avatar/);
   assert.match(views.wiki, /wikiDataHero/);
   assert.match(views.wiki, /wikiCatalogGrid/);
