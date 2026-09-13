@@ -26,6 +26,7 @@ import client.Client;
 import client.inventory.Pet;
 import net.AbstractPacketHandler;
 import net.packet.InPacket;
+import server.AntiCheatService;
 import server.maps.MapItem;
 import server.maps.MapObject;
 import tools.PacketCreator;
@@ -53,6 +54,11 @@ public final class PetLootHandler extends AbstractPacketHandler {
         MapObject ob = chr.getMap().getMapObject(oid);
         try {
             MapItem mapitem = (MapItem) ob;
+            if (!AntiCheatService.validatePickup(chr, pet.getPos(), mapitem.getPosition(), true)) {
+                c.sendPacket(PacketCreator.enableActions());
+                return;
+            }
+
             if (mapitem.getMeso() > 0) {
                 if (!chr.isEquippedMesoMagnet()) {
                     c.sendPacket(PacketCreator.enableActions());

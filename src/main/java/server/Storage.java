@@ -233,10 +233,18 @@ public class Storage {
     public byte getSlot(InventoryType type, byte slot) {
         lock.lock();
         try {
+            if (type == null || slot < 0) {
+                return -1;
+            }
+            List<Item> typed = typeItems.get(type);
+            if (typed == null || slot >= typed.size()) {
+                return -1;
+            }
+            Item target = typed.get(slot);
             byte ret = 0;
             List<Item> storageItems = getItems();
             for (Item item : storageItems) {
-                if (item == typeItems.get(type).get(slot)) {
+                if (item == target) {
                     return ret;
                 }
                 ret++;

@@ -171,6 +171,9 @@ public class CommandsExecutor {
         addCommand(new String[]{"marks", "verdant"}, MarksCommand.class);
         addCommand("progress", ProgressCommand.class);
         addCommand(new String[]{"weeklies", "weekly"}, WeekliesCommand.class);
+        addCommand(new String[]{"leafshop", "leaves"}, LeafShopCommand.class);
+        addCommand("vote", VoteCommand.class);
+        addCommand(new String[]{"voteshop", "voteexchange"}, VoteShopCommand.class);
         addCommand("gm", GmCommand.class);
         addCommand("reportbug", ReportBugCommand.class);
         addCommand("points", ReadPointsCommand.class);
@@ -264,6 +267,7 @@ public class CommandsExecutor {
         addCommand("maxhpmp", 3, MaxHpMpCommand.class);
         addCommand("music", 3, MusicCommand.class);
         addCommand("monitor", 3, MonitorCommand.class);
+        addCommand("acstatus", 3, AntiCheatStatusCommand.class);
         addCommand("monitors", 3, MonitorsCommand.class);
         addCommand("ignore", 3, IgnoreCommand.class);
         addCommand("ignored", 3, IgnoredCommand.class);

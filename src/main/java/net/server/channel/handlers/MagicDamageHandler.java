@@ -34,6 +34,7 @@ import constants.skills.FPArchMage;
 import constants.skills.ILArchMage;
 import net.packet.InPacket;
 import net.packet.Packet;
+import server.AntiCheatService;
 import server.StatEffect;
 import tools.PacketCreator;
 
@@ -51,6 +52,15 @@ public final class MagicDamageHandler extends AbstractDealDamageHandler {
 		chr.getAutobanManager().spam(8);*/
 
         AttackInfo attack = parseDamage(p, chr, false, true);
+        if (attack.invalid) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+        if (!AntiCheatService.validateAttackSkill(chr, attack.skill)) {
+            c.sendPacket(PacketCreator.enableActions());
+            return;
+        }
+        AntiCheatService.inspectAttack(chr, attack.skill, "magic");
 
         if (chr.getBuffEffect(BuffStat.MORPH) != null) {
             if (chr.getBuffEffect(BuffStat.MORPH).isMorphWithoutAttack()) {

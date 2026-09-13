@@ -37,6 +37,7 @@ import net.AbstractPacketHandler;
 import net.packet.InPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import server.AntiCheatService;
 import server.ItemInformationProvider;
 import server.Trade;
 import server.maps.FieldLimit;
@@ -147,6 +148,20 @@ public final class PlayerInteractionHandler extends AbstractPacketHandler {
         try {
             byte mode = p.readByte();
             final Character chr = c.getPlayer();
+
+            String guardedAction = null;
+            int guardedSoft = 0;
+            int guardedHard = 0;
+            if (mode == Action.SET_MESO.getCode()) { guardedAction = "TRADE_MESO"; guardedSoft = 8; guardedHard = 16; }
+            else if (mode == Action.SET_ITEMS.getCode()) { guardedAction = "TRADE_ITEM"; guardedSoft = 20; guardedHard = 40; }
+            else if (mode == Action.CONFIRM.getCode()) { guardedAction = "TRADE_CONFIRM"; guardedSoft = 5; guardedHard = 10; }
+            else if (mode == Action.ADD_ITEM.getCode() || mode == Action.PUT_ITEM.getCode()) { guardedAction = "SHOP_LIST"; guardedSoft = 15; guardedHard = 30; }
+            else if (mode == Action.BUY.getCode() || mode == Action.MERCHANT_BUY.getCode()) { guardedAction = "SHOP_BUY"; guardedSoft = 20; guardedHard = 40; }
+            else if (mode == Action.TAKE_ITEM_BACK.getCode()) { guardedAction = "SHOP_WITHDRAW"; guardedSoft = 15; guardedHard = 30; }
+            if (guardedAction != null && !AntiCheatService.guardSensitiveAction(chr, guardedAction, guardedSoft, guardedHard)) {
+                c.sendPacket(PacketCreator.enableActions());
+                return;
+            }
 
             if (mode == Action.CREATE.getCode()) {
                 if (!chr.isAlive()) {    // thanks GabrielSin for pointing this
@@ -483,16 +498,35 @@ public final class PlayerInteractionHandler extends AbstractPacketHandler {
                     game.broadcast(PacketCreator.getMatchCardSelect(game, turn, slot, firstslot, 1));
                 }
             } else if (mode == Action.SET_MESO.getCode()) {
-                chr.getTrade().setMeso(p.readInt());
+                Trade trade = chr.getTrade();
+                int meso = p.readInt();
+                if (trade == null || !AntiCheatService.validateMeso(chr, "TRADE_SET_MESO", meso, chr.getMeso())) {
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+                trade.setMeso(meso);
             } else if (mode == Action.SET_ITEMS.getCode()) {
                 ItemInformationProvider ii = ItemInformationProvider.getInstance();
                 InventoryType ivType = InventoryType.getByType(p.readByte());
                 short pos = p.readShort();
-                Item item = chr.getInventory(ivType).getItem(pos);
                 short quantity = p.readShort();
                 byte targetSlot = p.readByte();
 
+                if (ivType == null || ivType == InventoryType.UNDEFINED || ivType == InventoryType.CANHOLD || ivType == InventoryType.EQUIPPED) {
+                    AntiCheatService.flag(chr, "TRADE_INVENTORY_TYPE", "type=" + ivType + " pos=" + pos, true);
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+                Inventory tradeInventory = chr.getInventory(ivType);
+                if (pos < 1 || pos > tradeInventory.getSlotLimit()) {
+                    AntiCheatService.flag(chr, "TRADE_INVENTORY_SLOT", "type=" + ivType + " pos=" + pos + " limit=" + tradeInventory.getSlotLimit(), true);
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
+                Item item = tradeInventory.getItem(pos);
+
                 if (targetSlot < 1 || targetSlot > 9) {
+                    AntiCheatService.flag(chr, "TRADE_TARGET_SLOT", "slot=" + targetSlot, true);
                     log.warn("[Hack] Chr {} Trying to dupe on trade slot.", chr.getName());
                     c.sendPacket(PacketCreator.enableActions());
                     return;
@@ -515,15 +549,20 @@ public final class PlayerInteractionHandler extends AbstractPacketHandler {
                     return;
                 }
 
-                if (quantity < 1 || quantity > item.getQuantity()) {
+                if (!AntiCheatService.validateQuantity(chr, "TRADE_ITEM", quantity, item.getQuantity())) {
                     c.sendPacket(PacketCreator.serverNotice(1, "You don't have enough quantity of the item."));
                     c.sendPacket(PacketCreator.enableActions());
                     return;
                 }
 
                 Trade trade = chr.getTrade();
+                if (trade == null || trade.getPartner() == null || !trade.isFullTrade()) {
+                    AntiCheatService.flag(chr, "STALE_TRADE_ITEM", "item=" + item.getItemId() + " quantity=" + quantity, false);
+                    c.sendPacket(PacketCreator.enableActions());
+                    return;
+                }
                 if (trade != null) {
-                    if ((quantity <= item.getQuantity() && quantity >= 0) || ItemConstants.isRechargeable(item.getItemId())) {
+                    if ((quantity <= item.getQuantity() && quantity >= 1) || ItemConstants.isRechargeable(item.getItemId())) {
                         if (ii.isDropRestricted(item.getItemId())) { // ensure that undroppable items do not make it to the trade window
                             if (!KarmaManipulator.hasKarmaFlag(item)) {
                                 c.sendPacket(PacketCreator.serverNotice(1, "That item is untradeable."));

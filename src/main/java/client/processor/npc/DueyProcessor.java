@@ -38,6 +38,7 @@ import constants.inventory.ItemConstants;
 import net.server.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import server.AntiCheatService;
 import server.DueyPackage;
 import server.ItemInformationProvider;
 import server.Trade;
@@ -303,7 +304,9 @@ public class DueyProcessor {
 
                 int fee = Trade.getFee(sendMesos);
                 if (sendMessage != null && sendMessage.length() > 100) {
-                    AutobanFactory.PACKET_EDIT.alert(c.getPlayer(), c.getPlayer().getName() + " tried to packet edit with Quick Delivery on duey.");
+                    String detail = c.getPlayer().getName() + " tried to packet edit Duey message length=" + sendMessage.length();
+                    AutobanFactory.PACKET_EDIT.alert(c.getPlayer(), detail);
+                    AntiCheatService.flag(c.getPlayer(), "DUEY_MESSAGE", detail, true);
                     log.warn("Chr {} tried to use duey with too long of a text", c.getPlayer().getName());
                     c.disconnect(true, false);
                     return;
@@ -311,15 +314,19 @@ public class DueyProcessor {
                 if (!quick) {
                     fee += 5000;
                 } else if (!c.getPlayer().haveItem(ItemId.QUICK_DELIVERY_TICKET)) {
-                    AutobanFactory.PACKET_EDIT.alert(c.getPlayer(), c.getPlayer().getName() + " tried to packet edit with Quick Delivery on duey.");
+                    String detail = c.getPlayer().getName() + " tried Quick Delivery without a ticket; mesos=" + sendMesos + " amount=" + amount;
+                    AutobanFactory.PACKET_EDIT.alert(c.getPlayer(), detail);
+                    AntiCheatService.flag(c.getPlayer(), "DUEY_QUICK_TICKET", detail, true);
                     log.warn("Chr {} tried to use duey with Quick Delivery without a ticket, mesos {} and amount {}", c.getPlayer().getName(), sendMesos, amount);
                     c.disconnect(true, false);
                     return;
                 }
 
                 long finalcost = (long) sendMesos + fee;
-                if (finalcost < 0 || finalcost > Integer.MAX_VALUE || (amount < 1 && sendMesos == 0)) {
-                    AutobanFactory.PACKET_EDIT.alert(c.getPlayer(), c.getPlayer().getName() + " tried to packet edit with duey.");
+                if (sendMesos < 0 || finalcost < 0 || finalcost > Integer.MAX_VALUE || (amount < 1 && sendMesos == 0)) {
+                    String detail = c.getPlayer().getName() + " invalid Duey transfer mesos=" + sendMesos + " amount=" + amount + " finalCost=" + finalcost;
+                    AutobanFactory.PACKET_EDIT.alert(c.getPlayer(), detail);
+                    AntiCheatService.flag(c.getPlayer(), "DUEY_TRANSFER", detail, true);
                     log.warn("Chr {} tried to use duey with mesos {} and amount {}", c.getPlayer().getName(), sendMesos, amount);
                     c.disconnect(true, false);
                     return;

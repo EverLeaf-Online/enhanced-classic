@@ -32,6 +32,7 @@ import constants.game.GameConstants;
 import constants.skills.Aran;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import server.AntiCheatService;
 import tools.PacketCreator;
 
 /**
@@ -49,14 +50,18 @@ public class AssignSPProcessor {
         Character player = c.getPlayer();
         Skill skill = SkillFactory.getSkill(skillid);
         if (skill == null) {
-            AutobanFactory.PACKET_EDIT.alert(player, "tried to assign SP to an unknown skill.");
+            String detail = "tried to assign SP to unknown skill " + skillid;
+            AutobanFactory.PACKET_EDIT.alert(player, detail);
+            AntiCheatService.flag(player, "SP_UNKNOWN_SKILL", detail, true);
             log.warn("Chr {} tried to assign SP to unknown skill {}.", player.getName(), skillid);
             c.sendPacket(PacketCreator.enableActions());
             return false;
         }
 
         if ((!GameConstants.isPqSkillMap(player.getMapId()) && GameConstants.isPqSkill(skillid)) || (!player.isGM() && GameConstants.isGMSkills(skillid)) || (!GameConstants.isInJobTree(skillid, player.getJob().getId()) && !player.isGM())) {
-            AutobanFactory.PACKET_EDIT.alert(player, "tried to packet edit in distributing sp.");
+            String detail = "tried to assign SP outside job tree; skill=" + skillid + " job=" + player.getJob().getId();
+            AutobanFactory.PACKET_EDIT.alert(player, detail);
+            AntiCheatService.flag(player, "SP_JOB_TREE", detail, true);
             log.warn("Chr {} tried to use skill {} without it being in their job.", c.getPlayer().getName(), skillid);
 
             c.disconnect(true, false);
@@ -83,7 +88,9 @@ public class AssignSPProcessor {
             int skillBook = GameConstants.getSkillBook(skillid / 10000);
             int[] remainingSps = player.getRemainingSps();
             if (skillBook < 0 || skillBook >= remainingSps.length) {
-                AutobanFactory.PACKET_EDIT.alert(player, "tried to assign SP with an invalid skill-book index.");
+                String detail = "invalid skill-book index=" + skillBook + " skill=" + skillid;
+                AutobanFactory.PACKET_EDIT.alert(player, detail);
+                AntiCheatService.flag(player, "SP_BOOK", detail, true);
                 log.warn("Chr {} produced invalid skill-book index {} for skill {}.", player.getName(), skillBook, skillid);
                 c.sendPacket(PacketCreator.enableActions());
                 return;
