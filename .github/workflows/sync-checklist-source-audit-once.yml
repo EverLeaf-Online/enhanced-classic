@@ -1,0 +1,124 @@
+name: Sync checklist source audit once
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/sync-checklist-source-audit-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply checklist status patch
+        shell: bash
+        run: |
+          cat > /tmp/checklist.patch <<'PATCH'
+          diff --git a/docs/EVERLEAF_MASTER_CHECKLIST.md b/docs/EVERLEAF_MASTER_CHECKLIST.md
+          --- a/docs/EVERLEAF_MASTER_CHECKLIST.md
+          +++ b/docs/EVERLEAF_MASTER_CHECKLIST.md
+          @@ -2,7 +2,7 @@
+           
+           Repository-backed working checklist for the current EverLeaf release line.
+           
+          -Last synchronized: **2026-09-11** after the live account milestone progression rollout. Monster Book, quest, bounded evolving-ring, and capped Account Legacy progression are deployed on production; Deploy EverLeaf Game Production #63 rebuilt/restarted the server successfully and verified login plus all 20 channels and relay ports.
+          +Last synchronized: **2026-09-12** after the shop/merchant integrity, reactor classification, quest transaction, NPC-shop, Maker, boss-prerequisite, Gachapon, and major-boss reward-table source audit batch. These source changes are canonical on `master`; the production baseline below remains the last explicitly deployed game release until the next guarded deployment.
+           
+           ## Current production baseline
+           
+          @@ -276,6 +276,8 @@
+           - ✅ Hidden Street references checked.
+           - ✅ NPC/mob/reactor asset references audited.
+           - ✅ Important missing reactor handlers restored, including Zakum prequest, Horntail maze, Romeo/Juliet, Pink Bean transition, GPQ/Sharenian, and Hidden Street/drop reactors.
+          +- ✅ All 45 spawned action-bearing reactors without same-ID JS handlers are explicitly classified: 34 are dormant/legacy assets and 11 retained Balrog/CWKPQ/APQ reactors have verified event/NPC/WZ-state owners, so no guessed scripts are required.
+          +- ✅ Reactor coverage now guards the retained ownership contracts so later content changes reopen the finding automatically.
+           - ✅ Event/map manager disposal framework exists.
+           - 🟡 Traverse major travel/Hidden Street chains in packaged client.
+           - 🟡 Verify reactor animation/state transitions live.
+          @@ -327,12 +329,14 @@
+           - ✅ Reward quantity/overflow safety audited.
+           - ✅ Repeatable interval validity audited.
+           - ✅ Quest gameplay-completeness audit tooling exists.
+          +- ✅ Quest reward replay/disconnect source audit passes: completion is recorded before reward settlement, preventing reconnect/packet replay duplication; a process crash in the settlement window can cause loss/partial reward rather than duplication.
+          +- ✅ Scripted quest-item transfer source audit passes across direct Trade, PlayerShop, Hired Merchant, Duey and ground-drop restrictions; same-account Storage remains intentionally outside the player-to-player gate.
+           - 🟡 Live-test advancement quest chains.
+           - 🟡 Live-test boss prerequisite chains.
+           - 🟡 Live-test abandon/restart exploit paths.
+           - 🟡 Live-test repeatable/daily/weekly cooldown behavior.
+          -- 🟡 Test reward disconnect/relog replay behavior.
+          -- 🟡 Verify scripted quest items cannot bypass transfer restrictions.
+          +- 🟡 Runtime-test quest reward disconnect/relog failure handling despite the clean source replay audit.
+          +- 🟡 Runtime-fuzz quest-item transfer attempts across the guarded transaction surfaces.
+           
+           # 17. Monsters / Spawns / Drops
+           
+          @@ -364,6 +368,9 @@
+           - ✅ Reward replay protections improved.
+           - ✅ Event unregister replay protection added.
+           - ✅ Death/Wheel event bypass fixed.
+          +- ✅ Boss prerequisite source cross-check covers Zakum, Horntail, Papulatus and Empress; the missing Empress Stronghold gate was corrected. Pink Bean intentionally remains a documented policy review because its recruiter currently uses level/map progression without an additional quest/item gate.
+          +- ✅ Major-boss reward-table audit now cross-checks Papulatus, Zakum, Horntail, Pink Bean and Empress reward-bearing IDs against encounter clear ownership.
+          +- ✅ Papulatus controlled rare-scroll rewards are corrected from transitional body `8500001` to final/reward-bearing body `8500002`; an idempotent corrective migration exists for databases that previously applied the old target.
+           - 🟡 Full Zakum live party lifecycle.
+           - 🟡 Full Horntail live run.
+           - 🟡 Full Papulatus live run.
+          @@ -372,7 +379,7 @@
+           - 🟡 Pianus/Balrog and other retained boss lifecycle checks.
+           - 🟡 Expedition signup/leader transfer/disconnect/rejoin cleanup.
+           - 🟡 Entry/lockout/cooldown policy validation.
+          -- 🟡 Boss prerequisite quest validation.
+          +- 🟡 Live boss prerequisite quest-chain validation, including the documented Pink Bean policy decision.
+           - 🟡 Boss death/respawn/return-map/re-entry validation.
+           - 🟡 Boss drop/reward balance.
+           
+          @@ -463,6 +470,7 @@
+           - ✅ Fredrick recovery hardening exists.
+           - ✅ PlayerShop transaction integrity exists.
+           - ✅ PlayerShop snapshot consistency exists.
+          +- ✅ PlayerShop/Hired Merchant listing-source integrity hardening is canonical on `master`: invalid inventory types fail closed, listing quantity arithmetic is checked, the exact source item is revalidated under inventory lock, and failed revalidation rolls back the admitted listing by identity.
+           - ✅ Duey package ownership hardening exists.
+           - ✅ Duey settlement hardening exists.
+           - ✅ Duey is disabled in production (`USE_DUEY: false`).
+          @@ -480,11 +488,12 @@
+           # 24. Shops / Exchanges / Crafting / Rooted Forge
+           
+           - ✅ Rooted Forge framework exists.
+          -- 🟡 Audit standard shop inventory mappings.
+          +- ✅ Canonical NPC-shop mapping audit passes: 113 shops / 3,998 listings, with the single duplicate-position seed collision corrected idempotently.
+          +- ✅ Maker/crafting source-integrity audit passes recipe/ingredient/meso/level/skill/reagent/output-space preflights and per-client serialization; the remaining crash window is loss-only, not replay/duplication.
+           - 🟡 Verify buy/sell quantity, meso, inventory-space checks, and rollback live.
+           - 🟡 Verify extreme quantity and meso-cap handling in NPC shops.
+           - 🟡 Verify exchange/token shops.
+          -- 🟡 Audit Maker/crafting if retained.
+          +- 🟡 Runtime-test Maker success/failure and process-interruption behavior if retained.
+           - 🟡 Verify Rooted Forge fulfillment, persistence, stat application, retry/failure, and exploit resistance live.
+           - 🟡 Verify custom-material acquisition/consumption.
+           
+          @@ -496,6 +505,9 @@
+           - ✅ Reward-source/economy audits exist.
+           - ✅ Maple Leaf exchange audit exists.
+           - ✅ Gachapon/reward-source audit exists.
+          +- ✅ All 16 reviewed duplicate Gachapon entries were removed; the canonical local pools now report zero duplicate IDs and retain the 90/8/2 tier split.
+          +- ✅ Major-boss reward-table source audit exists and guards final reward-bearing mob IDs plus the tiered Chaos/White Scroll target table.
+          +- ✅ Papulatus rare-scroll target correction is represented both in the canonical boss migration and in a separate idempotent corrective migration for already-upgraded databases.
+           - ✅ Vote Point audit exists.
+           - ✅ Ordinary global Chaos/White drops removed.
+           - 🟡 Complete final economy source/sink model.
+          PATCH
+          git apply --check /tmp/checklist.patch
+          git apply /tmp/checklist.patch
+          grep -q 'All 45 spawned action-bearing reactors' docs/EVERLEAF_MASTER_CHECKLIST.md
+          grep -q 'All 16 reviewed duplicate Gachapon entries' docs/EVERLEAF_MASTER_CHECKLIST.md
+      - name: Commit checklist synchronization
+        run: |
+          git config user.name 'EverLeaf Maintenance Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add docs/EVERLEAF_MASTER_CHECKLIST.md
+          git commit -m 'Synchronize source audit checklist status'
+          git push origin HEAD:master
